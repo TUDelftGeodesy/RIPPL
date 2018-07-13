@@ -174,6 +174,8 @@ class RadarDem(InterpDem):
             else:
                 print('Interval should be a list with 2 values [interval lines, interval pixels]')
                 return
+        elif interval == [1, 1]:
+            int_str = ''
         else:
             if warn:
                 print('If you choose to use an interval gecoding and dem creation should be done using the same intervals')
@@ -181,11 +183,13 @@ class RadarDem(InterpDem):
 
         if len(buffer) != 2:
             if buffer == '':
-                buffer = [1, 1]
+                buffer = [0, 0]
                 buf_str = ''
             else:
                 print('Buffer should be a list with 2 values [interval lines, interval pixels]')
                 return
+        elif buffer == [0, 0]:
+            buf_str = ''
         else:
             if warn:
                 print('If you choose to use an interval gecoding and dem creation should be done using the same buffers')
