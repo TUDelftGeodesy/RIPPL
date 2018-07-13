@@ -174,7 +174,7 @@ class RadarDem(InterpDem):
             else:
                 print('Interval should be a list with 2 values [interval lines, interval pixels]')
                 return
-        elif interval == [1, 1]:
+        elif list(interval) == [1, 1]:
             int_str = ''
         else:
             if warn:
@@ -188,7 +188,7 @@ class RadarDem(InterpDem):
             else:
                 print('Buffer should be a list with 2 values [interval lines, interval pixels]')
                 return
-        elif buffer == [0, 0]:
+        elif list(buffer) == [0, 0]:
             buf_str = ''
         else:
             if warn:
@@ -196,7 +196,6 @@ class RadarDem(InterpDem):
             buf_str = 'buf_' + str(buffer[0]) + '_' + str(buffer[1])
         interval = interval
         buffer = buffer
-
         if int_str and buf_str:
             sample = '_' + int_str + '_' + buf_str
         elif int_str and not buf_str:
