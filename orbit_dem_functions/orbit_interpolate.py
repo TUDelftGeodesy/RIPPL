@@ -4,7 +4,7 @@
 import os
 import numpy as np
 from scipy.interpolate import CubicSpline
-from doris_processing.image_data import ImageData
+from image_data import ImageData
 
 
 class OrbitInterpolate(ImageData):

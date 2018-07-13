@@ -18,12 +18,12 @@ import numpy as np
 from joblib import Parallel, delayed
 from lxml import etree
 
-from doris_processing.orbit_dem_functions.orbit_interpolate import OrbitInterpolate
-from doris_processing.sentinel.sentinel_database import SentinelDatabase
-from doris_processing.sentinel.sentinel_precise_orbit import SentinelOrbitsDatabase
-from doris_processing.sentinel.sentinel_read_data import write_sentinel_burst
-from doris_processing.sentinel.sentinel_swath_metadata import CreateSwathXmlRes
-from doris_processing.stack import Stack
+from orbit_dem_functions.orbit_interpolate import OrbitInterpolate
+from sentinel.sentinel_database import SentinelDatabase
+from sentinel.sentinel_precise_orbit import SentinelOrbitsDatabase
+from sentinel.sentinel_read_data import write_sentinel_burst
+from sentinel.sentinel_swath_metadata import CreateSwathXmlRes
+from stack import Stack
 
 
 class SentinelStack(SentinelDatabase, Stack):

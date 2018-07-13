@@ -1,5 +1,5 @@
 # This function performs an xml query on a provided xml file.
-from doris_processing.image_data import ImageData
+from image_data import ImageData
 
 import collections
 from lxml import etree

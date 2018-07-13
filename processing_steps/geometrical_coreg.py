@@ -8,8 +8,8 @@
 #   - Resample the slave grid to master coordinates
 #   - (optional) Calculate the baselines between the two images
 
-from doris_processing.image_data import ImageData
-from doris_processing.orbit_dem_functions.orbit_coordinates import OrbitCoordinates
+from image_data import ImageData
+from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
 from collections import OrderedDict, defaultdict
 import copy
 import numpy as np

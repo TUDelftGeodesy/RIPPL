@@ -1,16 +1,16 @@
 # This test file generates a simple interferogram based on the developed functions.
 
-from doris_processing.image_metadata import ImageMetadata
-from doris_processing.image_data import ImageData
-from doris_processing.stack import Stack
+from image_metadata import ImageMetadata
+from image_data import ImageData
+from stack import Stack
 
 # Load processing steps
-from doris_processing.processing_steps.geocode import Geocode
-from doris_processing.processing_steps.deramping_reramping import Deramp, Reramp
-from doris_processing.processing_steps.geometrical_coreg import GeometricalCoreg
-from doris_processing.processing_steps.resample import Resample
-from doris_processing.processing_steps.earth_topo_phase import EarthTopoPhase
-from doris_processing.processing_steps.interfero import Interferogram
+from processing_steps.geocode import Geocode
+from processing_steps.deramping_reramping import Deramp, Reramp
+from processing_steps.geometrical_coreg import GeometricalCoreg
+from processing_steps.resample import Resample
+from processing_steps.earth_topo_phase import EarthTopoPhase
+from processing_steps.interfero import Interferogram
 
 # First check whether the data and metadata function.
 filename = '/media/gert/Data/radar_datastacks/delft_asc_t088/stack/20170221/swath_2/burst_2/ifgs.res'

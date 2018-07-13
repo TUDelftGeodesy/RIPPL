@@ -23,19 +23,19 @@ import os
 import time
 import copy
 from joblib import Parallel, delayed
-from doris_processing.image_data import ImageData
+from image_data import ImageData
 import numpy as np
 
-from doris_processing.orbit_dem_functions.srtm_download import SrtmDownload
-from doris_processing.processing_steps.radar_dem import RadarDem
-from doris_processing.processing_steps.geocode import Geocode
-from doris_processing.processing_steps.earth_topo_phase import EarthTopoPhase
-from doris_processing.processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
-from doris_processing.processing_steps.interfero import Interfero
-from doris_processing.processing_steps.concatenate import Concatenate
-from doris_processing.parallel_functions import create_ifg, geocoding, inverse_geocode, resampling, create_dem, create_dem_lines
-from doris_processing.processing_steps.import_dem import CreateSrtmDem
-from doris_processing.processing_steps.inverse_geocode import InverseGeocode
+from orbit_dem_functions.srtm_download import SrtmDownload
+from processing_steps.radar_dem import RadarDem
+from processing_steps.geocode import Geocode
+from processing_steps.earth_topo_phase import EarthTopoPhase
+from processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
+from processing_steps.interfero import Interfero
+from processing_steps.concatenate import Concatenate
+from parallel_functions import create_ifg, geocoding, inverse_geocode, resampling, create_dem, create_dem_lines
+from processing_steps.import_dem import CreateSrtmDem
+from processing_steps.inverse_geocode import InverseGeocode
 
 # from pipeline import Pipeline
 
@@ -169,7 +169,7 @@ class Image(ImageData):
         if parallel:
             slices = Parallel(n_jobs=n_jobs)(
                 delayed(create_dem)(slice, dem_folder) for slice, dem_folder in zip(orig_slices, dem_folders))
-            orig_slices = slices
+            orig_slices = copy.deepcopy(slices)
             slices = Parallel(n_jobs=n_jobs)(
                 delayed(inverse_geocode)(slice, 0, 0) for slice in zip(orig_slices))
         else:
@@ -285,7 +285,7 @@ class Image(ImageData):
         blocks_list = range(blocks)
 
         if parallel:
-            slices = Parallel(n_jobs=n_jobs)(delayed(geocoding)(slice, block, lines, interval_coarse, buffer_coarse) for slice, block, lines in
+            slices = Parallel(n_jobs=n_jobs)(delayed(geocoding)(slice, block, lines, interval_coarse, buffer_coarse) for slice, block in
                                               zip(im_list, blocks_list))
         else:
             slices = []

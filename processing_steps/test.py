@@ -3,22 +3,22 @@ import os
 import time
 import copy
 from joblib import Parallel, delayed
-from doris_processing.image_data import ImageData
+from image_data import ImageData
 
-from doris_processing.orbit_dem_functions.srtm_download import SrtmDownload
+from orbit_dem_functions.srtm_download import SrtmDownload
 
-from doris_processing.processing_steps.import_dem import CreateSrtmDem
-from doris_processing.processing_steps.inverse_geocode import InverseGeocode
-from doris_processing.processing_steps.radar_dem import RadarDem
-from doris_processing.processing_steps.geocode import Geocode
-from doris_processing.processing_steps.geometrical_coreg import GeometricalCoreg
-from doris_processing.processing_steps.deramping_reramping import Deramp, Reramp
-from doris_processing.processing_steps.resample import Resample
-from doris_processing.processing_steps.earth_topo_phase import EarthTopoPhase
-from doris_processing.processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
-from doris_processing.processing_steps.interfero import Interferogram
-from doris_processing.processing_steps.coherence import Coherence
-from doris_processing.processing_steps.concatenate import Concatenate
+from processing_steps.import_dem import CreateSrtmDem
+from processing_steps.inverse_geocode import InverseGeocode
+from processing_steps.radar_dem import RadarDem
+from processing_steps.geocode import Geocode
+from processing_steps.geometrical_coreg import GeometricalCoreg
+from processing_steps.deramping_reramping import Deramp, Reramp
+from processing_steps.resample import Resample
+from processing_steps.earth_topo_phase import EarthTopoPhase
+from processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
+from processing_steps.interfero import Interferogram
+from processing_steps.coherence import Coherence
+from processing_steps.concatenate import Concatenate
 
 # Folders for master/slave and DEM processing (Last can be empty folder)
 stack_folder = '/media/gert/Data/radar_datastacks/new_stack/'

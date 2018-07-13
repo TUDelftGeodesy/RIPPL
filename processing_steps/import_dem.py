@@ -17,9 +17,9 @@ import numpy as np
 import gdal
 
 from collections import OrderedDict
-from doris_processing.orbit_dem_functions.orbit_coordinates import OrbitCoordinates
-from doris_processing.orbit_dem_functions.srtm_download import SrtmDownload
-from doris_processing.image_data import ImageData
+from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
+from orbit_dem_functions.srtm_download import SrtmDownload
+from image_data import ImageData
 
 
 class CreateSrtmDem(OrbitCoordinates):

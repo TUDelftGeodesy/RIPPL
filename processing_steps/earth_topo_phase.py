@@ -3,7 +3,7 @@
 
 import numpy as np
 from collections import OrderedDict, defaultdict
-from doris_processing.image_data import ImageData
+from image_data import ImageData
 import os
 import logging
 

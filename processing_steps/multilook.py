@@ -1,6 +1,6 @@
 # The following class creates an interferogram from a master and slave image.
 
-from doris_processing.image_data import ImageData
+from image_data import ImageData
 from collections import OrderedDict, defaultdict
 import numpy as np
 import logging

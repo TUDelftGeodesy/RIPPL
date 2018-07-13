@@ -7,8 +7,8 @@
 
 # The following class creates an interferogram from a master and slave image.
 
-from doris_processing.image_data import ImageData
-from doris_processing.processing_steps.interfero import Interfero
+from image_data import ImageData
+from processing_steps.interfero import Interfero
 from collections import OrderedDict, defaultdict
 import datetime
 import numpy as np

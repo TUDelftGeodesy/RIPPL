@@ -17,8 +17,8 @@ import os
 import collections
 import datetime
 
-from doris_processing.image_data import ImageData
-from doris_processing.sentinel.sentinel_precise_orbit import SentinelOrbitsDatabase
+from image_data import ImageData
+from sentinel.sentinel_precise_orbit import SentinelOrbitsDatabase
 
 
 class DummyRes(object):

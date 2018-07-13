@@ -1,8 +1,8 @@
 # This function does the resampling of a radar grid based on different kernels.
 # In principle this has the same functionality as some other
-from doris_processing.image_data import ImageData
-from doris_processing.orbit_dem_functions.orbit_coordinates import OrbitCoordinates
-from doris_processing.processing_steps.radar_dem import RadarDem
+from image_data import ImageData
+from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
+from processing_steps.radar_dem import RadarDem
 from collections import OrderedDict
 import os
 import logging

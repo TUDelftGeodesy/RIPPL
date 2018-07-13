@@ -3,7 +3,7 @@ import numpy as np
 import warnings
 from collections import defaultdict
 
-from doris_processing.image_metadata import ImageMetadata
+from image_metadata import ImageMetadata
 
 
 class ImageData(ImageMetadata):

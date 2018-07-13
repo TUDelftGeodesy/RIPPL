@@ -8,7 +8,7 @@ Main functions are:
 
 '''
 
-from doris_processing.image_data import ImageData
+from image_data import ImageData
 
 
 class CorrelationWindows(ImageData):

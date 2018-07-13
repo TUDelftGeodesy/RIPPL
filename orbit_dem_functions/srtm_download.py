@@ -21,9 +21,9 @@ import requests
 from fiona import collection
 from shapely.geometry import Polygon
 from scipy.interpolate import RectBivariateSpline
-from doris_processing.orbit_dem_functions.srtm_dir_listing import ParseHTMLDirectoryListing
+from orbit_dem_functions.srtm_dir_listing import ParseHTMLDirectoryListing
 from joblib import Parallel, delayed
-from doris_processing.image_data import ImageData
+from image_data import ImageData
 
 
 class SrtmDownloadTile(object):

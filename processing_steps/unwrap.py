@@ -1,6 +1,6 @@
 
 import numpy as np
-from doris_processing.image_data import ImageData
+from image_data import ImageData
 import os
 from collections import OrderedDict, defaultdict
 

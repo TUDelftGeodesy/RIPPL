@@ -17,8 +17,8 @@ The results of this step is a grid of line and pixel coordinates
 
 """
 
-from doris_processing.orbit_dem_functions.orbit_coordinates import OrbitCoordinates
-from doris_processing.image_data import ImageData
+from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
+from image_data import ImageData
 from collections import OrderedDict
 import numpy as np
 import logging

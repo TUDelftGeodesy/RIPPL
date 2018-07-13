@@ -12,8 +12,8 @@ Examples of functions are:
 """
 
 import os
-from doris_processing.image import Image
-from doris_processing.interferogram import Interferogram
+from image import Image
+from interferogram import Interferogram
 import datetime
 
 

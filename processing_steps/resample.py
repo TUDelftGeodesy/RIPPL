@@ -2,7 +2,7 @@
 # In principle this has the same functionality as some other
 
 import numpy as np
-from doris_processing.image_data import ImageData
+from image_data import ImageData
 from collections import defaultdict, OrderedDict
 import logging
 import os

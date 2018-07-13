@@ -1,5 +1,5 @@
 # Class to create a radar dem.
-from doris_processing.image_data import ImageData
+from image_data import ImageData
 import numpy as np
 from collections import defaultdict
 

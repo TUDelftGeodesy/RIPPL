@@ -1,8 +1,8 @@
 # Function to do deramping and reramping on individual bursts.
 import datetime
 import numpy as np
-from doris_processing.image_data import ImageData
-from doris_processing.orbit_dem_functions.orbit_interpolate import OrbitInterpolate
+from image_data import ImageData
+from orbit_dem_functions.orbit_interpolate import OrbitInterpolate
 from collections import OrderedDict, defaultdict
 import logging
 import os

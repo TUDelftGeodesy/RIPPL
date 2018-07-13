@@ -14,7 +14,7 @@
 # The final created function
 
 # image meta data
-from doris_processing.image_data import ImageData
+from image_data import ImageData
 
 
 

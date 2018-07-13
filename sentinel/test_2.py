@@ -1,11 +1,11 @@
 #!/usr/bin/python
 # Create a datastack
 
-from doris_processing.sentinel.sentinel_stack import SentinelStack
+from sentinel.sentinel_stack import SentinelStack
 from joblib import Parallel, delayed
 import multiprocessing.dummy as mp
-from doris_processing.parallel_functions import unwrap
-from doris_processing.sentinel.sentinel_download import DownloadSentinel, DownloadSentinelOrbit
+from parallel_functions import unwrap
+from sentinel.sentinel_download import DownloadSentinel, DownloadSentinelOrbit
 import os
 from functools import partial
 

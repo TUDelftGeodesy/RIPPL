@@ -2,8 +2,8 @@
 import datetime
 import os
 import numpy as np
-from doris_processing.orbit_dem_functions.orbit_interpolate import OrbitInterpolate
-from doris_processing.image_data import ImageData
+from orbit_dem_functions.orbit_interpolate import OrbitInterpolate
+from image_data import ImageData
 
 
 class OrbitCoordinates(OrbitInterpolate, ImageData):

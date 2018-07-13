@@ -4,10 +4,10 @@ This function is used to creat interferograms
 '''
 
 import os
-from doris_processing.image_metadata import ImageMetadata
-from doris_processing.image_data import ImageData
-from doris_processing.image import Image
-from doris_processing.processing_steps.unwrap import Unwrap
+from image_metadata import ImageMetadata
+from image_data import ImageData
+from image import Image
+from processing_steps.unwrap import Unwrap
 
 
 class Interferogram(ImageData):
