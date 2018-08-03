@@ -3,7 +3,7 @@
 from image_data import ImageData
 from collections import OrderedDict, defaultdict
 import numpy as np
-from processing_steps.interfero import Interfero
+from find_coordinates import FindCoordinates
 import logging
 import os
 
@@ -13,7 +13,6 @@ class Coherence(object):
     """
     :type s_pix = int
     :type s_lin = int
-    :type shape = list
     """
 
     def __init__(self, master_meta, slave_meta, ifg_meta, s_lin=0, s_pix=0, multilook='', oversampling='', offset='', lines=0):
@@ -64,7 +63,7 @@ class Coherence(object):
         for ml, ovr, off in zip(multilook, oversampling, offset):
 
             sample_out, multilook_out, oversampling_out, offset_out, in_coor, out_coor = \
-                Interfero.get_multilook_coors(self.master, self.slave, s_lin, s_pix, lines, ml, ovr, off)
+                FindCoordinates.multilook_coors(master=self.master, slave=self.slave, s_lin=s_lin, s_pix=s_pix, lines=lines, multilook=ml, oversampling=ovr, offset=off)
 
             self.offset.append(offset_out)
             self.sample.append(sample_out)

@@ -8,7 +8,7 @@
 # The following class creates an interferogram from a master and slave image.
 
 from image_data import ImageData
-from processing_steps.interfero import Interfero
+from find_coordinates import FindCoordinates
 from collections import OrderedDict, defaultdict
 import datetime
 import numpy as np
@@ -18,12 +18,6 @@ import logging
 
 
 class Concatenate(object):
-
-    """
-    :type s_pix = int
-    :type s_lin = int
-    :type shape = list
-    """
 
     def __init__(self, slices_meta, concat_meta='', multilook='', oversampling='', offset_image='', offset_burst=''):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
@@ -41,7 +35,7 @@ class Concatenate(object):
             elif isinstance(slice, ImageData):
                 self.slices.append(slice)
 
-        self.ml_str, self.multilook, self.oversampling, self.offset_image = Interfero.get_ifg_str(multilook, oversampling, offset_image)
+        self.ml_str, self.multilook, self.oversampling, self.offset_image = FindCoordinates.multilook_str(multilook, oversampling, offset_image)
 
         self.az_min_coor = []
         self.ra_min_coor = []
@@ -322,7 +316,7 @@ class Concatenate(object):
         # the borders of the image, to avoid including empty pixels. Generally an offset of 20 pixels for the azimuth and
         # 200 pixels for range will suffice.
 
-        sample, self.multilook, self.oversampling, offset = Interfero.get_ifg_str(multilook, oversampling, offset)
+        sample, self.multilook, self.oversampling, offset = FindCoordinates.multilook_str(multilook, oversampling, offset)
 
         if len(self.az_min_coor) == 0:
             self.find_slice_coors()

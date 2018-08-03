@@ -92,14 +92,21 @@ class Stack(object):
             self.master_slices.append('NoData')
         l.close()
 
-    def read_stack(self):
+    def read_stack(self, first_date='1900-01-01', last_date='2100-01-01'):
         # This function reads the whole stack in memory. A stack consists of:
         # - images > with individual slices (yyyymmdd)
         # - interferograms > with individual slices if needed. (yyyymmdd_yyyymmdd)
+        # First date and last give the maximum and minimum date to load (in case we want to load only a part of the stack.
+        # Note: The master date is always loaded!
+
+        start = int(first_date[:4] + first_date[5:7] + first_date[8:10])
+        end = int(last_date[:4] + last_date[5:7] + last_date[8:10])
 
         dirs = next(os.walk(self.datastack_folder))[1]
-        images = sorted([os.path.join(self.datastack_folder, x) for x in dirs if len(x) == 8])
-        ifgs = sorted([os.path.join(self.datastack_folder, x) for x in dirs if len(x) == 17])
+        images = sorted([os.path.join(self.datastack_folder, x) for x in dirs if len(x) == 8 and
+                         start <= int(x) <= end])
+        ifgs = sorted([os.path.join(self.datastack_folder, x) for x in dirs if len(x) == 17 and
+                       start <= int(x[:8]) <= end and start <= int(x[9:]) <= end])
 
         for im_dir in images:
             image_dir = os.path.join(self.datastack_folder, im_dir)

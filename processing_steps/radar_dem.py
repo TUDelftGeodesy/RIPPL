@@ -2,6 +2,7 @@
 # In principle this has the same functionality as some other
 from image_data import ImageData
 from orbit_dem_functions.interp_dem import InterpDem
+from find_coordinates import FindCoordinates
 from collections import OrderedDict, defaultdict
 import numpy as np
 import logging
@@ -32,7 +33,7 @@ class RadarDem(InterpDem):
         if not isinstance(self.meta, ImageData):
             return
 
-        self.sample, self.interval, self.buffer, self.coors, self.in_coors, self.out_coors = self.get_interval_coors(meta, s_lin, s_pix, lines, interval, buffer)
+        self.sample, self.interval, self.buffer, self.coors, self.in_coors, self.out_coors = FindCoordinates.interval_coors(meta, s_lin, s_pix, lines, interval, buffer)
         in_s_lin = self.in_coors[0]
         in_s_pix = self.in_coors[1]
         in_shape = self.in_coors[2]
@@ -55,7 +56,9 @@ class RadarDem(InterpDem):
         dem_key = 'Dem_' + self.resolution
 
         if lin_key not in self.meta.data_memory['inverse_geocode'].keys() or pix_key not in self.meta.data_memory['inverse_geocode'].keys():
+            self.meta.read_data_memmap('inverse_geocode', lin_key)
             mem_line = self.meta.data_disk['inverse_geocode'][lin_key]
+            self.meta.read_data_memmap('inverse_geocode', pix_key)
             mem_pixel = self.meta.data_disk['inverse_geocode'][pix_key]
 
             shp = mem_line.shape
@@ -164,72 +167,6 @@ class RadarDem(InterpDem):
 
         meta.image_add_processing_step('radar_dem', meta_info)
 
-    @staticmethod
-    def get_interval_coors(meta, s_lin=0, s_pix=0, lines=0, interval='', buffer='', warn=False):
-
-        if len(interval) != 2:
-            if interval == '':
-                interval = [1, 1]
-                int_str = ''
-            else:
-                print('Interval should be a list with 2 values [interval lines, interval pixels]')
-                return
-        elif list(interval) == [1, 1]:
-            int_str = ''
-        else:
-            if warn:
-                print('If you choose to use an interval gecoding and dem creation should be done using the same intervals')
-            int_str = 'int_' + str(interval[0]) + '_' + str(interval[1])
-
-        if len(buffer) != 2:
-            if buffer == '':
-                buffer = [0, 0]
-                buf_str = ''
-            else:
-                print('Buffer should be a list with 2 values [interval lines, interval pixels]')
-                return
-        elif list(buffer) == [0, 0]:
-            buf_str = ''
-        else:
-            if warn:
-                print('If you choose to use an interval gecoding and dem creation should be done using the same buffers')
-            buf_str = 'buf_' + str(buffer[0]) + '_' + str(buffer[1])
-        interval = interval
-        buffer = buffer
-        if int_str and buf_str:
-            sample = '_' + int_str + '_' + buf_str
-        elif int_str and not buf_str:
-            sample = '_' + int_str
-        elif not int_str and buf_str:
-            sample = '_' + buf_str
-        else:
-            sample = ''
-
-        # First load and create the input data
-        orig_s_lin = meta.data_limits['crop']['Data'][0] - buffer[0] - 1
-        orig_s_pix = meta.data_limits['crop']['Data'][1] - buffer[1] - 1
-        orig_lines = (meta.data_sizes['crop']['Data'][0] + buffer[0] * 2)
-        orig_pixels = (meta.data_sizes['crop']['Data'][1] + buffer[1] * 2)
-
-        # Find the coordinate of the first pixel, based on which the new_line and new_pixel are calculated.
-        first_line = orig_s_lin
-        first_pixel = orig_s_pix
-        lines_tot = (first_line + np.arange(orig_lines / interval[0] + 2) * interval[0])
-        pixels_tot = (first_pixel + np.arange(orig_pixels / interval[1] + 2) * interval[1])
-
-        shape = [len(lines_tot), len(pixels_tot)]
-        if lines != 0:
-            shape[0] = lines
-        e_lin = s_lin + shape[0]
-        e_pix = s_pix + shape[1]
-
-        lines = lines_tot[s_lin:e_lin]
-        pixels = pixels_tot[s_pix:e_pix]
-
-        in_coors = [np.min(lines), np.min(pixels), [len(lines), len(pixels)]]
-        out_coors = [s_lin, s_pix, [len(lines), len(pixels)]]
-
-        return sample, interval, buffer, [lines_tot, pixels_tot], in_coors, out_coors
 
     @staticmethod
     def processing_info(sample, resolution):

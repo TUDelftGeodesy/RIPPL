@@ -81,11 +81,12 @@ class Multilook(object):
 
         self.meta.image_create_disk(self.step, self.data_type)
 
-    def add_meta_data(self):
+    def add_meta_data(self, step, sample):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
         meta_info = OrderedDict()
 
+        dat = step + sample
         meta_info[dat + 'output_file'] = dat + '.raw'
         meta_info[dat + 'output_format'] = t
 

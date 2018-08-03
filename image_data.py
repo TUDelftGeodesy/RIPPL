@@ -100,11 +100,13 @@ class ImageData(ImageMetadata):
         # the format is not a native numpy dtype we have to adjust.
 
         if not self.check_datafile(step, file_type, exist=True, warn=False):
-            if not self.check_datafile(step, file_type, exist=False):
-                return
+            return
+        else:
+            # If the file exists but is not read as a memmap, read it in as a memmap.
+            if len(self.data_disk[step][file_type]) == 0:
+                self.read_data_memmap(step, file_type)
             else:
-                # Create the needed output file
-                self.image_create_disk(step, file_type)
+                return
 
         if not self.check_loaded(step, file_type=file_type, warn=False):
             self.read_data()
@@ -163,6 +165,10 @@ class ImageData(ImageMetadata):
 
                 return self.data_memory[step][file_type]
 
+        if not self.check_loaded(step, loc='disk', file_type=file_type, warn=False):
+            if not self.read_data_memmap(step, file_type):
+                return []
+
         if self.check_loaded(step, loc='disk', file_type=file_type):
             if self.check_coverage(step, s_lin, s_pix, shape, loc='disk', file_type=file_type):
                 self.image_disk_to_memory(step, s_lin, s_pix, shape, file_type=file_type)
@@ -216,6 +222,10 @@ class ImageData(ImageMetadata):
         if not self.check_datafile(step, file_type, exist=True):
             return False
 
+        if not self.check_loaded(step, loc='disk', file_type=file_type):
+            if not self.read_data_memmap(step, file_type):
+                return []
+
         if not self.check_coverage(step, s_lin, s_pix, shape, 'disk', file_type):
             return False
 
@@ -254,6 +264,16 @@ class ImageData(ImageMetadata):
             self.data_memory_limits[step].pop(file_type)
             self.data_memory_sizes[step].pop(file_type)
 
+    def clean_memmap_files(self, step='', file_type=''):
+        # Clean the image from all data loaded in memory. Useful step before parallel processing.
+        if not step:
+            for step in self.data_files.keys():
+                self.data_files[step] = defaultdict()
+        elif step and not file_type:
+            self.data_files[step] = defaultdict()
+        elif step and file_type:
+            self.data_files[step].pop(file_type)
+
     # Next function is used to read all data files as memmaps from the slice (minimal memory use)
     def read_data(self):
         # This function reads all data in after reading the .res file
@@ -265,11 +285,18 @@ class ImageData(ImageMetadata):
             for file_type in file_types:
                 self.add_data_step(step, file_type)
 
-                if self.check_datafile(step, file_type, exist=True, warn=False):
-                    # Finally read in as a memmap file
-                    self.data_disk[step][file_type] = np.memmap(self.data_files[step][file_type], mode='r+',
-                                                           dtype=self.dtype_disk[self.data_types[step][file_type]],
-                                                           shape=self.data_sizes[step][file_type])
+    def read_data_memmap(self, step, file_type):
+
+        if self.check_datafile(step, file_type, exist=True, warn=False):
+            # Finally read in as a memmap file
+            dat = open(self.data_files[step][file_type], 'r+')
+            self.data_disk[step][file_type] = np.memmap(dat,
+                                                   dtype=self.dtype_disk[self.data_types[step][file_type]],
+                                                   shape=self.data_sizes[step][file_type])
+            return True
+
+        else:
+            return False
 
     # Next processing_steps is used to read info from certain steps in the metadata.
     def image_add_processing_step(self, step, step_dict):
@@ -364,6 +391,7 @@ class ImageData(ImageMetadata):
             self.data_memory_intervals[step] = defaultdict()
             self.data_memory_offset[step] = defaultdict()
 
+        self.data_disk[step][file_type] = ''
         self.data_files[step][file_type] = os.path.join(self.folder, self.processes[step][file_type + '_output_file'])
         self.data_intervals[step][file_type] = (lin_int, pix_int)
         self.data_offset[step][file_type] = (lin_off, pix_off)
@@ -385,8 +413,6 @@ class ImageData(ImageMetadata):
             self.data_files[step][file_type] = os.path.join(self.folder, self.processes[step][data_string])
         else:
             self.data_files[step][file_type] = self.processes[step][data_string]
-
-
 
         if not exist and exist != os.path.exists(self.data_files[step][file_type]):
             if warn:

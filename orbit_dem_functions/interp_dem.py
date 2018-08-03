@@ -1,7 +1,8 @@
 # Class to create a radar dem.
 from image_data import ImageData
+from find_coordinates import FindCoordinates
 import numpy as np
-from collections import defaultdict
+
 
 
 class InterpDem(object):
@@ -27,7 +28,7 @@ class InterpDem(object):
         if not isinstance(self.meta, ImageData):
             return
 
-        self.sample, self.interval, self.buffer, self.coors, self.in_coors, self.out_coors = self.get_interval_coors(meta, s_lin, s_pix, lines, interval, buffer)
+        self.sample, self.interval, self.buffer, self.coors, self.in_coors, self.out_coors = FindCoordinates.interval_coors(meta, s_lin, s_pix, lines, interval, buffer)
         in_s_lin = self.in_coors[0]
         in_s_pix = self.in_coors[1]
         in_shape = self.in_coors[2]

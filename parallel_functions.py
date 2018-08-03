@@ -10,9 +10,10 @@ from processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
 from processing_steps.interfero import Interfero
 from processing_steps.coherence import Coherence
 from processing_steps.unwrap import Unwrap
-import os
+
 
 def resampling(master, slave, block, lines):
+
     im = GeometricalCoreg(master, slave, s_lin=lines * block, lines=lines)
     im()
 
@@ -94,19 +95,6 @@ def inverse_geocode(slice, block, lines):
 
     return slice
 
-def simulate_aps(slice, block, lines, ecmwf=False, ecmwf_type='era5', ecmwf_folder='',
-                 harmonie=False, harmonie_type='h_38', harmonie_folder=''):
-
-    im = InverseGeocode(meta=slice, resolution='SRTM3', s_lin=lines * block, lines=lines)
-    im()
-    im.save_to_disk(slice)
-    slice.write()
-    slice.clean_memory()
-
-    print('Finished inverse geocoding ' + slice.res_path)
-
-    return slice
-
 def create_ifg(master, slave, ifg, multilook, oversampling, offset):
     im = Interfero(master, slave, ifg, multilook=multilook, oversampling=oversampling, offset=offset)
     im()
@@ -122,17 +110,10 @@ def create_ifg(master, slave, ifg, multilook, oversampling, offset):
     return ifg
 
 
-def unwrap(ifg, multilook):
-    im = Unwrap(ifg, multilook=multilook)
+def unwrap(ifg, multilook, oversample):
+    im = Unwrap(ifg, multilook=multilook, oversampling=oversample)
     im()
     ifg.clean_memory()
 
     return ifg
 
-
-def structure_function(meta, ifg=True, s_lin=0, s_pix=0, lines=0, input_step='unwrap', multilook='', offset=''):
-    im = StructureFunctions(meta, ifg, s_lin, s_pix, lines, input_step, multilook, offset)
-    im()
-    meta.clean_memory()
-
-    return meta

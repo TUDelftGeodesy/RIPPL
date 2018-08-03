@@ -2,7 +2,7 @@
 # In principle this has the same functionality as some other
 from image_data import ImageData
 from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
-from processing_steps.radar_dem import RadarDem
+from find_coordinates import FindCoordinates
 from collections import OrderedDict
 import os
 import logging
@@ -13,7 +13,6 @@ class Geocode(object):
     """
     :type s_pix = int
     :type s_lin = int
-    :type shape = list
     """
 
     def __init__(self, meta, s_lin=0, s_pix=0, lines=0, interval='', buffer=''):
@@ -28,7 +27,7 @@ class Geocode(object):
         if not isinstance(self.meta, ImageData):
             return
 
-        self.sample, self.interval, self.buffer, self.coors, self.in_coors, self.out_coors = RadarDem.get_interval_coors(meta, s_lin, s_pix, lines, interval, buffer)
+        self.sample, self.interval, self.buffer, self.coors, self.in_coors, self.out_coors = FindCoordinates.interval_coors(meta, s_lin, s_pix, lines, interval, buffer)
         self.out_s_lin = self.out_coors[0]
         self.out_s_pix = self.out_coors[1]
         self.out_shape = self.out_coors[2]

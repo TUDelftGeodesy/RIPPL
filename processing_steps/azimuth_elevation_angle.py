@@ -3,8 +3,7 @@
 from image_data import ImageData
 from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
 from collections import OrderedDict
-from processing_steps.radar_dem import RadarDem
-import numpy as np
+from find_coordinates import FindCoordinates
 import logging
 import os
 
@@ -29,7 +28,7 @@ class AzimuthElevationAngle(object):
         if not isinstance(self.meta, ImageData):
             return
 
-        self.sample, self.interval, self.buffer, self.coors, self.in_coors, self.out_coors = RadarDem.get_interval_coors(meta, s_lin, s_pix, lines, interval, buffer)
+        self.sample, self.interval, self.buffer, self.coors, self.in_coors, self.out_coors = FindCoordinates.interval_coors(meta, s_lin, s_pix, lines, interval, buffer)
         self.s_lin = self.out_coors[0]
         self.s_pix = self.out_coors[1]
         self.shape = self.out_coors[2]

@@ -1,6 +1,6 @@
 
-import numpy as np
 from image_data import ImageData
+from find_coordinates import FindCoordinates
 import os
 from collections import OrderedDict, defaultdict
 
@@ -13,7 +13,7 @@ class Unwrap(object):
     :type shape = list
     """
 
-    def __init__(self, meta, s_lin=0, s_pix=0, lines=0, step='interferogram', offset='', multilook='', run=False):
+    def __init__(self, meta, s_lin=0, s_pix=0, lines=0, step='interferogram', multilook='', oversampling='', offset='', run=False):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
@@ -32,22 +32,14 @@ class Unwrap(object):
             return
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        self.sample, self.multilook, self.offset, coor = \
-            self.get_coors(self.meta, step, s_lin, s_pix, lines, multilook, offset)
-
-        if len(coor) == 0:
-            return
-
-        self.s_lin = coor[0]
-        self.s_pix = coor[1]
-        self.shape = coor[2]
+        self.sample, self.multilook, self.oversampling, self.offset, coor_in, coor_out = FindCoordinates.multilook_coors(ifg=self.meta, multilook=multilook, oversampling=oversampling, offset=offset)
 
         # Create the command to do unwrapping.
         in_file = self.meta.data_files[step]['Data' + self.sample]
+        self.shape = self.meta.data_sizes[step]['Data' + self.sample]
         lines = str(self.shape[1])
 
         self.out_file = os.path.join(os.path.dirname(in_file), 'unwrapped_ifg' + self.sample + '.raw')
-
 
         conf_file = os.path.join(os.path.dirname(in_file), 'unwrap' + self.sample + '.conf')
         c = open(conf_file, 'w+')
@@ -118,43 +110,3 @@ class Unwrap(object):
         mem_use = 5
 
         return input_dat, output_dat, mem_use
-
-    @staticmethod
-    def get_coors(ifg, step, s_lin=0, s_pix=0, lines=0, multilook='', offset=''):
-
-        if len(multilook) != 2:
-            multilook = [1, 1]
-            int_str = ''
-        else:
-            int_str = 'ml_' + str(multilook[0]) + '_' + str(multilook[1])
-        if len(offset) != 2:
-            offset = [0, 0]
-            buf_str = ''
-        else:
-            buf_str = 'off_' + str(offset[0]) + '_' + str(offset[1])
-
-        if int_str and buf_str:
-            sample = '_' + int_str + '_' + buf_str
-        elif int_str and not buf_str:
-            sample = '_' + int_str
-        elif not int_str and buf_str:
-            sample = '_' + buf_str
-        else:
-            sample = ''
-
-        # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        if step in ifg.data_sizes.keys():
-
-            if 'Data' + sample in ifg.data_sizes[step].keys():
-                shape = ifg.data_sizes[step]['Data' + sample]
-            else:
-                print('Requested multilooking factor not available!')
-                return '', [], [], []
-        else:
-            print('Step ' + step + ' does not exist.')
-            return '', [], [], []
-
-        if lines != 0:
-            shape[0] = np.minimum(shape[0], lines)
-
-        return sample, multilook, offset, [s_lin, s_pix, shape]

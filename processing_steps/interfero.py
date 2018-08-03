@@ -1,12 +1,12 @@
 # The following class creates an interferogram from a master and slave image.
 
 from image_data import ImageData
+from find_coordinates import FindCoordinates
 from collections import OrderedDict, defaultdict
 import os
 import numpy as np
 import copy
 import logging
-from functools import partial
 
 
 class Interfero(object):
@@ -14,7 +14,6 @@ class Interfero(object):
     """
     :type s_pix = int
     :type s_lin = int
-    :type shape = list
     """
 
     def __init__(self, master_meta, slave_meta, ifg_meta='', s_lin=0, s_pix=0, lines=0, multilook='', oversampling='', offset=''):
@@ -68,7 +67,7 @@ class Interfero(object):
         for ml, ovr, off in zip(multilook, oversampling, offset):
 
             sample_out, multilook_out, oversampling_out, offset_out, in_coor, out_coor = \
-                self.get_multilook_coors(self.master, self.slave, s_lin, s_pix, lines, ml, ovr, off)
+                FindCoordinates.multilook_coors(master=self.master, slave=self.slave, s_lin=s_lin, s_pix=s_pix, lines=lines, multilook=ml, oversampling=ovr, offset=off)
 
             self.offset.append(offset_out)
             self.sample.append(sample_out)
@@ -254,93 +253,7 @@ class Interfero(object):
 
         ifg.image_add_processing_step('interferogram', meta_info)
 
-    @staticmethod
-    def get_multilook_coors(master, slave, s_lin=0, s_pix=0, lines=0, multilook='', oversampling='', offset=''):
 
-        if 'coreg_readfiles' in master.processes.keys():
-            meta_data = master
-        elif 'coreg_readfiles' in slave.processes.keys():
-            meta_data = slave
-        else:
-            print('Processing steps are missing in either master or slave image')
-            return
-
-        sample, multilook, oversampling, offset = Interfero.get_ifg_str(multilook, oversampling, offset)
-
-        az = multilook[0] / oversampling[0]
-        ra = multilook[1] / oversampling[1]
-        ovr_lin = float(multilook[0] / 2.0) - (float(multilook[0]) / float(oversampling[0]) / 2)
-        ovr_pix = float(multilook[1] / 2.0) - (float(multilook[1]) / float(oversampling[1]) / 2)
-
-        # Extend offset to maintain needed buffer.
-        if ovr_lin - float(int(ovr_lin)) > 0.1 or ovr_pix - float(int(ovr_pix)) > 0.1:
-            print('Warning. Averaging window for oversampling shifted half a pixel in azimuth or range direction.')
-            print('To prevent make sure that oversampling value is odd or multilook/oversampling is even')
-            ovr_lin = int(np.ceil(ovr_lin))
-            ovr_pix = int(np.ceil(ovr_pix))
-        else:
-            ovr_lin = int(ovr_lin)
-            ovr_pix = int(ovr_pix)
-
-        # Check if offset is large enough
-        if offset[0] < ovr_lin:
-            print('Offset in lines not large enough to do oversampling (larger window needed.)')
-            offset[0] = offset[0] + int(np.ceil(float(offset[0] - ovr_lin) / az))
-        if offset[1] < ovr_pix:
-            print('Offset in pixels not large enough to do oversampling (larger window needed.)')
-            offset[1] = offset[1] + int(np.ceil(float(offset[1] - ovr_pix) / ra))
-
-        # Input pixel
-        in_s_lin = s_lin * az + offset[0] - ovr_lin
-        in_s_pix = s_pix * ra + offset[1] - ovr_pix
-
-        # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        shape = meta_data.data_sizes['earth_topo_phase']['Data']
-        out_shape = [(shape[0] - (in_s_lin + ovr_lin + offset[0])) / az, (shape[1] - (in_s_pix + ovr_pix + offset[1])) / ra]
-
-        if lines != 0:
-            out_shape[0] = np.minimum(out_shape[0], lines)
-
-        # shape times pixel size + the overlapping area needed of multilooking.
-        in_shape = np.array(out_shape) * np.array([az, ra]) + (np.array(multilook) - np.array([az, ra]))
-        sample = Interfero.get_ifg_str(multilook, oversampling, offset)[0]
-
-        return sample, multilook, oversampling, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, out_shape]
-
-    @staticmethod
-    def get_ifg_str(multilook, oversampling, offset):
-
-        if len(multilook) != 2 or multilook == [1, 1]:
-            multilook = [5, 20]
-            int_str = ''
-        else:
-            int_str = 'ml_' + str(multilook[0]) + '_' + str(multilook[1])
-        if len(oversampling) != 2 or oversampling == [1, 1]:
-            oversampling = [1, 1]
-            ovr_str = ''
-        else:
-            if multilook[0] % oversampling[0] == 0 and multilook[1] % oversampling[1] == 0:
-                ovr_str = 'ovr_' + str(oversampling[0]) + '_' + str(oversampling[1])
-            else:
-                print('Rest of multilook factor divided by oversampling should be zero! Reset oversampling to [1,1]')
-                oversampling = [1, 1]
-                ovr_str = ''
-        if len(offset) != 2 or offset == [0, 0]:
-            offset = [0, 0]
-            buf_str = ''
-        else:
-            buf_str = 'off_' + str(offset[0]) + '_' + str(offset[1])
-
-        sample = ''
-
-        if int_str:
-            sample = sample + '_' + int_str
-        if buf_str:
-            sample = sample + '_' + buf_str
-        if ovr_str:
-            sample = sample + '_' + ovr_str
-
-        return sample, multilook, oversampling, offset
 
     @staticmethod
     def processing_info():

@@ -1,7 +1,6 @@
 # This function extracts the orbit from a .res file and uses it to calculate a polynomial for the orbit.
 # This polynomial is calculate based on 100 seconds of the orbit and can have max 5 degrees.
 
-import os
 import numpy as np
 from scipy.interpolate import CubicSpline
 from image_data import ImageData

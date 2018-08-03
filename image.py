@@ -26,6 +26,8 @@ from joblib import Parallel, delayed
 from image_data import ImageData
 import numpy as np
 
+from find_coordinates import FindCoordinates
+
 from orbit_dem_functions.srtm_download import SrtmDownload
 from processing_steps.radar_dem import RadarDem
 from processing_steps.geocode import Geocode
@@ -34,7 +36,6 @@ from processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
 from processing_steps.interfero import Interfero
 from processing_steps.concatenate import Concatenate
 from parallel_functions import create_ifg, geocoding, inverse_geocode, resampling, create_dem, create_dem_lines
-from processing_steps.import_dem import CreateSrtmDem
 from processing_steps.inverse_geocode import InverseGeocode
 
 # from pipeline import Pipeline
@@ -44,7 +45,6 @@ class Image(ImageData):
     """
     :type reference_image = Image
     :type slice_list = list
-
     """
 
     def __init__(self, folder, reference_image='', slice_list='', update_full_image=False):
@@ -166,22 +166,24 @@ class Image(ImageData):
         for n in range(len(orig_slices)):
             dem_folders.append(dem_folder)
 
+        for slice in orig_slices:
+            slice = InverseGeocode.create_output_files(slice)
+
         if parallel:
             slices = Parallel(n_jobs=n_jobs)(
                 delayed(create_dem)(slice, dem_folder) for slice, dem_folder in zip(orig_slices, dem_folders))
             orig_slices = copy.deepcopy(slices)
-            slices = Parallel(n_jobs=n_jobs)(
-                delayed(inverse_geocode)(slice, 0, 0) for slice in zip(orig_slices))
+            slices = Parallel(n_jobs=n_jobs)(delayed(inverse_geocode)(slice, 0, 0) for slice in orig_slices)
         else:
+            slices = []
             for slice, dem_folder in zip(orig_slices, dem_folders):
-                slices = []
 
                 slice = create_dem(slice, dem_folder)
                 slices.append(inverse_geocode(slice, 0, 0))
 
         # Prepare geocoding output
         for slice in slices:
-            sample, interval, buffer, coors, in_coors, out_coors = RadarDem.get_interval_coors(slice)
+            sample, interval, buffer, coors, in_coors, out_coors = FindCoordinates.interval_coors(slice)
             Geocode.add_meta_data(slice, sample, coors, interval, buffer)
             Geocode.create_output_files(slice, sample)
             RadarDem.add_meta_data(slice, sample, coors, interval, buffer)
@@ -227,7 +229,8 @@ class Image(ImageData):
         str_ml, multilook_fine, offset, ml_shape, fine_lines, fine_pixels, \
         str_int_coarse, interval_coarse, buffer_coarse, offset_coarse, coarse_shape, coarse_lines, coarse_pixels, \
         str_int_fine, interval_fine, buffer_fine, offset_fine, fine_shape \
-            = EcmwfAps.get_coors(im, 0, 0, 0, multilook_coarse, multilook_fine, offset)
+            = FindCoordinates.interval_multilook_coors(im, 0, 0, 0, multilook_coarse=multilook_coarse,
+                                                       multilook_fine=multilook_fine, offset=offset)
 
         # Geocoding of all slices of the image.
         down = SrtmDownload(dem_folder, 'gertmulder', 'Radar2016', resolution=dem_type, n_processes=n_jobs)
@@ -255,11 +258,10 @@ class Image(ImageData):
             for slice, block in zip(im_list, blocks_list):
                 slices.append(inverse_geocode(slice, block, lines))
 
-
         im = ImageData(self.res_file, 'single')
 
         # Prepare geocoding output coarse
-        geo = Geocode(im, interval=interval_coarse, buffer=buffer_coarse)
+        geo = RadarDem(im, interval=interval_coarse, buffer=buffer_coarse)
         Geocode.add_meta_data(im, str_int_coarse, [geo.lines, geo.pixels], interval_coarse, buffer_coarse)
         Geocode.create_output_files(im, str_int_coarse)
         RadarDem.add_meta_data(im, str_int_coarse, [geo.lines, geo.pixels], interval_coarse, buffer_coarse)
@@ -267,7 +269,7 @@ class Image(ImageData):
         AzimuthElevationAngle.add_meta_data(im, str_int_coarse, [geo.lines, geo.pixels], interval_coarse, buffer_coarse, scatterer=True, orbit=True)
         AzimuthElevationAngle.create_output_files(im, str_int_coarse, scatterer=True, orbit=True)
         im.clean_memory()
-        geo = Geocode(im, interval=interval_fine, buffer=buffer_fine)
+        geo = RadarDem(im, interval=interval_fine, buffer=buffer_fine)
         Geocode.add_meta_data(im, str_int_fine, [geo.lines, geo.pixels], interval_fine, buffer_fine)
         Geocode.create_output_files(im, str_int_fine)
         RadarDem.add_meta_data(im, str_int_fine, [geo.lines, geo.pixels], interval_fine, buffer_fine)
@@ -394,7 +396,7 @@ class Image(ImageData):
         elif isinstance(oversampling[0], int):
             oversampling = [oversampling]
 
-        ml_strings = [Interfero.get_ifg_str(ml, ovr, offset_image)[0] for ml, ovr in zip(multilook, oversampling)]
+        ml_strings = [FindCoordinates.multilook_str(ml, ovr, offset_image)[0] for ml, ovr in zip(multilook, oversampling)]
 
         ifg_main = ''
 

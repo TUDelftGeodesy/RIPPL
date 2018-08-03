@@ -10,7 +10,7 @@ from processing_steps.deramping_reramping import Deramp, Reramp
 from processing_steps.geometrical_coreg import GeometricalCoreg
 from processing_steps.resample import Resample
 from processing_steps.earth_topo_phase import EarthTopoPhase
-from processing_steps.interfero import Interferogram
+from processing_steps.interfero import Interfero
 
 # First check whether the data and metadata function.
 filename = '/media/gert/Data/radar_datastacks/delft_asc_t088/stack/20170221/swath_2/burst_2/ifgs.res'

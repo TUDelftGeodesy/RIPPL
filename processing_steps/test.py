@@ -16,7 +16,8 @@ from processing_steps.deramping_reramping import Deramp, Reramp
 from processing_steps.resample import Resample
 from processing_steps.earth_topo_phase import EarthTopoPhase
 from processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
-from processing_steps.interfero import Interferogram
+from processing_steps.interfero import Interfero
+from find_coordinates import FindCoordinates
 from processing_steps.coherence import Coherence
 from processing_steps.concatenate import Concatenate
 
@@ -60,7 +61,7 @@ masters = Parallel(n_jobs=8)(delayed(inverse_geocode)(master, master_folder) for
 
 # Prepare geocoding output
 for master in masters:
-    sample, interval, buffer, coors, in_coors, out_coors = RadarDem.get_interval_coors(master)
+    sample, interval, buffer, coors, in_coors, out_coors = FindCoordinates.interval_coors(master)
     Geocode.add_meta_data(master, sample, coors, interval, buffer)
     Geocode.create_output_files(master, sample)
     RadarDem.add_meta_data(master, sample, coors, interval, buffer)
