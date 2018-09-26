@@ -96,26 +96,7 @@ class EarthTopoPhase(object):
             return False
 
     @staticmethod
-    def create_output_files(meta, to_disk=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-
-        if not to_disk:
-            to_disk = ['Data']
-
-        for s in to_disk:
-            meta.image_create_disk('earth_topo_phase', s)
-
-    def save_to_disk(self, to_disk=''):
-
-        if not to_disk:
-            to_disk = ['Data']
-
-        for s in to_disk:
-            self.slave.image_memory_to_disk('earth_topo_phase', s)
-
-    @staticmethod
-    def add_meta_data(master, slave):
+    def add_meta_data(slave, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
         meta_info = OrderedDict()
@@ -130,16 +111,53 @@ class EarthTopoPhase(object):
         slave.image_add_processing_step('earth_topo_phase', meta_info)
 
     @staticmethod
-    def processing_info():
-        # Information on this processing step
+    def processing_info(coordinates, reramped=True):
+
         input_dat = defaultdict()
-        input_dat['slave']['resample'] = ['Data']
-        input_dat['slave']['combined_coreg'] = ['New_pixel']
+        input_dat['slave']['combined_coreg']['New_pixel']['file'] = ['New_pixel' + coordinates.sample + '.raw']
+        input_dat['slave']['combined_coreg']['New_pixel']['coordinates'] = coordinates
+        input_dat['slave']['combined_coreg']['New_pixel']['slice'] = coordinates.slice
+
+        # Input file should always be a full resolution grid.
+        if reramped:
+            input_dat['slave']['reramp'][t]['file'] = ['Reramped.raw']
+            input_dat['slave']['reramp'][t]['coordinates'] = coordinates
+            input_dat['slave']['reramp'][t]['slice'] = coordinates.slice
+        else:
+            input_dat['slave']['resample']['Data']['file'] = ['Resampled.raw']
+            input_dat['slave']['resample']['Data']['coordinates'] = coordinates
+            input_dat['slave']['resample']['Data']['slice'] = coordinates.slice
 
         output_dat = dict()
-        output_dat['slave']['earth_topo_phase'] = ['Data']
+        output_dat['slave']['earth_topo_phase']['Data']['file'] = ['Corrected' + coordinates.sample + '.raw']
+        output_dat['slave']['earth_topo_phase']['Data']['coordinates'] = coordinates
+        output_dat['slave']['earth_topo_phase']['Data']['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5
 
         return input_dat, output_dat, mem_use
+
+    @staticmethod
+    def create_output_files(meta, output_file_steps=''):
+        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
+        # done before the actual processing.
+
+        if not output_file_steps:
+            meta_info = meta.processes['earth_topo_phase']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
+
+        for s in output_file_steps:
+            meta.image_create_disk('earth_topo_phase', s)
+
+    @staticmethod
+    def save_to_disk(meta, output_file_steps=''):
+
+        if not output_file_steps:
+            meta_info = meta.processes['earth_topo_phase']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
+
+        for s in output_file_steps:
+            meta.image_memory_to_disk('earth_topo_phase', s)

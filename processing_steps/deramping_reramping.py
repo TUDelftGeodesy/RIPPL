@@ -190,17 +190,6 @@ class Deramp(GetDopplerRamp):
         return az_time, ra_time
 
     @staticmethod
-    def create_output_files(self, to_disk=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-
-        if not to_disk:
-            to_disk = ['Height', 'Lat', 'Lon', 'X', 'Y', 'Z']
-
-        for s in to_disk:
-            self.slave.image_create_disk('geocode', s)
-
-    @staticmethod
     def add_meta_data(meta):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
@@ -230,6 +219,30 @@ class Deramp(GetDopplerRamp):
         mem_use = 5
     
         return input_dat, output_dat, mem_use
+
+    @staticmethod
+    def create_output_files(meta, output_file_steps=''):
+        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
+        # done before the actual processing.
+
+        if not output_file_steps:
+            meta_info = meta.processes['deramp']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
+
+        for s in output_file_steps:
+            meta.image_create_disk('deramp', s)
+
+    @staticmethod
+    def save_to_disk(meta, output_file_steps=''):
+
+        if not output_file_steps:
+            meta_info = meta.processes['earth_topo_phase']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
+
+        for s in output_file_steps:
+            meta.image_memory_to_disk('deramp', s)
 
 
 class Reramp(GetDopplerRamp):
@@ -315,17 +328,6 @@ class Reramp(GetDopplerRamp):
         return az_time, ra_time
 
     @staticmethod
-    def create_output_files(meta, to_disk=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-
-        if not to_disk:
-            to_disk = ['Data']
-
-        for s in to_disk:
-            meta.image_create_disk('reramp', s)
-
-    @staticmethod
     def add_meta_data(master, slave):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
@@ -355,4 +357,54 @@ class Reramp(GetDopplerRamp):
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5
 
+        input_dat = defaultdict()
+        for t in ['New_line', 'New_pixel']:
+            input_dat['slave']['combined_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
+            input_dat['slave']['combined_coreg'][t]['coordinates'] = coordinates
+            input_dat['slave']['combined_coreg'][t]['slice'] = coordinates.slice
+
+        # Input file should always be a full resolution grid.
+        in_coordinates = CoordinateSystem()
+        in_coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+        if deramped:
+            input_dat['slave']['deramped'][t]['file'] = ['Deramped.raw']
+            input_dat['slave']['deramped'][t]['coordinates'] = in_coordinates
+            input_dat['slave']['deramped'][t]['slice'] = coordinates.slice
+        else:
+            input_dat['slave']['crop'][t]['file'] = ['Crop.raw']
+            input_dat['slave']['crop'][t]['coordinates'] = in_coordinates
+            input_dat['slave']['crop'][t]['slice'] = coordinates.slice
+
+        output_dat = dict()
+        output_dat['slave']['resample']['Data']['file'] = ['Resampled' + coordinates.sample + '.raw']
+        output_dat['slave']['resample']['Data']['coordinates'] = coordinates
+        output_dat['slave']['resample']['Data']['slice'] = coordinates.slice
+
+        # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
+        mem_use = 5
+
         return input_dat, output_dat, mem_use
+
+    @staticmethod
+    def create_output_files(meta, output_file_steps=''):
+        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
+        # done before the actual processing.
+
+        if not output_file_steps:
+            meta_info = meta.processes['deramp']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
+
+        for s in output_file_steps:
+            meta.image_create_disk('deramp', s)
+
+    @staticmethod
+    def save_to_disk(meta, output_file_steps=''):
+
+        if not output_file_steps:
+            meta_info = meta.processes['earth_topo_phase']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
+
+        for s in output_file_steps:
+            meta.image_memory_to_disk('deramp', s)

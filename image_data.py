@@ -401,6 +401,22 @@ class ImageData(ImageMetadata):
 
         return True
 
+    def image_get_data_size(self, step, file_type, loc='disk'):
+        # Returns the shape of the file on disk. If not found it returns a warning and [0, 0] size.
+
+        if self.check_file_type_exist(step, file_type):
+            if loc == 'disk':
+                shape = np.array(self.data_sizes[step][file_type])
+            elif loc == 'memory':
+                shape = np.array(self.data_memory_sizes[step][file_type])
+            else:
+                print('variable loc should either be disk or memory')
+                shape = [0, 0]
+        else:
+            shape = [0, 0]
+
+        return shape
+
     # Following processing_steps are used to check whether a certain file exists, is loaded or covers a certain region
     def check_datafile(self, step, file_type='Data', exist=True, warn=True):
         # Function to check whether file exists or not. This assumes that all metadata is already read in.
@@ -431,6 +447,16 @@ class ImageData(ImageMetadata):
         if step not in self.processes.keys():
             warnings.warn('Step does not exist')
             return False
+
+        return True
+
+    def check_file_type_exist(self, step, file_type):
+        # Check if this step even exists.
+        if step not in self.processes.keys():
+            warnings.warn('Step ' + step + ' does not exist')
+            return False
+        if file_type in self.processes[step].keys():
+            warnings.warn('Data type' + file_type + ' in step ' + step + ' does not exist')
 
         return True
 

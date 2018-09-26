@@ -10,7 +10,9 @@
 
 from image_data import ImageData
 from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
+from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
+from find_coordinates import FindCoordinates
 import copy
 import numpy as np
 import os
@@ -25,40 +27,33 @@ class GeometricalCoreg(object):
     :type shape = list
     """
 
-    def __init__(self, master_meta, slave_meta, s_lin=0, s_pix=0, lines=0):
+    def __init__(self, cmaster_meta, slave_meta, coordinates, s_lin=0, s_pix=0, lines=0):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
-        if isinstance(slave_meta, str):
-            if len(slave_meta) != 0:
-                self.slave = ImageData(slave_meta, 'single')
-        elif isinstance(slave_meta, ImageData):
+        if isinstance(slave_meta, ImageData) and isinstance(cmaster_meta, ImageData):
             self.slave = slave_meta
-        if isinstance(master_meta, str):
-            if len(master_meta) != 0:
-                self.master = ImageData(master_meta, 'single')
-        elif isinstance(master_meta, ImageData):
-            self.master = master_meta
+            self.cmaster = cmaster_meta
+        else:
+            return
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        self.shape = self.master.data_sizes['crop']['Data']
-        if lines != 0:
-            self.shape = [np.minimum(lines, self.shape[0] - s_lin), self.shape[1] - s_pix]
-
         self.s_lin = s_lin
         self.s_pix = s_pix
-        self.e_lin = self.s_lin + self.shape[0]
-        self.e_pix = self.s_pix + self.shape[1]
+        self.coordinates = coordinates
+        self.shape, self.lines, self.pixels, fl, fp, self.sample, self.multilook, self.oversample, self.offset = \
+            GeometricalCoreg.find_coordinates(self.cmaster, s_lin, s_pix, lines, coordinates)
 
+        # Load data
+        self.X = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'X')
+        self.Y = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'Y')
+        self.Z = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'Z')
+
+        # Initialize output
         self.new_line = []
         self.new_pixel = []
 
         self.orbits = OrbitCoordinates(self.slave)
-
-        # Load data
-        self.X = self.master.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'X')
-        self.Y = self.master.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'Y')
-        self.Z = self.master.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'Z')
 
     def __call__(self):
         # Calculate the new line and pixel coordinates based orbits / geometry
@@ -69,7 +64,7 @@ class GeometricalCoreg(object):
         try:
             self.new_line, self.new_pixel = self.orbits.xyz2lp(self.X, self.Y, self.Z)
 
-            self.add_meta_data(self.master, self.slave)
+            self.add_meta_data(self.cmaster, self.slave, self.coordinates)
             self.slave.image_new_data_memory(self.new_line, 'combined_coreg', self.s_lin, self.s_pix, 'New_line')
             self.slave.image_new_data_memory(self.new_pixel, 'combined_coreg', self.s_lin, self.s_pix, 'New_pixel')
 
@@ -86,49 +81,99 @@ class GeometricalCoreg(object):
             return False
 
     @staticmethod
-    def create_output_files(self, to_disk=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
+    def find_coordinates(cmaster, s_lin, s_pix, lines, coordinates):
 
-        if not to_disk:
-            to_disk = ['new_line', 'new_pixel']
+        if isinstance(coordinates, CoordinateSystem):
+            if not coordinates.grid_type == 'radar_coordinates':
+                print('Other grid types than radar coordinates not supported yet.')
+                return
+        else:
+            print('coordinates should be an CoordinateSystem object')
 
-        for s in to_disk:
-            self.slave.image_create_disk('reramp', s)
+        shape = cmaster.image_get_data_size('crop', 'Data')
+
+        first_line = cmaster.data_offset['crop']['Data'][0]
+        first_pixel = cmaster.data_offset['crop']['Data'][1]
+        sample, multilook, oversample, offset, [lines, pixels] = \
+            FindCoordinates.interval_lines(shape, s_lin, s_pix, lines, multilook, oversample, offset)
+
+        if lines != 0:
+            l = np.minimum(lines, shape[0] - s_lin)
+        else:
+            l = shape[0] - s_lin
+        shape = [l, shape[1] - s_pix]
+
+        lines = lines + first_line
+        pixels = pixels + first_pixel
+
+        return shape, lines, pixels, first_line, first_pixel, sample, multilook, oversample, offset
 
     @staticmethod
-    def add_meta_data(master, slave):
+    def add_meta_data(cmaster, slave, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        meta_info = OrderedDict()
+        if 'geometrical_coreg' in slave.processes.keys():
+            meta_info = slave.processes['geometrical_coreg']
+        else:
+            meta_info = OrderedDict()
 
-        meta_info['Master reference date'] = master.processes['readfiles']['First_pixel_azimuth_time (UTC)'][:10]
-
-        for dat, dat_type in zip(['New_line_', 'New_pixel_'], ['real8', 'real8']):
-            meta_info[dat + 'output_file'] = dat[:-1] + '.raw'
-            meta_info[dat + 'output_format'] = dat_type
-            meta_info[dat + 'lines'] = master.processes['crop']['Data_lines']
-            meta_info[dat + 'pixels'] = master.processes['crop']['Data_pixels']
-            meta_info[dat + 'first_line'] = master.processes['crop']['Data_first_line']
-            meta_info[dat + 'first_pixel'] = master.processes['crop']['Data_first_pixel']
+        meta_info['Master_reference_date'] = cmaster.processes['readfiles']['First_pixel_azimuth_time (UTC)'][:10]
+        meta_info = coordinates.create_meta_data(['New_line', 'New_pixel'], ['real8', 'real8'], meta_info)
 
         slave.image_add_processing_step('geometrical_coreg', meta_info)
         slave.image_add_processing_step('combined_coreg', meta_info)
 
-        slave.image_add_processing_step('coreg_readfiles', copy.deepcopy(master.processes['readfiles']))
-        slave.image_add_processing_step('coreg_orbits', copy.deepcopy(master.processes['orbits']))
-        slave.image_add_processing_step('coreg_crop', copy.deepcopy(master.processes['crop']))
+        # Add the information from the master file to the slave .res files.
+        slave.image_add_processing_step('coreg_readfiles', copy.deepcopy(cmaster.processes['readfiles']))
+        slave.image_add_processing_step('coreg_orbits', copy.deepcopy(cmaster.processes['orbits']))
+        slave.image_add_processing_step('coreg_crop', copy.deepcopy(cmaster.processes['crop']))
 
     @staticmethod
-    def processing_info():
-        # Information on this processing step
+    def processing_info(coordinates):
+
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
+
+        # Three input files needed x, y, z coordinates
         input_dat = defaultdict()
-        input_dat['master']['geocode'] = ['X', 'Y', 'Z']
+        for t in ['X', 'Y', 'Z']:
+            input_dat['cmaster']['geocode'][t]['file'] = [t + coordinates.sample + '.raw']
+            input_dat['cmaster']['geocode'][t]['coordinates'] = coordinates
+            input_dat['cmaster']['geocode'][t]['slice'] = coordinates.slice
 
-        output_dat = dict()
-        output_dat['slave']['combined_coreg'] = ['New_line', 'New_pixel']
+        # line and pixel output files.
+        output_dat = defaultdict()
+        for step in ['geometrical_coreg', 'combined_coreg']:
+            for t in ['New_line', 'New_pixel']:
+                output_dat['slave'][step][t]['files'] = [t + coordinates.sample + '.raw']
+                output_dat['slave'][step][t]['multilook'] = coordinates
+                output_dat['slave'][step][t]['slice'] = coordinates.slice
 
-        # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
-        mem_use = 5
+        # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
+        mem_use = 20
 
         return input_dat, output_dat, mem_use
+
+    @staticmethod
+    def create_output_files(meta, output_file_steps=''):
+        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
+        # done before the actual processing.
+
+        if not output_file_steps:
+            meta_info = meta.processes['geocode']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
+
+        for s in output_file_steps:
+            meta.image_create_disk('geocode', s)
+
+    @staticmethod
+    def save_to_disk(meta, output_file_steps=''):
+
+        if not output_file_steps:
+            meta_info = meta.processes['geocode']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
+
+        for s in output_file_steps:
+            meta.image_memory_to_disk('geocode', s)

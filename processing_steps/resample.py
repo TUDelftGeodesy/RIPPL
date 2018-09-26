@@ -3,6 +3,7 @@
 
 import numpy as np
 from image_data import ImageData
+from coordinate_system import CoordinateSystem
 from collections import defaultdict, OrderedDict
 import logging
 import os
@@ -16,56 +17,37 @@ class Resample(object):
     :type shape = list
     """
 
-    def __init__(self, master_meta='', slave_meta='', s_lin=0, s_pix=0, lines=0, buf=5, warning=False, input_dat=''):
+    def __init__(self, slave_meta, coordinates,s_lin=0, s_pix=0, lines=0, buf=5, warning=False, input_dat=''):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
         # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
         # 3. Give the first and last line plus the buffer of the input and output
 
-        if isinstance(slave_meta, str):
-            if len(slave_meta) != 0:
-                self.slave = ImageData(slave_meta, 'single')
-        elif isinstance(slave_meta, ImageData):
+        if isinstance(slave_meta, ImageData):
             self.slave = slave_meta
-        if isinstance(master_meta, str):
-            if len(master_meta) != 0:
-                self.master = ImageData(master_meta, 'single')
-        elif isinstance(master_meta, ImageData):
-            self.master = master_meta
+        else:
+            return
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        self.shape = self.slave.data_sizes['combined_coreg']['New_line']
+        self.sample = coordinates.sample
+        shape = self.slave.data_sizes['combined_coreg']['New_line' + self.sample]
         if lines != 0:
-            self.shape = [np.minimum(lines, self.shape[0] - s_lin), self.shape[1] - s_pix]
+            l = np.minimum(lines, shape[0] - s_lin)
+        else:
+            l = shape[0] - s_lin
+        self.shape = [l, shape[1] - s_pix]
 
         self.s_lin = s_lin
         self.s_pix = s_pix
+        self.coordinates = coordinates
         self.e_lin = self.s_lin + self.shape[0]
         self.e_pix = self.s_pix + self.shape[1]
 
-        self.new_line = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape, 'New_line')
-        self.new_pixel = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape, 'New_pixel')
-
-        if len(self.new_line) == 0 or len(self.new_pixel) == 0:
-            print('Missing new lines or pixels for resample of ' + self.slave.folder + '. Aborting..')
-            return
-
-        # Look for the region from the image we have to load.
-        orig_s_lin = self.slave.data_limits['crop']['Data'][0] - 1
-        self.s_lin_source = int(np.floor(np.maximum(np.min(self.new_line) - buf - orig_s_lin, 0)))
-        orig_s_pix = self.slave.data_limits['crop']['Data'][1] - 1
-        self.s_pix_source = int(np.floor(np.maximum(np.min(self.new_pixel) - buf - orig_s_pix, 0)))
-        orig_lines = self.slave.data_sizes['crop']['Data'][0]
-        self.e_lin_source = int(np.ceil(np.minimum(np.max(self.new_line) + buf - orig_s_lin, orig_lines)))
-        orig_pixels = self.slave.data_sizes['crop']['Data'][1]
-        self.e_pix_source = int(np.ceil(np.minimum(np.max(self.new_pixel) + buf - orig_s_pix, orig_pixels)))
-
-        self.shape_source = [self.e_lin_source - self.s_lin_source, self.e_pix_source - self.s_pix_source]
-
-        # Find the coordinate of the first based on which the new_line and new_pixel are calculated.
-        self.first_line = self.s_lin_source + orig_s_lin
-        self.first_pixel = self.s_pix_source + orig_s_pix
+        self.new_line = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape,
+                                                          'New_line' + self.sample)
+        self.new_pixel = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape,
+                                                           'New_pixel' + self.sample)
 
         # Select the required area. Possibly it already covers the required area, then we do not need to load new data.
         # However, this will only be the case if we have loaded a larger tile already.
@@ -81,7 +63,11 @@ class Resample(object):
             input_step = 'crop'
 
         # Load needed data from crop
-        self.crop = self.slave.image_load_data_memory(input_step, self.s_lin_source, self.s_pix_source, self.shape_source, 'Data')
+        in_s_lin, in_s_pix, in_shape, self.out_s_lin, self.out_s_pix = \
+            Resample.select_region_resampling(self.slave, self.new_line, self.new_pixel, buf)
+        self.crop = self.slave.image_load_data_memory(input_step, in_s_lin, in_s_pix, in_shape, 'Data')
+
+        # Initialize output
         self.resampled = []
 
     def __call__(self, w_type='4p_cubic', table_size='', window=''):
@@ -109,8 +95,8 @@ class Resample(object):
             pixel_id = np.floor(self.new_pixel).astype('int32')
             l_window_id = table_size[0] - np.round((self.new_line - line_id) / w_steps[0]).astype(np.int32)
             p_window_id = table_size[1] - np.round((self.new_pixel - pixel_id) / w_steps[1]).astype(np.int32)
-            line_id -= self.first_line
-            pixel_id -= self.first_pixel
+            line_id -= self.out_s_lin
+            pixel_id -= self.out_s_pix
 
             # Check wether the pixels are far enough from the border of the image. Otherwise interpolation kernel cannot
             # Be applied. Missing pixels will be filled with zeros.
@@ -134,7 +120,7 @@ class Resample(object):
                     self.resampled[valid_vals] += self.crop[line_id[valid_vals] + i_im,
                                                             pixel_id[valid_vals] + j_im] * weights[valid_vals]
 
-            self.add_meta_data(self.master, self.slave)
+            self.add_meta_data(self.slave, self.coordinates)
             self.slave.image_new_data_memory(self.resampled, 'resample', self.s_lin, self.s_pix, 'Data')
 
             return True
@@ -148,46 +134,96 @@ class Resample(object):
             return False
 
     @staticmethod
-    def create_output_files(meta, to_disk=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
+    def select_region_resampling(meta, new_line, new_pixel, buf):
+        # Selects the region we need to load from the original image to do the resampling to the new grid.
 
-        if not to_disk:
-            to_disk = ['Data']
+        orig_s_lin = meta.data_limits['crop']['Data'][0] - 1
+        in_s_lin = int(np.floor(np.maximum(np.min(new_line) - buf - orig_s_lin, 0)))
+        orig_s_pix = meta.data_limits['crop']['Data'][1] - 1
+        in_s_pix = int(np.floor(np.maximum(np.min(new_pixel) - buf - orig_s_pix, 0)))
+        orig_lines = meta.data_sizes['crop']['Data'][0]
+        in_e_lin = int(np.ceil(np.minimum(np.max(new_line) + buf - orig_s_lin, orig_lines)))
+        orig_pixels = meta.data_sizes['crop']['Data'][1]
+        in_e_pix = int(np.ceil(np.minimum(np.max(new_pixel) + buf - orig_s_pix, orig_pixels)))
 
-        for s in to_disk:
-            meta.image_create_disk('resample', s)
+        in_shape = [in_e_lin - in_s_lin, in_e_pix - in_s_pix]
+
+        # Find the coordinate of the first based on which the new_line and new_pixel are calculated.
+        out_s_lin = in_s_lin + orig_s_lin
+        out_s_pix = in_s_pix + orig_s_pix
+
+        return in_s_lin, in_s_pix, in_shape, out_s_lin, out_s_pix
 
     @staticmethod
-    def add_meta_data(master, slave):
+    def add_meta_data(slave, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        meta_info = OrderedDict()
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
 
-        meta_info['Data_output_file'] = 'resampled.raw'
-        meta_info['Data_output_format'] = 'complex_int'
+        if 'baseline' in slave.processes.keys():
+            meta_info = slave.processes['baseline']
+        else:
+            meta_info = OrderedDict()
 
-        meta_info['Data_lines'] = master.processes['crop']['Data_lines']
-        meta_info['Data_pixels'] = master.processes['crop']['Data_pixels']
-        meta_info['Data_first_line'] = master.processes['crop']['Data_first_line']
-        meta_info['Data_first_pixel'] = master.processes['crop']['Data_first_pixel']
+        meta_info = coordinates.create_meta_data(['Resampled'], ['complex_int'], meta_info)
 
         slave.image_add_processing_step('resample', meta_info)
 
     @staticmethod
-    def processing_info():
+    def processing_info(coordinates, deramped=True):
         # Information on this processing step
         input_dat = defaultdict()
-        input_dat['slave']['crop'] = ['Data']
-        input_dat['slave']['combined_coreg'] = ['New_line', 'New_pixel']
+        for t in ['New_line', 'New_pixel']:
+            input_dat['slave']['combined_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
+            input_dat['slave']['combined_coreg'][t]['coordinates'] = coordinates
+            input_dat['slave']['combined_coreg'][t]['slice'] = coordinates.slice
+
+        # Input file should always be a full resolution grid.
+        in_coordinates = CoordinateSystem()
+        in_coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+        if deramped:
+            input_dat['slave']['deramped'][t]['file'] = ['Deramped.raw']
+            input_dat['slave']['deramped'][t]['coordinates'] = in_coordinates
+            input_dat['slave']['deramped'][t]['slice'] = coordinates.slice
+        else:
+            input_dat['slave']['crop'][t]['file'] = ['Crop.raw']
+            input_dat['slave']['crop'][t]['coordinates'] = in_coordinates
+            input_dat['slave']['crop'][t]['slice'] = coordinates.slice
 
         output_dat = dict()
-        output_dat['slave']['resample'] = ['Data']
+        output_dat['slave']['resample']['Data']['file'] = ['Resampled' + coordinates.sample + '.raw']
+        output_dat['slave']['resample']['Data']['coordinates'] = coordinates
+        output_dat['slave']['resample']['Data']['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5
 
         return input_dat, output_dat, mem_use
+
+    @staticmethod
+    def create_output_files(meta, output_file_steps=''):
+        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
+        # done before the actual processing.
+
+        if not output_file_steps:
+            meta_info = meta.processes['resample']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
+
+        for s in output_file_steps:
+            meta.image_create_disk('resample', s)
+
+    @staticmethod
+    def save_to_disk(meta, output_file_steps=''):
+
+        if not output_file_steps:
+            meta_info = meta.processes['resample']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
+
+        for s in output_file_steps:
+            meta.image_memory_to_disk('resample', s)
 
     @staticmethod
     def create_interp_table(w_type, table_size=None):

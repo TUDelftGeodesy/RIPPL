@@ -2,6 +2,7 @@
 from image_data import ImageData
 from find_coordinates import FindCoordinates
 import numpy as np
+from processing_steps.radar_dem import RadarDem.
 
 
 
@@ -13,76 +14,37 @@ class InterpDem(object):
     :type shape = list
     """
 
-    def __init__(self, meta, s_lin=0, s_pix=0, lines=0, interval='', buffer='', buf=3, resolution='SRTM3'):
+    def __init__(self, meta, s_lin=0, s_pix=0, lines=0, multilook='', oversample='', offset='', buf=3, dem_type='SRTM3'):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
         # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
         # 3. Give the first and last line plus the buffer of the input and output
-        if isinstance(meta, str):
-            if len(meta) != 0:
-                self.meta = ImageData(meta, 'single')
-        elif isinstance(meta, ImageData):
-            self.meta = meta
 
-        if not isinstance(self.meta, ImageData):
+        if isinstance(meta, ImageData):
+            self.meta = meta
+        else:
             return
 
-        self.sample, self.interval, self.buffer, self.coors, self.in_coors, self.out_coors = FindCoordinates.interval_coors(meta, s_lin, s_pix, lines, interval, buffer)
-        in_s_lin = self.in_coors[0]
-        in_s_pix = self.in_coors[1]
-        in_shape = self.in_coors[2]
-        in_shape[0] += 1
-        self.out_s_lin = self.out_coors[0]
-        self.out_s_pix = self.out_coors[1]
-        self.shape = self.out_coors[2]
-        self.shape[0] += 1
-        self.lines_out = self.coors[0]
-        self.pixels_out = self.coors[1]
-        self.lines = self.lines_out[self.out_s_lin:self.out_s_lin + self.shape[0]]
-        self.pixels = self.pixels_out[self.out_s_pix:self.out_s_pix + self.shape[1]]
-        self.first_line = self.lines[0]
-        self.first_pixel = self.pixels[0]
-        self.last_line = self.lines[-1]
-        self.last_pixel = self.pixels[-1]
-
-        self.resolution = resolution
-        lin_key = 'Dem_line_' + self.resolution
-        pix_key = 'Dem_pixel_' + self.resolution
-        dem_key = 'Dem_' + self.resolution
-
-        if lin_key not in self.meta.data_memory['inverse_geocode'].keys() or pix_key not in self.meta.data_memory['inverse_geocode'].keys():
-            mem_line = self.meta.data_disk['inverse_geocode'][lin_key]
-            mem_pixel = self.meta.data_disk['inverse_geocode'][pix_key]
-
-            shp = mem_line.shape
-            # Look for the region from the image we have to load, if not whole file is loaded in memory already.
-            s_lin_region = np.max(mem_line, 1) < in_s_lin
-            s_pix_region = np.max(mem_pixel, 0) < in_s_pix
-            e_lin_region = np.min(mem_line, 1) > (in_s_lin + in_shape[0])
-            e_pix_region = np.min(mem_pixel, 0) > (in_s_pix + in_shape[1])
-
-            region_lin = np.asarray([s == e for s, e in zip(s_lin_region.ravel(), e_lin_region.ravel())])
-            region_pix = np.asarray([s == e for s, e in zip(s_pix_region.ravel(), e_pix_region.ravel())])
-            self.s_lin_source = np.maximum(0, np.min(np.argwhere(region_lin)) - buf)
-            self.s_pix_source = np.maximum(0, np.min(np.argwhere(region_pix)) - buf)
-            self.e_lin_source = np.minimum(shp[0], np.max(np.argwhere(region_lin)) + buf)
-            self.e_pix_source = np.minimum(shp[1], np.max(np.argwhere(region_pix)) + buf)
-
-            self.shape_source = [self.e_lin_source - self.s_lin_source, self.e_pix_source - self.s_pix_source]
+        self.shape = self.meta.image_get_data_size('crop', 'Data')
+        if lines != 0:
+            l = np.minimum(lines, self.shape[0] - s_lin)
         else:
-            self.s_lin_source = self.meta.data_memory_limits['inverse_geocode'][lin_key][0]
-            self.s_pix_source = self.meta.data_memory_limits['inverse_geocode'][lin_key][1]
+            l = self.shape[0] - s_lin
+        self.shape = [l, self.shape[1] - s_pix]
 
-            self.lines_source = self.meta.data_memory_sizes['inverse_geocode'][lin_key][0]
-            self.pixels_source = self.meta.data_memory_sizes['inverse_geocode'][lin_key][1]
-            self.shape_source = self.meta.data_memory_sizes['inverse_geocode'][lin_key]
+        first_line = self.meta.data_offset['crop']['Data'][0]
+        first_pixel = self.meta.data_offset['crop']['Data'][1]
+        self.sample, self.multilook, self.oversample, self.offset, [lines, pixels] = \
+            FindCoordinates.interval_lines(self.shape, s_lin, s_pix, lines, multilook, oversample, offset)
 
-        # Load the input data
-        self.dem_line = self.meta.image_load_data_memory('inverse_geocode', self.s_lin_source, self.s_pix_source, self.shape_source, lin_key)
-        self.dem_pixel = self.meta.image_load_data_memory('inverse_geocode', self.s_lin_source, self.s_pix_source, self.shape_source, pix_key)
-        self.dem = self.meta.image_load_data_memory('import_dem', self.s_lin_source, self.s_pix_source,  self.shape_source, dem_key)
+        self.lines = lines + first_line
+        self.pixels = pixels + first_pixel
 
+        self.dem, self.dem_line, self.dem_pixel = RadarDem.source_dem_extend(self.meta, self.lines, self.pixels,
+                                                                             dem_type, buf)
+
+        # Initialize intermediate steps.
         self.dem_id = np.array([])
         self.first_triangle = np.array([])
 
@@ -123,8 +85,8 @@ class InterpDem(object):
                 self.dem_min_pixel = np.minimum(self.dem_min_pixel, np.ravel(self.dem_pixel[s_line:e_line, s_pix:e_pix]))
 
         # Finally remove grid boxes which are not used for interpolation.
-        self.used_grids = np.where(((self.dem_max_line > self.first_line) * (self.dem_min_line < self.last_line) *
-                      (self.dem_max_pixel > self.first_pixel) * (self.dem_min_pixel < self.last_pixel)))[0]
+        self.used_grids = np.where(((self.dem_max_line > self.lines[0]) * (self.dem_min_line < self.lines[-1]) *
+                      (self.dem_max_pixel > self.pixels[0]) * (self.dem_min_pixel < self.pixels[-1])))[0]
         self.dem_max_line = self.dem_max_line[self.used_grids]
         self.dem_min_line = self.dem_min_line[self.used_grids]
         self.dem_max_pixel = self.dem_max_pixel[self.used_grids]
@@ -165,11 +127,11 @@ class InterpDem(object):
                 p_mesh, l_mesh = np.meshgrid(range(int(np.floor(dem_max_num[1] / self.interval[1] + 1))),
                                              range(int(np.floor(dem_max_num[0] / self.interval[0] + 1))))
                 dem_p = (np.ravel(np.ravel(p_mesh)[None, :] * self.interval[1] +
-                                  np.ceil((self.dem_min_pixel[ids] - self.first_pixel) / self.interval[1])[:, None]
-                                  * self.interval[1] + self.first_pixel)).astype('int32')
+                                  np.ceil((self.dem_min_pixel[ids] - self.pixels[0]) / self.interval[1])[:, None]
+                                  * self.interval[1] + self.pixels[0])).astype('int32')
                 dem_l = (np.ravel((np.ravel(l_mesh)[None, :] * self.interval[0]) +
-                                  np.ceil((self.dem_min_line[ids] - self.first_line) / self.interval[0])[:, None]
-                                  * self.interval[0] + self.first_line)).astype('int32')
+                                  np.ceil((self.dem_min_line[ids] - self.lines[0]) / self.interval[0])[:, None]
+                                  * self.interval[0] + self.lines[0])).astype('int32')
 
                 # get the corresponding dem ids
                 dem_id = np.ravel(ids[:, None] * np.ones(shape=(1, len(np.ravel(p_mesh))), dtype='int32')[None, :]
@@ -179,8 +141,8 @@ class InterpDem(object):
                 # get rid of all the points outside the bounding box
                 dem_valid = ((dem_p <= self.dem_max_pixel[dem_id]) * (dem_p >= self.dem_min_pixel[dem_id]) * # within bounding box
                              (dem_l <= self.dem_max_line[dem_id]) * (dem_l >= self.dem_min_line[dem_id]) *   # within bounding box
-                             (self.first_line <= dem_l) * (dem_l <= self.last_line) *            # Within image
-                             (self.first_pixel <= dem_p) * (dem_p <= self.last_pixel))
+                             (self.lines[0] <= dem_l) * (dem_l <= self.lines[-1]) *            # Within image
+                             (self.pixels[0] <= dem_p) * (dem_p <= self.pixels[-1]))
 
                 dem_p = dem_p[dem_valid]
                 dem_l = dem_l[dem_valid]

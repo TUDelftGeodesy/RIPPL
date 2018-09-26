@@ -423,3 +423,13 @@ class Concatenate(object):
                     print('One of the needed slices is missing for concatenation')
             else:
                 print('One of the needed slices is missing for concatenation')
+
+
+class SliceCoordinates():
+    # This class finds the coordinates of slices within the larger image, including the case where the output has
+    # a predefined multilooking, oversampling and/or buffer requirement.
+    # To prevent the inclusion of empty lines there is also a preset buffer for slices. The default setting is 20 lines
+    # in azimuth and 100 pixels in range. This suffices
+
+
+    def __init__(self):
