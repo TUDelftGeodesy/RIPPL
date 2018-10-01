@@ -3,6 +3,8 @@ import datetime
 import numpy as np
 from image_data import ImageData
 from orbit_dem_functions.orbit_interpolate import OrbitInterpolate
+from processing_steps.resample import Resample
+from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import logging
 import os
@@ -118,32 +120,37 @@ class Deramp(GetDopplerRamp):
     :type shape = list
     """
 
-    def __init__(self, meta='', s_lin=0, s_pix=0, lines=0):
-        # There are three options for processing:
-        # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
-        #       ImageData object.
-        # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
-        # 3. Give the first and last line plus the buffer of the input and output
+    def __init__(self, slave_meta, res_coordinates, s_lin=0, s_pix=0, lines=0, buf=5):
+        # Most important for deramping is that we use the resampling grid as a basis. This is because this is the only
+        # script that uses the slave geometry, which would make it very difficult to add in a full processing chain.
+        # Therefore, we define the area that should be deramped based on the region defined by the resampling.
+        # Main consequence is that deramping can only be done after coregistration.
 
-        if isinstance(meta, str):
-            if len(meta) != 0:
-                self.slave = ImageData(meta, 'single')
-        elif isinstance(meta, ImageData):
-            self.slave = meta
+        if isinstance(slave_meta, ImageData):
+            self.slave = slave_meta
+        else:
+            return
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        self.shape = self.slave.data_sizes['crop']['Data']
+        shape = self.slave.data_sizes['resample']['Data']
         if lines != 0:
-            self.shape = [np.minimum(lines, self.shape[0] - s_lin), self.shape[1] - s_pix]
+            l = np.minimum(lines, shape[0] - s_lin)
+        else:
+            l = shape[0] - s_lin
+        shape = [l, shape[1] - s_pix]
 
-        self.s_lin = s_lin
-        self.s_pix = s_pix
-        self.e_lin = self.s_lin + self.shape[0]
-        self.e_pix = self.s_pix + self.shape[1]
+        new_line = self.slave.image_load_data_memory('combined_coreg', s_lin, s_pix, shape,
+                                                     'new_line' + res_coordinates.sample)
+        new_pixel = self.slave.image_load_data_memory('combined_coreg', s_lin, s_pix, shape,
+                                                      'new_pixel' + res_coordinates.sample)
+
+        # Load needed data from crop
+        self.s_lin, self.s_pix, self.shape, self.res_s_lin, self.res_s_pix = \
+            Resample.select_region_resampling(self.slave, new_line, new_pixel, buf)
+        self.crop_ramped = self.slave.image_load_data_memory('crop', self.s_lin, self.s_pix, self.shape, 'Data')
 
         GetDopplerRamp.__init__(self, self.slave)
         self.crop = []
-        self.crop_ramped = self.slave.image_load_data_memory('crop', self.s_lin, self.s_pix, self.shape)
 
     def __call__(self):
         # Check if needed data is loaded
@@ -193,31 +200,43 @@ class Deramp(GetDopplerRamp):
     def add_meta_data(meta):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        meta_info = OrderedDict()
 
-        dat = 'Data_'
-        meta_info[dat + 'output_file'] = 'crop_deramped.raw'
-        meta_info[dat + 'output_format'] = 'complex_int'
-        meta_info[dat + 'lines'] = meta.processes['crop']['Data_lines']
-        meta_info[dat + 'pixels'] = meta.processes['crop']['Data_pixels']
-        meta_info[dat + 'first_line'] = meta.processes['crop']['Data_first_line']
-        meta_info[dat + 'first_pixel'] = meta.processes['crop']['Data_first_pixel']
+        if 'deramp' in meta.processes.keys():
+            meta_info = meta.processes['deramp']
+        else:
+            meta_info = OrderedDict()
 
-        meta.image_add_processing_step('deramp', meta_info)
+        coordinates = CoordinateSystem()
+        coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+        meta_info = coordinates.create_meta_data(['reramped'], ['complex_int'], meta_info)
+
+        meta.image_add_processing_step('reramp', meta_info)
 
     @staticmethod
     def processing_info():
 
-        # Information on this processing step
-        input_dat = dict()
-        input_dat['crop'] = ['Data']
+        coordinates = CoordinateSystem()
+        coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
 
-        output_dat = dict()
-        output_dat['geocode'] = ['Height', 'Lat', 'Lon', 'X', 'Y', 'Z']
+        input_dat = defaultdict()
+        input_dat['slave']['crop']['crop']['file'] = ['crop.raw']
+        input_dat['slave']['crop']['crop']['coordinates'] = coordinates
+        input_dat['slave']['crop']['crop']['slice'] = coordinates.slice
 
-        # Number of times input data is used in ram. Bit difficult here but 15 times is ok guess.
+        # For multiprocessing this information is needed to define the selected area to deramp.
+        for t in ['new_line', 'new_pixel']:
+            input_dat['slave']['combined_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
+            input_dat['slave']['combined_coreg'][t]['coordinates'] = coordinates
+            input_dat['slave']['combined_coreg'][t]['slice'] = coordinates.slice
+
+        output_dat = defaultdict()
+        output_dat['slave']['deramp']['deramped']['file'] = ['deramped.raw']
+        output_dat['slave']['deramp']['deramped']['coordinates'] = coordinates
+        output_dat['slave']['deramp']['deramped']['slice'] = coordinates.slice
+
+        # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5
-    
+
         return input_dat, output_dat, mem_use
 
     @staticmethod
@@ -253,41 +272,37 @@ class Reramp(GetDopplerRamp):
     :type shape = list
     """
 
-    def __init__(self, master_meta='', slave_meta='', s_lin=0, s_pix=0, lines=0):
+    def __init__(self, slave_meta, coordinates, s_lin=0, s_pix=0, lines=0):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
         # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
         # 3. Give the first and last line plus the buffer of the input and output
 
-        if isinstance(slave_meta, str):
-            if len(slave_meta) != 0:
-                self.slave = ImageData(slave_meta, 'single')
-        elif isinstance(slave_meta, ImageData):
+        if isinstance(slave_meta, ImageData):
             self.slave = slave_meta
-        if isinstance(master_meta, str):
-            if len(master_meta) != 0:
-                self.master = ImageData(master_meta, 'single')
-        elif isinstance(master_meta, ImageData):
-            self.master = master_meta
+        else:
+            return
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        self.shape = self.slave.data_sizes['resample']['Data']
+        shape = self.slave.data_sizes['resample']['Data']
         if lines != 0:
-            self.shape = [np.minimum(lines, self.shape[0] - s_lin), self.shape[1] - s_pix]
+            l = np.minimum(lines, shape[0] - s_lin)
+        else:
+            l = shape[0] - s_lin
+        self.shape = [l, shape[1] - s_pix]
 
         self.s_lin = s_lin
         self.s_pix = s_pix
-        self.e_lin = self.s_lin + self.shape[0]
-        self.e_pix = self.s_pix + self.shape[1]
+        self.coordinates = coordinates
 
         GetDopplerRamp.__init__(self, self.slave)
         self.resampled = []
 
         # Load data
         self.resampled_deramped = self.slave.image_load_data_memory('resample', self.s_lin, self.s_pix, self.shape)
-        self.new_pixel = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape, 'New_pixel')
-        self.new_line = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape, 'New_line')
+        self.new_pixel = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape, 'new_pixel' + coordinates.sample)
+        self.new_line = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape, 'new_line' + coordinates.sample)
 
     def __call__(self):
         # Check if needed data is loaded
@@ -305,7 +320,7 @@ class Reramp(GetDopplerRamp):
             # Finally correct the data
             self.reramped_resampled = (self.resampled_deramped * ramp.conj()).astype('complex64')
 
-            self.add_meta_data(self.master, self.slave)
+            self.add_meta_data(self.slave, self.coordinates)
             self.slave.image_new_data_memory(self.reramped_resampled, 'reramp', self.s_lin, self.s_pix, file_type='Data')
 
             return True
@@ -328,57 +343,39 @@ class Reramp(GetDopplerRamp):
         return az_time, ra_time
 
     @staticmethod
-    def add_meta_data(master, slave):
+    def add_meta_data(meta, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        meta_info = OrderedDict()
 
-        dat = 'Data_'
-        meta_info[dat + 'output_file'] = 'resampled_reramped.raw'
-        meta_info[dat + 'output_format'] = 'complex_int'
-        meta_info[dat + 'lines'] = master.processes['crop']['Data_lines']
-        meta_info[dat + 'pixels'] = master.processes['crop']['Data_pixels']
-        meta_info[dat + 'first_line'] = master.processes['crop']['Data_first_line']
-        meta_info[dat + 'first_pixel'] = master.processes['crop']['Data_first_pixel']
+        if 'reramp' in meta.processes.keys():
+            meta_info = meta.processes['reramp']
+        else:
+            meta_info = OrderedDict()
 
-        slave.image_add_processing_step('reramp', meta_info)
+        meta_info = coordinates.create_meta_data(['reramped'], ['complex_int'], meta_info)
+
+        meta.image_add_processing_step('reramp', meta_info)
 
     @staticmethod
-    def processing_info():
+    def processing_info(coordinates):
 
-        # Information on this processing step
-        input_dat = defaultdict()
-        input_dat['slave']['coreg'] = ['New_line', 'New_pixel']
-        input_dat['slave']['resample'] = ['Data']
-
-        output_dat = dict()
-        output_dat['slave']['reramp'] = ['Data']
-
-        # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
-        mem_use = 5
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
 
         input_dat = defaultdict()
-        for t in ['New_line', 'New_pixel']:
+        for t in ['new_line', 'new_pixel']:
             input_dat['slave']['combined_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
             input_dat['slave']['combined_coreg'][t]['coordinates'] = coordinates
             input_dat['slave']['combined_coreg'][t]['slice'] = coordinates.slice
 
-        # Input file should always be a full resolution grid.
-        in_coordinates = CoordinateSystem()
-        in_coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
-        if deramped:
-            input_dat['slave']['deramped'][t]['file'] = ['Deramped.raw']
-            input_dat['slave']['deramped'][t]['coordinates'] = in_coordinates
-            input_dat['slave']['deramped'][t]['slice'] = coordinates.slice
-        else:
-            input_dat['slave']['crop'][t]['file'] = ['Crop.raw']
-            input_dat['slave']['crop'][t]['coordinates'] = in_coordinates
-            input_dat['slave']['crop'][t]['slice'] = coordinates.slice
+        input_dat['slave']['resample']['resampled']['file'] = ['resampled.raw']
+        input_dat['slave']['resample']['resampled']['coordinates'] = coordinates
+        input_dat['slave']['resample']['resampled']['slice'] = coordinates.slice
 
         output_dat = dict()
-        output_dat['slave']['resample']['Data']['file'] = ['Resampled' + coordinates.sample + '.raw']
-        output_dat['slave']['resample']['Data']['coordinates'] = coordinates
-        output_dat['slave']['resample']['Data']['slice'] = coordinates.slice
+        output_dat['slave']['reramp']['reramped']['file'] = ['reramped' + coordinates.sample + '.raw']
+        output_dat['slave']['reramp']['reramped']['coordinates'] = coordinates
+        output_dat['slave']['reramp']['reramped']['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5

@@ -14,6 +14,7 @@ Examples of functions are:
 import os
 from image import Image
 from interferogram import Interferogram
+from orbit_dem_functions.srtm_download import SrtmDownload
 import datetime
 
 
@@ -142,3 +143,15 @@ class Stack(object):
 
         # combine the ifg and image dates
         self.dates = sorted(set(self.ifg_dates) - set(self.image_dates))
+
+    def download_srtm_dem(self, srtm_folder, username, password, buf=0.5, rounding=0.5, srtm_type='SRTM3'):
+        # Downloads the needed srtm data for this datastack. srtm_folder is the folder the downloaded srtm tiles are
+        # stored.
+        # Username and password can be obtained at https://lpdaac.usgs.gov
+        # Documentation: https://lpdaac.usgs.gov/sites/default/files/public/measures/docs/NASA_SRTM_V3.pdf
+
+        # Description srtm data: https://lpdaac.usgs.gov/dataset_discovery/measures/measures_products_table/SRTMGL1_v003
+        # Description srtm q data: https://lpdaac.usgs.gov/node/505
+
+        download = SrtmDownload(srtm_folder, username, password, srtm_type)
+        download(self.images[self.master_date], buf=buf, rounding=rounding)

@@ -41,8 +41,6 @@ class Resample(object):
         self.s_lin = s_lin
         self.s_pix = s_pix
         self.coordinates = coordinates
-        self.e_lin = self.s_lin + self.shape[0]
-        self.e_pix = self.s_pix + self.shape[1]
 
         self.new_line = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape,
                                                           'New_line' + self.sample)
@@ -172,6 +170,10 @@ class Resample(object):
 
     @staticmethod
     def processing_info(coordinates, deramped=True):
+
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
+
         # Information on this processing step
         input_dat = defaultdict()
         for t in ['New_line', 'New_pixel']:

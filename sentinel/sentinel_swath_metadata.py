@@ -336,6 +336,7 @@ class CreateSwathXmlRes():
             readfiles = copy.deepcopy(self.swath_readfiles)
 
             readfiles['Burst_number_index'] = str(n + 1)
+            readfiles['slice'] = 'True'
 
             # First find coordinates of center and optionally the corners
             readfiles['Scene_centre_longitude'] = str(self.burst_center_coors[n][0])

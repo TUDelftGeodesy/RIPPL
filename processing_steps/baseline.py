@@ -27,7 +27,7 @@ class Baseline(object):
     :type shape = list
     """
 
-    def __init__(self, cmaster_meta, slave_meta, s_lin=0, s_pix=0, lines=0, multilook='', oversample='', offset='',
+    def __init__(self, cmaster_meta, slave_meta, coordinates, s_lin=0, s_pix=0, lines=0,
                  perpendicular=True, parallel=False, horizontal=False, vertical=False, total_baseline=False, angle=False):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
@@ -62,12 +62,12 @@ class Baseline(object):
         self.slave_az_step = 1 / float(self.slave.processes['readfiles']['Pulse_Repetition_Frequency (computed, Hz)'])
 
         # Load data
-        self.ra_shift = self.cmaster.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape, 'New_pixel')
-        self.az_shift = self.cmaster.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape, 'New_line')
+        self.ra_shift = self.cmaster.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape, 'New_pixel' + self.sample)
+        self.az_shift = self.cmaster.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape, 'New_line' + self.sample)
 
         if horizontal or vertical or angle:
             self.incidence = (90 - self.cmaster.image_load_data_memory('azimuth_elevation_angle', self.s_lin, self.s_pix,
-                                                                       self.shape, 'Elevation_angle')) / 180 * np.pi
+                                                                       self.shape, 'Elevation_angle' + self.sample)) / 180 * np.pi
 
         # Initialize output
         self.perpendicular = perpendicular
@@ -117,34 +117,34 @@ class Baseline(object):
             self.perpendicular_b = np.sqrt(self.parallel**2 + self.baseline_2)
 
             # Save meta data
-            self.add_meta_data(self.cmaster, self.slave, self.multilook, self.oversample, self.offset, self.perpendicular,
+            self.add_meta_data(self.slave, self.coordinates, self.perpendicular,
                                self.parallel, self.horizontal, self.vertical, self.angle, self.total_baseline)
 
             # Save perpendicular and/or parallel baseline.
             if self.perpendicular:
                 self.slave.image_new_data_memory(self.perpendicular_b, 'baseline', self.s_lin, self.s_pix,
-                                                file_type='Perpendicular_baseline' + self.sample)
+                                                file_type='perpendicular_baseline' + self.sample)
             if self.parallel:
                 self.slave.image_new_data_memory(self.parallel_b, 'baseline', self.s_lin, self.s_pix,
-                                                file_type='Parallel_baseline' + self.sample)
+                                                file_type='parallel_baseline' + self.sample)
 
             # Create and save the other baseline types if needed.
             if self.horizontal:
                 self.horizontal_b = self.perpendicular_b * np.cos(self.incidence) + self.parallel * np.sin(self.incidence)
                 self.slave.image_new_data_memory(self.horizontal_b, 'baseline', self.s_lin, self.s_pix,
-                                            file_type='Horizontal_baseline' + self.sample)
+                                            file_type='horizontal_baseline' + self.sample)
             if self.vertical:
                 self.vertical_b = self.perpendicular_b * np.sin(self.incidence) - self.parallel * np.cos(self.incidence)
                 self.slave.image_new_data_memory(self.vertical_b, 'baseline', self.s_lin, self.s_pix,
-                                                file_type='Vertical_baseline' + self.sample)
+                                                file_type='vertical_baseline' + self.sample)
             if self.angle:
                 self.angle_b = (self.incidence - np.arctan(self.parallel_b / self.perpendicular_b)) / np.pi * 180
                 self.slave.image_new_data_memory(self.angle_b, 'baseline', self.s_lin, self.s_pix,
-                                                file_type='Horizontal_baseline' + self.sample)
+                                                file_type='Hhorizontal_baseline' + self.sample)
             if self.total_baseline:
                 self.total_b = np.sqrt(self.baseline_2)
                 self.slave.image_new_data_memory(self.angle_b, 'baseline', self.s_lin, self.s_pix,
-                                                file_type='Total_baseline' + self.sample)
+                                                file_type='total_baseline' + self.sample)
 
             return True
 
@@ -164,17 +164,17 @@ class Baseline(object):
         baseline_types = []
 
         if perpendicular:
-            baseline_types.append('Perpendicular_baseline')
+            baseline_types.append('perpendicular_baseline')
         if parallel:
-            baseline_types.append('Parallel_baseline')
+            baseline_types.append('parallel_baseline')
         if horizontal:
-            baseline_types.append('Horizontal_baseline')
+            baseline_types.append('horizontal_baseline')
         if vertical:
-            baseline_types.append('Vertical_baseline')
+            baseline_types.append('vertical_baseline')
         if angle:
-            baseline_types.append('Angle_baseline')
+            baseline_types.append('angle_baseline')
         if total_baseline:
-            baseline_types.append('Total_baseline')
+            baseline_types.append('total_baseline')
 
         return baseline_types
 
@@ -235,7 +235,6 @@ class Baseline(object):
 
         # Information on this processing step
         data_names = Baseline.baseline_types(perpendicular, parallel, horizontal, vertical, total_baseline, angle)
-        data_types = ['real4' for i in data_names]
 
         # Three input files needed x, y, z coordinates
         input_dat = defaultdict()
@@ -252,7 +251,7 @@ class Baseline(object):
         # line and pixel output files.
         output_dat = defaultdict()
         for name in data_names:
-            output_dat['slave']['baseline'][name]['files'] = [name + coordinates.sample + '.raw']
+            output_dat['slave']['baseline'][name]['file'] = [name + coordinates.sample + '.raw']
             output_dat['slave']['baseline'][name]['coordinates'] = coordinates
             output_dat['slave']['baseline'][name]['slice'] = coordinates.slice
 

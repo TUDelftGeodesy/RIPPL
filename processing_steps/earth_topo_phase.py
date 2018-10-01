@@ -120,9 +120,9 @@ class EarthTopoPhase(object):
 
         # Input file should always be a full resolution grid.
         if reramped:
-            input_dat['slave']['reramp'][t]['file'] = ['Reramped.raw']
-            input_dat['slave']['reramp'][t]['coordinates'] = coordinates
-            input_dat['slave']['reramp'][t]['slice'] = coordinates.slice
+            input_dat['slave']['reramp']['Data']['file'] = ['Reramped.raw']
+            input_dat['slave']['reramp']['Data']['coordinates'] = coordinates
+            input_dat['slave']['reramp']['Data']['slice'] = coordinates.slice
         else:
             input_dat['slave']['resample']['Data']['file'] = ['Resampled.raw']
             input_dat['slave']['resample']['Data']['coordinates'] = coordinates

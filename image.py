@@ -373,7 +373,6 @@ class Image(ImageData):
 
         print("--- %s seconds for resampling ---" % (time.time() - start_time))
 
-
     def interferogram(self, slave, multilook='', oversampling='', offset_burst='', offset_image='', force=False, n_jobs=8, parallel=True):
         # Creation of interferogram and coherence images with a certain multilooking factor.
         # This includes concatenation of the slices.

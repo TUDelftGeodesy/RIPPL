@@ -2,6 +2,7 @@
 
 from image_data import ImageData
 from find_coordinates import FindCoordinates
+from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import os
 import numpy as np
@@ -16,72 +17,48 @@ class Interfero(object):
     :type s_lin = int
     """
 
-    def __init__(self, master_meta, slave_meta, ifg_meta='', s_lin=0, s_pix=0, lines=0, multilook='', oversampling='', offset=''):
+    def __init__(self, master_meta, slave_meta, coordinates, ifg_meta='', s_lin=0, s_pix=0, lines=0):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
-        if isinstance(slave_meta, str):
-            if len(slave_meta) != 0:
-                self.slave = ImageData(slave_meta, 'single')
-        elif isinstance(slave_meta, ImageData):
+        if isinstance(slave_meta, ImageData) and isinstance(master_meta, ImageData):
             self.slave = slave_meta
-        if isinstance(master_meta, str):
-            if len(master_meta) != 0:
-                self.master = ImageData(master_meta, 'single')
-        elif isinstance(master_meta, ImageData):
             self.master = master_meta
-        if isinstance(ifg_meta, str):
-            if len(ifg_meta) != 0:
-                self.master = ImageData(ifg_meta, 'single')
-            else:
-                print('New interferogram created')
-                self.create_meta_data(master_meta, slave_meta)
-        elif isinstance(ifg_meta, ImageData):
+        else:
+            return
+
+        if isinstance(ifg_meta, ImageData):
             self.ifg = ifg_meta
+        else:
+            self.create_meta_data(master_meta, slave_meta)
+
+
+        if isinstance(coordinates, CoordinateSystem):
+            self.coordinates = [coordinates]
+        else:
+            self.coordinates = coordinates
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        self.multilook = []
-        self.oversampling = []
         self.in_s_lin = []
         self.in_s_pix = []
-        self.out_s_lin = []
-        self.out_s_pix = []
         self.in_shapes = []
+        self.out_s_lin = [s_lin for coor in coordinates]
+        self.out_s_pix = [s_pix for coor in coordinates]
         self.out_shape = []
-        self.offset = []
-        self.sample = []
 
-        if multilook == '':
-            multilook = [[5, 20]]
-        elif isinstance(multilook[0], int):
-            multilook = [multilook]
-        if offset == '':
-            offset = [[20, 120]]
-        elif isinstance(offset[0], int):
-            offset = [offset]
-        if oversampling == '':
-            oversampling = [[1, 1]]
-        elif isinstance(oversampling[0], int):
-            oversampling = [oversampling]
+        for coor in coordinates:
 
-        for ml, ovr, off in zip(multilook, oversampling, offset):
+            smp, ml, ovr, off, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, shape] = \
+                FindCoordinates.multilook_coors(coor.shape, s_lin=s_lin, s_pix=s_pix, lines=lines)
 
-            sample_out, multilook_out, oversampling_out, offset_out, in_coor, out_coor = \
-                FindCoordinates.multilook_coors(master=self.master, slave=self.slave, s_lin=s_lin, s_pix=s_pix, lines=lines, multilook=ml, oversampling=ovr, offset=off)
+            self.in_s_lin.append(in_s_lin)
+            self.in_s_pix.append(in_s_pix)
+            self.in_shapes.append(in_shape)
+            self.out_shape.append(shape)
 
-            self.offset.append(offset_out)
-            self.sample.append(sample_out)
-            self.multilook.append(multilook_out)
-            self.oversampling.append(oversampling_out)
-            self.in_s_lin.append(in_coor[0])
-            self.in_s_pix.append(in_coor[1])
-            self.in_shapes.append(in_coor[2])
-            self.out_s_lin.append(out_coor[0])
-            self.out_s_pix.append(out_coor[1])
-            self.out_shape.append(out_coor[2])
-            self.s_pix_min = np.min(np.array(self.in_s_pix))
-            self.s_lin_min = np.min(np.array(self.in_s_lin))
-
+        # Define the region that should be read in memory.
+        self.s_pix_min = np.min(np.array(self.in_s_pix))
+        self.s_lin_min = np.min(np.array(self.in_s_lin))
         self.in_shape = [
             np.max(np.array([i[0] for i in self.in_shapes]) + np.array(self.in_s_lin)) - self.s_lin_min,
             np.max(np.array([i[1] for i in self.in_shapes]) + np.array(self.in_s_pix)) - self.s_pix_min]
@@ -116,27 +93,27 @@ class Interfero(object):
 
         try:
             # Calculate the new line and pixel coordinates based orbits / geometry
-            for sample, multilook, oversampling, min_pix, min_line, shape in \
-                    zip(self.sample, self.multilook, self.oversampling, self.in_s_pix, self.in_s_lin, self.in_shapes):
-                if multilook == [1, 1]:
-                    self.interferogram[sample] = self.master_dat * self.slave_dat.conj()
-                elif oversampling == [1, 1]:
-                    ir = np.arange(0, shape[0], multilook[0])
-                    jr = np.arange(0, shape[1], multilook[1])
+            for coor, min_pix, min_line, shape in \
+                    zip(self.coordinates, self.in_s_pix, self.in_s_lin, self.in_shapes):
+                if coor.multilook == [1, 1]:
+                    self.interferogram[coor.sample] = self.master_dat * self.slave_dat.conj()
+                elif coor.oversampling == [1, 1]:
+                    ir = np.arange(0, shape[0], coor.multilook[0])
+                    jr = np.arange(0, shape[1], coor.multilook[1])
 
                     ls = min_line - self.s_lin_min
                     ps = min_pix - self.s_pix_min
                     le = ls + shape[0]
                     pe = ps + shape[1]
 
-                    self.interferogram[sample] = np.add.reduceat(np.add.reduceat(self.master_dat[ls:le, ps:pe] *
-                                                                                 self.slave_dat[ls:le, ps:pe].conj(), ir), jr, axis=1)
+                    self.interferogram[coor.sample] = np.add.reduceat(np.add.reduceat(self.master_dat[ls:le, ps:pe] *
+                                                       self.slave_dat[ls:le, ps:pe].conj(), ir), jr, axis=1)
                 else:
-                    ir_h = np.arange(0, shape[0], multilook[0] / oversampling[0])[:-(oversampling[0] - 1)]
-                    ir = [[i, i + multilook[0]] for i in ir_h]
+                    ir_h = np.arange(0, shape[0], coor.multilook[0] / coor.oversampling[0])[:-(coor.oversampling[0] - 1)]
+                    ir = [[i, i + coor.multilook[0]] for i in ir_h]
                     ir = [item for sublist in ir for item in sublist][:-1]
-                    jr_h = np.arange(0, shape[1], multilook[1] / oversampling[1])[:-(oversampling[1] - 1)]
-                    jr = [[i, i + multilook[1]] for i in jr_h]
+                    jr_h = np.arange(0, shape[1], coor.multilook[1] / coor.oversampling[1])[:-(coor.oversampling[1] - 1)]
+                    jr = [[i, i + coor.multilook[1]] for i in jr_h]
                     jr = [item for sublist in jr for item in sublist][:-1]
 
                     ls = min_line - self.s_lin_min
@@ -144,14 +121,14 @@ class Interfero(object):
                     le = ls + shape[0]
                     pe = ps + shape[1]
 
-                    self.interferogram[sample] = np.add.reduceat(np.add.reduceat(self.master_dat[ls:le, ps:pe] *
-                                                                                 self.slave_dat[ls:le, ps:pe].conj(), ir)[::2, :], jr, axis=1)[:, ::2]
+                    self.interferogram[coor.sample] = np.add.reduceat(np.add.reduceat(self.master_dat[ls:le, ps:pe] *
+                                                       self.slave_dat[ls:le, ps:pe].conj(), ir)[::2, :], jr, axis=1)[:, ::2]
 
             # If needed do the multilooking step
-            self.add_meta_data(self.master, self.slave, self.ifg, self.sample, self.out_shape, self.multilook, self.oversampling, self.offset)
+            self.add_meta_data(self.ifg, self.coordinates)
 
-            for out_s_lin, out_s_pix, sample in zip(self.out_s_lin, self.out_s_pix, self.sample):
-                self.ifg.image_new_data_memory(self.interferogram[sample], 'interferogram', out_s_lin, out_s_pix, 'Data' + sample)
+            for out_s_lin, out_s_pix, coor in zip(self.out_s_lin, self.out_s_pix, self.coordinates):
+                self.ifg.image_new_data_memory(self.interferogram[coor.sample], 'interferogram', out_s_lin, out_s_pix, 'interferogram' + coor.sample)
 
             return True
 
@@ -166,11 +143,6 @@ class Interfero(object):
                   self.ifg.folder + '. Check ' + log_file + ' for details.')
 
             return False
-
-    def processed(self):
-        # This function checks whether this step is already processed and exists on disk. That would
-
-        print('Working on this')
 
     @staticmethod
     def create_meta_data(master, slave):
@@ -208,18 +180,8 @@ class Interfero(object):
 
         return ifg
 
-    def create_output_files(self, to_disk=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-
-        if not to_disk:
-            to_disk = ['Data']
-
-        for s in to_disk:
-            self.ifg.image_create_disk('interferogram', s)
-
     @staticmethod
-    def add_meta_data(master, slave, ifg, sample_list, shape_list, multilook_list, oversampling_list, offset_list):
+    def add_meta_data(ifg, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
         if 'interferogram' in ifg.processes.keys():
@@ -227,45 +189,65 @@ class Interfero(object):
         else:
             meta_info = OrderedDict()
 
-        if 'coreg_readfiles' in master.processes.keys():
-            meta_data = master
-        elif 'coreg_readfiles' in slave.processes.keys():
-            meta_data = slave
-        else:
-            print('Processing steps are missing in either master or slave image')
-            return
+        for coor in coordinates:
+            if not isinstance(coor, CoordinateSystem):
+                print('coordinates should be an CoordinateSystem object')
+                return
 
-        for sample, shape, multilook, oversample, offset in zip(sample_list, shape_list, multilook_list, oversampling_list, offset_list):
-            dat = 'Data' + sample
-            meta_info[dat + '_output_file'] = 'Ifg' + sample + '.raw'
-            meta_info[dat + '_output_format'] = 'complex_real4'
-
-            meta_info[dat + '_lines'] = str(shape[0])
-            meta_info[dat + '_pixels'] = str(shape[1])
-            meta_info[dat + '_first_line'] = meta_data.processes['earth_topo_phase']['Data_first_line']
-            meta_info[dat + '_first_pixel'] = meta_data.processes['earth_topo_phase']['Data_first_pixel']
-            meta_info[dat + '_multilook_azimuth'] = str(multilook[0])
-            meta_info[dat + '_multilook_range'] = str(multilook[1])
-            meta_info[dat + '_oversampling_azimuth'] = str(oversample[0])
-            meta_info[dat + '_oversampling_range'] = str(oversample[1])
-            meta_info[dat + '_offset_azimuth'] = str(offset[0])
-            meta_info[dat + '_offset_range'] = str(offset[1])
+            meta_info = coor.create_meta_data(['interferogram' + coor.sample], ['complex_float'])
 
         ifg.image_add_processing_step('interferogram', meta_info)
 
-
-
     @staticmethod
-    def processing_info():
-        # Information on this processinag step
+    def processing_info(coordinates, ifg_input_step='earth_topo_phase', ifg_input_type='earth_topo_phase'):
+
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
+
+        # Three input files needed x, y, z coordinates
         input_dat = defaultdict()
-        input_dat['master']['crop', 'earth_topo_phase'] = ['Data']
-        input_dat['slave']['crop', 'earth_topo_phase'] = ['Data']
+        coor = CoordinateSystem()
+        coor.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+        input_dat['slave'][ifg_input_step][ifg_input_type]['file'] = [ifg_input_type + '.raw']
+        input_dat['slave'][ifg_input_step][ifg_input_type]['coordinates'] = coor
+        input_dat['slave'][ifg_input_step][ifg_input_type]['slice'] = coor.slice
 
-        output_dat = dict()
-        output_dat['ifgs']['interferogram'] = ['Data']
+        input_dat['master'][ifg_input_step][ifg_input_type]['file'] = [ifg_input_type + '.raw']
+        input_dat['master'][ifg_input_step][ifg_input_type]['coordinates'] = coor
+        input_dat['master'][ifg_input_step][ifg_input_type]['slice'] = coor.slice
 
-        # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
-        mem_use = 3
+        # line and pixel output files.
+        output_dat = defaultdict()
+        for coor in coordinates:
+            output_dat['slave']['interferogram']['interferogram']['file'] = ['interferogram' + coor.sample + '.raw']
+            output_dat['slave']['interferogram']['interferogram']['coordinates'] = coor
+            output_dat['slave']['interferogram']['interferogram']['slice'] = coor.slice
+
+        # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
+        mem_use = 20
 
         return input_dat, output_dat, mem_use
+
+    @staticmethod
+    def create_output_files(meta, output_file_steps=''):
+        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
+        # done before the actual processing.
+
+        if not output_file_steps:
+            meta_info = meta.processes['interferogram']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
+
+        for s in output_file_steps:
+            meta.image_create_disk('interferogram', s)
+
+    @staticmethod
+    def save_to_disk(meta, output_file_steps=''):
+
+        if not output_file_steps:
+            meta_info = meta.processes['interferogram']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
+
+        for s in output_file_steps:
+            meta.image_memory_to_disk('interferogram', s)

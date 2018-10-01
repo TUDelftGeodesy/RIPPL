@@ -9,6 +9,7 @@
 
 from image_data import ImageData
 from find_coordinates import FindCoordinates
+from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import datetime
 import numpy as np
@@ -19,7 +20,8 @@ import logging
 
 class Concatenate(object):
 
-    def __init__(self, slices_meta, concat_meta='', multilook='', oversampling='', offset_image='', offset_burst=''):
+    def __init__(self, meta_slices, coordinates_concat, meta_concat='',
+                 step='interferogram', data_type='Data'):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
@@ -67,7 +69,7 @@ class Concatenate(object):
         elif isinstance(concat_meta, ImageData):
             self.concat = concat_meta
 
-    def __call__(self, step='interferogram', data_type='Data', in_data='memory'):
+    def __call__(self, in_data='memory'):
 
         self.load_slices(step, in_data, data_type=data_type)
         if len(self.ml_slices) == 0:
@@ -112,6 +114,42 @@ class Concatenate(object):
             print('Failed processing azimuth_elevation_angle for ' + self.concat.folder + '. Check ' + log_file + ' for details.')
 
             return False
+
+    def add_meta_data(self, step, data_type):
+        # This function adds information about this step to the image. If parallel processing is used this should be
+        # done before the actual processing.
+
+        if step in self.concat.processes.keys():
+            meta_info = self.concat.processes[step]
+        else:
+            meta_info = OrderedDict()
+
+        # Add the readfiles and orbit information
+        if self.slices[0].process_control['coreg_readfiles'] == '1':
+            step_meta = 'coreg_'
+        else:
+            step_meta = ''
+
+        dat = data_type + self.ml_str
+
+        meta_info[dat + '_output_file'] = step + self.ml_str + '.raw'
+        meta_info[dat + '_output_format'] = self.d_type_str
+
+        new_lines = np.max(self.az_max_coor) * self.oversampling[0] / self.multilook[0]
+        new_pixels = np.max(self.ra_max_coor) * self.oversampling[1] / self.multilook[1]
+        meta_info[dat + '_lines'] = str(new_lines)
+        meta_info[dat + '_pixels'] = str(new_pixels)
+        meta_info[dat + '_multilook_azimuth'] = str(self.multilook[0])
+        meta_info[dat + '_multilook_range'] = str(self.multilook[1])
+        meta_info[dat + '_oversampling_azimuth'] = str(self.oversampling[0])
+        meta_info[dat + '_oversampling_range'] = str(self.oversampling[1])
+        meta_info[dat + '_offset_azimuth'] = str(self.offset_image[0])
+        meta_info[dat + '_offset_range'] = str(self.offset_image[1])
+        meta_info[dat + '_first_line'] = str(1)
+        meta_info[dat + '_first_pixel'] = str(1)
+
+        self.concat.image_add_processing_step(step, meta_info)
+
 
     def create_concat_meta(self, meta_type):
         # This code create a new concatenated slice.
@@ -208,41 +246,6 @@ class Concatenate(object):
 
         self.concat = meta
 
-    def add_meta_data(self, step, data_type):
-        # This function adds information about this step to the image. If parallel processing is used this should be
-        # done before the actual processing.
-
-        if step in self.concat.processes.keys():
-            meta_info = self.concat.processes[step]
-        else:
-            meta_info = OrderedDict()
-
-        # Add the readfiles and orbit information
-        if self.slices[0].process_control['coreg_readfiles'] == '1':
-            step_meta = 'coreg_'
-        else:
-            step_meta = ''
-
-        dat = data_type + self.ml_str
-
-        meta_info[dat + '_output_file'] = step + self.ml_str + '.raw'
-        meta_info[dat + '_output_format'] = self.d_type_str
-
-        new_lines = np.max(self.az_max_coor) * self.oversampling[0] / self.multilook[0]
-        new_pixels = np.max(self.ra_max_coor) * self.oversampling[1] / self.multilook[1]
-        meta_info[dat + '_lines'] = str(new_lines)
-        meta_info[dat + '_pixels'] = str(new_pixels)
-        meta_info[dat + '_multilook_azimuth'] = str(self.multilook[0])
-        meta_info[dat + '_multilook_range'] = str(self.multilook[1])
-        meta_info[dat + '_oversampling_azimuth'] = str(self.oversampling[0])
-        meta_info[dat + '_oversampling_range'] = str(self.oversampling[1])
-        meta_info[dat + '_offset_azimuth'] = str(self.offset_image[0])
-        meta_info[dat + '_offset_range'] = str(self.offset_image[1])
-        meta_info[dat + '_first_line'] = str(1)
-        meta_info[dat + '_first_pixel'] = str(1)
-
-        self.concat.image_add_processing_step(step, meta_info)
-
     @staticmethod
     def processing_info():
         # Information on this processing step
@@ -258,39 +261,38 @@ class Concatenate(object):
 
         return input_dat, output_dat, mem_use
 
-    def find_slice_coors(self):
+    @staticmethod
+    def find_slice_coordinates(meta_slices, coordinates):
         # This function is used to create an oversight of the coordinates of the available slices. This results in an
         # oversight of the start pixel/line of every burst compared to the full image.
+        # This function can be run using the base readfiles and crop data of the coregistration image.
+        # (slave images will resample to this coregistration image)
 
-        if self.slices[0].process_control['coreg_readfiles'] == '1':
-            step_meta = 'coreg_readfiles'
-            step_crop = 'coreg_crop'
-        else:
-            step_meta = 'readfiles'
-            step_crop = 'crop'
+        for slice in meta_slices:
+            if not isinstance(slice, ImageData):
+                print('Slices should be an ImageData instance')
+                return
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem instance')
+            return
 
         # First find the first pixel azimuth and range pixels
-        az_times = []
-        ra_times = []
+        line_0 = []
+        pixel_0 = []
         first_line = []
         last_line = []
         first_pixel = []
         last_pixel = []
 
-        for slice in self.slices:
-            az_time = slice.processes[step_meta]['First_pixel_azimuth_time (UTC)']
-            az_seconds = (datetime.datetime.strptime(az_time, '%Y-%m-%dT%H:%M:%S.%f') -
-                          datetime.datetime.strptime(az_time[:10], '%Y-%m-%d'))
-            az_times.append(az_seconds.seconds + az_seconds.microseconds / 1000000.0)
-            ra_times.append(float(slice.processes[step_meta]['Range_time_to_first_pixel (2way) (ms)']) / 1000)
-            az_step = float(slice.processes[step_meta]['Azimuth_time_interval (s)'])
-            ra_step = 1 / float(slice.processes[step_meta]['Range_sampling_rate (computed, MHz)']) / 1000000
-            first_lin = int(slice.processes[step_crop]['Data_first_line']) - 1
-            first_line.append(first_lin)
-            first_pix = int(slice.processes[step_crop]['Data_first_pixel']) - 1
-            first_pixel.append(first_pix)
-            last_line.append(first_lin + int(slice.processes[step_crop]['Data_lines']))
-            last_pixel.append(first_pix + int(slice.processes[step_crop]['Data_pixels']))
+        for slice in meta_slices:
+
+            if coordinates.grid_type ==
+                az_time, ra_time, az_step, ra_step, first_line, first_pixel = Coo
+
+                first_line.append(first_line)
+                first_pixel.append(first_pixel)
+                last_line.append(first_lin + int(slice.processes[step_crop]['Data_lines']))
+                last_pixel.append(first_pix + int(slice.processes[step_crop]['Data_pixels']))
 
         first_line = np.array(first_line)
         first_pixel = np.array(first_pixel)
@@ -310,13 +312,7 @@ class Concatenate(object):
         self.az_max_coor = ((az_times - self.min_az) / az_step + last_line).astype(np.int32)
         self.ra_max_coor = ((ra_times - self.min_ra) / ra_step + last_pixel).astype(np.int32)
 
-    def find_slice_multilook_offset(self, multilook='', oversampling='', offset=''):
-        # To concatenate the full image after multilooking we will have to know where to start our multilooking window
-        # for every burst. This is calculated in this function. The border offset defines how far we should be from
-        # the borders of the image, to avoid including empty pixels. Generally an offset of 20 pixels for the azimuth and
-        # 200 pixels for range will suffice.
 
-        sample, self.multilook, self.oversampling, offset = FindCoordinates.multilook_str(multilook, oversampling, offset)
 
         if len(self.az_min_coor) == 0:
             self.find_slice_coors()
@@ -424,12 +420,3 @@ class Concatenate(object):
             else:
                 print('One of the needed slices is missing for concatenation')
 
-
-class SliceCoordinates():
-    # This class finds the coordinates of slices within the larger image, including the case where the output has
-    # a predefined multilooking, oversampling and/or buffer requirement.
-    # To prevent the inclusion of empty lines there is also a preset buffer for slices. The default setting is 20 lines
-    # in azimuth and 100 pixels in range. This suffices
-
-
-    def __init__(self):
