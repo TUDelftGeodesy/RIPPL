@@ -140,7 +140,7 @@ class Baseline(object):
             if self.angle:
                 self.angle_b = (self.incidence - np.arctan(self.parallel_b / self.perpendicular_b)) / np.pi * 180
                 self.slave.image_new_data_memory(self.angle_b, 'baseline', self.s_lin, self.s_pix,
-                                                file_type='Hhorizontal_baseline' + self.sample)
+                                                file_type='horizontal_baseline' + self.sample)
             if self.total_baseline:
                 self.total_b = np.sqrt(self.baseline_2)
                 self.slave.image_new_data_memory(self.angle_b, 'baseline', self.s_lin, self.s_pix,

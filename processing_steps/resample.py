@@ -43,9 +43,9 @@ class Resample(object):
         self.coordinates = coordinates
 
         self.new_line = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape,
-                                                          'New_line' + self.sample)
+                                                          'new_line' + self.sample)
         self.new_pixel = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape,
-                                                           'New_pixel' + self.sample)
+                                                           'new_pixel' + self.sample)
 
         # Select the required area. Possibly it already covers the required area, then we do not need to load new data.
         # However, this will only be the case if we have loaded a larger tile already.
@@ -78,7 +78,6 @@ class Resample(object):
         # should be the same size as the output grid.
 
         try:
-
             # If you use the same resampling window many times, you can also pass it with the function.
             if len(table_size) != 2:
                 table_size = [1000, 100]
@@ -159,12 +158,12 @@ class Resample(object):
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
-        if 'baseline' in slave.processes.keys():
-            meta_info = slave.processes['baseline']
+        if 'resample' in slave.processes.keys():
+            meta_info = slave.processes['resample']
         else:
             meta_info = OrderedDict()
 
-        meta_info = coordinates.create_meta_data(['Resampled'], ['complex_int'], meta_info)
+        meta_info = coordinates.create_meta_data(['resample'], ['complex_int'], meta_info)
 
         slave.image_add_processing_step('resample', meta_info)
 
@@ -176,7 +175,7 @@ class Resample(object):
 
         # Information on this processing step
         input_dat = defaultdict()
-        for t in ['New_line', 'New_pixel']:
+        for t in ['new_line', 'new_pixel']:
             input_dat['slave']['combined_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
             input_dat['slave']['combined_coreg'][t]['coordinates'] = coordinates
             input_dat['slave']['combined_coreg'][t]['slice'] = coordinates.slice
@@ -185,18 +184,18 @@ class Resample(object):
         in_coordinates = CoordinateSystem()
         in_coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
         if deramped:
-            input_dat['slave']['deramped'][t]['file'] = ['Deramped.raw']
-            input_dat['slave']['deramped'][t]['coordinates'] = in_coordinates
-            input_dat['slave']['deramped'][t]['slice'] = coordinates.slice
+            input_dat['slave']['deramp']['deramp']['file'] = ['deramp.raw']
+            input_dat['slave']['deramp']['deramp']['coordinates'] = in_coordinates
+            input_dat['slave']['deramp']['deramp']['slice'] = coordinates.slice
         else:
-            input_dat['slave']['crop'][t]['file'] = ['Crop.raw']
-            input_dat['slave']['crop'][t]['coordinates'] = in_coordinates
-            input_dat['slave']['crop'][t]['slice'] = coordinates.slice
+            input_dat['slave']['crop']['crop']['file'] = ['crop.raw']
+            input_dat['slave']['crop']['crop']['coordinates'] = in_coordinates
+            input_dat['slave']['crop']['crop']['slice'] = coordinates.slice
 
         output_dat = dict()
-        output_dat['slave']['resample']['Data']['file'] = ['Resampled' + coordinates.sample + '.raw']
-        output_dat['slave']['resample']['Data']['coordinates'] = coordinates
-        output_dat['slave']['resample']['Data']['slice'] = coordinates.slice
+        output_dat['slave']['resample']['resample']['file'] = ['resample' + coordinates.sample + '.raw']
+        output_dat['slave']['resample']['resample']['coordinates'] = coordinates
+        output_dat['slave']['resample']['resample']['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5

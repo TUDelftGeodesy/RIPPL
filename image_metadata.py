@@ -60,7 +60,7 @@ class ImageMetadata(object):
             if type == 'single':
                 self.process_control = collections.OrderedDict([('readfiles', '0'), ('orbits', '0'), ('crop', '0'),
                                                                 ('import_dem', '0'), ('inverse_geocode', '0'),
-                                                                ('radar_dem', '0'), ('geocode', '0'),
+                                                                ('radar_dem', '0'), ('geocode', '0'), ('coor_conversion', '0')
                                                                 ('azimuth_elevation_angle', '0'), ('deramp', '0'),
                                                                 ('sim_amplitude', '0'), ('coreg_readfiles', '0'),
                                                                 ('coreg_orbits', '0'), ('coreg_crop', '0'), ('geometrical_coreg', '0'),

@@ -2,6 +2,7 @@
 
 import numpy as np
 
+
 class FindCoordinates():
 
     @staticmethod
@@ -110,6 +111,38 @@ class FindCoordinates():
         pixels_out = s_pix + np.arange(out_shape[1]) * (multilook[1] / oversample[1])
 
         return sample, multilook, oversample, offset, [lines_in, pixels_in], [lines_out, pixels_out]
+
+    @staticmethod
+    def find_slices_offset(in_shape, multilook='', oversample='', offset='', slices_start='', slice_offset=''):
+        # This function finds the needed offset of a slices starting at the slices_start coordinates to be exactly in
+        # line with the overall image. The given slice_offset is a minimal slices offset (for example in the case of
+        # empty lines after resampling or disalignment of master and slave)
+
+        sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, out_shape] = \
+            FindCoordinates.multilook_coors(in_shape, 0, 0, 0, multilook, oversample, offset)
+
+        # In case we only need coordinates for one slice.
+        if isinstance(slices_start[0], int):
+            slices_start = [slices_start]
+        new_slices_offset = []
+
+        for slice_start in slices_start:
+            eff_ml = np.array([(multilook[0] / oversample[0]), (multilook[0] / oversample[0])])
+            slice_first = np.array(slice_start) + np.array(slice_offset)
+
+            # Now check whether the overlap due to oversampling is large enough if this configuration is used.
+            # Otherwise shift a pixel.
+            ovr_lin = float(multilook[0] / 2.0) - (float(multilook[0]) / float(oversample[0]) / 2)
+            ovr_pix = float(multilook[1] / 2.0) - (float(multilook[1]) / float(oversample[1]) / 2)
+
+            in_offset = np.array([int(slice_first[0] + ovr_lin - in_s_lin), int(slice_first[1] + ovr_pix - in_s_pix)])
+            out_offset = in_offset / eff_ml + (in_offset % eff_ml > 0)
+
+            # Now calculate the offset for this slide
+            new_slices_offset.append([in_s_lin + out_offset[0] * eff_ml[0] - slice_start[0],
+                                      in_s_pix + out_offset[1] * eff_ml[1] - slice_start[1]])
+
+        return new_slices_offset
 
     @staticmethod
     def interval_coors(in_shape, s_lin=0, s_pix=0, lines=0, multilook='', oversample='', offset=''):

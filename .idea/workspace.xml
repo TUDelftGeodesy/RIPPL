@@ -2,20 +2,21 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="697e7cc0-0d35-4582-8551-acfca2ca3b1d" name="Default" comment="">
+      <change afterPath="$PROJECT_DIR$/processing_steps/conversion_grid.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/processing_steps/square_amplitude.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/coordinate_system.py" beforeDir="false" afterPath="$PROJECT_DIR$/coordinate_system.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/find_coordinates.py" beforeDir="false" afterPath="$PROJECT_DIR$/find_coordinates.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/image.py" beforeDir="false" afterPath="$PROJECT_DIR$/image.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/orbit_dem_functions/srtm_download.py" beforeDir="false" afterPath="$PROJECT_DIR$/orbit_dem_functions/srtm_download.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/image_metadata.py" beforeDir="false" afterPath="$PROJECT_DIR$/image_metadata.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/orbit_dem_functions/orbit_coordinates.py" beforeDir="false" afterPath="$PROJECT_DIR$/orbit_dem_functions/orbit_coordinates.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/processing_steps/baseline.py" beforeDir="false" afterPath="$PROJECT_DIR$/processing_steps/baseline.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/processing_steps/coherence.py" beforeDir="false" afterPath="$PROJECT_DIR$/processing_steps/coherence.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/processing_steps/concatenate.py" beforeDir="false" afterPath="$PROJECT_DIR$/processing_steps/concatenate.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/processing_steps/deramping_reramping.py" beforeDir="false" afterPath="$PROJECT_DIR$/processing_steps/deramping_reramping.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/processing_steps/earth_topo_phase.py" beforeDir="false" afterPath="$PROJECT_DIR$/processing_steps/earth_topo_phase.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/processing_steps/import_dem.py" beforeDir="false" afterPath="$PROJECT_DIR$/processing_steps/import_dem.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/processing_steps/interfero.py" beforeDir="false" afterPath="$PROJECT_DIR$/processing_steps/interfero.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/processing_steps/inverse_geocode.py" beforeDir="false" afterPath="$PROJECT_DIR$/processing_steps/inverse_geocode.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/processing_steps/multilook.py" beforeDir="false" afterPath="$PROJECT_DIR$/processing_steps/multilook.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/processing_steps/resample.py" beforeDir="false" afterPath="$PROJECT_DIR$/processing_steps/resample.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sentinel/sentinel_swath_metadata.py" beforeDir="false" afterPath="$PROJECT_DIR$/sentinel/sentinel_swath_metadata.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/stack.py" beforeDir="false" afterPath="$PROJECT_DIR$/stack.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -31,8 +32,8 @@
             <file pinned="false" current-in-tab="false">
               <entry file="file://$PROJECT_DIR$/image_data.py">
                 <provider selected="true" editor-type-id="text-editor">
-                  <state relative-caret-position="315">
-                    <caret line="21" column="22" selection-start-line="21" selection-start-column="22" selection-end-line="21" selection-end-column="22" />
+                  <state relative-caret-position="120">
+                    <caret line="8" column="10" selection-start-line="8" selection-start-column="10" selection-end-line="8" selection-end-column="10" />
                     <folding>
                       <element signature="e#0#9#0" expanded="true" />
                       <marker date="1536753701161" expanded="true" signature="19111:19120" ph="..." />
@@ -45,20 +46,32 @@
             <file pinned="false" current-in-tab="true">
               <entry file="file://$PROJECT_DIR$/coordinate_system.py">
                 <provider selected="true" editor-type-id="text-editor">
-                  <state relative-caret-position="-1186">
-                    <caret line="25" lean-forward="true" selection-start-line="25" selection-end-line="25" />
+                  <state relative-caret-position="1650">
+                    <caret line="191" column="41" lean-forward="true" selection-start-line="191" selection-start-column="41" selection-end-line="191" selection-end-column="41" />
                     <folding>
                       <element signature="e#0#44#0" expanded="true" />
-                      <marker date="1538410272413" expanded="true" signature="190:196" ph="..." />
-                      <marker date="1538410272413" expanded="true" signature="1710:1715" ph="..." />
-                      <marker date="1538410272413" expanded="true" signature="1818:2276" ph="..." />
-                      <marker date="1538410272413" expanded="true" signature="2431:7176" ph="..." />
-                      <marker date="1538410272413" expanded="true" signature="6307:7176" ph="..." />
-                      <marker date="1538410272413" expanded="true" signature="7241:7250" ph="..." />
-                      <marker date="1538410272413" expanded="true" signature="7241:9385" ph="..." />
-                      <marker date="1538410272413" expanded="true" signature="9413:9422" ph="..." />
-                      <marker date="1538410272413" expanded="true" signature="9413:9531" ph="..." />
-                      <marker date="1538410272413" expanded="true" signature="9560:9865" ph="..." />
+                      <marker date="1539077867089" expanded="true" signature="190:196" ph="..." />
+                      <marker date="1539077867089" expanded="true" signature="1735:1740" ph="..." />
+                      <marker date="1539077867089" expanded="true" signature="1858:2599" ph="..." />
+                      <marker date="1539077867089" expanded="true" signature="2769:9210" ph="..." />
+                      <marker date="1539077867089" expanded="true" signature="7817:9210" ph="..." />
+                      <marker date="1539077867089" expanded="true" signature="9275:9284" ph="..." />
+                      <marker date="1539077867089" expanded="true" signature="9275:11453" ph="..." />
+                      <marker date="1539077867089" expanded="true" signature="11481:11490" ph="..." />
+                      <marker date="1539077867089" expanded="true" signature="11481:11599" ph="..." />
+                      <marker date="1539077867089" expanded="true" signature="11628:11933" ph="..." />
+                    </folding>
+                  </state>
+                </provider>
+              </entry>
+            </file>
+            <file pinned="false" current-in-tab="false">
+              <entry file="file://$PROJECT_DIR$/image_metadata.py">
+                <provider selected="true" editor-type-id="text-editor">
+                  <state relative-caret-position="300">
+                    <caret line="20" column="26" lean-forward="true" selection-start-line="20" selection-start-column="26" selection-end-line="20" selection-end-column="26" />
+                    <folding>
+                      <element signature="e#0#15#0" expanded="true" />
                     </folding>
                   </state>
                 </provider>
@@ -67,11 +80,11 @@
             <file pinned="false" current-in-tab="false">
               <entry file="file://$PROJECT_DIR$/processing_steps/baseline.py">
                 <provider selected="true" editor-type-id="text-editor">
-                  <state relative-caret-position="1574">
-                    <caret line="135" column="29" lean-forward="true" selection-start-line="135" selection-start-column="29" selection-end-line="135" selection-end-column="29" />
+                  <state relative-caret-position="270">
+                    <caret line="39" lean-forward="true" selection-start-line="39" selection-end-line="39" />
                     <folding>
                       <element signature="e#757#789#0" expanded="true" />
-                      <marker date="1538384925245" expanded="true" signature="8669:9203" ph="..." />
+                      <marker date="1538653834002" expanded="true" signature="8668:9202" ph="..." />
                     </folding>
                   </state>
                 </provider>
@@ -98,24 +111,24 @@
       <usages-collector id="statistics.file.extensions.open">
         <counts>
           <entry key="md" value="1" />
-          <entry key="py" value="100" />
+          <entry key="py" value="128" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.open">
         <counts>
           <entry key="Markdown" value="1" />
-          <entry key="Python" value="100" />
+          <entry key="Python" value="128" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
-          <entry key="Python Console" value="750" />
-          <entry key="py" value="46946" />
+          <entry key="Python Console" value="1014" />
+          <entry key="py" value="69436" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.edit">
         <counts>
-          <entry key="Python" value="47696" />
+          <entry key="Python" value="70450" />
         </counts>
       </usages-collector>
     </session>
@@ -123,83 +136,73 @@
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/processing_steps/unwrap.py">
+        <entry file="file://$PROJECT_DIR$/processing_steps/multilook.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-918">
+            <state relative-caret-position="420">
+              <caret line="28" column="17" selection-start-line="28" selection-start-column="17" selection-end-line="28" selection-end-column="17" />
               <folding>
-                <element signature="e#1#33#0" expanded="true" />
+                <element signature="e#79#111#0" expanded="true" />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/processing_steps/geocode.py">
+        <entry file="file://$PROJECT_DIR$/stack.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="555">
-              <caret line="114" column="14" lean-forward="true" selection-start-line="114" selection-end-line="177" selection-end-column="51" />
+            <state relative-caret-position="225">
+              <caret line="15" column="13" selection-start-line="15" selection-start-column="13" selection-end-line="15" selection-end-column="13" />
               <folding>
-                <element signature="e#141#173#0" expanded="true" />
+                <marker date="1538064348371" expanded="true" signature="6026:6035" ph="..." />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/processing_steps/inverse_geocode.py">
+        <entry file="file://$PROJECT_DIR$/processing_steps/concatenate.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1751">
-              <caret line="153" column="50" lean-forward="true" selection-start-line="153" selection-start-column="50" selection-end-line="153" selection-end-column="50" />
+            <state relative-caret-position="664">
+              <caret line="92" column="25" lean-forward="true" selection-start-line="92" selection-start-column="25" selection-end-line="92" selection-end-column="25" />
               <folding>
-                <element signature="e#972#1038#0" expanded="true" />
+                <element signature="e#472#504#0" expanded="true" />
+                <marker date="1539185194370" expanded="true" signature="7644:7649" ph="..." />
+                <marker date="1539185194370" expanded="true" signature="14082:14091" ph="..." />
+                <marker date="1539185194370" expanded="true" signature="14082:15815" ph="..." />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/processing_steps/concatenate.py">
+        <entry file="file://$PROJECT_DIR$/processing_steps/coherence.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1059">
-              <caret line="376" column="24" lean-forward="true" selection-start-line="376" selection-start-column="24" selection-end-line="376" selection-end-column="24" />
+            <state relative-caret-position="75">
+              <caret line="5" column="48" selection-start-line="5" selection-start-column="48" selection-end-line="5" selection-end-column="48" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/processing_steps/earth_topo_phase.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="203">
+              <caret line="26" column="28" lean-forward="true" selection-start-line="26" selection-start-column="28" selection-end-line="26" selection-end-column="28" />
               <folding>
-                <element signature="e#472#504#0" expanded="true" />
+                <element signature="e#180#198#0" expanded="true" />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/processing_steps/resample.py">
+        <entry file="file://$PROJECT_DIR$/processing_steps/interfero.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="975">
-              <caret line="167" lean-forward="true" selection-start-line="167" selection-end-line="167" />
+            <state relative-caret-position="594">
+              <caret line="78" lean-forward="true" selection-start-line="78" selection-end-line="78" />
               <folding>
-                <element signature="e#142#160#0" expanded="true" />
-                <marker date="1538046510734" expanded="true" signature="6538:6547" ph="..." />
-                <marker date="1538046510734" expanded="true" signature="6538:7562" ph="..." />
+                <element signature="e#79#111#0" expanded="true" />
               </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/image_metadata.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="105">
-              <caret line="85" lean-forward="true" selection-start-line="85" selection-end-line="85" />
-              <folding>
-                <element signature="e#0#15#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/sentinel/sentinel_swath_metadata.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="405">
-              <caret line="354" lean-forward="true" selection-start-line="354" selection-end-line="354" />
             </state>
           </provider>
         </entry>
@@ -225,6 +228,23 @@
       <find>self.master</find>
       <find>meta</find>
       <find>self.resolution</find>
+      <find>self.slices</find>
+      <find>in</find>
+      <find>lat</find>
+      <find>lon</find>
+      <find>x</find>
+      <find>y</find>
+      <find>coordinates_out</find>
+      <find>coordinates_in</find>
+      <find>out_ids</find>
+      <find>coreg_meta</find>
+      <find>meta_coreg</find>
+      <find>conversion_grid</find>
+      <find>'coherence'</find>
+      <find>slave</find>
+      <find>phase_corrected</find>
+      <find>self.data</find>
+      <find>get_d</find>
     </findStrings>
     <replaceStrings>
       <replace>pydoris</replace>
@@ -235,6 +255,21 @@
       <replace>self.cmaster</replace>
       <replace>cmaster</replace>
       <replace>srtm_type</replace>
+      <replace>meta_slices</replace>
+      <replace>out</replace>
+      <replace>y</replace>
+      <replace>x</replace>
+      <replace>lon</replace>
+      <replace>coor_in</replace>
+      <replace>output_ids</replace>
+      <replace>cmaster_meta</replace>
+      <replace>multilook</replace>
+      <replace>'conversion_grid'</replace>
+      <replace>'square_amplitude'</replace>
+      <replace>meta</replace>
+      <replace>earth_topo_phase</replace>
+      <replace>self.interferogram</replace>
+      <replace>lat</replace>
     </replaceStrings>
   </component>
   <component name="Git.Settings">
@@ -248,29 +283,33 @@
         <option value="$PROJECT_DIR$/processing_steps/processing_list.py" />
         <option value="$PROJECT_DIR$/pipeline.py" />
         <option value="$PROJECT_DIR$/image_data.py" />
-        <option value="$PROJECT_DIR$/processing_steps/multilook.py" />
         <option value="$PROJECT_DIR$/orbit_dem_functions/interp_dem.py" />
         <option value="$PROJECT_DIR$/processing_steps/baselines.py" />
-        <option value="$PROJECT_DIR$/find_coordinates.py" />
         <option value="$PROJECT_DIR$/processing_steps/height_to_phase.py" />
         <option value="$PROJECT_DIR$/processing_steps/geocode.py" />
         <option value="$PROJECT_DIR$/processing_steps/radar_dem.py" />
         <option value="$PROJECT_DIR$/processing_steps/geometrical_coreg.py" />
         <option value="$PROJECT_DIR$/processing_steps/azimuth_elevation_angle.py" />
-        <option value="$PROJECT_DIR$/processing_steps/resample.py" />
-        <option value="$PROJECT_DIR$/processing_steps/earth_topo_phase.py" />
         <option value="$PROJECT_DIR$/processing_steps/import_dem.py" />
         <option value="$PROJECT_DIR$/orbit_dem_functions/srtm_download.py" />
-        <option value="$PROJECT_DIR$/image.py" />
-        <option value="$PROJECT_DIR$/stack.py" />
         <option value="$PROJECT_DIR$/processing_steps/deramping_reramping.py" />
-        <option value="$PROJECT_DIR$/processing_steps/coherence.py" />
-        <option value="$PROJECT_DIR$/processing_steps/interfero.py" />
         <option value="$PROJECT_DIR$/processing_steps/inverse_geocode.py" />
-        <option value="$PROJECT_DIR$/processing_steps/baseline.py" />
         <option value="$PROJECT_DIR$/sentinel/sentinel_swath_metadata.py" />
+        <option value="$PROJECT_DIR$/orbit_dem_functions/orbit_coordinates.py" />
+        <option value="$PROJECT_DIR$/processing_steps/baseline.py" />
+        <option value="$PROJECT_DIR$/find_coordinates.py" />
         <option value="$PROJECT_DIR$/coordinate_system.py" />
+        <option value="$PROJECT_DIR$/image_metadata.py" />
+        <option value="$PROJECT_DIR$/stack.py" />
+        <option value="$PROJECT_DIR$/image.py" />
+        <option value="$PROJECT_DIR$/processing_steps/conversion_grid.py" />
+        <option value="$PROJECT_DIR$/processing_steps/square_amplitude.py" />
+        <option value="$PROJECT_DIR$/processing_steps/resample.py" />
+        <option value="$PROJECT_DIR$/processing_steps/interfero.py" />
+        <option value="$PROJECT_DIR$/processing_steps/multilook.py" />
         <option value="$PROJECT_DIR$/processing_steps/concatenate.py" />
+        <option value="$PROJECT_DIR$/processing_steps/earth_topo_phase.py" />
+        <option value="$PROJECT_DIR$/processing_steps/coherence.py" />
       </list>
     </option>
   </component>
@@ -364,6 +403,10 @@
       <method v="2" />
     </configuration>
   </component>
+  <component name="StructureViewFactory">
+    <option name="AUTOSCROLL_MODE" value="false" />
+    <option name="AUTOSCROLL_FROM_SOURCE" value="true" />
+  </component>
   <component name="SvnConfiguration">
     <configuration />
   </component>
@@ -381,6 +424,33 @@
     <frame x="67" y="25" width="1853" height="1055" extended-state="6" />
     <editor active="true" />
     <layout>
+      <window_info active="true" content_ui="combo" id="Project" order="0" sideWeight="0.7657233" visible="true" weight="0.2711677" />
+      <window_info id="Structure" order="1" sideWeight="0.23427673" side_tool="true" weight="0.2711677" />
+      <window_info id="Favorites" order="2" side_tool="true" />
+      <window_info anchor="bottom" id="Message" order="0" />
+      <window_info anchor="bottom" id="Find" order="1" weight="0.32979852" />
+      <window_info anchor="bottom" id="Run" order="2" />
+      <window_info anchor="bottom" id="Debug" order="3" weight="0.3997833" />
+      <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
+      <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
+      <window_info anchor="bottom" id="TODO" order="6" />
+      <window_info anchor="bottom" id="Docker" order="7" show_stripe_button="false" />
+      <window_info anchor="bottom" id="Database Changes" order="8" show_stripe_button="false" />
+      <window_info anchor="bottom" id="Terminal" order="9" weight="0.32936078" />
+      <window_info anchor="bottom" id="Event Log" order="10" side_tool="true" />
+      <window_info anchor="bottom" id="Version Control" order="11" weight="0.32936078" />
+      <window_info anchor="bottom" id="Python Console" order="12" visible="true" weight="0.3109426" />
+      <window_info anchor="bottom" id="Inspection Results" order="13" weight="0.32936078" />
+      <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
+      <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
+      <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
+      <window_info anchor="right" id="SciView" order="3" />
+      <window_info anchor="right" id="R Graphics" order="4" />
+      <window_info anchor="right" id="R Packages" order="5" />
+      <window_info anchor="right" id="Database" order="6" />
+      <window_info anchor="right" x="0" y="0" width="413" height="855" id="Documentation" order="7" side_tool="true" weight="0.094631985" />
+    </layout>
+    <layout-to-restore>
       <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.23574986" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
@@ -397,33 +467,6 @@
       <window_info anchor="bottom" id="Event Log" order="10" side_tool="true" />
       <window_info anchor="bottom" id="Version Control" order="11" weight="0.32936078" />
       <window_info active="true" anchor="bottom" id="Python Console" order="12" visible="true" weight="0.3109426" />
-      <window_info anchor="bottom" id="Inspection Results" order="13" weight="0.32936078" />
-      <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
-      <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
-      <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
-      <window_info anchor="right" id="SciView" order="3" />
-      <window_info anchor="right" id="R Graphics" order="4" />
-      <window_info anchor="right" id="R Packages" order="5" />
-      <window_info anchor="right" id="Database" order="6" />
-      <window_info anchor="right" x="0" y="0" width="413" height="855" id="Documentation" order="7" side_tool="true" weight="0.094631985" />
-    </layout>
-    <layout-to-restore>
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.23574986" />
-      <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
-      <window_info id="Favorites" order="2" side_tool="true" />
-      <window_info anchor="bottom" id="Message" order="0" />
-      <window_info anchor="bottom" id="Find" order="1" weight="0.32979852" />
-      <window_info anchor="bottom" id="Run" order="2" />
-      <window_info anchor="bottom" id="Debug" order="3" weight="0.3997833" />
-      <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
-      <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
-      <window_info anchor="bottom" id="TODO" order="6" />
-      <window_info anchor="bottom" id="Docker" order="7" show_stripe_button="false" />
-      <window_info anchor="bottom" id="Database Changes" order="8" show_stripe_button="false" />
-      <window_info anchor="bottom" id="Terminal" order="9" weight="0.32936078" />
-      <window_info anchor="bottom" id="Event Log" order="10" side_tool="true" />
-      <window_info anchor="bottom" id="Version Control" order="11" weight="0.32936078" />
-      <window_info anchor="bottom" id="Python Console" order="12" visible="true" weight="0.26218852" />
       <window_info anchor="bottom" id="Inspection Results" order="13" weight="0.32936078" />
       <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
@@ -532,63 +575,12 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/processing_steps/earth_topo_phase.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="174">
-          <caret line="120" column="61" lean-forward="true" selection-start-line="120" selection-start-column="61" selection-end-line="120" selection-end-column="61" />
-          <folding>
-            <element signature="e#180#198#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/image.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="310">
-          <caret line="430" column="41" selection-start-line="430" selection-start-column="41" selection-end-line="430" selection-end-column="41" />
-          <folding>
-            <element signature="e#1343#1352#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/stack.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1209">
-          <caret line="157" lean-forward="true" selection-start-line="157" selection-end-line="157" />
-          <folding>
-            <element signature="e#502#511#0" expanded="true" />
-            <marker date="1538064348371" expanded="true" signature="6026:6035" ph="..." />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/orbit_dem_functions/srtm_download.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="-1671">
           <caret line="175" lean-forward="true" selection-start-line="175" selection-end-line="175" />
           <folding>
             <element signature="e#633#642#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/processing_steps/import_dem.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="328">
-          <caret line="283" column="51" lean-forward="true" selection-start-line="283" selection-start-column="51" selection-end-line="283" selection-end-column="51" />
-          <folding>
-            <element signature="e#634#643#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/processing_steps/interfero.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1620">
-          <caret line="108" column="48" selection-start-line="108" selection-start-column="48" selection-end-line="108" selection-end-column="48" />
-          <folding>
-            <element signature="e#79#111#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -603,96 +595,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/processing_steps/coherence.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="311">
-          <caret line="132" lean-forward="true" selection-start-line="132" selection-end-line="132" />
-          <folding>
-            <element signature="e#79#111#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/processing_steps/multilook.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="439">
-          <caret line="299" column="43" selection-start-line="299" selection-start-column="43" selection-end-line="299" selection-end-column="43" />
-          <folding>
-            <element signature="e#79#111#0" expanded="true" />
-            <marker date="1536762417124" expanded="true" signature="681:690" ph="..." />
-            <marker date="1536762417124" expanded="true" signature="19847:19853" ph="..." />
-            <marker date="1536762417124" expanded="true" signature="19901:19907" ph="..." />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/processing_steps/unwrap.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-918">
-          <folding>
-            <element signature="e#1#33#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/processing_steps/geocode.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="555">
-          <caret line="114" column="14" lean-forward="true" selection-start-line="114" selection-end-line="177" selection-end-column="51" />
-          <folding>
-            <element signature="e#141#173#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/processing_steps/baseline.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1574">
-          <caret line="135" column="29" lean-forward="true" selection-start-line="135" selection-start-column="29" selection-end-line="135" selection-end-column="29" />
-          <folding>
-            <element signature="e#757#789#0" expanded="true" />
-            <marker date="1538384925245" expanded="true" signature="8669:9203" ph="..." />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/processing_steps/inverse_geocode.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1751">
-          <caret line="153" column="50" lean-forward="true" selection-start-line="153" selection-start-column="50" selection-end-line="153" selection-end-column="50" />
-          <folding>
-            <element signature="e#972#1038#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/find_coordinates.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-121">
-          <caret line="72" column="33" selection-start-line="72" selection-start-column="33" selection-end-line="72" selection-end-column="33" />
-          <folding>
-            <marker date="1537883875624" expanded="true" signature="158:163" ph="..." />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/sentinel/sentinel_swath_metadata.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="405">
-          <caret line="354" lean-forward="true" selection-start-line="354" selection-end-line="354" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/orbit_dem_functions/orbit_coordinates.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="105">
-          <caret line="7" lean-forward="true" selection-start-line="7" selection-end-line="7" />
-          <folding>
-            <element signature="e#72#87#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/orbit_dem_functions/orbit_interpolate.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="2865">
@@ -703,32 +605,149 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/processing_steps/resample.py">
+    <entry file="file://$PROJECT_DIR$/sentinel/sentinel_swath_metadata.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="975">
-          <caret line="167" lean-forward="true" selection-start-line="167" selection-end-line="167" />
+        <state relative-caret-position="1425">
+          <caret line="206" column="103" lean-forward="true" selection-start-line="206" selection-start-column="103" selection-end-line="206" selection-end-column="103" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/processing_steps/geocode.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-66">
+          <caret line="86" lean-forward="true" selection-start-line="86" selection-end-line="86" />
           <folding>
-            <element signature="e#142#160#0" expanded="true" />
-            <marker date="1538046510734" expanded="true" signature="6538:6547" ph="..." />
-            <marker date="1538046510734" expanded="true" signature="6538:7562" ph="..." />
+            <element signature="e#141#173#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/processing_steps/unwrap.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-630">
+          <folding>
+            <element signature="e#1#33#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/sentinel/sentinel_stack.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="489">
+          <caret line="327" lean-forward="true" selection-start-line="327" selection-end-line="327" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/image_metadata.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="105">
-          <caret line="85" lean-forward="true" selection-start-line="85" selection-end-line="85" />
+        <state relative-caret-position="300">
+          <caret line="20" column="26" lean-forward="true" selection-start-line="20" selection-start-column="26" selection-end-line="20" selection-end-column="26" />
           <folding>
             <element signature="e#0#15#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/processing_steps/conversion_grid.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-501">
+          <caret line="198" column="71" lean-forward="true" selection-start-line="198" selection-start-column="71" selection-end-line="198" selection-end-column="71" />
+          <folding>
+            <element signature="e#79#111#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/processing_steps/resample.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="195">
+          <caret line="43" lean-forward="true" selection-start-line="43" selection-end-line="43" />
+          <folding>
+            <element signature="e#142#160#0" expanded="true" />
+            <marker date="1539174310207" expanded="true" signature="6537:6546" ph="..." />
+            <marker date="1539174310207" expanded="true" signature="6537:7561" ph="..." />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/orbit_dem_functions/orbit_coordinates.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="354">
+          <caret line="419" column="13" lean-forward="true" selection-start-line="419" selection-start-column="13" selection-end-line="419" selection-end-column="13" />
+          <folding>
+            <element signature="e#72#87#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/processing_steps/import_dem.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="979">
+          <caret line="265" column="26" lean-forward="true" selection-start-line="265" selection-start-column="26" selection-end-line="265" selection-end-column="26" />
+          <folding>
+            <element signature="e#634#643#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/processing_steps/multilook.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="420">
+          <caret line="28" column="17" selection-start-line="28" selection-start-column="17" selection-end-line="28" selection-end-column="17" />
+          <folding>
+            <element signature="e#79#111#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/stack.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="225">
+          <caret line="15" column="13" selection-start-line="15" selection-start-column="13" selection-end-line="15" selection-end-column="13" />
+          <folding>
+            <marker date="1538064348371" expanded="true" signature="6026:6035" ph="..." />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/processing_steps/concatenate.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="664">
+          <caret line="92" column="25" lean-forward="true" selection-start-line="92" selection-start-column="25" selection-end-line="92" selection-end-column="25" />
+          <folding>
+            <element signature="e#472#504#0" expanded="true" />
+            <marker date="1539185194370" expanded="true" signature="7644:7649" ph="..." />
+            <marker date="1539185194370" expanded="true" signature="14082:14091" ph="..." />
+            <marker date="1539185194370" expanded="true" signature="14082:15815" ph="..." />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/image.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="365">
+          <caret line="79" column="38" lean-forward="true" selection-start-line="79" selection-start-column="38" selection-end-line="79" selection-end-column="38" />
+          <folding>
+            <element signature="e#1343#1352#0" expanded="true" />
+            <marker date="1539162703075" expanded="true" signature="7171:7180" ph="..." />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/processing_steps/inverse_geocode.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="264">
+          <caret line="109" lean-forward="true" selection-start-line="109" selection-end-line="109" />
+          <folding>
+            <element signature="e#972#1038#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/image_data.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="315">
-          <caret line="21" column="22" selection-start-line="21" selection-start-column="22" selection-end-line="21" selection-end-column="22" />
+        <state relative-caret-position="120">
+          <caret line="8" column="10" selection-start-line="8" selection-start-column="10" selection-end-line="8" selection-end-column="10" />
           <folding>
             <element signature="e#0#9#0" expanded="true" />
             <marker date="1536753701161" expanded="true" signature="19111:19120" ph="..." />
@@ -737,33 +756,83 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/coordinate_system.py">
+    <entry file="file://$PROJECT_DIR$/processing_steps/baseline.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-1186">
-          <caret line="25" lean-forward="true" selection-start-line="25" selection-end-line="25" />
+        <state relative-caret-position="270">
+          <caret line="39" lean-forward="true" selection-start-line="39" selection-end-line="39" />
           <folding>
-            <element signature="e#0#44#0" expanded="true" />
-            <marker date="1538410272413" expanded="true" signature="190:196" ph="..." />
-            <marker date="1538410272413" expanded="true" signature="1710:1715" ph="..." />
-            <marker date="1538410272413" expanded="true" signature="1818:2276" ph="..." />
-            <marker date="1538410272413" expanded="true" signature="2431:7176" ph="..." />
-            <marker date="1538410272413" expanded="true" signature="6307:7176" ph="..." />
-            <marker date="1538410272413" expanded="true" signature="7241:7250" ph="..." />
-            <marker date="1538410272413" expanded="true" signature="7241:9385" ph="..." />
-            <marker date="1538410272413" expanded="true" signature="9413:9422" ph="..." />
-            <marker date="1538410272413" expanded="true" signature="9413:9531" ph="..." />
-            <marker date="1538410272413" expanded="true" signature="9560:9865" ph="..." />
+            <element signature="e#757#789#0" expanded="true" />
+            <marker date="1538653834002" expanded="true" signature="8668:9202" ph="..." />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/processing_steps/concatenate.py">
+    <entry file="file://$PROJECT_DIR$/find_coordinates.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1059">
-          <caret line="376" column="24" lean-forward="true" selection-start-line="376" selection-start-column="24" selection-end-line="376" selection-end-column="24" />
+        <state relative-caret-position="630">
+          <caret line="42" lean-forward="true" selection-start-line="42" selection-end-line="42" />
           <folding>
-            <element signature="e#472#504#0" expanded="true" />
+            <marker date="1538991785521" expanded="true" signature="159:164" ph="..." />
+            <marker date="1538991785521" expanded="true" signature="5153:5162" ph="..." />
+            <marker date="1538991785521" expanded="true" signature="5153:6878" ph="..." />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/coordinate_system.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1650">
+          <caret line="191" column="41" lean-forward="true" selection-start-line="191" selection-start-column="41" selection-end-line="191" selection-end-column="41" />
+          <folding>
+            <element signature="e#0#44#0" expanded="true" />
+            <marker date="1539077867089" expanded="true" signature="190:196" ph="..." />
+            <marker date="1539077867089" expanded="true" signature="1735:1740" ph="..." />
+            <marker date="1539077867089" expanded="true" signature="1858:2599" ph="..." />
+            <marker date="1539077867089" expanded="true" signature="2769:9210" ph="..." />
+            <marker date="1539077867089" expanded="true" signature="7817:9210" ph="..." />
+            <marker date="1539077867089" expanded="true" signature="9275:9284" ph="..." />
+            <marker date="1539077867089" expanded="true" signature="9275:11453" ph="..." />
+            <marker date="1539077867089" expanded="true" signature="11481:11490" ph="..." />
+            <marker date="1539077867089" expanded="true" signature="11481:11599" ph="..." />
+            <marker date="1539077867089" expanded="true" signature="11628:11933" ph="..." />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/processing_steps/earth_topo_phase.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="203">
+          <caret line="26" column="28" lean-forward="true" selection-start-line="26" selection-start-column="28" selection-end-line="26" selection-end-column="28" />
+          <folding>
+            <element signature="e#180#198#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/processing_steps/square_amplitude.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="384">
+          <caret line="48" lean-forward="true" selection-start-line="48" selection-end-line="48" />
+          <folding>
+            <element signature="e#79#111#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/processing_steps/interfero.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="594">
+          <caret line="78" lean-forward="true" selection-start-line="78" selection-end-line="78" />
+          <folding>
+            <element signature="e#79#111#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/processing_steps/coherence.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="75">
+          <caret line="5" column="48" selection-start-line="5" selection-start-column="48" selection-end-line="5" selection-end-column="48" />
         </state>
       </provider>
     </entry>

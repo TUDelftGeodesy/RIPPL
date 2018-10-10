@@ -1,139 +1,101 @@
 # The following class creates an interferogram from a master and slave image.
 
 from image_data import ImageData
-import pyproj
 from find_coordinates import FindCoordinates
+from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import numpy as np
 import logging
 import os
+import copy
 
 
 class Multilook(object):
-    """
-    :type s_pix = int
-    :type s_lin = int
-    :type shape = list
-    """
 
-    def __init__(self, meta, step, data_type, s_lin=0, s_pix=0, lines=0, multilook='', oversample='', offset='',
-                 geo_multilook=False, coreg_meta='', projection='WGS84', proj4='+proj=longlat +ellps=WGS84 +datum=WGS84',
-                 y_lim=[0, 0], x_lim=[0, 0], y_step=0.01, x_step=0.01):
+    def __init__(self, meta, cmaster_meta, step, file_type, coor_out, coor_in=''):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
         # When you want to use a certain projection, please give the proj4 string to do the conversion. Most projection
         # descriptions can be found at: spatialreference.org
         # The projection name is used as a shortname for the .res file, to get track of the output files.
 
-        if isinstance(meta, ImageData):
+        if isinstance(meta, ImageData) and isinstance(cmaster_meta, ImageData):
             self.meta = meta
-
-        # Find input shape
-        self.shape = self.meta.image_get_data_size(step, data_type)
-        self.geo_multilook = geo_multilook
-        self.s_lin = s_lin
-        self.s_pix = s_pix
-        self.lines = lines
-        self.step = step
-        self.data_type = data_type
-
-        # Find the coordinates of input and output.
-        if self.geo_multilook:
-            if isinstance(coreg_meta, str):
-                if len(coreg_meta) != 0:
-                    self.meta = ImageData(coreg_meta, 'single')
-            elif isinstance(coreg_meta, ImageData):
-                self.coreg_meta = coreg_meta
-
-            self.y_lim = y_lim
-            self.x_lim = x_lim
-            self.y_step = y_step
-            self.x_step = x_step
-            self.projection = projection
-            self.proj4 = proj4
-
-            if lines != 0:
-                l = np.minimum(lines, self.shape[0] - s_lin)
-            else:
-                l = self.shape[0] - s_lin
-            self.shape = [l, self.shape[1] - s_pix]
-
+            self.cmaster = cmaster_meta
         else:
-            sample, multilook, oversample, offset, in_shape, out_shape = Multilook.find_coordinates(
-                self.shape, s_lin=s_lin, s_pix=s_pix, lines=lines, multilook=multilook, oversample=oversample, offset=offset)
-            self.multilook = multilook
-            self.offset = offset
-            self.oversample = oversample
-            self.sample = sample
+            return
+
+        # If the in coordinates are not defined, we default to the original radar coordinate system. This is the obvious
+        # choiche
+        if not isinstance(coor_in, CoordinateSystem):
+            self.coor_in = CoordinateSystem()
+            self.coor_in.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+        if isinstance(coor_out, CoordinateSystem):
+            self.coor_out = coor_out
+
+        # Load input data.
+        self.data = self.meta.image_load_data_memory(step, 0, 0, self.coor_in.shape, file_type)
+        self.step = step
+        if len(file_type) == 0:
+            self.file_type = step
+        else:
+            self.file_type = file_type
 
         # Load data (somewhat complicated for the geographical multilooking.
-        if self.geo_multilook:
-            self.data = self.meta.image_load_data_memory(step, s_lin, s_pix, self.shape, data_type)
-            self.lat = self.coreg_meta.image_load_data_memory('geocode', s_lin, s_pix, self.shape, 'Lat')
-            self.lon = self.coreg_meta.image_load_data_memory('geocode', s_lin, s_pix, self.shape, 'Lon')
+        if self.coor_in.grid_type == 'radar_coordinates' and self.coor_out.grid_type in ['geographic', 'projection']:
+
+            self.use_ids = True
 
             # Check additional information on geographical multilooking
-            if len(x_lim) == 2 and len(y_lim) == 2:
-                out_size = [np.round(np.diff(y_lim)[0]), np.round(np.diff(x_lim)[0])]
-                self.sample = '_' + projection + '_' + str(y_lim[0]) + '_' + str(x_lim[1]) + '_' + \
-                         str(y_step) + '_' + str(x_step) + '_' + str(out_size[0]) + '_' + str(out_size[1])
+            convert_sample = coor_in.sample + '_' + coor_out.sample
+            
+            sort_ids_shape = self.cmaster.image_get_data_size(step, 'sort_ids' + convert_sample)
+            sum_ids_shape = self.cmaster.image_get_data_size(step, 'sum_ids' + convert_sample)
+            output_ids_shape = self.cmaster.image_get_data_size(step, 'output_ids' + convert_sample)
 
-                sort_ids_shape = self.meta.image_get_data_size(step, 'Sort_ids' + self.sample)
-                output_ids_shape = self.meta.image_get_data_size(step, 'Sum_ids' + self.sample)
+            self.sort_ids = self.cmaster.image_load_data_memory('geocode', 0, 0, sort_ids_shape, file_type='sort_ids' + convert_sample)
+            self.sum_ids = self.cmaster.image_load_data_memory('geocode', 0, 0, sum_ids_shape, file_type='sum_ids' + convert_sample)
+            self.output_ids = self.cmaster.image_load_data_memory('geocode', 0, 0, output_ids_shape, file_type='output_ids' + convert_sample)
 
-                self.sort_ids = self.coreg_meta.image_load_data_memory('geocode', 0, 0, sort_ids_shape, file_type='Sort_ids' + self.sample)
-                self.sum_ids = self.coreg_meta.image_load_data_memory('geocode', 0, 0, output_ids_shape, file_type='Sum_ids' + self.sample)
-                self.output_ids = self.coreg_meta.image_load_data_memory('geocode', 0, 0, output_ids_shape, file_type='Output_ids' + self.sample)
-
-                self.convert_ids = [self.sort_ids, self.sum_ids, self.output_ids]
-
+        elif self.coor_out.grid_type != self.coor_in.grid_type:
+            print('Conversion from geographic or projection grid type to other grid type not supported. Aborting')
+            return
         else:
-            self.data = self.meta.image_load_data_memory(step, in_shape[0], in_shape[1], in_shape[2], data_type)
+            self.use_ids = False
 
         # Prepare output
         self.multilooked = []
 
     def __call__(self):
-        if len(self.data) == 0:
+        if len(self.data) == 0 or (((len(self.sort_ids) == 0 or len(self.sum_ids) == 0 or len(self.output_ids) == 0))
+                                   and self.use_ids):
             print('Missing input data for multilooking for ' + self.meta.folder + '. Aborting..')
             return False
 
         try:
             # Calculate the multilooked image.
-            if self.geo_multilook:
+            if self.coor_in.grid_type == 'radar_coordinates' and self.coor_out.grid_type in ['geographic','projection']:
+                if self.coor_out.grid_type == 'geographic':
+                    self.multilooked = Multilook.radar2geographical(self.data, self.coor_out, self.sort_ids,
+                                                                    self.sum_ids, self.output_ids)
+                elif self.coor_out.grid_type == 'projection':
+                    self.multilooked = Multilook.radar2projection(self.data, self.coor_out, self.sort_ids,
+                                                                    self.sum_ids, self.output_ids)
+            # If we use the same coordinate system for input and output.
+            elif self.coor_in.grid_type == self.coor_out.grid_type:
 
-                if len(self.sort_ids) > 0 and len(self.sum_ids) > 0 and len(self.output_ids) > 0:
-                    self.multilooked, self.convert_ids, dat_lim = Multilook.multilook_geographical(
-                        self.lat, self.lon, self.data, self.y_step, self.x_step, self.y_lim, self.x_lim, self.projection)
-
-                    # Save the convert ids
-                    sort_id_size = self.convert_ids[0].shape
-                    output_id_size = self.convert_ids[1].shape
-                    self.create_geocode_meta_data(self.coreg_meta, dat_lim[0], dat_lim[1], self.y_step,
-                                                  self.x_step, projection=self.projection, coor_size=self.shape,
-                                                  sort_id_size=sort_id_size, output_id_size=output_id_size)
-                    self.meta.image_new_data_memory(self.convert_ids[0], 'geocode', 0, 0, file_type='Sort_ids' + self.sample)
-                    self.meta.image_new_data_memory(self.convert_ids[1], 'geocode', 0, 0, file_type='Output_ids' + self.sample)
-                    self.meta.image_new_data_memory(self.convert_ids[2], 'geocode', 0, 0, file_type='Sum_ids' + self.sample)
-
-                else:
-                    self.multilooked, convert, dat_lim = Multilook.multilook_geographical(self.lat, self.lon,
-                        self.data, self.y_step, self.x_step, self.y_lim, self.x_lim, self.projection, self.convert_ids)
-
-                # Save meta data and results
-                self.create_geographical_meta_data(self.meta, self.step, dat_lim[0], dat_lim[1], self.y_step,
-                                                   self.x_step, projection=self.projection, data_type=self.data_type)
-                self.meta.image_new_data_memory(self.multilooked, self.step, 0, 0, file_type=self.data_type + self.sample)
-
-
+                if self.coor_in.grid_type == 'radar_coordinates':
+                    self.multilooked = Multilook.radar2radar(self.data, self.coor_in, self.coor_out)
+                elif self.coor_in.grid_type == 'projection':
+                    self.multilooked = Multilook.projection2projection(self.data, self.coor_in, self.coor_out)
+                elif self.coor_in.grid_type == 'geographic':
+                    self.multilooked = Multilook.geographic2geographic(self.data, self.coor_in, self.coor_out)
             else:
-                self.multilooked = Multilook.multilook_regular(self.data, self.shape, s_lin=self.s_lin,
-                                                               s_pix=self.s_pix, lines=self.lines,
-                                                               multilook=self.multilook, oversample=self.oversample)
+                print('Conversion from a projection or geographic coordinate system to another system is not possible')
 
-                # Save meta data and results
-                self.create_meta_data(self.meta, self.step, self.data_type, self.multilook, self.oversample, self.offset)
-                self.meta.image_new_data_memory(self.multilooked, self.step, self.s_lin, 0, file_type=self.data_type + self.sample)
+            # Save meta data and results
+            self.create_meta_data(self.meta, self.coor_in, self.coor_out, self.step, self.file_type)
+            self.meta.image_new_data_memory(self.multilooked, self.step, 0, 0, file_type= self.file_type + self.coor_out.sample)
 
             return True
 
@@ -146,7 +108,35 @@ class Multilook(object):
             return False
 
     @staticmethod
-    def multilook_regular(val, original_shape='', s_lin=0, s_pix=0, lines=0, multilook='', oversample='', offset=''):
+    def grid_multilooking(values, lin_in, pix_in, lin_out, pix_out, ml_diff, ovr_out):
+        # Multilooking of a grid, where the output grid is possibly
+
+        lin_id = [lin_in.index(x) for x in lin_out]
+        pix_id = [pix_in.index(x) for x in pix_out]
+        d_lin = (lin_in[-1] - lin_in[-2])
+        d_pix = (pix_in[-1] - pix_in[-2])
+        last_lin = pix_in[-1] + d_lin
+        last_pix = lin_in[-1] + d_pix
+
+        if ovr_out == [1, 1]:
+            values_out = np.add.reduceat(np.add.reduceat(values[:last_lin, :last_pix], lin_id), pix_id, axis=1)
+        else:
+            ovr_lin_id = []
+            ovr_pix_id = []
+            for lin, pix in zip(lin_id, pix_id):
+                ovr_lin_id.append(lin)
+                ovr_lin_id.append(lin + d_lin * ml_diff[0])
+                ovr_pix_id.append(pix)
+                ovr_pix_id.append(pix + d_pix * ml_diff[0])
+
+            last_lin += d_lin * (ml_diff[0] - 1)
+            last_pix += d_pix * (ml_diff[1] - 1)
+            values_out = np.add.reduceat(np.add.reduceat(values[:last_lin, :last_pix], ovr_lin_id[:-1])[::2,:], ovr_pix_id[:-1], axis=1)[:, ::2]
+
+        return values_out
+
+    @staticmethod
+    def radar2radar(values, coor_in, coor_out):
         # In this function we expect that the needed offsets are already applied so the whole dataset is used.
         # Please apply Multilook.find_coordinates first to avoid processing errors.
 
@@ -156,44 +146,39 @@ class Multilook(object):
         # - When also the original shape and if needed s_lin, s_pix and lines are defined. The cutoff is applied already,
         #       so we need some additional info.
 
-        if len(original_shape) == 0:
-            dat_shape = val.shape
-        else:
-            dat_shape = original_shape
+        if not isinstance(coor_out, CoordinateSystem) or not isinstance(coor_in, CoordinateSystem):
+            print('In and out coordinate system should be a CoordinateSystem object')
+            return
+        if coor_in.oversample != [1, 1]:
+            print('Multilooking of already oversampled data not allowed')
+            return
 
-        sample, multilook, oversample, offset, in_shape, out_shape = Multilook.find_coordinates(
-            dat_shape, s_lin=s_lin, s_pix=s_pix, lines=lines, multilook=multilook, oversample=oversample, offset=offset)
+        # Coordinates of lines in both input and output image.
+        smp_in, ml_in, ovr_in, off_in, [lin, pix], [lin_in, pix_in] = FindCoordinates.multilook_lines(
+            coor_in.shape, 0, 0, 0, coor_in.multilook, coor_in.oversample, coor_in.offset)
+        lin_in += coor_in.first_line
+        pix_in += coor_in.first_pixel
 
-        if len(original_shape) == 0:
-            ls = 0
-            ps = 0
-        else:
-            ls = in_shape[0]
-            ps = in_shape[1]
+        smp_out, ml_out, ovr_out, off_out, [lin, pix], [lin_out, pix_out] = FindCoordinates.multilook_lines(
+            coor_out.shape, 0, 0, 0, coor_out.multilook, coor_out.oversample, coor_out.offset)
+        lin_out += coor_out.first_line
+        pix_out += coor_out.first_pixel
+        ml_diff = np.array(ml_out) / np.array(ml_in)
 
-        shape = in_shape[2]
-        le = ls + shape[0]
-        pe = ps + shape[1]
+        # Check if multilooking is possible
+        if not coor_in.ra_time == coor_out.ra_time or not coor_in.az_time == coor_out.az_time:
+            print('Start range and azimuth time should be the same')
+            return
+        if not all(l_out in lin_in for l_out in lin_out) or not all(p_out in pix_in for p_out in pix_out):
+            print('All lines/pixels in output grid should exist in input grid')
+            return
 
-        if oversample == [1, 1]:
-            ir = np.arange(0, shape[0], multilook[0])
-            jr = np.arange(0, shape[1], multilook[1])
+        values_out = Multilook.grid_multilooking(values, lin_in, pix_in, lin_out, pix_out, ml_diff, ovr_out)
 
-            ml_out = np.add.reduceat(np.add.reduceat(val[ls:le, ps:pe], ir), jr, axis=1)
-        else:
-            ir_h = np.arange(0, shape[0], multilook[0] / oversample[0])[:-(oversample[0] - 1)]
-            ir = [[i, i + multilook[0]] for i in ir_h]
-            ir = [item for sublist in ir for item in sublist][:-1]
-            jr_h = np.arange(0, shape[1], multilook[1] / oversample[1])[:-(oversample[1] - 1)]
-            jr = [[i, i + multilook[1]] for i in jr_h]
-            jr = [item for sublist in jr for item in sublist][:-1]
-
-            ml_out = np.add.reduceat(np.add.reduceat(val[ls:le, ps:pe], ir)[::2,:], jr, axis=1)[:, ::2]
-
-        return ml_out
+        return values_out
 
     @staticmethod
-    def multilook_geographical(lat, lon, val, y_step, x_step, y_lim=[0, 0], x_lim=[0, 0], projection='',  convert_ids=[]):
+    def radar2geographical(values, coordinates, sort_ids, sum_ids, output_ids):
         # This method does a geographical multilooking. This means that the multilooking window is defined by the
         # geographical location of the data point.
         # - In first instance we will assume that we convert to a regular lat/lon grid with regular steps in latitude
@@ -202,201 +187,235 @@ class Multilook(object):
         #   based on the extend of the lat/lon grid.
         # To find the needed proj4 string for your projection you could search for it on spatialreference.org
 
-        if len(convert_ids) == 0:
+        if not isinstance(coordinates, CoordinateSystem):
+            print('In and out coordinate system should be a CoordinateSystem object')
+            return
 
-            # First check whether a specific projection is defined.
-            if len(projection) > 0:
-                # During geocoding we always convert the WGS84 projections
-                proj_in = pyproj.Proj('+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs')
-                proj_out = pyproj.Proj(projection)
-
-                x, y = pyproj.transform(proj_in, proj_out, lon, lat)
-            else:
-                x = lon
-                y = lat
-
-            # If y_lim and/or x_lim is not defined calculate them.
-            # Keep in mind that the y_lim, x_lim, y_step and x_step can mean both distances in degrees or meters,
-            # based on the chosen projection.
-            if y_lim == [0, 0]:
-                y_lim = [np.floor(np.min(y) / y_step) * y_step, np.ceil(np.max(y) / y_step) * y_step]
-            if x_lim == [0, 0]:
-                x_lim = [np.floor(np.min(x) / x_step) * x_step, np.ceil(np.max(x) / x_step) * x_step]
-            out_size = [np.round(np.diff(y_lim)[0]), np.round(np.diff(x_lim)[0])]
-
-            # Select all pixels inside boundaries.
-            inside = (y_lim[0] < lat < y_lim[1]) * (x_lim[0] < lon < x_lim[1])
-
-            # Calculate the coordinates of the new pixels and find the pixels outside the given boundaries.
-            lat = np.int32((lat - y_lim[0]) / y_step)
-            lon = np.int32((lon - x_lim[0]) / x_step)
-            flat_id = lat * out_size[1] + lon
-            del lat, lon
-
-            # Sort ids and find number of pixels in every grid cell
-            sort_ids = np.argsort(np.ravel(flat_id))[np.ravel(inside)]
-            [out_ids, no_ids] = np.unique(flat_id[sort_ids], return_counts=True)
-            sum_ids = np.cumsum(no_ids) - 1
-
+        # Coordinate info based on whether we apply oversampling or not.
+        if coordinates.oversample == [1, 1]:
+            dlat = coordinates.dlat
+            dlon = coordinates.dlon
         else:
-            [sort_ids, out_ids, sum_ids] = convert_ids
-            out_size = [np.round(np.diff(y_lim)[0]), np.round(np.diff(x_lim)[0])]
+            # We have to change the stepsize to accommodate the oversampling later on. For example with an oversampling
+            # of 2, the new pixel only overlaps 0.5 pixel to all sides. With an odd oversampling factor this is not
+            # needed, but still implemented.
+            dlat = coordinates.dlat * 0.5
+            dlon = coordinates.dlon * 0.5
 
         # Preallocate the output grid
-        ml_grid = np.zeros(shape=out_size)
+        values_out = np.zeros(shape=coordinates.shape)
 
         # Add to output grids.
-        ml_grid[out_ids] = np.diff(np.concatenate([0], np.cumsum(val[sort_ids])[sum_ids]))
+        values_out[output_ids] = np.diff(np.concatenate([0], np.cumsum(values[sort_ids])[sum_ids]))
 
-        return ml_grid, [sort_ids, out_ids, sum_ids], [y_lim, x_lim, out_size]
+        # To create the oversampling we do a second multilooking step on the regular grid created.
+        if coordinates.oversample != [1, 1]:
+            coor_in = copy.deepcopy(coordinates)
+            coor_in.dlat = dlat
+            coor_in.dlon = dlon
+            coor_in.shape = coordinates.shape * 2
+
+            values_out = Multilook.geographic2geographic(values_out, coor_in, coordinates)
+
+        return values_out
 
     @staticmethod
-    def find_coordinates(meta, s_lin=0, s_pix=0, lines=0, multilook='', oversample='', offset=''):
+    def radar2projection(values, coordinates, sort_ids, sum_ids, output_ids):
+        # This method does a geographical multilooking. This means that the multilooking window is defined by the
+        # geographical location of the data point.
+        # - In first instance we will assume that we convert to a regular lat/lon grid with regular steps in latitude
+        #   and longitude. If the projection definition, we assume that y_lim/latlon and y_step/x_step change accordingly
+        # - The borders are defined by the chosen latitude and longitude limits. If these are not defined, it will be
+        #   based on the extend of the lat/lon grid.
+        # To find the needed proj4 string for your projection you could search for it on spatialreference.org
 
-        sample, ml, ovr, off, in_shape, out_shape = \
-            FindCoordinates.multilook_coors(meta, s_lin, s_pix, lines, multilook, oversample, offset)
+        if not isinstance(coordinates, CoordinateSystem):
+            print('In and out coordinate system should be a CoordinateSystem object')
+            return
 
-        return sample, multilook, oversample, offset, in_shape, out_shape
+        # Coordinate info based on whether we apply oversampling or not.
+        if coordinates.oversample == [1, 1]:
+            dy = coordinates.dy
+            dx = coordinates.dx
+        else:
+            # We have to change the stepsize to accommodate the oversampling later on. For example with an oversampling
+            # of 2, the new pixel only overlaps 0.5 pixel to all sides. With an odd oversampling factor this is not
+            # needed, but still implemented.
+            dy = coordinates.dy * 0.5
+            dx = coordinates.dx * 0.5
+
+        # Preallocate the output grid
+        values_out = np.zeros(shape=coordinates.shape)
+
+        # Add to output grids.
+        values_out[output_ids] = np.diff(np.concatenate([0], np.cumsum(values[sort_ids])[sum_ids]))
+
+        # To create the oversampling we do a second multilooking step on the regular grid created.
+        if coordinates.oversample != [1, 1]:
+            coor_in = copy.deepcopy(coordinates)
+            coor_in.dy = dy
+            coor_in.dx = dx
+            coor_in.shape = coordinates.shape * 2
+
+            values_out = Multilook.geographic2geographic(values_out, coor_in, coordinates)
+
+        return values_out
 
     @staticmethod
-    def input_output_info(meta, step, meta_type='slave', data_type='Data', multilook='', oversample='', offset=''):
+    def geographic2geographic(values, coor_in, coor_out):
+        # Multilook a geographic to another geographic coordinate system. O
+
+        if not isinstance(coor_out, CoordinateSystem) or not isinstance(coor_in, CoordinateSystem):
+            print('In and out coordinate system should be a CoordinateSystem object')
+            return
+        if coor_in.oversample != [1, 1]:
+            print('Multilooking of already oversampled data not allowed')
+            return
+
+        # Resolution conversion between in and out coordinates.
+        res_change = np.array([int(coor_out.dlat / coor_in.dlat), int(coor_out.dlon / coor_in.dlon)])
+
+        # Coordinates of lines in both input and output image.
+        smp_in, ml_in, ovr_in, off_in, [lin, pix], [lin_in, pix_in] = FindCoordinates.multilook_lines(
+            coor_in.shape, 0, 0, 0, [1, 1], coor_in.oversample, [0, 0])
+        lin_in += coor_in.first_line
+        pix_in += coor_in.first_pixel
+
+        smp_out, ml_out, ovr_out, off_out, [lin, pix], [lin_out, pix_out] = FindCoordinates.multilook_lines(
+            coor_out.shape, 0, 0, 0, res_change, coor_out.oversample, [0, 0])
+        lin_out += coor_out.first_line
+        pix_out += coor_out.first_pixel
+        ml_diff = np.array(ml_out) / np.array(ml_in)
+
+        # Check if multilooking is possible
+        if not coor_in.lat0 == coor_out.lat0 or not coor_in.lon0 == coor_out.lon0:
+            print('Start latitude and longitude should be the same')
+            return
+        if not all(l_out in lin_in for l_out in lin_out) or not all(p_out in pix_in for p_out in pix_out):
+            print('All lines/pixels in output grid should exist in input grid')
+            return
+
+        values_out = Multilook.grid_multilooking(values, lin_in, pix_in, lin_out, pix_out, ml_diff, ovr_out)
+
+        return values_out
+
+    @staticmethod
+    def projection2projection(values, coor_in, coor_out):
+
+        if not isinstance(coor_out, CoordinateSystem) or not isinstance(coor_in, CoordinateSystem):
+            print('In and out coordinate system should be a CoordinateSystem object')
+            return
+        if coor_in.oversample != [1, 1]:
+            print('Multilooking of already oversampled data not allowed')
+            return
+
+        # Resolution conversion between in and out coordinates.
+        res_change = np.array([int(coor_out.dy / coor_in.dy), int(coor_out.dx / coor_in.dx)])
+
+        # Coordinates of lines in both input and output image.
+        smp_in, ml_in, ovr_in, off_in, [lin, pix], [lin_in, pix_in] = FindCoordinates.multilook_lines(
+            coor_in.shape, 0, 0, 0, [1, 1], coor_in.oversample, [0, 0])
+        lin_in += coor_in.first_line
+        pix_in += coor_in.first_pixel
+
+        smp_out, ml_out, ovr_out, off_out, [lin, pix], [lin_out, pix_out] = FindCoordinates.multilook_lines(
+            coor_out.shape, 0, 0, 0, res_change, coor_out.oversample, [0, 0])
+        lin_out += coor_out.first_line
+        pix_out += coor_out.first_pixel
+        ml_diff = np.array(ml_out) / np.array(ml_in)
+
+        # Check if multilooking is possible
+        if not coor_in.y0 == coor_out.y0 or not coor_in.x0 == coor_out.x0:
+            print('Start latitude and longitude should be the same')
+            return
+        if not all(l_out in lin_in for l_out in lin_out) or not all(p_out in pix_in for p_out in pix_out):
+            print('All lines/pixels in output grid should exist in input grid')
+            return
+
+        values_out = Multilook.grid_multilooking(values, lin_in, pix_in, lin_out, pix_out, ml_diff, ovr_out)
+
+        return values_out
+
+    @staticmethod
+    def input_output_info(coor_out, coor_in='', step='earth_topo_phase', file_type=''):
         # Information on this processing step. meta type should be defined here because this method is not directly
         # connected to either slave/master/ifg/coreg_master data type.
 
-        slice = meta.processes['crop']['Data_slice']
-        sample, multilook, oversample, offset = FindCoordinates(multilook, oversample, offset)
+        if not isinstance(coor_in, CoordinateSystem):
+            coor_in = CoordinateSystem()
+            coor_in.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+        if not isinstance(coor_out, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
 
+        if file_type == '':
+            file_type = step
+
+        # Three input files needed x, y, z coordinates
         input_dat = defaultdict()
-        input_dat[meta_type][step] = dict()
-        input_dat[meta_type][step]['files'] = [data_type + '.raw']
-        input_dat[meta_type][step]['multilook'] = [1, 1]
-        input_dat[meta_type][step]['oversample'] = [1, 1]
-        input_dat[meta_type][step]['offset'] = [0, 0]
-        input_dat[meta_type][step]['slice'] = slice
 
+        input_dat['slave'][step][file_type]['file'] = [file_type + coor_in.sample + '.raw']
+        input_dat['slave'][step][file_type]['coordinates'] = coor_in
+        input_dat['slave'][step][file_type]['slice'] = coor_in.slice
+
+        if coor_in.grid_type == 'radar_coordinates' and coor_out.grid_type in ['geographic', 'projection']:
+
+            conv_sample = coor_in.sample + '_' + coor_out.sample
+
+            for t in ['sort_ids', 'sum_ids', 'output_ids']:
+                input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['file'] = [t + conv_sample + '.raw']
+                input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['coordinates'] = coor_out
+                input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['slice'] = coor_out.slice
+
+        # line and pixel output files.
         output_dat = defaultdict()
-        output_dat[meta_type][step] = dict()
-        output_dat[meta_type][step]['files'] = [data_type + sample + '.raw']
-        output_dat[meta_type][step]['multilook'] = multilook
-        output_dat[meta_type][step]['oversample'] = oversample
-        output_dat[meta_type][step]['offset'] = offset
-        output_dat[meta_type][step]['slice'] = slice
+        input_dat['slave'][step][file_type]['file'] = [file_type + coor_out.sample + '.raw']
+        input_dat['slave'][step][file_type]['coordinates'] = coor_out
+        input_dat['slave'][step][file_type]['slice'] = coor_out.slice
 
-        # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
-        mem_use = 3
+        # Number of times input data is used in ram.
+        mem_use = 2
 
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_meta_data(meta, step, data_type='Data', multilook='', oversample='', offset=''):
+    def create_meta_data(meta, coor_in, coor_out, step, file_type=''):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
+        if not isinstance(coor_in, CoordinateSystem) or not isinstance(coor_out, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
 
         if step in meta.processes.keys():
             meta_info = meta.processes[step]
         else:
             meta_info = OrderedDict()
 
-        sample, multilook, oversample, offset, in_shape, out_shape = \
-            Multilook.find_coordinates(meta, multilook=multilook, oversample=oversample, offset=offset)
+        if not file_type:
+            file_type = step
 
-        dat = data_type + sample
-        meta_info[dat + '_output_file'] = dat + '.raw'
-        meta_info[dat + '_output_format'] = meta.processes[step][data_type + '_output_format']
-
-        meta_info[dat + '_lines'] = str(out_shape[2][0])
-        meta_info[dat + '_pixels'] = str(out_shape[2][1])
-        meta_info[dat + '_first_line'] = meta.processes[step][data_type + '_first_line']
-        meta_info[dat + '_first_pixel'] = meta.processes[step][data_type + '_first_pixel']
-        meta_info[dat + '_multilook_azimuth'] = str(multilook[0])
-        meta_info[dat + '_multilook_range'] = str(multilook[1])
-        meta_info[dat + '_oversampling_azimuth'] = str(oversample[0])
-        meta_info[dat + '_oversampling_range'] = str(oversample[1])
-        meta_info[dat + '_offset_azimuth'] = str(offset[0])
-        meta_info[dat + '_offset_range'] = str(offset[1])
-
+        data_types = [meta.data_types[step][file_type + coor_in.sample]]
+        meta_info = coor_out.create_meta_data([file_type + coor_out.sample], data_types, meta_info)
         meta.image_add_processing_step(step, meta_info)
 
     @staticmethod
-    def create_geographical_meta_data(meta, step, y_lim, x_lim, y_step, x_step, data_type='', projection='WGS84'):
-        # This function adds information about this step to the image. If parallel processing is used this should be
-        # done before the actual processing. This means that in the case of geographical processing the latitude and
-        # longitude limits and steps should be known beforehand.
-
-        if step in meta.processes.keys():
-            meta_info = meta.processes[step]
-        else:
-            meta_info = OrderedDict()
-
-        out_shape = [np.round(np.diff(y_lim)[0] / y_step), np.round(np.diff(x_lim)[0] / x_step)]
-        sample = '_' + projection + '_' + str(y_lim[0]) + '_' + str(x_lim[1]) + '_' + \
-                 str(y_step) + '_' + str(x_step) + '_' + str(out_shape[0]) + '_' + str(out_shape[1])
-
-        dat = data_type + sample
-        meta_info[dat + '_output_file'] = dat + '.raw'
-        meta_info[dat + '_output_format'] = meta.processes[step][data_type + '_output_format']
-
-        meta_info[dat + '_lines'] = str(out_shape[2][0])
-        meta_info[dat + '_pixels'] = str(out_shape[2][1])
-        meta_info[dat + '_min_latitude'] = str(y_lim[0])
-        meta_info[dat + '_min_longitude'] = str(x_lim[0])
-        meta_info[dat + '_y_step'] = str(y_step)
-        meta_info[dat + '_x_step'] = str(x_step)
-
-        meta.image_add_processing_step(step, meta_info)
-
-    @staticmethod
-    def create_geocode_meta_data(meta, y_lim, x_lim, y_step, x_step, projection='WGS84', coor_size=[0,0],
-                                 sort_id_size=0, output_id_size=0):
-        # This function adds information about this step to the image. If parallel processing is used this should be
-        # done before the actual processing. This means that in the case of geographical processing the latitude and
-        # longitude limits and steps should be known beforehand.
-
-        if 'geocode' in meta.processes.keys():
-            meta_info = meta.processes['geocode']
-        else:
-            meta_info = OrderedDict()
-
-        out_shape = [np.round(np.diff(y_lim)[0] / y_step), np.round(np.diff(x_lim)[0] / x_step)]
-        sample = '_' + projection + '_' + str(y_lim[0]) + '_' + str(x_lim[1]) + '_' + \
-                 str(y_step) + '_' + str(x_step) + '_' + str(out_shape[0]) + '_' + str(out_shape[1])
-
-        dat = 'Sort_ids' + sample
-        meta_info[dat + '_output_file'] = dat + '.raw'
-        meta_info[dat + '_output_format'] = 'int32'
-
-        meta_info[dat + '_lines'] = str(1)
-        meta_info[dat + '_pixels'] = str(sort_id_size)
-        meta_info[dat + '_coverage_percentage'] = str(sort_id_size * 100 / (coor_size[0] * coor_size[1]))
-        meta_info['Data_first_line'] = meta.processes['crop']['Data_first_line']
-        meta_info['Data_first_pixel'] = meta.processes['crop']['Data_first_pixel']
-
-        for dat in ['Output_ids' + sample, 'Sum_ids' + sample]:
-            meta_info[dat + '_output_file'] = dat + '.raw'
-            meta_info[dat + '_output_format'] = 'int32'
-
-            meta_info[dat + '_lines'] = str(1)
-            meta_info[dat + '_pixels'] = str(output_id_size)
-            meta_info[dat + '_coverage_percentage'] = str(output_id_size * 100 / (out_shape[2][0] * out_shape[2][1]))
-            meta_info[dat + '_min_latitude'] = str(y_lim[0])
-            meta_info[dat + '_min_longitude'] = str(x_lim[0])
-            meta_info[dat + '_y_step'] = str(y_step)
-            meta_info[dat + '_x_step'] = str(x_step)
-
-        meta.image_add_processing_step('coreg', meta_info)
-
-    @staticmethod
-    def create_output_files(meta, step, data_type='Data'):
+    def create_output_files(meta, output_file_steps=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
 
-        meta.image_create_disk(step, data_type)
+        if not output_file_steps:
+            meta_info = meta.processes['multilook']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
+
+        for s in output_file_steps:
+            meta.image_create_disk('multilook', s)
 
     @staticmethod
-    def create_coreg_output_file():
+    def save_to_disk(meta, output_file_steps=''):
 
-    @staticmethod
-    def save_output_files(meta, ):
+        if not output_file_steps:
+            meta_info = meta.processes['multilook']
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            output_file_steps = [filename[:-13] for filename in output_file_keys]
 
-    @staticmethod
-    def save_coreg_output_files(meta, ):
+        for s in output_file_steps:
+            meta.image_memory_to_disk('multilook', s)

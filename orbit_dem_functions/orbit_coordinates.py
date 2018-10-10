@@ -418,6 +418,7 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             ell_a = ell_axis[0]
             ell_b = ell_axis[1]
         else:
+            # Default values based on WGS84
             ell_a = 6378137.0
             ell_b = 6356752.3141
 
