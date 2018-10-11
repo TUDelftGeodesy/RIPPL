@@ -303,7 +303,7 @@ class SrtmDownload(object):
                 for i in [i for i, filename in enumerate(files) if filename[3] == 'W']:
                     east[i] *= -1
             else:
-                files = [str(os.path.basename(f)) for f in files if f.endswith('dem.zip')]
+                files = [str(os.path.basename(f)) for f in files if f.endswith('DEM.zip')]
                 north = [int(filename[5:7]) for filename in files]
                 east = [int(filename[1:4]) for filename in files]
                 for i in [i for i, filename in enumerate(files) if filename[4] == 's']:

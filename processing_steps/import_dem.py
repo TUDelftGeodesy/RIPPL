@@ -56,8 +56,8 @@ class CreateSrtmDem(OrbitCoordinates):
 
         # Initialize output files
         self.out_folder = os.path.dirname(self.meta.res_path)
-        self.dem = os.path.join(self.out_folder, 'Dem_' + self.coordinates.sample + '.raw')
-        self.q_dem = os.path.join(self.out_folder, 'Dem_q_' + self.coordinates.sample + '.raw')
+        self.dem = os.path.join(self.out_folder, 'DEM_' + self.coordinates.sample + '.raw')
+        self.q_dem = os.path.join(self.out_folder, 'DEM_q_' + self.coordinates.sample + '.raw')
 
     def __call__(self):
         # Create the DEM and xyz coordinates
@@ -78,10 +78,10 @@ class CreateSrtmDem(OrbitCoordinates):
         # Then create needed files
         if self.quality:
             self.q = self.create_image(dat_type='.q', tiles=tiles)
-            self.meta.image_new_data_memory(self.q, 'import_dem', 0, 0, file_type='Dem_q_' + self.coordinates.sample)
+            self.meta.image_new_data_memory(self.q, 'import_DEM', 0, 0, file_type='DEM_q_' + self.coordinates.sample)
 
         self.dem = self.create_image(dat_type='.hgt', tiles=tiles)
-        self.meta.image_new_data_memory(self.dem, 'import_dem', 0, 0, file_type='Dem_' + self.coordinates.sample)
+        self.meta.image_new_data_memory(self.dem, 'import_DEM', 0, 0, file_type='DEM_' + self.coordinates.sample)
 
     def create_image(self, tiles, dat_type='.hgt'):
         # This function adds tiles to np.memmap file
@@ -149,9 +149,9 @@ class CreateSrtmDem(OrbitCoordinates):
             lonid = [int(round((t_lonlim[0] - lonlim[0]) / s_size)),
                      int(round((t_lonlim[1] - lonlim[0]) / s_size)) + 1]
 
-            print('Adding tile lat ' + str(t_latid[1] + 1) + ' to ' + str(t_latid[0]) + ' into dem file ' +
+            print('Adding tile lat ' + str(t_latid[1] + 1) + ' to ' + str(t_latid[0]) + ' into DEM file ' +
                   str(latid[1] + 1) + ' to ' + str(latid[0]))
-            print('Adding tile lon ' + str(t_lonid[0] + 1) + ' to ' + str(t_lonid[1]) + ' into dem file ' +
+            print('Adding tile lon ' + str(t_lonid[0] + 1) + ' to ' + str(t_lonid[1]) + ' into DEM file ' +
                   str(lonid[0] + 1) + ' to ' + str(lonid[1]))
 
             # Assign values from tiles to outputdata
@@ -165,17 +165,17 @@ class CreateSrtmDem(OrbitCoordinates):
     def add_meta_data(meta, coordinates, quality=False):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        if 'import_dem' in meta.processes.keys():
-            meta_info = meta.processes['import_dem']
+        if 'import_DEM' in meta.processes.keys():
+            meta_info = meta.processes['import_DEM']
         else:
             meta_info = OrderedDict()
 
         if quality:
-            meta_info = coordinates.create_meta_data(['Dem', 'Dem_q'], ['real4', 'int8'], meta_info)
+            meta_info = coordinates.create_meta_data(['DEM', 'DEM_q'], ['real4', 'int8'], meta_info)
         else:
-            meta_info = coordinates.create_meta_data(['Dem'], ['real4'], meta_info)
+            meta_info = coordinates.create_meta_data(['DEM'], ['real4'], meta_info)
 
-        meta.image_add_processing_step('import_dem', meta_info)
+        meta.image_add_processing_step('import_DEM', meta_info)
 
     @staticmethod
     def processing_info(coordinates, quality=False):
@@ -188,15 +188,15 @@ class CreateSrtmDem(OrbitCoordinates):
 
         # line and pixel output files.
         if quality:
-            names = ['Dem', 'Dem_q']
+            names = ['DEM', 'DEM_q']
         else:
-            names = ['Dem']
+            names = ['DEM']
 
         output_dat = defaultdict()
         for name in names:
-            output_dat['slave']['import_dem'][name]['files'] = [name + coordinates.sample + '.raw']
-            output_dat['slave']['import_dem'][name]['coordinates'] = coordinates
-            output_dat['slave']['import_dem'][name]['slice'] = coordinates.slice
+            output_dat['slave']['import_DEM'][name]['files'] = [name + coordinates.sample + '.raw']
+            output_dat['slave']['import_DEM'][name]['coordinates'] = coordinates
+            output_dat['slave']['import_DEM'][name]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 2
@@ -209,23 +209,23 @@ class CreateSrtmDem(OrbitCoordinates):
         # done before the actual processing.
 
         if not output_file_steps:
-            meta_info = meta.processes['import_dem']
+            meta_info = meta.processes['import_DEM']
             output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
             output_file_steps = [filename[:-13] for filename in output_file_keys]
 
         for s in output_file_steps:
-            meta.image_create_disk('import_dem', s)
+            meta.image_create_disk('import_DEM', s)
 
     @staticmethod
     def save_to_disk(meta, output_file_steps=''):
 
         if not output_file_steps:
-            meta_info = meta.processes['import_dem']
+            meta_info = meta.processes['import_DEM']
             output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
             output_file_steps = [filename[:-13] for filename in output_file_keys]
 
         for s in output_file_steps:
-            meta.image_memory_to_disk('import_dem', s)
+            meta.image_memory_to_disk('import_DEM', s)
 
     @staticmethod
     def srtm_coordinates(polygon='', buf=1.0, rounding=1.0, srtm_type='SRTM3', shapefile=''):
@@ -295,7 +295,7 @@ class CreateExternalDem(CreateSrtmDem):
         lon = gdal.Open(lon_tiff, gdal.GA_ReadOnly)
 
         if h is None or lat is None or lon is None:
-            print 'Unable to open one of the dem files'
+            print 'Unable to open one of the DEM files'
             return
 
         # Find the start and end line by reading lat and lon information in chunks.

@@ -2,7 +2,7 @@
 from image_data import ImageData
 from find_coordinates import FindCoordinates
 import numpy as np
-from processing_steps.radar_dem import RadarDem.
+
 
 
 
@@ -26,15 +26,15 @@ class InterpDem(object):
         else:
             return
 
-        self.shape = self.meta.image_get_data_size('crop', 'Data')
+        self.shape = self.meta.image_get_data_size('crop', 'crop')
         if lines != 0:
             l = np.minimum(lines, self.shape[0] - s_lin)
         else:
             l = self.shape[0] - s_lin
         self.shape = [l, self.shape[1] - s_pix]
 
-        first_line = self.meta.data_offset['crop']['Data'][0]
-        first_pixel = self.meta.data_offset['crop']['Data'][1]
+        first_line = self.meta.data_offset['crop']['crop'][0]
+        first_pixel = self.meta.data_offset['crop']['crop'][1]
         self.sample, self.multilook, self.oversample, self.offset, [lines, pixels] = \
             FindCoordinates.interval_lines(self.shape, s_lin, s_pix, lines, multilook, oversample, offset)
 

@@ -68,7 +68,7 @@ class EarthTopoPhase(object):
             # Finally correct the data
             self.resampled_corrected = (self.resampled * np.exp(1j * phase_shift)).astype('complex64')
             self.add_meta_data(self.meta, self.coordinates)
-            self.meta.image_new_data_memory(self.resampled_corrected, 'earth_topo_phase', self.s_lin, self.s_pix, 'Data')
+            self.meta.image_new_data_memory(self.resampled_corrected, 'earth_topo_phase', self.s_lin, self.s_pix)
 
             return True
 
@@ -102,19 +102,19 @@ class EarthTopoPhase(object):
     def processing_info(coordinates, reramped=True):
 
         input_dat = defaultdict()
-        input_dat['meta']['combined_coreg']['New_pixel']['file'] = ['new_pixel' + coordinates.sample + '.raw']
-        input_dat['meta']['combined_coreg']['New_pixel']['coordinates'] = coordinates
-        input_dat['meta']['combined_coreg']['New_pixel']['slice'] = coordinates.slice
+        input_dat['meta']['combined_coreg']['new_pixel']['file'] = ['new_pixel' + coordinates.sample + '.raw']
+        input_dat['meta']['combined_coreg']['new_pixel']['coordinates'] = coordinates
+        input_dat['meta']['combined_coreg']['new_pixel']['slice'] = coordinates.slice
 
         # Input file should always be a full resolution grid.
         if reramped:
-            input_dat['meta']['reramp']['Data']['file'] = ['reramp' + coordinates.sample + '.raw']
-            input_dat['meta']['reramp']['Data']['coordinates'] = coordinates
-            input_dat['meta']['reramp']['Data']['slice'] = coordinates.slice
+            input_dat['meta']['reramp']['reramp']['file'] = ['reramp' + coordinates.sample + '.raw']
+            input_dat['meta']['reramp']['reramp']['coordinates'] = coordinates
+            input_dat['meta']['reramp']['reramp']['slice'] = coordinates.slice
         else:
-            input_dat['meta']['resample']['Data']['file'] = ['resample' + coordinates.sample + '.raw']
-            input_dat['meta']['resample']['Data']['coordinates'] = coordinates
-            input_dat['meta']['resample']['Data']['slice'] = coordinates.slice
+            input_dat['meta']['resample']['resample']['file'] = ['resample' + coordinates.sample + '.raw']
+            input_dat['meta']['resample']['resample']['coordinates'] = coordinates
+            input_dat['meta']['resample']['resample']['slice'] = coordinates.slice
 
         output_dat = dict()
         output_dat['meta']['earth_topo_phase']['earth_topo_phase']['file'] = ['earth_topo_phase' + coordinates.sample + '.raw']

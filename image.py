@@ -91,8 +91,8 @@ class Image(ImageData):
         # This function does some basic checks whether all bursts in this image are correct.
 
         # Process keys and expected lengths. (0 if unknown or variable)
-        process_keys = dict([('readfiles', 66), ('orbits', 0), ('crop', 8), ('import_dem', 0), ('inverse_geocode', 0),
-                             ('radar_dem', 0), ('geocode', 0), ('azimuth_elevation_angle', 0), ('deramp', 0),
+        process_keys = dict([('readfiles', 66), ('orbits', 0), ('crop', 8), ('import_DEM', 0), ('inverse_geocode', 0),
+                             ('radar_DEM', 0), ('geocode', 0), ('azimuth_elevation_angle', 0), ('deramp', 0),
                              ('sim_amplitude', 0), ('coreg_readfiles', 0),('coreg_orbits', 0), ('coreg_crop', 0),
                              ('geometrical_coreg', 0),('correl_coreg', 0), ('combined_coreg', 0),('master_timing', 0),
                              ('oversample', 0),('resample', 0), ('reramp', 0),('earth_topo_phase', 0), ('filt_azi', 0),

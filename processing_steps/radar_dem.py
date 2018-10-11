@@ -49,7 +49,7 @@ class RadarDem(object):
 
     def __call__(self):
         if len(self.dem) == 0 or len(self.dem_line) == 0 or len(self.dem_pixel) == 0:
-            print('Missing input data for creating radar dem for ' + self.meta.folder + '. Aborting..')
+            print('Missing input data for creating radar DEM for ' + self.meta.folder + '. Aborting..')
             return False
 
         try:
@@ -65,23 +65,23 @@ class RadarDem(object):
 
             # Data can be saved using the create output files and add meta data function.
             self.add_meta_data(self.meta, self.coordinates)
-            self.meta.image_new_data_memory(self.radar_dem, 'radar_dem', self.s_lin, self.s_pix, file_type='Data' + self.sample)
+            self.meta.image_new_data_memory(self.radar_dem, 'radar_DEM', self.s_lin, self.s_pix, file_type='radar_DEM' + self.sample)
             return True
 
         except Exception:
             log_file = os.path.join(self.meta.folder, 'error.log')
             logging.basicConfig(filename=log_file, level=logging.DEBUG)
-            logging.exception('Failed creating radar dem for ' + self.meta.folder + '. Check ' + log_file + ' for details.')
-            print('Failed creating radar dem for ' + self.meta.folder + '. Check ' + log_file + ' for details.')
+            logging.exception('Failed creating radar DEM for ' + self.meta.folder + '. Check ' + log_file + ' for details.')
+            print('Failed creating radar DEM for ' + self.meta.folder + '. Check ' + log_file + ' for details.')
 
             return False
 
     @staticmethod
     def source_dem_extend(meta, lines, pixels, dem_type, buf=3):
 
-        lin_key = 'Dem_line_' + dem_type
-        pix_key = 'Dem_pixel_' + dem_type
-        dem_key = 'Dem_' + dem_type
+        lin_key = 'DEM_line_' + dem_type
+        pix_key = 'DEM_pixel_' + dem_type
+        dem_key = 'DEM_' + dem_type
         new_dat = True
 
         if lin_key in meta.data_memory['inverse_geocode'].keys() and \
@@ -135,7 +135,7 @@ class RadarDem(object):
                                                              shape_source, lin_key)
             dem_pixel = meta.image_load_data_memory('inverse_geocode', s_lin_source, s_pix_source,
                                                               shape_source, pix_key)
-            dem = meta.image_load_data_memory('import_dem', s_lin_source, s_pix_source,
+            dem = meta.image_load_data_memory('import_DEM', s_lin_source, s_pix_source,
                                                         shape_source, dem_key)
 
         return dem, dem_line, dem_pixel
@@ -150,15 +150,15 @@ class RadarDem(object):
         else:
             print('coordinates should be an CoordinateSystem object')
 
-        shape = meta.image_get_data_size('crop', 'Data')
+        shape = meta.image_get_data_size('crop', 'crop')
         if lines != 0:
             l = np.minimum(lines, shape[0] - s_lin)
         else:
             l = shape[0] - s_lin
         shape = [l, shape[1] - s_pix]
 
-        first_line = meta.data_offset['crop']['Data'][0]
-        first_pixel = meta.data_offset['crop']['Data'][1]
+        first_line = meta.data_offset['crop']['crop'][0]
+        first_pixel = meta.data_offset['crop']['crop'][1]
         sample, multilook, oversample, offset, [lines, pixels] = \
             FindCoordinates.interval_lines(shape, s_lin, s_pix, lines, coordinates.multilook, coordinates.oversample, coordinates.offset)
 
@@ -174,14 +174,14 @@ class RadarDem(object):
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
-        if 'radar_dem' in meta.processes.keys():
-            meta_info = meta.processes['radar_dem']
+        if 'radar_DEM' in meta.processes.keys():
+            meta_info = meta.processes['radar_DEM']
         else:
             meta_info = OrderedDict()
 
-        meta_info = coordinates.create_meta_data(['Data'], ['real4'], meta_info)
+        meta_info = coordinates.create_meta_data(['radar_DEM'], ['real4'], meta_info)
 
-        meta.image_add_processing_step('radar_dem', meta_info)
+        meta.image_add_processing_step('radar_DEM', meta_info)
 
     @staticmethod
     def processing_info(in_coordinate, out_coordinate, meta_type='cmaster'):
@@ -189,21 +189,21 @@ class RadarDem(object):
         # Three input files needed Dem, Dem_line and Dem_pixel
         input_dat = defaultdict()
 
-        input_dat[meta_type]['inverse_geocode']['Dem']['file'] = ['Dem_' + in_coordinate.sample + '.raw']
-        input_dat[meta_type]['inverse_geocode']['Dem']['coordinates'] = in_coordinate
-        input_dat[meta_type]['inverse_geocode']['Dem']['slice'] = in_coordinate.slice
+        input_dat[meta_type]['inverse_geocode']['DEM']['file'] = ['DEM_' + in_coordinate.sample + '.raw']
+        input_dat[meta_type]['inverse_geocode']['DEM']['coordinates'] = in_coordinate
+        input_dat[meta_type]['inverse_geocode']['DEM']['slice'] = in_coordinate.slice
 
-        for dat_type in ['Dem_pixel', 'Dem_line']:
+        for dat_type in ['DEM_pixel', 'DEM_line']:
             input_dat[meta_type]['inverse_geocode'][dat_type]['file'] = [dat_type + in_coordinate.sample + '.raw']
             input_dat[meta_type]['inverse_geocode'][dat_type]['coordinates'] = in_coordinate
             input_dat[meta_type]['inverse_geocode'][dat_type]['slice'] = in_coordinate.slice
 
         # One output file created radar dem
         output_dat = defaultdict()
-        output_dat[meta_type]['radar_dem'] = dict()
-        output_dat[meta_type]['radar_dem']['Data']['files'] = ['Data' + out_coordinate.sample + '.raw']
-        output_dat[meta_type]['radar_dem']['Data']['coordinate'] = out_coordinate
-        output_dat[meta_type]['radar_dem']['Data']['slice'] = out_coordinate.slice
+        output_dat[meta_type]['radar_DEM'] = dict()
+        output_dat[meta_type]['radar_DEM']['radar_DEM']['files'] = ['radar_DEM' + out_coordinate.sample + '.raw']
+        output_dat[meta_type]['radar_DEM']['radar_DEM']['coordinate'] = out_coordinate
+        output_dat[meta_type]['radar_DEM']['radar_DEM']['slice'] = out_coordinate.slice
 
         # Number of times input data is used in ram. Bit difficult here but 15 times is ok guess.
         mem_use = 18
@@ -216,23 +216,23 @@ class RadarDem(object):
         # done before the actual processing.
 
         if not output_file_steps:
-            meta_info = meta.processes['radar_dem']
+            meta_info = meta.processes['radar_DEM']
             output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
             output_file_steps = [filename[:-13] for filename in output_file_keys]
 
         for s in output_file_steps:
-            meta.image_create_disk('radar_dem', s)
+            meta.image_create_disk('radar_DEM', s)
 
     @staticmethod
     def save_to_disk(meta, output_file_steps=''):
 
         if not output_file_steps:
-            meta_info = meta.processes['radar_dem']
+            meta_info = meta.processes['radar_DEM']
             output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
             output_file_steps = [filename[:-13] for filename in output_file_keys]
 
         for s in output_file_steps:
-            meta.image_memory_to_disk('radar_dem', s)
+            meta.image_memory_to_disk('radar_DEM', s)
 
     #######################################################################################
 

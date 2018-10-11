@@ -32,8 +32,8 @@ class Geocode(object):
         self.shape, self.lines, self.pixels, self.sample, self.multilook, self.oversample, self.offset = \
             Geocode.find_coordinates(meta, s_lin, s_pix, lines, coordinates)
 
-        dat_key = 'Data' + self.sample
-        self.height = self.meta.image_load_data_memory('radar_dem', self.s_lin, self.s_pix, self.shape, dat_key)
+        dat_key = 'radar_DEM' + self.sample
+        self.height = self.meta.image_load_data_memory('radar_DEM', self.s_lin, self.s_pix, self.shape, dat_key)
         self.orbits = OrbitCoordinates(self.meta)
         self.orbits.height = self.height
 
@@ -95,15 +95,15 @@ class Geocode(object):
         else:
             print('coordinates should be an CoordinateSystem object')
 
-        shape = meta.image_get_data_size('crop', 'Data')
+        shape = meta.image_get_data_size('crop', 'crop')
         if lines != 0:
             l = np.minimum(lines, shape[0] - s_lin)
         else:
             l = shape[0] - s_lin
         shape = [l, shape[1] - s_pix]
 
-        first_line = meta.data_offset['crop']['Data'][0]
-        first_pixel = meta.data_offset['crop']['Data'][1]
+        first_line = meta.data_offset['crop']['crop'][0]
+        first_pixel = meta.data_offset['crop']['crop'][1]
         sample, multilook, oversample, offset, [lines, pixels] = \
             FindCoordinates.interval_lines(shape, s_lin, s_pix, lines, coordinates.multilook, coordinates.oversample, coordinates.offset)
 
@@ -137,13 +137,13 @@ class Geocode(object):
 
         # Three input files needed Dem, Dem_line and Dem_pixel
         input_dat = defaultdict()
-        input_dat[meta_type]['radar_dem']['Data']['file'] = ['Data_' + coordinates.sample + '.raw']
-        input_dat[meta_type]['radar_dem']['Data']['coordinates'] = coordinates
-        input_dat[meta_type]['radar_dem']['Data']['slice'] = coordinates.slice
+        input_dat[meta_type]['radar_DEM']['radar_DEM']['file'] = ['Data_' + coordinates.sample + '.raw']
+        input_dat[meta_type]['radar_DEM']['radar_DEM']['coordinates'] = coordinates
+        input_dat[meta_type]['radar_DEM']['radar_DEM']['slice'] = coordinates.slice
 
         # One output file created radar dem
         output_dat = defaultdict()
-        for t in ['Lat', 'Lon', 'X', 'Y', 'Z']:
+        for t in ['lat', 'lon', 'X', 'Y', 'Z']:
             output_dat[meta_type]['geocode'][t]['files'] = [t + coordinates.sample + '.raw']
             output_dat[meta_type]['geocode'][t]['coordinates'] = coordinates
             output_dat[meta_type]['geocode'][t]['slice'] = coordinates.slice

@@ -188,10 +188,10 @@ class Baseline(object):
         else:
             print('coordinates should be an CoordinateSystem object')
 
-        shape = cmaster.image_get_data_size('crop', 'Data')
+        shape = cmaster.image_get_data_size('crop', 'crop')
 
-        first_line = cmaster.data_offset['crop']['Data'][0]
-        first_pixel = cmaster.data_offset['crop']['Data'][1]
+        first_line = cmaster.data_offset['crop']['crop'][0]
+        first_pixel = cmaster.data_offset['crop']['crop'][1]
         sample, multilook, oversample, offset, [lines, pixels] = \
             FindCoordinates.interval_lines(shape, s_lin, s_pix, lines, coordinates.multilook, coordinates.oversample, coordinates.offset)
 

@@ -69,9 +69,9 @@ class HeightToPhase(object):
             self.h2ph = self.baseline / (self.wavelength * R * np.sin(self.incidence)) * 4 * np.pi
 
             # Save meta data
-            self.add_meta_data(self.cmaster, self.slave, self.multilook, self.oversample, self.offset)
+            self.add_meta_data(self.slave, self.coordinates)
             self.slave.image_new_data_memory(self.h2ph, 'height_to_phase', self.s_lin, self.s_pix,
-                                             file_type='Data' + self.sample)
+                                             file_type='height_to_phase' + self.sample)
 
             return True
 
@@ -95,9 +95,9 @@ class HeightToPhase(object):
         else:
             print('coordinates should be an CoordinateSystem object')
 
-        shape = cmaster.image_get_data_size('crop', 'Data')
-        first_line = cmaster.data_offset['crop']['Data'][0]
-        first_pixel = cmaster.data_offset['crop']['Data'][1]
+        shape = cmaster.image_get_data_size('crop', 'crop')
+        first_line = cmaster.data_offset['crop']['crop'][0]
+        first_pixel = cmaster.data_offset['crop']['crop'][1]
 
         sample, multilook, oversample, offset, [lines, pixels] = \
             FindCoordinates.interval_lines(shape, s_lin, s_pix, lines, coordinates)
@@ -123,7 +123,7 @@ class HeightToPhase(object):
         else:
             meta_info = OrderedDict()
 
-        coordinates.create_meta_data(['Data'], ['real4'], meta_info)
+        coordinates.create_meta_data(['height_to_phase'], ['real4'], meta_info)
 
         meta.image_add_processing_step('height_to_phase', meta_info)
 
@@ -145,9 +145,9 @@ class HeightToPhase(object):
 
         # line and pixel output files.
         output_dat = defaultdict()
-        output_dat['slave']['height_to_phase']['Data']['files'] = ['Data' + coordinates.sample + '.raw']
-        output_dat['slave']['height_to_phase']['Data']['files'] = coordinates
-        output_dat['slave']['height_to_phase']['Data']['files'] = coordinates.slice
+        output_dat['slave']['height_to_phase']['height_to_phase']['files'] = ['height_to_phase' + coordinates.sample + '.raw']
+        output_dat['slave']['height_to_phase']['height_to_phase']['files'] = coordinates
+        output_dat['slave']['height_to_phase']['height_to_phase']['files'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5

@@ -31,7 +31,7 @@ slice_folders = next(os.walk('/media/gert/Data/radar_datastacks/new_stack/201611
 folders = [os.path.join(stack_folder, master_date, slice) for slice in slice_folders]
 masters = [ImageData(os.path.join(stack_folder, master_date, slice, 'info.res'), 'single') for slice in slice_folders]
 slaves = [ImageData(os.path.join(stack_folder, slave_date, slice, 'info.res'), 'single') for slice in slice_folders]
-srtm_folder = '/media/gert/Data/DEM/dem_processing'
+srtm_folder = '/media/gert/Data/DEM/DEM_processing'
 
 import numpy as np
 

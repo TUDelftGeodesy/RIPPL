@@ -34,10 +34,13 @@ class ConversionGrid(object):
         self.lat = self.meta.image_load_data_memory('geocode', 0, 0, self.coor_in.shape, 'lat' + coor_in.sample)
         self.lon = self.meta.image_load_data_memory('geocode', 0, 0, self.coor_in.shape, 'lon' + coor_in.sample)
 
-        # Prepare output
+        # Prepare output ids
         self.sort_ids = []
         self.sum_ids = []
         self.output_ids = []
+
+        # No of looks
+        self.looks = []
 
     def __call__(self):
         if len(self.lat) == 0 or len(self.lon) == 0:
@@ -62,7 +65,13 @@ class ConversionGrid(object):
 
             ConversionGrid.create_meta_data(self.meta, self.coor_in, self.coor_out, convert_ids_sizes)
 
+            # Get the number of looks
+            self.looks = np.zeros(self.coor_out.shape).astype(np.int32)
+            self.looks[self.output_ids / self.coor_out.shape[0], self.output_ids % self.coor_out.shape[1]] = \
+                np.diff(np.concatenate([-1], self.sum_ids))
+
             # Save the output data
+            self.meta.image_new_data_memory(self.looks, 'coor_conversion', 0, 0, file_type='looks' + convert_sample)
             self.meta.image_new_data_memory(self.sort_ids, 'coor_conversion', 0, 0, file_type='sort_ids' + convert_sample)
             self.meta.image_new_data_memory(self.sum_ids, 'coor_conversion', 0, 0, file_type='sum_ids' + convert_sample)
             self.meta.image_new_data_memory(self.output_ids, 'coor_conversion', 0, 0, file_type='output_ids' + convert_sample)

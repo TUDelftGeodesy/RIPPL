@@ -398,16 +398,16 @@ class CreateSwathXmlRes():
             last_pixel = np.min(last_sample[first_sample != -1])
 
             crop = collections.OrderedDict()
-            crop['Data_output_file'] = 'crop.raw'
-            crop['Data_output_format'] = 'complex_int'
+            crop['crop_output_file'] = 'crop.raw'
+            crop['crop_output_format'] = 'complex_int'
 
             start_line = int(self.burst_readfiles[n]['First_line (w.r.t. tiff_image)'])
 
-            crop['Data_lines'] = str(last_line - first_line + 1)
-            crop['Data_pixels'] = str(last_pixel - first_pixel + 1)
-            crop['Data_first_pixel'] = str(first_pixel + 1)
-            crop['Data_first_line'] = str(first_line + 1)
-            crop['Data_first_line (w.r.t. tiff_image)'] = str(start_line + first_line)
-            crop['Data_last_line (w.r.t. tiff_image)'] = str(start_line + last_line)
+            crop['crop_lines'] = str(last_line - first_line + 1)
+            crop['crop_pixels'] = str(last_pixel - first_pixel + 1)
+            crop['crop_first_pixel'] = str(first_pixel + 1)
+            crop['crop_first_line'] = str(first_line + 1)
+            crop['crop_first_line (w.r.t. tiff_image)'] = str(start_line + first_line)
+            crop['crop_last_line (w.r.t. tiff_image)'] = str(start_line + last_line)
 
             self.burst_crop.append(crop)

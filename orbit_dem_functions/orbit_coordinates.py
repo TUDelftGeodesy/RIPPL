@@ -184,7 +184,7 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             print('First define for which pixels or which azimuth/range times you want to compute the xyz coordinates')
             return
         if len(self.height) == 0:
-            print('First find the heights of the invidual pixels. This can be done using the create dem function')
+            print('First find the heights of the invidual pixels. This can be done using the create DEM function')
         if len(self.height) == 0:
             print('There is no height data loaded!')
             return

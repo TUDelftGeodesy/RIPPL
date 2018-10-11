@@ -37,11 +37,11 @@ class AzimuthElevationAngle(object):
         x_key = 'X' + self.sample
         y_key = 'Y' + self.sample
         z_key = 'Z' + self.sample
-        dem_key = 'Data' + self.sample
+        dem_key = 'radar_DEM' + self.sample
         self.x = self.meta.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, x_key)
         self.y = self.meta.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, y_key)
         self.z = self.meta.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, z_key)
-        self.height = self.meta.image_load_data_memory('radar_dem', self.s_lin, self.s_pix, self.shape, dem_key)
+        self.height = self.meta.image_load_data_memory('radar_DEM', self.s_lin, self.s_pix, self.shape, dem_key)
 
         self.orbits = OrbitCoordinates(self.meta)
         self.orbits.x = self.x
@@ -114,15 +114,15 @@ class AzimuthElevationAngle(object):
         else:
             print('coordinates should be an CoordinateSystem object')
 
-        shape = meta.image_get_data_size('crop', 'Data')
+        shape = meta.image_get_data_size('crop', 'crop')
         if lines != 0:
             l = np.minimum(lines, shape[0] - s_lin)
         else:
             l = shape[0] - s_lin
         shape = [l, shape[1] - s_pix]
 
-        first_line = meta.data_offset['crop']['Data'][0]
-        first_pixel = meta.data_offset['crop']['Data'][1]
+        first_line = meta.data_offset['crop']['crop'][0]
+        first_pixel = meta.data_offset['crop']['crop'][1]
         sample, multilook, oversample, offset, [lines, pixels] = \
             FindCoordinates.interval_lines(shape, s_lin, s_pix, lines, coordinates.multilook, coordinates.oversample, coordinates.offset)
 

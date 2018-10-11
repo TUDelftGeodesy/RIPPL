@@ -1,13 +1,13 @@
 """
 This script is mainly used to fit a DEM to the line and pixel coordinates of a specific orbit.
 To do so we follow the next 3 steps:
-1. Based on image metadata we load the dem.
+1. Based on image metadata we load the DEM.
 2. For irregular lat/lon grids, we load lat/lon files. / For regular lat/lon grids we calculate it from metadata
 3. If needed, we correct the height grid for the geoid based on EGM96
 4. Calculate the xyz cartesian coordinates for every pixel from latitude, longitude and height using the WGS84 ellipsoid
 5. Finally the xyz coordinates are used to find line and pixel coordinates of the grid.
 
-This steps follows the create SRTM dem function or load the external DEM function.
+This steps follows the create SRTM DEM function or load the external DEM function.
 
 The main function is called inverse geocoding, because the performed steps are also done during geocoding but in the
 opposite order, where the line and pixel coordinates are converted to lat/lon/height coordinates via cartesian coordi-
@@ -43,8 +43,8 @@ class InverseGeocode(object):
             return
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        dem_key = 'Dem_' + coordinates.sample
-        shape = np.array(self.meta.data_sizes['import_dem'][dem_key])
+        dem_key = 'DEM_' + coordinates.sample
+        shape = np.array(self.meta.data_sizes['import_DEM'][dem_key])
         if lines != 0:
             l = np.minimum(lines, shape[0] - s_lin)
         else:
@@ -58,7 +58,7 @@ class InverseGeocode(object):
         self.coordinates = coordinates
 
         # Load height and create lat/lon or load lat/lon
-        self.dem = self.meta.image_load_data_memory('import_dem', self.s_lin, self.s_pix, self.shape, dem_key)
+        self.dem = self.meta.image_load_data_memory('import_DEM', self.s_lin, self.s_pix, self.shape, dem_key)
 
         if coordinates.grid_type == 'geographic':
 
@@ -150,9 +150,9 @@ class InverseGeocode(object):
 
         # Three input files needed Dem, Dem_line and Dem_pixel
         input_dat = defaultdict()
-        input_dat[meta_type]['radar_dem']['Data']['file'] = ['Data_' + coordinates.sample + '.raw']
-        input_dat[meta_type]['radar_dem']['Data']['coordinates'] = coordinates
-        input_dat[meta_type]['radar_dem']['Data']['slice'] = coordinates.slice
+        input_dat[meta_type]['radar_DEM']['radar_DEM']['file'] = ['Data_' + coordinates.sample + '.raw']
+        input_dat[meta_type]['radar_DEM']['radar_DEM']['coordinates'] = coordinates
+        input_dat[meta_type]['radar_DEM']['radar_DEM']['slice'] = coordinates.slice
 
         # One output file created radar dem
         output_dat = defaultdict()

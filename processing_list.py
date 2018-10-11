@@ -19,8 +19,12 @@ from processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
 from processing_steps.geometrical_coreg import GeometricalCoreg
 from processing_steps.correlation_coreg import CorrelationWindows
 from processing_steps.deramping_reramping import Deramp, Reramp
+from processing_steps.square_amplitude import SquareAmplitude
+from processing_steps.conversion_grid import ConversionGrid
 from processing_steps.resample import Resample
 from processing_steps.earth_topo_phase import EarthTopoPhase
+from processing_steps.baseline import Baseline
+from processing_steps.height_to_phase import HeightToPhase
 
 # Interferograms > interferogram creation, coherence, filters, corrections.
 from processing_steps.interfero import Interfero
@@ -45,10 +49,10 @@ def import_processing_list():
     # Add to dict with processing steps:
     processing = dict()
     processing['srtm_download'] = SrtmDownload
-    processing['create_srtm_dem'] = CreateSrtmDem
-    processing['create_external_dem'] = CreateExternalDem
+    processing['create_srtm_DEM'] = CreateSrtmDem
+    processing['create_external_DEM'] = CreateExternalDem
     processing['inverse_geocode'] = InverseGeocode
-    processing['radar_dem'] = RadarDem
+    processing['radar_DEM'] = RadarDem
     processing['geocode'] = Geocode
     processing['azimuth_elevation_angle'] = AzimuthElevationAngle
     processing['geometrical_coreg'] = GeometricalCoreg
@@ -57,6 +61,10 @@ def import_processing_list():
     processing['resample'] = Resample
     processing['reramp'] = Reramp
     processing['earth_topo_phase'] = EarthTopoPhase
+    processing['baseline'] = Baseline
+    processing['height_to_phase'] = HeightToPhase
+    processing['conversion_grid'] = ConversionGrid
+    processing['square_amplitude'] = SquareAmplitude
 
     processing['interfero'] = Interfero
     processing['coherence'] = Coherence

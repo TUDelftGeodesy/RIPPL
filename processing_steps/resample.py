@@ -63,7 +63,7 @@ class Resample(object):
         # Load needed data from crop
         in_s_lin, in_s_pix, in_shape, self.out_s_lin, self.out_s_pix = \
             Resample.select_region_resampling(self.slave, self.new_line, self.new_pixel, buf)
-        self.crop = self.slave.image_load_data_memory(input_step, in_s_lin, in_s_pix, in_shape, 'Data')
+        self.crop = self.slave.image_load_data_memory(input_step, in_s_lin, in_s_pix, in_shape)
 
         # Initialize output
         self.resampled = []
@@ -118,7 +118,7 @@ class Resample(object):
                                                             pixel_id[valid_vals] + j_im] * weights[valid_vals]
 
             self.add_meta_data(self.slave, self.coordinates)
-            self.slave.image_new_data_memory(self.resampled, 'resample', self.s_lin, self.s_pix, 'Data')
+            self.slave.image_new_data_memory(self.resampled, 'resample', self.s_lin, self.s_pix)
 
             return True
 
@@ -134,13 +134,13 @@ class Resample(object):
     def select_region_resampling(meta, new_line, new_pixel, buf):
         # Selects the region we need to load from the original image to do the resampling to the new grid.
 
-        orig_s_lin = meta.data_limits['crop']['Data'][0] - 1
+        orig_s_lin = meta.data_limits['crop']['crop'][0] - 1
         in_s_lin = int(np.floor(np.maximum(np.min(new_line) - buf - orig_s_lin, 0)))
-        orig_s_pix = meta.data_limits['crop']['Data'][1] - 1
+        orig_s_pix = meta.data_limits['crop']['crop'][1] - 1
         in_s_pix = int(np.floor(np.maximum(np.min(new_pixel) - buf - orig_s_pix, 0)))
-        orig_lines = meta.data_sizes['crop']['Data'][0]
+        orig_lines = meta.data_sizes['crop']['crop'][0]
         in_e_lin = int(np.ceil(np.minimum(np.max(new_line) + buf - orig_s_lin, orig_lines)))
-        orig_pixels = meta.data_sizes['crop']['Data'][1]
+        orig_pixels = meta.data_sizes['crop']['crop'][1]
         in_e_pix = int(np.ceil(np.minimum(np.max(new_pixel) + buf - orig_s_pix, orig_pixels)))
 
         in_shape = [in_e_lin - in_s_lin, in_e_pix - in_s_pix]

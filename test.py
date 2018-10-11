@@ -27,7 +27,7 @@ burst_slave.image_disk_to_memory('resample', 1000, 5000, (400, 100))
 
 # Check whether we can load a stack of data.
 stack_folder = '/media/gert/Data/radar_datastacks/new_stack/'
-dem_database = '/media/gert/Data/DEM/dem_processing'
+dem_database = '/media/gert/Data/DEM/DEM_processing'
 
 datastack = Stack(stack_folder)
 datastack.read_master_slice_list()

@@ -13,7 +13,7 @@ class Unwrap(object):
     :type shape = list
     """
 
-    def __init__(self, meta, s_lin=0, s_pix=0, lines=0, step='interferogram', multilook='', oversampling='', offset='', run=False):
+    def __init__(self, meta, s_lin=0, s_pix=0, lines=0, step='interferogram', file_type='', multilook='', oversampling='', offset='', run=False):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
@@ -31,12 +31,15 @@ class Unwrap(object):
             print('Unwrapping of partial ifg not supported currently.')
             return
 
+        if file_type == '':
+            file_type = step
+
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
         self.sample, self.multilook, self.oversampling, self.offset, coor_in, coor_out = FindCoordinates.multilook_coors(ifg=self.meta, multilook=multilook, oversampling=oversampling, offset=offset)
 
         # Create the command to do unwrapping.
-        in_file = self.meta.data_files[step]['Data' + self.sample]
-        self.shape = self.meta.data_sizes[step]['Data' + self.sample]
+        in_file = self.meta.data_files[step][file_type + self.sample]
+        self.shape = self.meta.data_sizes[step][file_type + self.sample]
         lines = str(self.shape[1])
 
         self.out_file = os.path.join(os.path.dirname(in_file), 'unwrapped_ifg' + self.sample + '.raw')
@@ -48,8 +51,8 @@ class Unwrap(object):
         c.write('LINELENGTH ' + str(lines) + '\n')
 
         if 'coherence' in self.meta.data_files.keys():
-            if 'Data' + self.sample in self.meta.data_files['coherence'].keys():
-                c.write('CORRFILE ' + self.meta.data_files['coherence']['Data' + self.sample] + '\n')
+            if 'coherence' + self.sample in self.meta.data_files['coherence'].keys():
+                c.write('CORRFILE ' + self.meta.data_files['coherence']['coherence' + self.sample] + '\n')
                 c.write('CORRFILEFORMAT		FLOAT_DATA\n')
 
         c.write('OUTFILE ' + os.path.join(os.path.dirname(in_file), 'unwrapped_ifg' + self.sample + '.raw') + '\n')
@@ -100,7 +103,7 @@ class Unwrap(object):
 
         # Information on this processing step
         input_dat = defaultdict()
-        input_dat['slave']['coreg'] = ['New_line', 'New_pixel']
+        input_dat['slave']['coreg'] = ['new_line', 'new_pixel']
         input_dat['slave']['resample'] = ['Data']
 
         output_dat = dict()

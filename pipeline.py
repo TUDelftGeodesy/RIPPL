@@ -14,15 +14,15 @@
 # The final created function
 
 # image meta data
-from processing_steps.processing_list import import_processing_list
+from processing_list import import_processing_list
 import numpy as np
-
+from image_data import ImageData
+from image import Image
+from interferogram import Interferogram
 
 class RunPipeline():
 
-    def __init__(self, function, use_functions=[], settings=[], memory=1000, cores=4,
-                 cmaster=[], master=[], slave=[], ifg=[],
-                 ml=[[5, 20]], off=[[0, 0]], ovr=[[1, 1]]):
+    def __init__(self, memory=1000, cores=4, cmaster=[], master=[], slave=[], ifg=[]):
         # Individual images are always defined as slaves.
         # Be sure you input the right image types. Otherwise the function will not run!
         # master/slave/ifg are full images, not just the slices. The lists are just multiples of these. Only functions
@@ -30,15 +30,6 @@ class RunPipeline():
 
         # First load the available functions
         self.processes = import_processing_list()
-
-        # The functions that have to be run
-        self.function = function
-        self.use_functions = use_functions
-
-        # The specific settings for some of the functions. Sometimes we want to run with specific settings for one
-        # of the intermediate or the final function.
-        # This variable should be a dictionary, containing dictionaries for individual functions.
-        self.settings = settings
 
         # Maximum memory per process in MB.
         self.memory = memory
@@ -52,31 +43,60 @@ class RunPipeline():
         self.slave = slave
         self.ifg = ifg
 
+        self.slice_ids = []
+
+        # Find slice ids
+        for im in [self.cmaster, self.master, self.slave, self.ifg]:
+            if isinstance(im, Image) or isinstance(im, Interferogram):
+                self.slice_ids.extend(im.slices.keys())
+
+        self.slice_ids = list(set(self.slice_ids))
+
+        # Re-organize the different full images and slices
+        self.res_dat = dict()
+        self.res_dat['full'] = []
+        self.res_dat['slice'] = []
+
+        for slice_id in self.slice_ids:
+            for im, im_str in zip([self.cmaster, self.master, self.slave, self.ifg], ['cmaster', 'slave', 'master', 'ifg']):
+                slice = dict()
+
+                if isinstance(im, Image) or isinstance(im, Interferogram):
+                    if slice_id in im.slices.keys():
+                        slice[im_str] = im.slices[slice_id]
+                self.res_dat['slice'].append(slice)
+
+        for im, im_str in zip([self.cmaster, self.master, self.slave, self.ifg], ['cmaster', 'slave', 'master', 'ifg']):
+            image = dict()
+
+            if isinstance(im, Image) or isinstance(im, Interferogram):
+                if im.res_file:
+                    image[im_str] = im
+
+            self.res_dat['full'].append(image)
+
+        # Init function running variables
+        self.function = []
+        self.coordinates = []
+        self.settings = []
+        self.meta_type = []
+
         # The order of processes and there accompanying functions.
         self.ordered_functions = []
         self.ordered_processes = []
         self.ordered_filename = []
         self.ordered_im_type = []
-        self.ordered_ml = []
-        self.ordered_ovr = []
-        self.ordered_off = []
 
-        # The multilooking, offset and oversampling for ifg/coherence/geocoding
-        # Extra check whether we have sets of multilooking factors.
-        if type(multilook[0]) == int:
-            multilook = [multilook]
-        if type(oversample[0]) == int:
-            oversample = [oversample]
-        if type(offset[0]) == int:
-            offset = [offset]
-
-        # Assign to class variable.
-        self.multilooking = multilook
-        self.oversample = oversample
-        self.offset = offset
-
-    def __call__(self):
+    def __call__(self, function, settings, coordinates, slice=True, meta_type):
         # Here we prepare and run the parallel processing for this image at once.
+
+        # The specific settings for some of the functions. Sometimes we want to run with specific settings for one
+        # of the intermediate or the final function.
+        # This variable should be a dictionary, containing dictionaries for individual functions.
+        self.settings = settings
+        self.coordinates = coordinates
+        self.function = function
+        self.meta_type = meta_type
 
     def define_function_order(self):
 
@@ -93,38 +113,44 @@ class RunPipeline():
         out_dep['master'] = dict()
         out_dep['ifg'] = dict()
 
-        for function in self.functions:
 
-            if function in self.processes.keys():
-                input_dat, output_dat, mem_use = self.processes[function].processing_info()
-            else:
-                print(function + ' does not exist!')
-                return
+        # First process for the full image
+        # Check if step already exist and output is generated.
+
+
+        if self.function in self.processes.keys():
+            input_dat, output_dat, mem_use = self.processes[self.function].processing_info(self.coordinates)
+        else:
+            print(self.function + ' does not exist!')
+            return
+
+        depend = []
+        type_depend = input_dat.keys()
+        for t in type_depend:
+            for s in input_dat[t].keys():
+                in_dep[t][input_dat[t].keys()], out_dep[t][input_dat[t].keys()], mem_use = self.processes[s]
+                depend.append(t + ' ' + s)
+
+        while depend:
 
             depend = []
-            type_depend = input_dat.keys()
-            for t in type_depend:
-                for s in input_dat[t].keys():
-                    in_dep[t][input_dat[t].keys()], out_dep[t][input_dat[t].keys()], mem_use = self.processes[s]
-                    depend.append(t + ' ' + s)
 
-            while depend:
+            for d in depend:
 
-                depend = []
+                if function in self.processes.keys():
+                    input_dat, output_dat, mem_use = self.processes[function].processing_info()
+                else:
+                    print(function + ' does not exist!')
+                    return
 
-                for d in depend:
+                type_depend = input_dat.keys()
+                for t in type_depend:
+                    for s in input_dat[t].keys():
+                        in_dep[t][input_dat[t].keys()], out_dep[t][input_dat[t].keys()], mem_use = self.processes[s]
+                        depend.append(t + ' ' + s)
 
-                    if function in self.processes.keys():
-                        input_dat, output_dat, mem_use = self.processes[function].processing_info()
-                    else:
-                        print(function + ' does not exist!')
-                        return
+        # Then for the slices
 
-                    type_depend = input_dat.keys()
-                    for t in type_depend:
-                        for s in input_dat[t].keys():
-                            in_dep[t][input_dat[t].keys()], out_dep[t][input_dat[t].keys()], mem_use = self.processes[s]
-                            depend.append(t + ' ' + s)
 
         # Now define the order of all these steps.
 
@@ -171,37 +197,6 @@ class RunPipeline():
         self.ordered_functions = np.array(self.ordered_functions)
         self.ordered_processes = np.array(self.ordered_processes)
         self.ordered_im_type = np.array(self.ordered_im_type)
-
-    def check_existing_input(self):
-
-        # Loop over the different slices of master/slave/master_coreg/ifg
-        images = [self.master, self.slave, self.cmaster, self.ifg]
-        image_strs = ['master', 'slave', 'cmaster', 'ifg']
-
-        for im, im_str in zip(images, image_strs):
-
-            proc_steps = self.ordered_functions[self.ordered_im_type == im_str]
-
-            for process, filename in zip(self.ordered_processes, self.ordered_filenames):
-                # Check if functions is already performed
-
-                # Find all the existing datasets that are generated for these functions.
-
-                # Find the coordinates for the different images:
-                # - slices within the full image
-                # - coordinates of the multilooked full image for different multilooking factors.
-                # - coordinates of the coarse height map for interpolation.
-
-                # Construct the file we need for that image based on the input requirements.
-
-                # Check which files already exist and how that can satisfy the input demand of certain functions.
-
-                # Now remove the steps that are already done for this slice.
-                # 1 Remove the slice output files for this one step.
-                # 2 Iteratively remove the other steps that are only needed for the respective step.
-                #   This can be done using more or less the same method as in the define_function_order.
-
-        # Resulting are all the steps that still have to be done for individual slices.
 
     def prepare_processing(self):
         # This function generates a list of functions and inputs to do the processing.

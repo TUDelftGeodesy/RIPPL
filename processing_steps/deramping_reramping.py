@@ -132,7 +132,7 @@ class Deramp(GetDopplerRamp):
             return
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        shape = self.slave.data_sizes['resample']['Data']
+        shape = self.slave.data_sizes['resample']['resample']
         if lines != 0:
             l = np.minimum(lines, shape[0] - s_lin)
         else:
@@ -147,7 +147,7 @@ class Deramp(GetDopplerRamp):
         # Load needed data from crop
         self.s_lin, self.s_pix, self.shape, self.res_s_lin, self.res_s_pix = \
             Resample.select_region_resampling(self.slave, new_line, new_pixel, buf)
-        self.crop_ramped = self.slave.image_load_data_memory('crop', self.s_lin, self.s_pix, self.shape, 'Data')
+        self.crop_ramped = self.slave.image_load_data_memory('crop', self.s_lin, self.s_pix, self.shape)
 
         GetDopplerRamp.__init__(self, self.slave)
         self.crop = []
@@ -170,7 +170,7 @@ class Deramp(GetDopplerRamp):
 
             # And save the data
             self.add_meta_data(self.slave)
-            self.slave.image_new_data_memory(self.crop, 'deramp', self.s_lin, self.s_pix, file_type='Data')
+            self.slave.image_new_data_memory(self.crop, 'deramp', self.s_lin, self.s_pix)
 
             return True
 
@@ -285,7 +285,7 @@ class Reramp(GetDopplerRamp):
             return
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        shape = self.slave.data_sizes['resample']['Data']
+        shape = self.slave.data_sizes['resample']['resample']
         if lines != 0:
             l = np.minimum(lines, shape[0] - s_lin)
         else:
@@ -321,7 +321,7 @@ class Reramp(GetDopplerRamp):
             self.reramped_resampled = (self.resampled_deramped * ramp.conj()).astype('complex64')
 
             self.add_meta_data(self.slave, self.coordinates)
-            self.slave.image_new_data_memory(self.reramped_resampled, 'reramp', self.s_lin, self.s_pix, file_type='Data')
+            self.slave.image_new_data_memory(self.reramped_resampled, 'reramp', self.s_lin, self.s_pix)
 
             return True
 

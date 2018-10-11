@@ -50,7 +50,7 @@ else:
     print('Non used track number')
 
 n_jobs = 7
-srtm_folder = data_disk + 'DEM/dem_new'
+srtm_folder = data_disk + 'DEM/DEM_new'
 
 # Download data and orbit
 #download_data = DownloadSentinel(start_date, end_date, 'fjvanleijen', 'stevin01', shapefile, str(track_no), polarisation)

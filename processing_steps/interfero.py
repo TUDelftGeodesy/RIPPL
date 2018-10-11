@@ -74,8 +74,8 @@ class Interfero(object):
 
         # Currently not possible to perform this step in slices because it includes multilooking. Maybe this will be
         # able later on. (Convert to different grids and slicing can cause problems at the sides of the slices.)
-        self.master_dat = self.master.image_load_data_memory(self.step, 0, 0, coor_in.shape, 'Data', warn=False)
-        self.slave_dat = self.slave.image_load_data_memory('earth_topo_phase', 0, 0, coor_in.shape, 'Data', warn=False)
+        self.master_dat = self.master.image_load_data_memory(self.step, 0, 0, coor_in.shape, self.step, warn=False)
+        self.slave_dat = self.slave.image_load_data_memory('earth_topo_phase', 0, 0, coor_in.shape, 'earth_topo_phase', warn=False)
 
         self.interferogram = []
 
