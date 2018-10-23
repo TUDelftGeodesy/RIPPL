@@ -27,12 +27,12 @@ class GeometricalCoreg(object):
     :type shape = list
     """
 
-    def __init__(self, cmaster_meta, slave_meta, coordinates, s_lin=0, s_pix=0, lines=0):
+    def __init__(self, cmaster_meta, meta, coordinates, s_lin=0, s_pix=0, lines=0):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
-        if isinstance(slave_meta, ImageData) and isinstance(cmaster_meta, ImageData):
-            self.slave = slave_meta
+        if isinstance(meta, ImageData) and isinstance(cmaster_meta, ImageData):
+            self.slave = meta
             self.cmaster = cmaster_meta
         else:
             return
@@ -109,24 +109,24 @@ class GeometricalCoreg(object):
         return shape, lines, pixels, first_line, first_pixel, sample, multilook, oversample, offset
 
     @staticmethod
-    def add_meta_data(cmaster, slave, coordinates):
+    def add_meta_data(meta, cmaster_meta, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        if 'geometrical_coreg' in slave.processes.keys():
-            meta_info = slave.processes['geometrical_coreg']
+        if 'geometrical_coreg' in meta.processes.keys():
+            meta_info = meta.processes['geometrical_coreg']
         else:
             meta_info = OrderedDict()
 
-        meta_info['Master_reference_date'] = cmaster.processes['readfiles']['First_pixel_azimuth_time (UTC)'][:10]
+        meta_info['Master_reference_date'] = cmaster_meta.processes['readfiles']['First_pixel_azimuth_time (UTC)'][:10]
         meta_info = coordinates.create_meta_data(['New_line', 'New_pixel'], ['real8', 'real8'], meta_info)
 
-        slave.image_add_processing_step('geometrical_coreg', meta_info)
-        slave.image_add_processing_step('combined_coreg', meta_info)
+        meta.image_add_processing_step('geometrical_coreg', meta_info)
+        meta.image_add_processing_step('combined_coreg', meta_info)
 
         # Add the information from the master file to the slave .res files.
-        slave.image_add_processing_step('coreg_readfiles', copy.deepcopy(cmaster.processes['readfiles']))
-        slave.image_add_processing_step('coreg_orbits', copy.deepcopy(cmaster.processes['orbits']))
-        slave.image_add_processing_step('coreg_crop', copy.deepcopy(cmaster.processes['crop']))
+        meta.image_add_processing_step('coreg_readfiles', copy.deepcopy(cmaster_meta.processes['readfiles']))
+        meta.image_add_processing_step('coreg_orbits', copy.deepcopy(cmaster_meta.processes['orbits']))
+        meta.image_add_processing_step('coreg_crop', copy.deepcopy(cmaster_meta.processes['crop']))
 
     @staticmethod
     def processing_info(coordinates):
@@ -139,7 +139,7 @@ class GeometricalCoreg(object):
         for t in ['X', 'Y', 'Z']:
             input_dat['cmaster']['geocode'][t]['file'] = [t + coordinates.sample + '.raw']
             input_dat['cmaster']['geocode'][t]['coordinates'] = coordinates
-            input_dat['cmaster']['geocode'][t]['slice'] = coordinates.slice
+            input_dat['cmaster']['geocode'][t]['slice'] = 'True'
 
         # line and pixel output files.
         output_dat = defaultdict()
@@ -155,25 +155,17 @@ class GeometricalCoreg(object):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['geocode']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('geocode', s)
+        meta.images_create_disk('geometrical_coreg', file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk('geometrical_coreg', file_type, coordinates)
 
-        if not output_file_steps:
-            meta_info = meta.processes['geocode']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_memory_to_disk('geocode', s)
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('geometrical_coreg', file_type, coordinates)

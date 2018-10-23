@@ -1,6 +1,5 @@
 '''
-This function is used to creat interferograms
-
+This function is used to create interferograms
 '''
 
 import os
@@ -8,16 +7,16 @@ from image_metadata import ImageMetadata
 from image_data import ImageData
 from image import Image
 from processing_steps.unwrap import Unwrap
+from pipeline import Pipeline
 
 
-class Interferogram(ImageData):
+class Interferogram(object):
 
     """
     :type slave: Image
     :type master: Image
     :type folder: str
     :type slice_list: list
-
     """
 
     def __init__(self, folder='', slave='', master='', slice_list=''):
@@ -43,7 +42,7 @@ class Interferogram(ImageData):
             new_res.write(self.res_file)
             del new_res
 
-        ImageData.__init__(self, self.res_file, res_type='interferogram')
+        self.res_data = ImageData(self.res_file, res_type='interferogram')
 
         slice_folders = next(os.walk(folder))[1]
         self.slice_names = sorted([x for x in slice_folders if len(x) == 20])
@@ -59,14 +58,6 @@ class Interferogram(ImageData):
             else:
                 slc_slices = set(slave.slice_names) & set(master.slice_names)
             new_slices = list(slc_slices - set(self.slice_names))
-
-            #new_res = ImageMetadata('', 'interferogram')
-            #for new_slice in new_slices:
-            #    self.res_file = os.path.join(self.folder, new_slice, 'info.res')
-            #    new_res.write(self.res_file)
-
-            #del new_res
-            # update slice list
             self.slice_names = sorted(set(self.slice_names) | set(new_slices))
 
         # Add the master and slave image. We use this image to reference other images to. If these images are missing
@@ -78,10 +69,19 @@ class Interferogram(ImageData):
         self.slices = dict()
         slice_folders = [os.path.join(folder, x) for x in self.slice_names]
 
-        # Read the individual slices ('slice_' + str(number) + '_swath_' + str(swath_no) + '_' + pol)
-        # Length of these folders should be 20 characters
-        #for slice_folder, slice_name in zip(slice_folders, self.slice_names):
-        #    self.slices[os.path.basename(slice_folder)] = ImageData(os.path.join(slice_folder, 'info.res'), 'interferogram')
+    def __call__(self, step, settings, coors, file_type='', slice=True, slave='', cmaster='', master='', memory=500, cores=6,
+                 parallel=True):
+        # This calls the pipeline function for this step
+
+        # Replace slave and master image if needed.
+        if slave == '':
+            slave = self.slave
+        if master == '':
+            slave = self.master
+
+        # The main image is always seen as the slave image. Further ifg processing is not possible here.
+        pipeline = Pipeline(memory=memory, cores=cores, slave=slave, master=master, cmaster=cmaster, ifg=self, parallel=parallel)
+        pipeline(step, settings, coors, 'ifg', slice=slice, file_type=file_type)
 
     def unwrap(self, multilook='', offset=''):
         # Applies the unwrapping for the full interferogram.

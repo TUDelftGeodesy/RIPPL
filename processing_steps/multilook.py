@@ -12,7 +12,7 @@ import copy
 
 class Multilook(object):
 
-    def __init__(self, meta, cmaster_meta, step, file_type, coor_out, coor_in=''):
+    def __init__(self, meta, cmaster_meta, step, file_type, coor_out, coordinates=''):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
         # When you want to use a certain projection, please give the proj4 string to do the conversion. Most projection
@@ -27,9 +27,11 @@ class Multilook(object):
 
         # If the in coordinates are not defined, we default to the original radar coordinate system. This is the obvious
         # choiche
-        if not isinstance(coor_in, CoordinateSystem):
+        if not isinstance(coordinates, CoordinateSystem):
             self.coor_in = CoordinateSystem()
             self.coor_in.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+        else:
+            self.coor_in = coordinates
         if isinstance(coor_out, CoordinateSystem):
             self.coor_out = coor_out
 
@@ -94,7 +96,7 @@ class Multilook(object):
                 print('Conversion from a projection or geographic coordinate system to another system is not possible')
 
             # Save meta data and results
-            self.create_meta_data(self.meta, self.coor_in, self.coor_out, self.step, self.file_type)
+            self.add_meta_data(self.meta, self.coor_in, self.coor_out, self.step, self.file_type)
             self.meta.image_new_data_memory(self.multilooked, self.step, 0, 0, file_type= self.file_type + self.coor_out.sample)
 
             return True
@@ -378,10 +380,10 @@ class Multilook(object):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_meta_data(meta, coor_in, coor_out, step, file_type=''):
+    def add_meta_data(meta, coordinates, coor_out, step, file_type=''):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        if not isinstance(coor_in, CoordinateSystem) or not isinstance(coor_out, CoordinateSystem):
+        if not isinstance(coordinates, CoordinateSystem) or not isinstance(coor_out, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
         if step in meta.processes.keys():
@@ -392,30 +394,24 @@ class Multilook(object):
         if not file_type:
             file_type = step
 
-        data_types = [meta.data_types[step][file_type + coor_in.sample]]
+        data_types = [meta.data_types[step][file_type + coordinates.sample]]
         meta_info = coor_out.create_meta_data([file_type + coor_out.sample], data_types, meta_info)
         meta.image_add_processing_step(step, meta_info)
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, step, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['multilook']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('multilook', s)
+        meta.images_create_disk(step, file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
+    def save_to_disk(meta, step, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk(step, file_type, coordinates)
 
-        if not output_file_steps:
-            meta_info = meta.processes['multilook']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
+    @staticmethod
+    def clear_memory(meta, step, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory(step, file_type, coordinates)
 
-        for s in output_file_steps:
-            meta.image_memory_to_disk('multilook', s)
+

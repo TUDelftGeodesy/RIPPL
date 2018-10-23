@@ -104,19 +104,19 @@ class EarthTopoPhase(object):
         input_dat = defaultdict()
         input_dat['meta']['combined_coreg']['new_pixel']['file'] = ['new_pixel' + coordinates.sample + '.raw']
         input_dat['meta']['combined_coreg']['new_pixel']['coordinates'] = coordinates
-        input_dat['meta']['combined_coreg']['new_pixel']['slice'] = coordinates.slice
+        input_dat['meta']['combined_coreg']['new_pixel']['slice'] = 'True'
 
         # Input file should always be a full resolution grid.
         if reramped:
             input_dat['meta']['reramp']['reramp']['file'] = ['reramp' + coordinates.sample + '.raw']
             input_dat['meta']['reramp']['reramp']['coordinates'] = coordinates
-            input_dat['meta']['reramp']['reramp']['slice'] = coordinates.slice
+            input_dat['meta']['reramp']['reramp']['slice'] = 'True'
         else:
             input_dat['meta']['resample']['resample']['file'] = ['resample' + coordinates.sample + '.raw']
             input_dat['meta']['resample']['resample']['coordinates'] = coordinates
-            input_dat['meta']['resample']['resample']['slice'] = coordinates.slice
+            input_dat['meta']['resample']['resample']['slice'] = 'True'
 
-        output_dat = dict()
+        output_dat = defaultdict()
         output_dat['meta']['earth_topo_phase']['earth_topo_phase']['file'] = ['earth_topo_phase' + coordinates.sample + '.raw']
         output_dat['meta']['earth_topo_phase']['earth_topo_phase']['coordinates'] = coordinates
         output_dat['meta']['earth_topo_phase']['earth_topo_phase']['slice'] = coordinates.slice
@@ -127,25 +127,17 @@ class EarthTopoPhase(object):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['earth_topo_phase']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('earth_topo_phase', s)
+        meta.images_create_disk('earth_topo_phase', file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk('earth_topo_phase', file_type, coordinates)
 
-        if not output_file_steps:
-            meta_info = meta.processes['earth_topo_phase']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_memory_to_disk('earth_topo_phase', s)
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('earth_topo_phase', file_type, coordinates)

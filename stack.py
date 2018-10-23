@@ -15,6 +15,8 @@ import os
 from image import Image
 from interferogram import Interferogram
 from orbit_dem_functions.srtm_download import SrtmDownload
+from coordinate_system import CoordinateSystem
+from processing_steps.import_dem import CreateSrtmDem
 import datetime
 
 
@@ -37,7 +39,6 @@ class Stack(object):
 
         # master
         self.master_date = ''
-        self.master_slices = []
         self.slice_names = []
 
         # Specific information master slices
@@ -89,8 +90,8 @@ class Stack(object):
 
             self.master_slice_names.append('slice_' + sl[2].split(' ')[1] +
                                     '_swath_' + sl[1].split(' ')[1] + '_' + sl[8].split(' ')[1])
+            self.master_date = t.strftime('%Y%m%d')
 
-            self.master_slices.append('NoData')
         l.close()
 
     def read_stack(self, first_date='1900-01-01', last_date='2100-01-01'):
@@ -144,7 +145,51 @@ class Stack(object):
         # combine the ifg and image dates
         self.dates = sorted(set(self.ifg_dates) - set(self.image_dates))
 
-    def download_srtm_dem(self, srtm_folder, username, password, buf=0.5, rounding=0.5, srtm_type='SRTM3'):
+    def add_master_res_info(self):
+        # This function adds the .res information specific for the master image. For this image both resampline and the
+        # topography/earth phase are not needed as it is the reference itself. Therefore these steps are added to the
+        # .res file but simply referenced to the original data crop.
+
+        # Note that this could cause a problem if multilooking of the original data is applied before creating the ifg.
+        # However, this is not advised in almost all cases
+
+        coor = CoordinateSystem()
+        coor.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+
+        for slice in self.images[self.master_date].slices.keys():
+            for step in ['reramp', 'earth_topo_phase']:
+                if not self.images[self.master_date].slices[slice].process_control[step] == '1':
+                    coor.add_res_info(self.images[self.master_date].slices[slice])
+
+                    res_info = coor.create_meta_data([step], ['complex_int'])
+                    res_info[step + '_output_file'] = 'crop.raw'
+                    self.images[self.master_date].slices[slice].image_add_processing_step(step, res_info)
+
+            self.images[self.master_date].slices[slice].write()
+
+    def create_network_ifgs(self, type='temp_baseline'):
+
+
+
+    def run_function(self):
+
+
+    def create_SRTM_input_data(self, srtm_folder, username, password, buf=0.2, rounding=0.2,  srtm_type='SRTM3'):
+        # This creates the input DEM for the different slices of the master image.
+
+        self.download_SRTM_dem(srtm_folder, username, password, buf, rounding, srtm_type)
+
+        for key in self.images[self.master_date].slices.keys():
+            slice = self.images[self.master_date].slices[key]
+            dem_path = os.path.join(os.path.dirname(slice.res_path), 'DEM_WGS84_stp_' + srtm_type[-1] + '_' + srtm_type[-1] + '.raw')
+
+            if not self.images[self.master_date].slices[key].process_control['import_DEM'] == '1' or not \
+                    os.path.exists(dem_path):
+                SRTM_dat = CreateSrtmDem(slice, srtm_folder, buf=buf, rounding=rounding, srtm_type=srtm_type)
+                SRTM_dat()
+                slice.write()
+
+    def download_SRTM_dem(self, srtm_folder, username, password, buf=0.5, rounding=0.5, srtm_type='SRTM3'):
         # Downloads the needed srtm data for this datastack. srtm_folder is the folder the downloaded srtm tiles are
         # stored.
         # Username and password can be obtained at https://lpdaac.usgs.gov
@@ -154,4 +199,6 @@ class Stack(object):
         # Description srtm q data: https://lpdaac.usgs.gov/node/505
 
         download = SrtmDownload(srtm_folder, username, password, srtm_type)
-        download(self.images[self.master_date], buf=buf, rounding=rounding)
+        download(self.images[self.master_date].res_data, buf=buf, rounding=rounding)
+
+    # Possibly an extension to use of free tandem-x data?

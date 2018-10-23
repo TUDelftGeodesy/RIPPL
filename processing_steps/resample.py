@@ -17,17 +17,22 @@ class Resample(object):
     :type shape = list
     """
 
-    def __init__(self, slave_meta, coordinates,s_lin=0, s_pix=0, lines=0, buf=5, warning=False, input_dat=''):
+    def __init__(self, meta, coordinates,s_lin=0, s_pix=0, lines=0, buf=5, warning=False, input_dat='',
+                 w_type='4p_cubic', table_size='', window=''):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
         # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
         # 3. Give the first and last line plus the buffer of the input and output
 
-        if isinstance(slave_meta, ImageData):
-            self.slave = slave_meta
+        if isinstance(meta, ImageData):
+            self.slave = meta
         else:
             return
+
+        self.w_type = w_type
+        self.table_size = table_size
+        self.window = window
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
         self.sample = coordinates.sample
@@ -68,7 +73,7 @@ class Resample(object):
         # Initialize output
         self.resampled = []
 
-    def __call__(self, w_type='4p_cubic', table_size='', window=''):
+    def __call__(self):
 
         if len(self.new_line) == 0 or len(self.new_pixel) == 0 or len(self.crop) == 0:
             print('Missing data for resample of ' + self.slave.folder + '. Aborting..')
@@ -79,19 +84,19 @@ class Resample(object):
 
         try:
             # If you use the same resampling window many times, you can also pass it with the function.
-            if len(table_size) != 2:
-                table_size = [1000, 100]
-            if len(window) == 0:
-                window, w_steps = self.create_interp_table(w_type, table_size=table_size)
-            window_size = [window.shape[2], window.shape[3]]
-            w_steps = [1.0 / (window.shape[0] - 1), 1.0 / (window.shape[1] - 1)]
+            if len(self.table_size) != 2:
+                self.table_size = [1000, 100]
+            if len(self.window) == 0:
+                self.window, w_steps = self.create_interp_table(self.w_type, table_size=self.table_size)
+            window_size = [self.window.shape[2], self.window.shape[3]]
+            w_steps = [1.0 / (self.window.shape[0] - 1), 1.0 / (self.window.shape[1] - 1)]
 
             # Now use the location of the new pixels to extract the weights and the values from the input grid.
             # After adding up and multiplying the weights and values we have the out going grid.
             line_id = np.floor(self.new_line).astype('int32')
             pixel_id = np.floor(self.new_pixel).astype('int32')
-            l_window_id = table_size[0] - np.round((self.new_line - line_id) / w_steps[0]).astype(np.int32)
-            p_window_id = table_size[1] - np.round((self.new_pixel - pixel_id) / w_steps[1]).astype(np.int32)
+            l_window_id = self.table_size[0] - np.round((self.new_line - line_id) / w_steps[0]).astype(np.int32)
+            p_window_id = self.table_size[1] - np.round((self.new_pixel - pixel_id) / w_steps[1]).astype(np.int32)
             line_id -= self.out_s_lin
             pixel_id -= self.out_s_pix
 
@@ -109,7 +114,7 @@ class Resample(object):
             for i in np.arange(window_size[0]):
                 for j in np.arange(window_size[1]):
                     # First we assign the weighting windows to the pixels.
-                    weights = window[l_window_id, p_window_id, i, j]
+                    weights = self.window[l_window_id, p_window_id, i, j]
 
                     # Find the original grid values and add to the out values, applying the weights.
                     i_im = i - half_w_line + 1
@@ -152,20 +157,20 @@ class Resample(object):
         return in_s_lin, in_s_pix, in_shape, out_s_lin, out_s_pix
 
     @staticmethod
-    def add_meta_data(slave, coordinates):
+    def add_meta_data(meta, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
-        if 'resample' in slave.processes.keys():
-            meta_info = slave.processes['resample']
+        if 'resample' in meta.processes.keys():
+            meta_info = meta.processes['resample']
         else:
             meta_info = OrderedDict()
 
         meta_info = coordinates.create_meta_data(['resample'], ['complex_int'], meta_info)
 
-        slave.image_add_processing_step('resample', meta_info)
+        meta.image_add_processing_step('resample', meta_info)
 
     @staticmethod
     def processing_info(coordinates, deramped=True):
@@ -186,13 +191,13 @@ class Resample(object):
         if deramped:
             input_dat['slave']['deramp']['deramp']['file'] = ['deramp.raw']
             input_dat['slave']['deramp']['deramp']['coordinates'] = in_coordinates
-            input_dat['slave']['deramp']['deramp']['slice'] = coordinates.slice
+            input_dat['slave']['deramp']['deramp']['slice'] = 'True'
         else:
             input_dat['slave']['crop']['crop']['file'] = ['crop.raw']
             input_dat['slave']['crop']['crop']['coordinates'] = in_coordinates
-            input_dat['slave']['crop']['crop']['slice'] = coordinates.slice
+            input_dat['slave']['crop']['crop']['slice'] = 'True'
 
-        output_dat = dict()
+        output_dat = defaultdict()
         output_dat['slave']['resample']['resample']['file'] = ['resample' + coordinates.sample + '.raw']
         output_dat['slave']['resample']['resample']['coordinates'] = coordinates
         output_dat['slave']['resample']['resample']['slice'] = coordinates.slice
@@ -203,28 +208,20 @@ class Resample(object):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['resample']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('resample', s)
+        meta.images_create_disk('resample', file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk('resample', file_type, coordinates)
 
-        if not output_file_steps:
-            meta_info = meta.processes['resample']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_memory_to_disk('resample', s)
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('resample', file_type, coordinates)
 
     @staticmethod
     def create_interp_table(w_type, table_size=None):

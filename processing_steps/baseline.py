@@ -27,13 +27,13 @@ class Baseline(object):
     :type shape = list
     """
 
-    def __init__(self, cmaster_meta, slave_meta, coordinates, s_lin=0, s_pix=0, lines=0,
+    def __init__(self, cmaster_meta, meta, coordinates, s_lin=0, s_pix=0, lines=0,
                  perpendicular=True, parallel=False, horizontal=False, vertical=False, total_baseline=False, angle=False):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
-        if isinstance(slave_meta, ImageData) and isinstance(cmaster_meta, ImageData):
-            self.slave = slave_meta
+        if isinstance(meta, ImageData) and isinstance(cmaster_meta, ImageData):
+            self.slave = meta
             self.cmaster = cmaster_meta
         else:
             return
@@ -261,25 +261,17 @@ class Baseline(object):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['baseline']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('baseline', s)
+        meta.images_create_disk('baseline', file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk('baseline', file_type, coordinates)
 
-        if not output_file_steps:
-            meta_info = meta.processes['baseline']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_memory_to_disk('baseline', s)
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('baseline', file_type, coordinates)

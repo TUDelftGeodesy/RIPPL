@@ -10,7 +10,7 @@ class ImageMetadata(object):
     # This class hold metadata of a doris datafile and processing chain and is capable of reading from and writing to a
     # .res file used by the doris software.
 
-    def __init__(self, filename='', type='', warn=False):
+    def __init__(self, filename='', res_type='', warn=False):
         # Initialize variables
 
         # Check whether method to read months is set to us
@@ -44,11 +44,11 @@ class ImageMetadata(object):
         #####################################################
 
         # Create a ResData object (single/interferogram)
-        if type not in ['single','interferogram'] and not filename:
+        if res_type not in ['single','interferogram'] and not filename:
             warnings.warn('Define if results data is slave, master or interferogram')
             return
         else:
-            self.res_type = type
+            self.res_type = res_type
         if filename:
             if not os.path.exists(filename):
                 if warn:
@@ -57,27 +57,40 @@ class ImageMetadata(object):
                 self.res_path = filename
                 self.res_read()
         else:
-            if type == 'single':
-                self.process_control = collections.OrderedDict([('readfiles', '0'), ('orbits', '0'), ('crop', '0'),
-                                                                ('import_DEM', '0'), ('inverse_geocode', '0'),
-                                                                ('radar_DEM', '0'), ('geocode', '0'), ('coor_conversion', '0')
-                                                                ('azimuth_elevation_angle', '0'), ('deramp', '0'),
-                                                                ('sim_amplitude', '0'), ('coreg_readfiles', '0'),
-                                                                ('coreg_orbits', '0'), ('coreg_crop', '0'), ('geometrical_coreg', '0'),
-                                                                ('correl_coreg', '0'), ('combined_coreg', '0'),
-                                                                ('master_timing', '0'), ('oversample', '0'),
-                                                                ('resample', '0'), ('reramp', '0'),
-                                                                ('earth_topo_phase', '0'), ('filt_azi', '0'),
-                                                                ('filt_range', '0'), ('NWP_phase', '0'),
-                                                                ('structure_function', '0'), ('split_spectrum', '0')])
-            elif type == 'interferogram':
-                self.process_control = collections.OrderedDict([('coreg_readfiles', '0'), ('coreg_orbits', '0'),
-                                                                ('coreg_crop', '0'), ('image_stitch','0'), ('interferogram','0'),
-                                                                ('split_spectrum', '0'), ('ESD', '0'),
-                                                                ('correl_tracking', '0'), ('coherence','0'),
-                                                                ('filtphase','0'), ('unwrap','0'),
-                                                                ('combined_tracking', '0'), ('NWP_phase', '0'),
-                                                                ('structure_function', '0')])
+            self.process_control = ImageMetadata.get_process_control(res_type)
+
+    @staticmethod
+    def get_process_control(res_type='single'):
+
+        if res_type == 'single':
+            process_control = collections.OrderedDict([('readfiles', '0'), ('orbits', '0'), ('crop', '0'),
+                                                        ('import_DEM', '0'), ('inverse_geocode', '0'),
+                                                        ('radar_DEM', '0'), ('geocode', '0'),
+                                                        ('coor_conversion', '0'),
+                                                        ('azimuth_elevation_angle', '0'), ('deramp', '0'),
+                                                        ('sim_amplitude', '0'), ('coreg_readfiles', '0'),
+                                                        ('coreg_orbits', '0'), ('coreg_crop', '0'),
+                                                        ('geometrical_coreg', '0'),
+                                                        ('correl_coreg', '0'), ('combined_coreg', '0'),
+                                                        ('master_timing', '0'), ('oversample', '0'),
+                                                        ('resample', '0'), ('reramp', '0'),
+                                                        ('earth_topo_phase', '0'), ('filt_azi', '0'),
+                                                        ('filt_range', '0'), ('NWP_phase', '0'),
+                                                        ('structure_function', '0'), ('split_spectrum', '0')])
+        elif res_type == 'interferogram':
+            process_control = collections.OrderedDict([('coreg_readfiles', '0'), ('coreg_orbits', '0'),
+                                                        ('coreg_crop', '0'), ('image_stitch', '0'),
+                                                        ('interferogram', '0'),
+                                                        ('split_spectrum', '0'), ('ESD', '0'),
+                                                        ('correl_tracking', '0'), ('coherence', '0'),
+                                                        ('filtphase', '0'), ('unwrap', '0'),
+                                                        ('combined_tracking', '0'), ('NWP_phase', '0'),
+                                                        ('structure_function', '0')])
+        else:
+            print('res_type should either be single or interferogram')
+            return
+
+        return process_control
 
     def res_read(self):
         self.meta_reader()
@@ -96,10 +109,10 @@ class ImageMetadata(object):
         if dat + 'readfiles' in self.process_control.keys():
             # Maybe in some files these data does not exist...
             try:
-                lines = int(self.processes[dat + 'crop']['Data_lines'])
-                pixels = int(self.processes[dat + 'crop']['Data_pixels'])
-                lin_min = int(self.processes[dat + 'crop']['Data_first_line'])
-                pix_min = int(self.processes[dat + 'crop']['Data_first_pixel'])
+                lines = int(self.processes[dat + 'crop']['crop_lines'])
+                pixels = int(self.processes[dat + 'crop']['crop_pixels'])
+                lin_min = int(self.processes[dat + 'crop']['crop_first_line'])
+                pix_min = int(self.processes[dat + 'crop']['crop_first_pixel'])
 
                 ul = (float(self.processes[dat + 'readfiles']['Scene_ul_corner_latitude']), float(self.processes[dat + 'readfiles']['Scene_ul_corner_longitude']))
                 ll = (float(self.processes[dat + 'readfiles']['Scene_ll_corner_latitude']), float(self.processes[dat + 'readfiles']['Scene_ll_corner_longitude']))

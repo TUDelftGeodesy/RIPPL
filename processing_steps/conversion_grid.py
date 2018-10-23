@@ -221,7 +221,7 @@ class ConversionGrid(object):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_meta_data(meta, coor_in, coor_out, convert_id_sizes):
+    def add_meta_data(meta, coordinates, coor_out, convert_id_sizes=''):
         # Create meta data for the convert ids.
         # Note that the input coordinates are always radar coordinates and the output coordinates are always
         # geographic or projection coordinates.
@@ -232,29 +232,34 @@ class ConversionGrid(object):
             meta_info = meta.processes['coor_conversion']
         else:
             meta_info = OrderedDict()
-
-        data_name = coor_in.sample + '_' + coor_out.sample
+        
+        if len(convert_id_sizes) == 0:
+            convert_id_sizes = dict()
+            for stp in ['sort_ids', 'sum_ids', 'output_ids']:
+                convert_id_sizes[stp] = [0, 0]
+        
+        data_name = coordinates.sample + '_' + coor_out.sample
         meta_info[data_name + '_sort_ids' + '_output_file'] = data_name + '_sort_ids' + '.raw'
         meta_info[data_name + '_sort_ids' + '_output_format'] = 'int32'
         meta_info[data_name + '_sort_ids' + '_lines'] = str(convert_id_sizes['sort_ids'][0])
-        meta_info[data_name + '_sort_ids' + '_pixels'] = str(convert_id_sizes['sort_ids'][0][1])
+        meta_info[data_name + '_sort_ids' + '_pixels'] = str(convert_id_sizes['sort_ids'][1])
 
         for file_type in ['sum_ids', 'output_ids']:
             meta_info[data_name + '_' + file_type + '_output_file'] = data_name + '_' + file_type + '.raw'
             meta_info[data_name + '_' + file_type + '_output_format'] = 'int32'
             meta_info[data_name + '_' + file_type + '_lines'] = str(convert_id_sizes[file_type][0])
-            meta_info[data_name + '_' + file_type + '_pixels'] = str(convert_id_sizes[file_type][0][1])
+            meta_info[data_name + '_' + file_type + '_pixels'] = str(convert_id_sizes[file_type][1])
 
         # Save information of input grid
-        meta_info[data_name + '_input_grid'] = coor_in.sample
-        meta_info[data_name + '_first_line'] = str(coor_in.first_line)
-        meta_info[data_name + '_first_pixel'] = str(coor_in.first_pixel)
-        meta_info[data_name + '_multilook_azimuth'] = str(coor_in.multilook[0])
-        meta_info[data_name + '_multilook_range'] = str(coor_in.multilook[1])
-        meta_info[data_name + '_oversampling_azimuth'] = str(coor_in.oversample[0])
-        meta_info[data_name + '_oversampling_range'] = str(coor_in.oversample[1])
-        meta_info[data_name + '_offset_azimuth'] = str(coor_in.offset[0])
-        meta_info[data_name + '_offset_range'] = str(coor_in.offset[1])
+        meta_info[data_name + '_input_grid'] = coordinates.sample
+        meta_info[data_name + '_first_line'] = str(coordinates.first_line)
+        meta_info[data_name + '_first_pixel'] = str(coordinates.first_pixel)
+        meta_info[data_name + '_multilook_azimuth'] = str(coordinates.multilook[0])
+        meta_info[data_name + '_multilook_range'] = str(coordinates.multilook[1])
+        meta_info[data_name + '_oversampling_azimuth'] = str(coordinates.oversample[0])
+        meta_info[data_name + '_oversampling_range'] = str(coordinates.oversample[1])
+        meta_info[data_name + '_offset_azimuth'] = str(coordinates.offset[0])
+        meta_info[data_name + '_offset_range'] = str(coordinates.offset[1])
 
         # Save information of output grid
         meta_info[data_name + '_output_grid'] = coor_out.sample
@@ -276,25 +281,17 @@ class ConversionGrid(object):
         meta.image_add_processing_step('coor_conversion', meta_info)
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, file_type='', coordinates='', coor_out=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['conversion_grid']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('conversion_grid', s)
+        meta.images_create_disk('conversion_grid', file_type, coordinates, coor_out)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
+    def save_to_disk(meta, file_type='', coordinates='', coor_out=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk('conversion_grid', file_type, coordinates, coor_out)
 
-        if not output_file_steps:
-            meta_info = meta.processes['conversion_grid']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_memory_to_disk('conversion_grid', s)
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates='', coor_out=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('conversion_grid', file_type, coordinates, coor_out)

@@ -2,7 +2,6 @@ from find_coordinates import FindCoordinates
 from collections import OrderedDict
 import pyproj
 import datetime
-from image_data import ImageData
 import numpy as np
 
 
@@ -12,6 +11,7 @@ class CoordinateSystem():
 
         self.grid_type = ''
         self.slice = 'False'
+        self.coor_str = ''
 
         # Characteristics for all images
         self.shape = [0, 0]
@@ -59,7 +59,7 @@ class CoordinateSystem():
             FindCoordinates.multilook_coors([0, 0], oversample=oversample, multilook=multilook, offset=offset)
         self.grid_type = 'radar_coordinates'
 
-        if isinstance(res_info, ImageData):
+        if res_info:
             self.add_res_info(res_info)
 
     def create_geographic(self, dlat, dlon, res_info='', ellipse_type='WGS84', shape='', lat0='', lon0='', oversample=''):
@@ -77,14 +77,13 @@ class CoordinateSystem():
         else:
             self.oversample = oversample
 
-        if oversample == [1, 1]:
-            self.sample = ellipse_type + '_stp_' + str(dlat * 3600).zfill(0) + '_' + str(dlon * 3600).zfill(0)
-        else:
+        self.sample = '_' + ellipse_type + '_stp_' + str(int(dlat * 3600)) + '_' + str(int(dlon * 3600))
+        if not self.oversample == [1, 1]:
             self.sample = self.sample + '_ovr_' + str(self.oversample[0]) + '_' + str(self.oversample[1])
 
         self.geo = pyproj.Geod(ellps=ellipse_type)
 
-        if isinstance(res_info, ImageData):
+        if res_info:
             self.add_res_info(res_info)
 
     def create_projection(self, dx, dy, res_info='', projection_type='', ellipse_type='WGS84', proj4_str='',
@@ -106,9 +105,8 @@ class CoordinateSystem():
         else:
             self.oversample = oversample
 
-        if oversample == [1, 1]:
-            self.sample = projection_type + '_stp_' + str(dx).zfill(0) + '_' + str(dy).zfill(0)
-        else:
+        self.sample = '_' + projection_type + '_stp_' + str(dx).zfill(0) + '_' + str(dy).zfill(0)
+        if not self.oversample == [1, 1]:
             self.sample = self.sample + '_ovr_' + str(self.oversample[0]) + '_' + str(self.oversample[1])
 
         self.geo = pyproj.Geod(ellps=ellipse_type)
@@ -117,24 +115,24 @@ class CoordinateSystem():
         else:
             self.proj = pyproj.Proj(proj=projection_type, ellps=ellipse_type)
 
-        if isinstance(res_info, ImageData):
+        if res_info:
             self.add_res_info(res_info)
 
-    def add_res_info(self, res_info, buf=0.01, round=1, change_ref=True):
+    def add_res_info(self, res_info, buf=0.1, round=1, change_ref=True):
         # Here we add extra information to our radar coordinates to get the first line/pixel and original image size.
         # This also generates some extra info on line and pixel numbers in the new configuration.
 
-        if not isinstance(res_info, ImageData):
+        if not res_info:
             print('res_info should be an ImageData object')
             return
 
         if self.grid_type == 'radar_coordinates':
 
             if not change_ref and self.az_time != 0 and self.ra_time != 0:
-                orig_shape, self.az_time, self.ra_time, self.az_step, self.ra_step, self.first_line, self.first_pixel = \
+                self.az_time, self.ra_time, self.az_step, self.ra_step, self.first_line, self.first_pixel, orig_shape = \
                     CoordinateSystem.res_pixel_spacing(res_info, self.az_time, self.ra_time)
             else:
-                orig_shape, self.az_time, self.ra_time, self.az_step, self.ra_step, self.first_line, self.first_pixel = \
+                self.az_time, self.ra_time, self.az_step, self.ra_step, self.first_line, self.first_pixel, orig_shape = \
                     CoordinateSystem.res_pixel_spacing(res_info)
 
             if self.factor != [1, 1] or self.factor == '':
@@ -160,7 +158,7 @@ class CoordinateSystem():
                 self.lat0 = first_lat
                 self.lon0 = first_lon
             self.shape = np.array([np.ceil((lat_lim[1] - first_lat) / self.dlat),
-                                   np.ceil((lon_lim[1] - first_lon) / self.dlon)])
+                                   np.ceil((lon_lim[1] - first_lon) / self.dlon)]).astype(np.int32)
 
         elif self.grid_type == 'projection':
 
@@ -181,9 +179,9 @@ class CoordinateSystem():
                 self.y0 = first_y
 
             self.shape = np.array([np.ceil((x_lim[1] - self.x0) / self.dx),
-                                   np.ceil((y_lim[1] - self.y0) / self.dy)])
+                                   np.ceil((y_lim[1] - self.y0) / self.dy)]).astype(np.int32)
 
-        self.slice = res_info.processes['crop']['Data_slice']
+        self.slice = res_info.processes['readfiles']['slice']
 
     @staticmethod
     def res_pixel_spacing(res_info, az_time=0.0, ra_time=0.0, coreg_grid=True):
@@ -205,18 +203,18 @@ class CoordinateSystem():
         new_ra_time = float(res_info.processes[step_meta]['Range_time_to_first_pixel (2way) (ms)']) / 1000
 
         if az_time != 0.0:
-            first_line = res_info.processes[step_crop]['Data_first_line'] + int((new_az_time - az_time) / az_step)
+            first_line = int(res_info.processes[step_crop]['crop_first_line']) + int((new_az_time - az_time) / az_step)
         else:
             az_time = new_az_time
-            first_line = res_info.processes[step_crop]['Data_first_line']
+            first_line = int(res_info.processes[step_crop]['crop_first_line'])
 
         if ra_time != 0.0:
-            first_pixel = res_info.processes[step_crop]['Data_first_pixel'] + int((new_ra_time - ra_time) / ra_step)
+            first_pixel = int(res_info.processes[step_crop]['crop_first_pixel']) + int((new_ra_time - ra_time) / ra_step)
         else:
             ra_time = new_ra_time
-            first_pixel = res_info.processes[step_crop]['Data_first_pixel']
+            first_pixel = int(res_info.processes[step_crop]['crop_first_pixel'])
 
-        shape = int(res_info.processes[step_crop]['Data_lines'], int(res_info.processes[step_crop]['Data_pixels']))
+        shape = [int(res_info.processes[step_crop]['crop_lines']), int(res_info.processes[step_crop]['crop_pixels'])]
 
         return az_time, ra_time, az_step, ra_step, first_line, first_pixel, shape
 
@@ -233,14 +231,14 @@ class CoordinateSystem():
             meta_info[data_name + '_output_format'] = data_type
             meta_info[data_name + '_lines'] = str(self.shape[0])
             meta_info[data_name + '_pixels'] = str(self.shape[1])
+            meta_info[data_name + '_first_line'] = str(self.first_line)
+            meta_info[data_name + '_first_pixel'] = str(self.first_pixel)
 
             if self.grid_type == 'radar_coordinates':
-                meta_info[data_name + '_first_line'] = str(self.first_line)
-                meta_info[data_name + '_first_pixel'] = str(self.first_pixel)
                 meta_info[data_name + '_multilook_azimuth'] = str(self.multilook[0])
                 meta_info[data_name + '_multilook_range'] = str(self.multilook[1])
-                meta_info[data_name + '_oversampling_azimuth'] = str(self.oversample[0])
-                meta_info[data_name + '_oversampling_range'] = str(self.oversample[1])
+                meta_info[data_name + '_oversample_azimuth'] = str(self.oversample[0])
+                meta_info[data_name + '_oversample_range'] = str(self.oversample[1])
                 meta_info[data_name + '_offset_azimuth'] = str(self.offset[0])
                 meta_info[data_name + '_offset_range'] = str(self.offset[1])
 
@@ -262,9 +260,12 @@ class CoordinateSystem():
 
         return meta_info
 
-    def compare_meta_data(self):
+    # Create a single identifier for every coordinate system
+    def coor_str(self, coor):
         # Compare other metadata to check whether they are similar.
-        print('Not needed in project yet!')
+
+        if self.grid_type == 'radar_coordinates':
+            self.coor_str = self.grid_type + '_' + 'ovr'
 
     def ell2proj(self, lat, lon):
 

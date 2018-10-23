@@ -150,16 +150,16 @@ class InverseGeocode(object):
 
         # Three input files needed Dem, Dem_line and Dem_pixel
         input_dat = defaultdict()
-        input_dat[meta_type]['radar_DEM']['radar_DEM']['file'] = ['Data_' + coordinates.sample + '.raw']
-        input_dat[meta_type]['radar_DEM']['radar_DEM']['coordinates'] = coordinates
-        input_dat[meta_type]['radar_DEM']['radar_DEM']['slice'] = coordinates.slice
+        input_dat[meta_type]['import_DEM']['import_DEM']['file'] = ['import_DEM_' + coordinates.sample + '.raw']
+        input_dat[meta_type]['import_DEM']['import_DEM']['coordinates'] = coordinates
+        input_dat[meta_type]['import_DEM']['import_DEM']['slice'] = coordinates.slice
 
         # One output file created radar dem
         output_dat = defaultdict()
         for t in ['DEM_line', 'DEM_pixel']:
-            output_dat[meta_type]['geocode'][t]['files'] = [t + coordinates.sample + '.raw']
-            output_dat[meta_type]['geocode'][t]['coordinates'] = coordinates
-            output_dat[meta_type]['geocode'][t]['slice'] = coordinates.slice
+            output_dat[meta_type]['inverse_geocode'][t]['files'] = [t + coordinates.sample + '.raw']
+            output_dat[meta_type]['inverse_geocode'][t]['coordinates'] = coordinates
+            output_dat[meta_type]['inverse_geocode'][t]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 20
@@ -167,25 +167,17 @@ class InverseGeocode(object):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['inverse_geocode']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('inverse_geocode', s)
+        meta.images_create_disk('inverse_geocode', file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk('inverse_geocode', file_type, coordinates)
 
-        if not output_file_steps:
-            meta_info = meta.processes['inverse_geocode']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_memory_to_disk('inverse_geocode', s)
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('inverse_geocode', file_type, coordinates)

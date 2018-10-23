@@ -46,7 +46,7 @@ class FindCoordinates():
 
         sample, multilook, oversample, offset = FindCoordinates.multilook_str(multilook, oversample, offset)
 
-        if multilook[0] % oversample[0] != 0 or multilook[1] / oversample[1] != 0:
+        if multilook[0] % oversample[0] != 0 or multilook[1] / oversample[1] == 0:
             print('oversample does not fit in multilooking window. Make sure that multilooking/oversample is an'
                   'integer number! Aborting...')
             return
@@ -150,7 +150,7 @@ class FindCoordinates():
         sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, shape] = \
             FindCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, multilook, oversample, offset)
 
-        ml_shift = np.array(multilook).astype(np.float32) / 2
+        ml_shift = (np.array(multilook).astype(np.float32) - np.array([1,1])) / 2
 
         if ml_shift[0] % 1 > 0.1 or ml_shift[1] % 1 > 0.1:
             print('Warning. Interval coordinates do not start with an integer number.')
@@ -169,7 +169,7 @@ class FindCoordinates():
         sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, out_shape] = \
             FindCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, multilook, oversample, offset)
 
-        ml_shift = np.array(multilook).astype(np.float32) / 2
+        ml_shift = (np.array(multilook).astype(np.float32) - np.array([1, 1])) / 2
 
         if ml_shift[0] % 1 > 0.1 or ml_shift[1] % 1 > 0.1:
             print('Warning. Interval coordinates do not have integer numbers.')

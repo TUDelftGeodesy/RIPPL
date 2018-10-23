@@ -7,6 +7,8 @@
 # 2. Be sure that the new step defines his dependencies and memory use in the processing_info function.
 # 3. Run this script and evaluate the resulting processing scheme.
 
+import inspect
+
 # Import the different steps:
 
 # Individual images > coregistering / geocoding / resampling
@@ -17,7 +19,7 @@ from processing_steps.geocode import Geocode
 from processing_steps.inverse_geocode import InverseGeocode
 from processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
 from processing_steps.geometrical_coreg import GeometricalCoreg
-from processing_steps.correlation_coreg import CorrelationWindows
+# from processing_steps.correlation_coreg import CorrelationWindows
 from processing_steps.deramping_reramping import Deramp, Reramp
 from processing_steps.square_amplitude import SquareAmplitude
 from processing_steps.conversion_grid import ConversionGrid
@@ -44,31 +46,49 @@ from processing_steps.concatenate import Concatenate
 
 # -> Add your new import statement here
 
-def import_processing_list():
+class ProcessingList():
 
-    # Add to dict with processing steps:
-    processing = dict()
-    processing['srtm_download'] = SrtmDownload
-    processing['create_srtm_DEM'] = CreateSrtmDem
-    processing['create_external_DEM'] = CreateExternalDem
-    processing['inverse_geocode'] = InverseGeocode
-    processing['radar_DEM'] = RadarDem
-    processing['geocode'] = Geocode
-    processing['azimuth_elevation_angle'] = AzimuthElevationAngle
-    processing['geometrical_coreg'] = GeometricalCoreg
-    processing['correlation_coreg'] = CorrelationWindows
-    processing['deramp'] = Deramp
-    processing['resample'] = Resample
-    processing['reramp'] = Reramp
-    processing['earth_topo_phase'] = EarthTopoPhase
-    processing['baseline'] = Baseline
-    processing['height_to_phase'] = HeightToPhase
-    processing['conversion_grid'] = ConversionGrid
-    processing['square_amplitude'] = SquareAmplitude
+    def __init__(self):
 
-    processing['interfero'] = Interfero
-    processing['coherence'] = Coherence
-    processing['multilook'] = Multilook
-    processing['unwrap'] = Unwrap
+        # Add to dict with processing steps:
+        processing = dict()
+        processing['srtm_download'] = SrtmDownload
+        processing['create_srtm_DEM'] = CreateSrtmDem
+        processing['create_external_DEM'] = CreateExternalDem
+        processing['inverse_geocode'] = InverseGeocode
+        processing['radar_DEM'] = RadarDem
+        processing['geocode'] = Geocode
+        processing['azimuth_elevation_angle'] = AzimuthElevationAngle
+        processing['geometrical_coreg'] = GeometricalCoreg
+        # processing['correlation_coreg'] = CorrelationWindows
+        processing['deramp'] = Deramp
+        processing['resample'] = Resample
+        processing['reramp'] = Reramp
+        processing['earth_topo_phase'] = EarthTopoPhase
+        processing['baseline'] = Baseline
+        processing['height_to_phase'] = HeightToPhase
+        processing['conversion_grid'] = ConversionGrid
+        processing['square_amplitude'] = SquareAmplitude
 
-    processing['concatenate'] = Concatenate
+        processing['interfero'] = Interfero
+        processing['coherence'] = Coherence
+        processing['multilook'] = Multilook
+        processing['unwrap'] = Unwrap
+
+        processing['concatenate'] = Concatenate
+
+        self.processing = processing
+        self.processing_inputs = dict()
+        self.get_function_input()
+
+    def get_function_input(self):
+
+        for key in self.processing.keys():
+            self.processing_inputs[key] = dict()
+
+            # Get the functions
+            functions = inspect.getmembers(self.processing[key], predicate=inspect.ismethod)
+
+            # Get the input variable names
+            for function in functions:
+                self.processing_inputs[key][function[0]] = inspect.getargspec(function[1])[0]

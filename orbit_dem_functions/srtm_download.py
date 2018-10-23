@@ -18,12 +18,13 @@ import shutil
 import zipfile
 import numpy as np
 import requests
-from processing_steps.import_dem import CreateSrtmDem
 from scipy.interpolate import RectBivariateSpline
 from orbit_dem_functions.srtm_dir_listing import ParseHTMLDirectoryListing
 from coordinate_system import CoordinateSystem
 from joblib import Parallel, delayed
 from image_data import ImageData
+import fiona
+from shapely.geometry import Polygon
 
 
 class SrtmDownloadTile(object):
@@ -153,17 +154,24 @@ class SrtmDownload(object):
         # processes
         self.n_processes = n_processes
 
-    def __call__(self, meta='', shapefile='', polygon='', buf=1.0, rounding=1.0):
+    def __call__(self, meta, buf=1.0, rounding=1.0):
 
         if isinstance(meta, ImageData):
             self.meta = meta
-            polygon = self.meta.polygon
-        elif shapefile:
-            polygon = CreateSrtmDem.load_shp(shapefile)
 
-        res_coordinates = CreateSrtmDem.srtm_coordinates(polygon, buf, rounding, self.srtm_type)
+        if self.srtm_type == 'SRTM3':
+            step = 1.0 / 3600 * 3
+        elif self.srtm_type == 'SRTM1':
+            step = 1.0 / 3600
+        else:
+            print('Unkown SRTM type' + self.srtm_type)
+            return
+
+        coordinates = CoordinateSystem()
+        coordinates.create_geographic(dlat=step, dlon=step)
+        coordinates.add_res_info(self.meta, buf=buf, round=rounding)
         download_tiles, [tile_lats, tile_lons], urls, tiles_zip = \
-            self.select_tiles(self.filelist, res_coordinates, self.srtm_folder, self.srtm_type, self.quality)
+            self.select_tiles(self.filelist, coordinates, self.srtm_folder, self.srtm_type, self.quality)
 
         # First create a download class.
         tile_download = SrtmDownloadTile(self.srtm_folder, self.username, self.password, self.srtm_type)
@@ -175,7 +183,7 @@ class SrtmDownload(object):
                      zip(urls, tiles_zip, download_tiles, tile_lats, tile_lons))
 
     @staticmethod
-    def select_tiles(filelist, coordinates, srtm_folder, srtm_type='SRTM3', quality=True):
+    def select_tiles(filelist, coordinates, srtm_folder, srtm_type='SRTM3', quality=True, download=True):
         # Adds SRTM files to the list of files to be downloaded
 
         # Check coordinates
@@ -193,8 +201,8 @@ class SrtmDownload(object):
         tile_lons = []
         url = []
 
-        lats = np.arange(np.floor(coordinates.lat0), np.ceil(coordinates.lat0 + coordinates.shape[0] * coordinates.dlat))
-        lons = np.arange(np.floor(coordinates.lon0), np.ceil(coordinates.lon0 + coordinates.shape[0] * coordinates.dlon))
+        lats = np.arange(np.floor(coordinates.lat0), np.ceil(coordinates.lat0 + coordinates.shape[0] * coordinates.dlat)).astype(np.int32)
+        lons = np.arange(np.floor(coordinates.lon0), np.ceil(coordinates.lon0 + coordinates.shape[1] * coordinates.dlon)).astype(np.int32)
 
         for lat in lats:
             for lon in lons:
@@ -217,11 +225,11 @@ class SrtmDownload(object):
                 elif str(lon) not in filelist[srtm_type][str(lat)]:
                     continue
                 
-                if os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.hgt.zip') not in tiles_zip:
+                if os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.hgt.zip') not in tiles_zip or not download:
                     unzip = os.path.join(srtm_folder, srtm_type + '__' + latstr + lonstr + '.hgt')
                     tiles.append(unzip)
 
-                    if not os.path.exists(unzip):
+                    if not os.path.exists(unzip) or not download:
                         tiles_zip.append(os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.hgt.zip'))
 
                         download_tiles.append(unzip)
@@ -233,7 +241,7 @@ class SrtmDownload(object):
                         unzip = os.path.join(srtm_folder, srtm_type + '__' + latstr + lonstr + '.q')
                         tiles.append(unzip)
 
-                        if not os.path.exists(unzip):
+                        if not os.path.exists(unzip) or not download:
                             tiles_zip.append(os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.q.zip'))
 
                             download_tiles.append(unzip)
@@ -241,7 +249,7 @@ class SrtmDownload(object):
                             tile_lons.append(lon)
                             url.append(filelist[srtm_type][str(lat)][str(lon)][:-7] + 'num.zip')
 
-        return download_tiles, [tile_lats, tile_lons], url, tiles_zip
+        return tiles, [tile_lats, tile_lons], url, tiles_zip
 
     @staticmethod
     def srtm_listing(srtm_folder, username='', password=''):

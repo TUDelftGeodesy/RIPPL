@@ -20,29 +20,11 @@
 
 # This test is used to test a number of processing steps on one slave and slice burst from Sentinel-1 data.
 import os
-import time
-import copy
-from joblib import Parallel, delayed
-from coordinate_system import CoordinateSystem
 from image_data import ImageData
-from collections import OrderedDict
-import numpy as np
-
-from find_coordinates import FindCoordinates
-
-from orbit_dem_functions.srtm_download import SrtmDownload
-from processing_steps.radar_dem import RadarDem
-from processing_steps.geocode import Geocode
-from processing_steps.earth_topo_phase import EarthTopoPhase
-from processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
-from processing_steps.interfero import Interfero
 from processing_steps.concatenate import Concatenate
-from parallel_functions import create_ifg, geocoding, inverse_geocode, resampling, create_dem, create_dem_lines
-from processing_steps.inverse_geocode import InverseGeocode
+from pipeline import Pipeline
 
-# from pipeline import Pipeline
-
-class Image(ImageData):
+class Image(object):
 
     """
     :type reference_image = Image
@@ -82,16 +64,22 @@ class Image(ImageData):
         self.check_valid_burst_res()
 
         if not os.path.exists(self.res_file) or update_full_image:
-            concat_dat = Concatenate([self.slices[key] for key in self.slices.keys()])
-            concat_dat.concat.write(self.res_file)
-        ImageData.__init__(self, self.res_file, res_type='single')
+            concat = Concatenate.create_concat_meta([self.slices[key] for key in self.slices.keys()])
+            concat.write(self.res_file)
+        self.res_data = ImageData(self.res_file, res_type='single')
 
+    def __call__(self, step, settings, coors, file_type='', slice=True, cmaster='', master='', memory=500, cores=6, parallel=True):
+        # This calls the pipeline function for this step
+
+        # The main image is always seen as the slave image. Further ifg processing is not possible here.
+        pipeline = Pipeline(memory=memory, cores=cores, slave=self, master=master, cmaster=cmaster, parallel=parallel)
+        pipeline(step, settings, coors, 'slave', slice=slice, file_type=file_type)
 
     def check_valid_burst_res(self):
         # This function does some basic checks whether all bursts in this image are correct.
 
         # Process keys and expected lengths. (0 if unknown or variable)
-        process_keys = dict([('readfiles', 66), ('orbits', 0), ('crop', 8), ('import_DEM', 0), ('inverse_geocode', 0),
+        process_keys = dict([('readfiles', 67), ('orbits', 0), ('crop', 8), ('import_DEM', 0), ('inverse_geocode', 0),
                              ('radar_DEM', 0), ('geocode', 0), ('azimuth_elevation_angle', 0), ('deramp', 0),
                              ('sim_amplitude', 0), ('coreg_readfiles', 0),('coreg_orbits', 0), ('coreg_crop', 0),
                              ('geometrical_coreg', 0),('correl_coreg', 0), ('combined_coreg', 0),('master_timing', 0),
@@ -143,24 +131,3 @@ class Image(ImageData):
                 self.slice_folders.remove(slice_folder)
                 self.slice_names.remove(slice)
                 self.slices.pop(slice)
-
-    def add_master_res_info(self):
-        # This function adds the .res information specific for the master image. For this image both resampline and the
-        # topography/earth phase are not needed as it is the reference itself. Therefore these steps are added to the
-        # .res file but simply referenced to the original data crop.
-
-        # Note that this could cause a problem if multilooking of the original data is applied before creating the ifg.
-        # However, this is not advised in almost all cases
-
-        coor = CoordinateSystem()
-        coor.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
-
-        for step in ['resample', 'reramp', 'earth_topo_phase']:
-            for slice in self.slices.keys():
-
-                res_info = OrderedDict()
-                coor.add_res_info(self.slices[slice])
-
-                res_info = coor.create_meta_data([step], ['complex_int'])
-                res_info[step + '_output_file'] = 'crop.raw'
-                slice.image_add_processing_step(step, res_info)

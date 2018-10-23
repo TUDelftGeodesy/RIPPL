@@ -192,11 +192,13 @@ class RadarDem(object):
         input_dat[meta_type]['inverse_geocode']['DEM']['file'] = ['DEM_' + in_coordinate.sample + '.raw']
         input_dat[meta_type]['inverse_geocode']['DEM']['coordinates'] = in_coordinate
         input_dat[meta_type]['inverse_geocode']['DEM']['slice'] = in_coordinate.slice
+        input_dat[meta_type]['inverse_geocode']['DEM']['coor_change'] = 'resample'
 
         for dat_type in ['DEM_pixel', 'DEM_line']:
             input_dat[meta_type]['inverse_geocode'][dat_type]['file'] = [dat_type + in_coordinate.sample + '.raw']
             input_dat[meta_type]['inverse_geocode'][dat_type]['coordinates'] = in_coordinate
             input_dat[meta_type]['inverse_geocode'][dat_type]['slice'] = in_coordinate.slice
+            input_dat[meta_type]['inverse_geocode'][dat_type]['coor_change'] = 'resample'
 
         # One output file created radar dem
         output_dat = defaultdict()
@@ -206,33 +208,26 @@ class RadarDem(object):
         output_dat[meta_type]['radar_DEM']['radar_DEM']['slice'] = out_coordinate.slice
 
         # Number of times input data is used in ram. Bit difficult here but 15 times is ok guess.
-        mem_use = 18
+        mem_use = 15
 
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['radar_DEM']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('radar_DEM', s)
+        meta.images_create_disk('radar_DEM', file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk('radar_DEM', file_type, coordinates)
 
-        if not output_file_steps:
-            meta_info = meta.processes['radar_DEM']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('radar_DEM', file_type, coordinates)
 
-        for s in output_file_steps:
-            meta.image_memory_to_disk('radar_DEM', s)
 
     #######################################################################################
 

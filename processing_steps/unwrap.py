@@ -75,7 +75,7 @@ class Unwrap(object):
         self.add_meta_data(self.meta, self.step, self.shape, self.sample, self.multilook, self.offset)
 
     @staticmethod
-    def add_meta_data(ifg, step, shape, sample, multilook, offset):
+    def add_meta_data(meta, step):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
         if 'unwrap' in ifg.processes.keys():
@@ -106,7 +106,7 @@ class Unwrap(object):
         input_dat['slave']['coreg'] = ['new_line', 'new_pixel']
         input_dat['slave']['resample'] = ['Data']
 
-        output_dat = dict()
+        output_dat = defaultdict()
         output_dat['slave']['reramp'] = ['Data']
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.

@@ -20,7 +20,7 @@ import logging
 
 class Concatenate(object):
 
-    def __init__(self, meta_slices, coordinates, meta='', step='interferogram', file_type=''):
+    def __init__(self, meta_slices, coordinates='', meta='', step='interferogram', file_type='', out_data='memory'):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
@@ -37,6 +37,13 @@ class Concatenate(object):
             else:
                 return
 
+        if not coordinates:
+            self.coordinates = CoordinateSystem()
+            self.coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+        else:
+            self.coordinates = coordinates
+
+        self.out_data = out_data
         self.data_type = self.meta_slices[0].data_types[step][file_type]
 
         if meta == '':
@@ -46,10 +53,9 @@ class Concatenate(object):
         else:
             return
 
-        self.coordinates = coordinates
         dummy, self.coordinates_slices = Concatenate.find_slice_coordinates(self.meta_slices, self.coordinates)
 
-    def __call__(self, out_data='memory'):
+    def __call__(self):
 
         if len(self.meta_slices) == 0:
             print('Missing input data for concatenation of image ' + self.meta.folder + '. Aborting..')
@@ -59,10 +65,10 @@ class Concatenate(object):
 
             Concatenate.add_meta_data(self.meta, self.coordinates, self.file_type, self.data_type)
 
-            if out_data == 'disk':
+            if self.out_data == 'disk':
                 self.meta.image_create_disk(self.step, self.file_type)
                 data = self.meta.data_disk[self.step][self.file_type]
-            elif out_data == 'memory':
+            elif self.out_data == 'memory':
                 empty_image = np.zeros(self.coordinates.shape).astype(self.meta.dtype_numpy[self.data_type])
                 self.meta.image_new_data_memory(empty_image, self.step, 0, 0, self.file_type)
                 data = self.meta.data_memory[self.step][self.file_type]
@@ -99,7 +105,7 @@ class Concatenate(object):
             return False
 
     @staticmethod
-    def add_meta_data(meta, coordinates, step, file_type='', data_type=''):
+    def add_meta_data(meta_slices, meta, coordinates, step, file_type=''):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
 
@@ -150,28 +156,20 @@ class Concatenate(object):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_output_files(meta, step, output_file_steps=''):
+    def create_output_files(meta, step, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes[step]
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk(step, s)
+        meta.images_create_disk(step, file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, step, output_file_steps=''):
+    def save_to_disk(meta, step, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk(step, file_type, coordinates)
 
-        if not output_file_steps:
-            meta_info = meta.processes[step]
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_memory_to_disk(step, s)
+    @staticmethod
+    def clear_memory(meta, step, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory(step, file_type, coordinates)
 
     @staticmethod
     def create_concat_meta(meta_slices):
@@ -216,14 +214,14 @@ class Concatenate(object):
             ra_time = str(min_ra * 1000)
 
             # Adapt the crop information
-            meta.processes[step_meta + 'crop']['Data_output_file'] = 'crop.raw'
-            meta.processes[step_meta + 'crop']['Data_output_format'] = 'complex_int'
-            meta.processes[step_meta + 'crop']['Data_first_line'] = '1'
-            meta.processes[step_meta + 'crop']['Data_first_pixel'] = '1'
-            meta.processes[step_meta + 'crop']['Data_pixels'] = str(int(shape[0]))
-            meta.processes[step_meta + 'crop']['Data_lines'] = str(int(shape[1]))
-            meta.processes[step_meta + 'crop'].pop('Data_first_line (w.r.t. tiff_image)')
-            meta.processes[step_meta + 'crop'].pop('Data_last_line (w.r.t. tiff_image)')
+            meta.processes[step_meta + 'crop']['crop_output_file'] = 'crop.raw'
+            meta.processes[step_meta + 'crop']['crop_output_format'] = 'complex_int'
+            meta.processes[step_meta + 'crop']['crop_first_line'] = '1'
+            meta.processes[step_meta + 'crop']['crop_first_pixel'] = '1'
+            meta.processes[step_meta + 'crop']['crop_pixels'] = str(int(shape[0]))
+            meta.processes[step_meta + 'crop']['crop_lines'] = str(int(shape[1]))
+            meta.processes[step_meta + 'crop'].pop('crop_first_line (w.r.t. tiff_image)')
+            meta.processes[step_meta + 'crop'].pop('crop_last_line (w.r.t. tiff_image)')
 
             # Change from slice to full image
             meta.processes[step_meta + 'readfiles']['slice'] = 'False'
@@ -300,8 +298,8 @@ class Concatenate(object):
             az0 = az_time.seconds + az_time.microseconds / 1000000.0
             ra0 = float(slice.processes[pref + 'readfiles']['Range_time_to_first_pixel (2way) (ms)']) / 1000
 
-            lines = slice.processes[pref + 'crop']['Data_first_line'] + slice.processes[pref + 'crop']['Data_lines']
-            pixels = slice.processes[pref + 'crop']['Data_first_pixel'] + slice.processes[pref + 'crop']['Data_pixels']
+            lines = int(slice.processes[pref + 'crop']['crop_first_line']) + int(slice.processes[pref + 'crop']['crop_lines'])
+            pixels = int(slice.processes[pref + 'crop']['crop_first_pixel']) + int(slice.processes[pref + 'crop']['crop_pixels'])
 
             az_start.append(az0)
             ra_start.append(ra0)

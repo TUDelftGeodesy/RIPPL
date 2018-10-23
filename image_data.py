@@ -4,6 +4,7 @@ import warnings
 from collections import defaultdict
 
 from image_metadata import ImageMetadata
+from coordinate_system import CoordinateSystem
 
 
 class ImageData(ImageMetadata):
@@ -27,7 +28,8 @@ class ImageData(ImageMetadata):
 
         # [lines, pixels]
         self.data_sizes = defaultdict()
-        self.data_intervals = defaultdict()
+        self.data_multilook = defaultdict()
+        self.data_oversample = defaultdict()
         self.data_offset = defaultdict()
         # Limits are [first_line, first_pix]
         self.data_limits = defaultdict()
@@ -80,6 +82,23 @@ class ImageData(ImageMetadata):
                                                dtype=self.dtype_disk[self.data_types[step][file_type]],
                                                shape=self.data_sizes[step][file_type])
 
+    def images_create_disk(self, step, file_types='', coordinates='', coor_out=''):
+
+        if not file_types:
+            meta_info = self.processes[step]
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            file_types = [filename[:-12] for filename in output_file_keys]
+
+        elif isinstance(coordinates, CoordinateSystem):
+            file_types = [file_type + coordinates.sample for file_type in file_types]
+
+            # Only used for the conversion grid
+            if isinstance(coor_out, CoordinateSystem):
+                file_types = [file_type + coor_out.sample for file_type in file_types]
+
+        for file_type in file_types:
+            self.image_create_disk(step, file_type)
+
     def image_create_disk(self, step, file_type='', overwrite=True):
         # With this function we add a certain data file to the image data structure. This is only used to make it
         # easily accessible, but the file is not saved to disk!
@@ -100,6 +119,23 @@ class ImageData(ImageMetadata):
         self.data_disk[step][file_type] = np.memmap(path, mode='w+',
                                                dtype=self.dtype_disk[self.data_types[step][file_type]],
                                                shape=self.data_sizes[step][file_type])
+
+    def images_memory_to_disk(self, step, file_types='', coordinates='', coor_out=''):
+
+        if not file_types:
+            meta_info = self.processes[step]
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            file_types = [filename[:-13] for filename in output_file_keys]
+
+        elif isinstance(coordinates, CoordinateSystem):
+            file_types = [file_type + coordinates.sample for file_type in file_types]
+
+            # Only used for the conversion grid
+            if isinstance(coor_out, CoordinateSystem):
+                file_types = [file_type + coor_out.sample for file_type in file_types]
+
+        for file_type in file_types:
+            self.image_memory_to_disk(step, file_type)
 
     def image_memory_to_disk(self, step, file_type=''):
         # This function is used to save a data crop to the image file. Normally this can be done directly but in case
@@ -269,6 +305,23 @@ class ImageData(ImageMetadata):
 
         return True
 
+    def images_clean_memory(self, step, file_types='', coordinates='', coor_out=''):
+
+        if not file_types:
+            meta_info = self.processes[step]
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            file_types = [filename[:-13] for filename in output_file_keys]
+
+        elif isinstance(coordinates, CoordinateSystem):
+            file_types = [file_type + coordinates.sample for file_type in file_types]
+
+            # Only used for the conversion grid
+            if isinstance(coor_out, CoordinateSystem):
+                file_types = [file_type + coor_out.sample for file_type in file_types]
+
+        for file_type in file_types:
+            self.clean_memory(step, file_type)
+
     def clean_memory(self, step='', file_type=''):
         # Clean the image from all data loaded in memory. Useful step before parallel processing.
         if not step:
@@ -281,9 +334,10 @@ class ImageData(ImageMetadata):
             self.data_memory_limits[step] = defaultdict()
             self.data_memory_sizes[step] = defaultdict()
         elif step and file_type:
-            self.data_memory[step].pop(file_type)
-            self.data_memory_limits[step].pop(file_type)
-            self.data_memory_sizes[step].pop(file_type)
+            if file_type in self.data_memory[step].keys():
+                self.data_memory[step].pop(file_type)
+                self.data_memory_limits[step].pop(file_type)
+                self.data_memory_sizes[step].pop(file_type)
 
     def clean_memmap_files(self, step='', file_type=''):
         # Clean the image from all data loaded in memory. Useful step before parallel processing.
@@ -363,38 +417,35 @@ class ImageData(ImageMetadata):
         if file_type + '_output_file' in self.processes[step]:
             keys = self.processes[step]
 
-            if file_type + '_first_pixel' in self.processes[step].keys():
+            if file_type + '_pixels' in self.processes[step].keys():
                 lin_min = int(self.processes[step][file_type + '_first_line'])
                 pix_min = int(self.processes[step][file_type + '_first_pixel'])
                 lines = int(self.processes[step][file_type + '_lines'])
                 pixels = int(self.processes[step][file_type + '_pixels'])
-            elif file_type + '_size_in_longitude' in keys:
-                pix_min = 1
-                pixels = int(self.processes[step][file_type + '_size_in_longitude'])
-                lin_min = 1
-                lines = int(self.processes[step][file_type + '_size_in_latitude'])
             else:
                 warnings.warn('No image size information found')
                 return False
 
-            if file_type + '_interval_range' in self.processes[step].keys():
-                pix_int = int(self.processes[step][file_type + '_interval_range'])
-                lin_int = int(self.processes[step][file_type + '_interval_azimuth'])
-            elif file_type + '_multilook_range' in self.processes[step].keys():
-                pix_int = int(self.processes[step][file_type + '_multilook_range'])
-                lin_int = int(self.processes[step][file_type + '_multilook_azimuth'])
+            if file_type + '_multilook_range' in self.processes[step].keys():
+                pix_ml = int(self.processes[step][file_type + '_multilook_range'])
+                lin_ml = int(self.processes[step][file_type + '_multilook_azimuth'])
             else:
-                pix_int = 1
-                lin_int = 1
-            if file_type + '_buffer_range' in self.processes[step].keys():
-                pix_off = int(self.processes[step][file_type + '_buffer_range'])
-                lin_off = int(self.processes[step][file_type + '_buffer_azimuth'])
-            elif file_type + '_offset_range' in self.processes[step].keys():
+                pix_ml = 1
+                lin_ml = 1
+
+            if file_type + '_offset_range' in self.processes[step].keys():
                 pix_off = int(self.processes[step][file_type + '_offset_range'])
                 lin_off = int(self.processes[step][file_type + '_offset_azimuth'])
             else:
                 pix_off = 0
                 lin_off = 0
+
+            if file_type + '_offset_range' in self.processes[step].keys():
+                pix_ovr = int(self.processes[step][file_type + '_oversample_range'])
+                lin_ovr = int(self.processes[step][file_type + '_oversample_azimuth'])
+            else:
+                pix_ovr = 1
+                lin_ovr = 1
         else:
             warnings.warn('No image size information found')
             return False
@@ -406,18 +457,19 @@ class ImageData(ImageMetadata):
             self.data_limits[step] = defaultdict()
             self.data_disk[step] = defaultdict()
             self.data_files[step] = defaultdict()
-            self.data_intervals[step] = defaultdict()
+            self.data_multilook[step] = defaultdict()
+            self.data_oversample[step] = defaultdict()
             self.data_offset[step] = defaultdict()
 
             self.data_memory_sizes[step] = defaultdict()
             self.data_memory_limits[step] = defaultdict()
             self.data_memory[step] = defaultdict()
-            self.data_memory_intervals[step] = defaultdict()
             self.data_memory_offset[step] = defaultdict()
 
         self.data_disk[step][file_type] = ''
         self.data_files[step][file_type] = os.path.join(self.folder, self.processes[step][file_type + '_output_file'])
-        self.data_intervals[step][file_type] = (lin_int, pix_int)
+        self.data_multilook[step][file_type] = (lin_ml, pix_ml)
+        self.data_oversample[step][file_type] = (lin_ovr, pix_ovr)
         self.data_offset[step][file_type] = (lin_off, pix_off)
         self.data_types[step][file_type] = self.processes[step][type_string]
         self.data_sizes[step][file_type] = (lines, pixels)

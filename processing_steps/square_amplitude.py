@@ -95,16 +95,20 @@ class SquareAmplitude(object):
         meta.image_add_processing_step('square_amplitude', meta_info)
 
     @staticmethod
-    def processing_info(coordinates, step='earth_topo_phase', file_type='earth_topo_phase', meta_type='slave'):
+    def processing_info(coordinates, coor_in='', step='earth_topo_phase', file_type='earth_topo_phase', meta_type='slave'):
 
-        if not isinstance(coordinates, CoordinateSystem):
+        if not isinstance(coor_in, CoordinateSystem):
+            coor_in = CoordinateSystem()
+            coor_in.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+        if not isinstance(coor_out, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
-        # Three input files needed x, y, z coordinates
+        # Data input file from a random step / file type
         input_dat = defaultdict()
         input_dat[meta_type][step][file_type]['file'] = [file_type + '.raw']
         input_dat[meta_type][step][file_type]['coordinates'] = coordinates
-        input_dat[meta_type][step][file_type]['slice'] = coordinates.slice
+        input_dat[meta_type][step][file_type]['slice'] = 'True'
+        input_dat[meta_type][step][file_type]['coor_change'] = 'multilook'
 
         # line and pixel output files.
         output_dat = defaultdict()
@@ -118,25 +122,18 @@ class SquareAmplitude(object):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['square_amplitude']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('square_amplitude', s)
+        meta.images_create_disk('square_amplitude', file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk('square_amplitude', file_type, coordinates)
 
-        if not output_file_steps:
-            meta_info = meta.processes['square_amplitude']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('square_amplitude', file_type, coordinates)
 
-        for s in output_file_steps:
-            meta.image_memory_to_disk('square_amplitude', s)

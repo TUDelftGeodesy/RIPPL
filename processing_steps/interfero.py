@@ -17,28 +17,32 @@ class Interfero(object):
     :type s_lin = int
     """
 
-    def __init__(self, master_meta, slave_meta, coor_in, coor_out, coreg_meta='', ifg_meta='', s_lin=0, s_pix=0, lines=0,
+    def __init__(self, meta, master_meta, coordinates, coor_out='', cmaster_meta='', ifg_meta='', s_lin=0, s_pix=0, lines=0,
                  step='earth_topo_phase', file_type=''):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
-        if isinstance(slave_meta, ImageData) and isinstance(master_meta, ImageData):
-            self.slave = slave_meta
+        if isinstance(meta, ImageData) and isinstance(master_meta, ImageData):
+            self.slave = meta
             self.master = master_meta
         else:
             return
 
-        if isinstance(coreg_meta, ImageData):
-            self.cmaster = coreg_meta
+        if isinstance(cmaster_meta, ImageData):
+            self.cmaster = cmaster_meta
 
         if isinstance(ifg_meta, ImageData):
             self.ifg = ifg_meta
         else:
-            self.create_meta_data(master_meta, slave_meta)
+            self.add_meta_data(master_meta, meta)
 
-        if isinstance(coor_in, CoordinateSystem) and isinstance(coor_out, CoordinateSystem):
-            self.coor_in = coor_in
+        if isinstance(coordinates, CoordinateSystem):
+            self.coor_in = coordinates
+
+        if isinstance(coor_out, CoordinateSystem):
             self.coor_out = coor_out
+        else:
+            self.coor_out = self.coor_in
 
         # Load data (somewhat complicated for the geographical multilooking.
         if self.coor_in.grid_type == 'radar_coordinates' and self.coor_out.grid_type in ['geographic', 'projection']:
@@ -116,7 +120,7 @@ class Interfero(object):
                 print('Conversion from a projection or geographic coordinate system to another system is not possible')
 
             # Save meta data and results
-            self.create_meta_data(self.ifg, self.coor_out, self.step, self.file_type)
+            self.add_meta_data(self.ifg, self.coor_out, self.step, self.file_type)
             self.ifg.image_new_data_memory(self.multilooked, 'interferogram', 0, 0, file_type='interferogram' + self.coor_out.sample)
 
             return True
@@ -134,10 +138,10 @@ class Interfero(object):
             return False
 
     @staticmethod
-    def create_meta_data(master, slave):
+    def create_meta_data(meta, master_meta):
         # This function creates a folder and .res file for this interferogram.
-        master_path = master.res_path
-        slave_path = slave.res_path
+        master_path = master_meta.res_path
+        slave_path = meta.res_path
 
         if os.path.basename(os.path.dirname(master_path)) == 8:
             master_date = os.path.basename(os.path.dirname(master_path))
@@ -170,11 +174,11 @@ class Interfero(object):
         return ifg
 
     @staticmethod
-    def add_meta_data(ifg, coordinates):
+    def add_meta_data(ifg_meta, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        if 'interferogram' in ifg.processes.keys():
-            meta_info = ifg.processes['interferogram']
+        if 'interferogram' in ifg_meta.processes.keys():
+            meta_info = ifg_meta.processes['interferogram']
         else:
             meta_info = OrderedDict()
 
@@ -185,7 +189,7 @@ class Interfero(object):
 
             meta_info = coor.create_meta_data(['interferogram' + coor.sample], ['complex_float'])
 
-        ifg.image_add_processing_step('interferogram', meta_info)
+        ifg_meta.image_add_processing_step('interferogram', meta_info)
 
     @staticmethod
     def processing_info(coor_out, coor_in='', ifg_input_step='earth_topo_phase', ifg_input_type='earth_topo_phase'):
@@ -200,11 +204,13 @@ class Interfero(object):
         input_dat = defaultdict()
         input_dat['slave'][ifg_input_step][ifg_input_type]['file'] = [ifg_input_type + '.raw']
         input_dat['slave'][ifg_input_step][ifg_input_type]['coordinates'] = coor_in
-        input_dat['slave'][ifg_input_step][ifg_input_type]['slice'] = coor_in.slice
+        input_dat['slave'][ifg_input_step][ifg_input_type]['slice'] = 'True'
+        input_dat['slave'][ifg_input_step][ifg_input_type]['coor_change'] = 'multilook'
 
         input_dat['master'][ifg_input_step][ifg_input_type]['file'] = [ifg_input_type + '.raw']
         input_dat['master'][ifg_input_step][ifg_input_type]['coordinates'] = coor_in
-        input_dat['master'][ifg_input_step][ifg_input_type]['slice'] = coor_in.slice
+        input_dat['master'][ifg_input_step][ifg_input_type]['slice'] = 'True'
+        input_dat['master'][ifg_input_step][ifg_input_type]['coor_change'] = 'multilook'
 
         # line and pixel output files.
         output_dat = defaultdict()
@@ -218,25 +224,18 @@ class Interfero(object):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['interferogram']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('interferogram', s)
+        meta.images_create_disk('interferogram', file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk('interferogram', file_type, coordinates)
 
-        if not output_file_steps:
-            meta_info = meta.processes['interferogram']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('interferogram', file_type, coordinates)
 
-        for s in output_file_steps:
-            meta.image_memory_to_disk('interferogram', s)

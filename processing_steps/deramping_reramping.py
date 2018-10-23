@@ -120,14 +120,14 @@ class Deramp(GetDopplerRamp):
     :type shape = list
     """
 
-    def __init__(self, slave_meta, res_coordinates, s_lin=0, s_pix=0, lines=0, buf=5):
+    def __init__(self, meta, res_coordinates, s_lin=0, s_pix=0, lines=0, buf=5):
         # Most important for deramping is that we use the resampling grid as a basis. This is because this is the only
         # script that uses the slave geometry, which would make it very difficult to add in a full processing chain.
         # Therefore, we define the area that should be deramped based on the region defined by the resampling.
         # Main consequence is that deramping can only be done after coregistration.
 
-        if isinstance(slave_meta, ImageData):
-            self.slave = slave_meta
+        if isinstance(meta, ImageData):
+            self.slave = meta
         else:
             return
 
@@ -221,13 +221,13 @@ class Deramp(GetDopplerRamp):
         input_dat = defaultdict()
         input_dat['slave']['crop']['crop']['file'] = ['crop.raw']
         input_dat['slave']['crop']['crop']['coordinates'] = coordinates
-        input_dat['slave']['crop']['crop']['slice'] = coordinates.slice
+        input_dat['slave']['crop']['crop']['slice'] = 'True'
 
         # For multiprocessing this information is needed to define the selected area to deramp.
         for t in ['new_line', 'new_pixel']:
             input_dat['slave']['combined_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
             input_dat['slave']['combined_coreg'][t]['coordinates'] = coordinates
-            input_dat['slave']['combined_coreg'][t]['slice'] = coordinates.slice
+            input_dat['slave']['combined_coreg'][t]['slice'] = 'True'
 
         output_dat = defaultdict()
         output_dat['slave']['deramp']['deramped']['file'] = ['deramped.raw']
@@ -240,29 +240,20 @@ class Deramp(GetDopplerRamp):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['deramp']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('deramp', s)
+        meta.images_create_disk('deramp', file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk('deramp', file_type, coordinates)
 
-        if not output_file_steps:
-            meta_info = meta.processes['earth_topo_phase']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_memory_to_disk('deramp', s)
-
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('deramp', file_type, coordinates)
 
 class Reramp(GetDopplerRamp):
 
@@ -272,15 +263,15 @@ class Reramp(GetDopplerRamp):
     :type shape = list
     """
 
-    def __init__(self, slave_meta, coordinates, s_lin=0, s_pix=0, lines=0):
+    def __init__(self, meta, coordinates, s_lin=0, s_pix=0, lines=0):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
         # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
         # 3. Give the first and last line plus the buffer of the input and output
 
-        if isinstance(slave_meta, ImageData):
-            self.slave = slave_meta
+        if isinstance(meta, ImageData):
+            self.slave = meta
         else:
             return
 
@@ -366,13 +357,13 @@ class Reramp(GetDopplerRamp):
         for t in ['new_line', 'new_pixel']:
             input_dat['slave']['combined_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
             input_dat['slave']['combined_coreg'][t]['coordinates'] = coordinates
-            input_dat['slave']['combined_coreg'][t]['slice'] = coordinates.slice
+            input_dat['slave']['combined_coreg'][t]['slice'] = 'True'
 
         input_dat['slave']['resample']['resampled']['file'] = ['resampled.raw']
         input_dat['slave']['resample']['resampled']['coordinates'] = coordinates
-        input_dat['slave']['resample']['resampled']['slice'] = coordinates.slice
+        input_dat['slave']['resample']['resampled']['slice'] = 'True'
 
-        output_dat = dict()
+        output_dat = defaultdict()
         output_dat['slave']['reramp']['reramped']['file'] = ['reramped' + coordinates.sample + '.raw']
         output_dat['slave']['reramp']['reramped']['coordinates'] = coordinates
         output_dat['slave']['reramp']['reramped']['slice'] = coordinates.slice
@@ -383,25 +374,17 @@ class Reramp(GetDopplerRamp):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['deramp']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('deramp', s)
+        meta.images_create_disk('reramp', file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk('reramp', file_type, coordinates)
 
-        if not output_file_steps:
-            meta_info = meta.processes['earth_topo_phase']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_memory_to_disk('deramp', s)
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('reramp', file_type, coordinates)

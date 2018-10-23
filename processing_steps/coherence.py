@@ -16,12 +16,12 @@ class Coherence(object):
     :type s_lin = int
     """
 
-    def __init__(self, master_meta, slave_meta, ifg_meta, coordinates, s_lin=0, s_pix=0, lines=0):
+    def __init__(self, meta, master_meta, ifg_meta, coordinates, s_lin=0, s_pix=0, lines=0):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
-        if isinstance(slave_meta, ImageData) and isinstance(master_meta, ImageData):
-            self.slave = slave_meta
+        if isinstance(meta, ImageData) and isinstance(master_meta, ImageData):
+            self.slave = meta
             self.master = master_meta
         else:
             return
@@ -29,7 +29,7 @@ class Coherence(object):
         if isinstance(ifg_meta, ImageData):
             self.ifg = ifg_meta
         else:
-            Interfero.create_meta_data(master_meta, slave_meta)
+            Interfero.create_meta_data(master_meta, meta)
 
         if isinstance(coordinates, CoordinateSystem):
             self.coordinates = [coordinates]
@@ -81,11 +81,11 @@ class Coherence(object):
             return False
 
     @staticmethod
-    def add_meta_data(ifg, coordinates):
+    def add_meta_data(ifg_meta, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        if 'coherence' in ifg.processes.keys():
-            meta_info = ifg.processes['coherence']
+        if 'coherence' in ifg_meta.processes.keys():
+            meta_info = ifg_meta.processes['coherence']
         else:
             meta_info = OrderedDict()
 
@@ -96,7 +96,7 @@ class Coherence(object):
 
             meta_info = coor.create_meta_data(['coherence' + coor.sample], ['complex_float'])
 
-        ifg.image_add_processing_step('coherence', meta_info)
+        ifg_meta.image_add_processing_step('coherence', meta_info)
 
     @staticmethod
     def processing_info(coordinates):
@@ -129,25 +129,18 @@ class Coherence(object):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['coherence']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('coherence', s)
+        meta.images_create_disk('coherence', file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk('coherence', file_type, coordinates)
 
-        if not output_file_steps:
-            meta_info = meta.processes['coherence']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('coherence', file_type, coordinates)
 
-        for s in output_file_steps:
-            meta.image_memory_to_disk('coherence', s)

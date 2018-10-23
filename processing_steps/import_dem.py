@@ -15,15 +15,12 @@
 import os
 import numpy as np
 import gdal
-import fiona
-from shapely.geometry import Polygon
 
 from collections import OrderedDict, defaultdict
 from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
 from orbit_dem_functions.srtm_download import SrtmDownload
 from image_data import ImageData
 from coordinate_system import CoordinateSystem
-
 
 class CreateSrtmDem(OrbitCoordinates):
     # This class stitches the different files together. If no data is available values will be zero. Which is
@@ -50,14 +47,28 @@ class CreateSrtmDem(OrbitCoordinates):
         self.srtm_type = srtm_type
         self.srtm_folder = srtm_folder
 
+        # Buffer and rounding
+        self.buf = buf
+        self.rounding = rounding
+
         # Image coordinates
-        self.coordinates = CreateSrtmDem.srtm_coordinates(self.meta.polygon, srtm_type=srtm_type,
-                                                          buf=buf, rounding=rounding)
+        self.coordinates = CoordinateSystem()
+
+        if self.srtm_type == 'SRTM3':
+            step = 1.0 / 3600 * 3
+        elif self.srtm_type == 'SRTM1':
+            step = 1.0 / 3600
+        else:
+            print('Unkown SRTM type' + self.srtm_type)
+            return
+
+        self.coordinates.create_geographic(dlat=step, dlon=step)
+        self.coordinates.add_res_info(self.meta, buf=self.buf, round=self.rounding)
 
         # Initialize output files
         self.out_folder = os.path.dirname(self.meta.res_path)
-        self.dem = os.path.join(self.out_folder, 'DEM_' + self.coordinates.sample + '.raw')
-        self.q_dem = os.path.join(self.out_folder, 'DEM_q_' + self.coordinates.sample + '.raw')
+        self.dem = os.path.join(self.out_folder, 'DEM' + self.coordinates.sample + '.raw')
+        self.q_dem = os.path.join(self.out_folder, 'DEM_q' + self.coordinates.sample + '.raw')
 
     def __call__(self):
         # Create the DEM and xyz coordinates
@@ -68,28 +79,29 @@ class CreateSrtmDem(OrbitCoordinates):
 
         # Find the needed tiles.
         filelist = SrtmDownload.srtm_listing(self.srtm_folder)
-        tiles, n, v, t = SrtmDownload.select_tiles(filelist, self.srtm_folder, self.srtm_type, self.quality)
+        tiles, n, v, t = SrtmDownload.select_tiles(filelist, self.coordinates, self.srtm_folder, self.srtm_type, self.quality, download=False)
         tiles = [tile[:-4] for tile in tiles if tile.endswith('.hgt')]
 
         # Finally add metadata if it is directly linked to a SAR image
         self.add_meta_data(self.meta, self.coordinates, self.quality)
-        self.create_output_files(self.meta)
 
         # Then create needed files
         if self.quality:
-            self.q = self.create_image(dat_type='.q', tiles=tiles)
-            self.meta.image_new_data_memory(self.q, 'import_DEM', 0, 0, file_type='DEM_q_' + self.coordinates.sample)
+            self.create_output_files(self.meta, file_type=['DEM_q' + self.coordinates.sample])
+            self.q_dat = self.create_image(dat_type='.q', tiles=tiles)
+            self.meta.image_new_data_memory(self.q_dat, 'import_DEM', 0, 0, file_type='DEM_q' + self.coordinates.sample)
 
-        self.dem = self.create_image(dat_type='.hgt', tiles=tiles)
-        self.meta.image_new_data_memory(self.dem, 'import_DEM', 0, 0, file_type='DEM_' + self.coordinates.sample)
+        self.create_output_files(self.meta, file_type=['DEM' + self.coordinates.sample])
+        self.dem_dat = self.create_image(dat_type='.hgt', tiles=tiles)
+        self.meta.image_new_data_memory(self.dem_dat, 'import_DEM', 0, 0, file_type='DEM' + self.coordinates.sample)
 
     def create_image(self, tiles, dat_type='.hgt'):
         # This function adds tiles to np.memmap file
 
         if dat_type == '.q':
-            outputdata = np.memmap(self.q_dem, dtype=np.int8, shape=self.coordinates.shape, mode='w+')
+            outputdata = np.memmap(self.q_dem, dtype=np.int8, shape=tuple(self.coordinates.shape), mode='w+')
         elif dat_type == '.hgt':
-            outputdata = np.memmap(self.dem, dtype=np.float32, shape=self.coordinates.shape, mode='w+')
+            outputdata = np.memmap(self.dem, dtype=np.float32, shape=tuple(self.coordinates.shape), mode='w+')
         else:
             print('images type should be ".q or .hgt"')
             return
@@ -119,7 +131,7 @@ class CreateSrtmDem(OrbitCoordinates):
                 image = np.fromfile(tile + dat_type, dtype='float32').reshape(shape)
             else:
                 print('images type should be ".q or .hgt"')
-                return
+                #return
 
             if os.path.basename(tile)[7] == 'N':
                 lat = float(os.path.basename(tile)[8:10])
@@ -204,87 +216,26 @@ class CreateSrtmDem(OrbitCoordinates):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def create_output_files(meta, output_file_steps=''):
+    def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-
-        if not output_file_steps:
-            meta_info = meta.processes['import_DEM']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_create_disk('import_DEM', s)
+        meta.images_create_disk('import_DEM', file_type, coordinates)
 
     @staticmethod
-    def save_to_disk(meta, output_file_steps=''):
-
-        if not output_file_steps:
-            meta_info = meta.processes['import_DEM']
-            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
-            output_file_steps = [filename[:-13] for filename in output_file_keys]
-
-        for s in output_file_steps:
-            meta.image_memory_to_disk('import_DEM', s)
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_create_disk('import_DEM', file_type, coordinates)
 
     @staticmethod
-    def srtm_coordinates(polygon='', buf=1.0, rounding=1.0, srtm_type='SRTM3', shapefile=''):
-
-        # If shapefile exist the polygon is not needed.
-        if shapefile:
-            polygon = CreateSrtmDem.load_shp(shapefile)
-
-        polygon = polygon.buffer(buf)
-        coor = polygon.exterior.coords
-
-        lon = [l[0] for l in coor]
-        lat = [l[1] for l in coor]
-
-        latlim = [min(lat), max(lat)]
-        lonlim = [min(lon), max(lon)]
-
-        # Add the rounding and borders to add the sides of our image
-        # Please use rounding as a n/60 part of a degree (so 1/15 , 1/10 or 1/20 of a degree for example..)
-        latlim = np.array([np.floor((latlim[0]) / rounding) * rounding, np.ceil((latlim[1]) / rounding) * rounding])
-        lonlim = np.array([np.floor((lonlim[0]) / rounding) * rounding, np.ceil((lonlim[1]) / rounding) * rounding])
-
-        # Define image resolution
-        if srtm_type == 'SRTM1':
-            pixel_degree = 3600
-        elif srtm_type == 'SRTM3':
-            pixel_degree = 1200
-        else:
-            print('quality should be either SRTM1 or SRTM3!')
-            return
-
-        shape = np.array(np.round(np.diff(latlim) * pixel_degree + 1), np.round(np.diff(lonlim) * pixel_degree + 1))
-
-        coordinates = CoordinateSystem()
-        coordinates.create_geographic_coordinates(shape=shape, lat0=latlim[0], lon0=lonlim[0],
-                                                  dlat=1 / float(pixel_degree), dlon=1 / float(pixel_degree))
-
-        return coordinates
-
-    @staticmethod
-    def load_shp(filename):
-        # from kml and shape file to a bounding box. We will always use a bounding box to create the final product.
-
-        if filename.endswith('.shp'):
-            with fiona.collection(filename, "r") as inputshape:
-
-                shapes = [shape for shape in inputshape]
-                # only first shape
-                polygon = Polygon(shapes[0]['geometry']['coordinates'][0])
-        else:
-            print('Shape not recognized')
-            return []
-
-        return polygon
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('import_DEM', file_type, coordinates)
 
 # This class loads a non SRTM DEM grid. Inputs are:
 # - grid with heights
 # - grid with lat/lon coordinate of all points
 # Grid should be given in geotiff format.
+
 
 class CreateExternalDem(CreateSrtmDem):
 
