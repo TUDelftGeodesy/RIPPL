@@ -102,11 +102,12 @@ class Unwrap(object):
     def processing_info():
 
         # Information on this processing step
-        input_dat = defaultdict()
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
         input_dat['slave']['coreg'] = ['new_line', 'new_pixel']
         input_dat['slave']['resample'] = ['Data']
 
-        output_dat = defaultdict()
+        output_dat = recursive_dict()
         output_dat['slave']['reramp'] = ['Data']
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.

@@ -18,6 +18,7 @@ from orbit_dem_functions.srtm_download import SrtmDownload
 from coordinate_system import CoordinateSystem
 from processing_steps.import_dem import CreateSrtmDem
 import datetime
+import numpy as np
 
 
 class Stack(object):
@@ -145,6 +146,36 @@ class Stack(object):
         # combine the ifg and image dates
         self.dates = sorted(set(self.ifg_dates) - set(self.image_dates))
 
+    def __call__(self, step, settings, coor, meta_type, file_type='', cores=6, memory=500, parallel=True):
+
+        # If not defined first check whether we are dealing with a slave, cmaster or ifg step.
+        # Should be defined by the user! But to warn in the case the likely wrong function is chosen
+
+        # Run either all the slave, the coreg master or the ifg's
+        if meta_type == 'cmaster':
+            self.images[self.master_date](step, settings, coor, file_type, cmaster='',
+                                          memory=memory, cores=cores, parallel=parallel)
+        elif meta_type == 'slave':
+            for key in self.images.keys():
+                self.images[key](step, settings, coor, file_type, cmaster=self.images[self.master_date],
+                                 memory=memory, cores=cores, parallel=parallel)
+        elif meta_type == 'ifg':
+            for key in self.interferograms.keys():
+                master_key = key[:8]
+                slave_key = key[9:]
+
+                if master_key in self.images.keys():
+                    master = self.images[master_key]
+                else:
+                    master = ''
+                if slave_key in self.images.keys():
+                    slave = self.images[slave_key]
+                else:
+                    slave = ''
+
+                self.interferograms[key](step, settings, coor, file_type, slave=slave, master=master,
+                                         cmaster=self.images[self.master_date], memory=memory, cores=cores, parallel=parallel)
+
     def add_master_res_info(self):
         # This function adds the .res information specific for the master image. For this image both resampline and the
         # topography/earth phase are not needed as it is the reference itself. Therefore these steps are added to the
@@ -167,18 +198,61 @@ class Stack(object):
 
             self.images[self.master_date].slices[slice].write()
 
-    def create_network_ifgs(self, type='temp_baseline'):
+    def create_network_ifgs(self, network_type='temp_baseline', temp_baseline=2, n_images=1):
 
+        # Get all the dates in the stack.
+        date_int = np.sort([int(key) for key in self.images.keys()])
+        dates = np.array([datetime.datetime.strptime(str(date), '%Y%m%d') for date in date_int])
 
+        ifg_pairs = []
 
-    def run_function(self):
+        if network_type == 'temp_baseline':
+            days = np.array([diff.day for diff in dates - np.min(dates)])
 
+            # Define network based on network type
+            for n in range(len(days)):
+                ids = np.where(days > 0 * days <= temp_baseline)
+                for id in ids:
+                    ifg_pairs.append([n, id])
+
+        elif network_type == 'daisy_chain':
+            n_im = len(dates)
+            for i in range(n_im):
+                for n in range(0, n_images + 1):
+                    if n + i < n_im:
+                        ifg_pairs.append([i, n])
+
+        # Finally create the requested ifg if they do not exist already
+        ifg_ids = self.interferograms.keys()
+
+        for ifg_pair in ifg_pairs:
+
+            master_key = str(date_int[ifg_pair[0]])
+            slave_key = str(date_int[ifg_pair[1]])
+
+            ifg_key_1 = master_key + '_' + slave_key
+            ifg_key_2 = slave_key + '_' + master_key
+
+            if not ifg_key_1 in ifg_ids and not ifg_key_2 in ifg_ids:
+                ifg = Interferogram(slave=self.images[slave_key], master=self.images[master_key])
+                self.interferograms[ifg_key_1] = ifg
 
     def create_SRTM_input_data(self, srtm_folder, username, password, buf=0.2, rounding=0.2,  srtm_type='SRTM3'):
         # This creates the input DEM for the different slices of the master image.
 
         self.download_SRTM_dem(srtm_folder, username, password, buf, rounding, srtm_type)
 
+        # First full image
+        image = self.images[self.master_date].res_data
+        dem_path = os.path.join(os.path.dirname(image.res_path), 'DEM_WGS84_stp_' + srtm_type[-1] + '_' + srtm_type[-1] + '.raw')
+
+        if not self.images[self.master_date].res_data.process_control['import_DEM'] == '1' or not \
+                os.path.exists(dem_path):
+            SRTM_dat = CreateSrtmDem(image, srtm_folder, buf=buf, rounding=rounding, srtm_type=srtm_type)
+            SRTM_dat()
+            image.write()
+
+        # Then slices
         for key in self.images[self.master_date].slices.keys():
             slice = self.images[self.master_date].slices[key]
             dem_path = os.path.join(os.path.dirname(slice.res_path), 'DEM_WGS84_stp_' + srtm_type[-1] + '_' + srtm_type[-1] + '.raw')

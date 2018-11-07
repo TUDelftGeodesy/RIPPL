@@ -353,7 +353,8 @@ class Multilook(object):
             file_type = step
 
         # Three input files needed x, y, z coordinates
-        input_dat = defaultdict()
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
 
         input_dat['slave'][step][file_type]['file'] = [file_type + coor_in.sample + '.raw']
         input_dat['slave'][step][file_type]['coordinates'] = coor_in
@@ -369,7 +370,7 @@ class Multilook(object):
                 input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['slice'] = coor_out.slice
 
         # line and pixel output files.
-        output_dat = defaultdict()
+        output_dat = recursive_dict()
         input_dat['slave'][step][file_type]['file'] = [file_type + coor_out.sample + '.raw']
         input_dat['slave'][step][file_type]['coordinates'] = coor_out
         input_dat['slave'][step][file_type]['slice'] = coor_out.slice
@@ -407,7 +408,7 @@ class Multilook(object):
     @staticmethod
     def save_to_disk(meta, step, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_create_disk(step, file_type, coordinates)
+        meta.images_memory_to_disk(step, file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, step, file_type='', coordinates=''):

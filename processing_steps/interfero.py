@@ -192,7 +192,7 @@ class Interfero(object):
         ifg_meta.image_add_processing_step('interferogram', meta_info)
 
     @staticmethod
-    def processing_info(coor_out, coor_in='', ifg_input_step='earth_topo_phase', ifg_input_type='earth_topo_phase'):
+    def processing_info(coor_out, coor_in='', meta_type='', ifg_input_step='earth_topo_phase', ifg_input_type='earth_topo_phase'):
 
         if not isinstance(coor_in, CoordinateSystem):
             coor_in = CoordinateSystem()
@@ -201,19 +201,20 @@ class Interfero(object):
             print('coordinates should be an CoordinateSystem object')
 
         # Three input files needed x, y, z coordinates
-        input_dat = defaultdict()
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
         input_dat['slave'][ifg_input_step][ifg_input_type]['file'] = [ifg_input_type + '.raw']
         input_dat['slave'][ifg_input_step][ifg_input_type]['coordinates'] = coor_in
-        input_dat['slave'][ifg_input_step][ifg_input_type]['slice'] = 'True'
+        input_dat['slave'][ifg_input_step][ifg_input_type]['slice'] = True
         input_dat['slave'][ifg_input_step][ifg_input_type]['coor_change'] = 'multilook'
 
         input_dat['master'][ifg_input_step][ifg_input_type]['file'] = [ifg_input_type + '.raw']
         input_dat['master'][ifg_input_step][ifg_input_type]['coordinates'] = coor_in
-        input_dat['master'][ifg_input_step][ifg_input_type]['slice'] = 'True'
+        input_dat['master'][ifg_input_step][ifg_input_type]['slice'] = True
         input_dat['master'][ifg_input_step][ifg_input_type]['coor_change'] = 'multilook'
 
         # line and pixel output files.
-        output_dat = defaultdict()
+        output_dat = recursive_dict()
         output_dat['slave']['interferogram']['interferogram']['file'] = ['interferogram' + coor_out.sample + '.raw']
         output_dat['slave']['interferogram']['interferogram']['coordinates'] = coor_out
         output_dat['slave']['interferogram']['interferogram']['slice'] = coor_out.slice
@@ -232,7 +233,7 @@ class Interfero(object):
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_create_disk('interferogram', file_type, coordinates)
+        meta.images_memory_to_disk('interferogram', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):

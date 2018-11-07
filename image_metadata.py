@@ -4,6 +4,7 @@ import collections
 import locale
 from shapely import geometry
 import numpy as np
+from coordinate_system import CoordinateSystem
 
 
 class ImageMetadata(object):
@@ -129,6 +130,70 @@ class ImageMetadata(object):
             except:
                 if self.warn:
                     print('Geometry cannot be loaded')
+
+    def read_res_coordinates(self, step, file_types=''):
+        # Read the coordinates from a .res file step. This can be used to detect existing input from for example a DEM
+
+        # First check the different file_types
+        step_dat = self.processes[step]
+        pos_file_types = [dat[:-12] for dat in step_dat.keys() if dat.endswith('_output_file')]
+
+        if not file_types:
+            file_types = pos_file_types
+        else:
+            for file_type in file_types:
+                if file_type not in pos_file_types:
+                    print('file type ' + file_type + ' does not exist!')
+                    file_types.remove(file_type)
+
+        coordinates_list = []
+
+        for file_type in file_types:
+
+            len_type = len(file_type)
+            type_info = dict()
+            for dat in step_dat.keys():
+                if dat.startswith(file_type):
+                    type_info[dat[len_type + 1:]] = step_dat[dat]
+
+            dat_coors = CoordinateSystem()
+
+            if 'multilook_azimuth' in type_info:
+                multilook = [int(type_info['multilook_azimuth']), int(type_info['multilook_range'])]
+                oversample = [int(type_info['oversample_azimuth']), int(type_info['oversample_range'])]
+                offset = [int(type_info['offset_azimuth']), int(type_info['offset_range'])]
+
+                dat_coors.create_radar_coordinates(multilook=multilook, oversample=oversample, offset=offset)
+
+            elif 'lat0' in type_info:
+                ellipse_type = type_info['ellipse_type']
+                lat0 = float(type_info['lat0'])
+                lon0 = float(type_info['lon0'])
+                dlat = float(type_info['dlat'])
+                dlon = float(type_info['dlon'])
+
+                dat_coors.create_geographic(dlat=dlat, dlon=dlon, ellipse_type=ellipse_type, lat0=lat0, lon0=lon0)
+
+            elif 'projection_type' in type_info:
+                projection_type = type_info['projection_type']
+                ellipse_type = type_info['ellipse_type']
+                proj4_str = type_info['proj4_str']
+                x0 = float(type_info['x0'])
+                y0 = float(type_info['y0'])
+                dx = float(type_info['dx'])
+                dy = float(type_info['dy'])
+
+                dat_coors.create_projection(dx=dx, dy=dy, x0=x0, y0=y0, proj4_str=proj4_str,
+                                            ellipse_type=ellipse_type, projection_type=projection_type)
+
+            dat_coors.shape = [int(type_info['lines']), int(type_info['pixels'])]
+            dat_coors.first_line = int(type_info['first_line'])
+            dat_coors.first_pixel = int(type_info['first_pixel'])
+
+            dat_coors.slice = self.processes['readfiles']['slice'] == 'True'
+            coordinates_list.append(dat_coors)
+
+        return coordinates_list
 
     def meta_reader(self):
         # This function
@@ -395,7 +460,7 @@ class ImageMetadata(object):
         # If a full process is added
         if not variable:
             if self.process_control[process] == '1':
-                print('The ' + str(process) + ' process already exists. Data will be updated')
+                # print('The ' + str(process) + ' process already exists. Data will be updated')
                 self.processes[process] = data
             elif self.process_control[process] == '0':
                 self.process_control[process] = '1'

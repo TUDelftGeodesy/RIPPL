@@ -190,13 +190,14 @@ class CreateSrtmDem(OrbitCoordinates):
         meta.image_add_processing_step('import_DEM', meta_info)
 
     @staticmethod
-    def processing_info(coordinates, quality=False):
+    def processing_info(coordinates, meta_type='', quality=False):
 
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
         # Three input files needed x, y, z coordinates
-        input_dat = defaultdict()
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
 
         # line and pixel output files.
         if quality:
@@ -204,7 +205,7 @@ class CreateSrtmDem(OrbitCoordinates):
         else:
             names = ['DEM']
 
-        output_dat = defaultdict()
+        output_dat = recursive_dict()
         for name in names:
             output_dat['slave']['import_DEM'][name]['files'] = [name + coordinates.sample + '.raw']
             output_dat['slave']['import_DEM'][name]['coordinates'] = coordinates
@@ -224,7 +225,7 @@ class CreateSrtmDem(OrbitCoordinates):
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_create_disk('import_DEM', file_type, coordinates)
+        meta.images_memory_to_disk('import_DEM', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):

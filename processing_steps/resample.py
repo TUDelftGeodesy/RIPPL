@@ -17,7 +17,7 @@ class Resample(object):
     :type shape = list
     """
 
-    def __init__(self, meta, coordinates,s_lin=0, s_pix=0, lines=0, buf=5, warning=False, input_dat='',
+    def __init__(self, meta, coordinates, s_lin=0, s_pix=0, lines=0, buf=5, warning=False, input_dat='',
                  w_type='4p_cubic', table_size='', window=''):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
@@ -36,7 +36,7 @@ class Resample(object):
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
         self.sample = coordinates.sample
-        shape = self.slave.data_sizes['combined_coreg']['New_line' + self.sample]
+        shape = self.slave.data_sizes['geometrical_coreg']['new_line' + self.sample]
         if lines != 0:
             l = np.minimum(lines, shape[0] - s_lin)
         else:
@@ -47,9 +47,9 @@ class Resample(object):
         self.s_pix = s_pix
         self.coordinates = coordinates
 
-        self.new_line = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape,
+        self.new_line = self.slave.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape,
                                                           'new_line' + self.sample)
-        self.new_pixel = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape,
+        self.new_pixel = self.slave.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape,
                                                            'new_pixel' + self.sample)
 
         # Select the required area. Possibly it already covers the required area, then we do not need to load new data.
@@ -58,7 +58,7 @@ class Resample(object):
             input_step = input_dat
         elif self.slave.process_control['deramp'] == '1':
             if warning:
-                print('We use the deramped image data for resampling.')
+                print('We use the deramp image data for resampling.')
             input_step = 'deramp'
         else:
             if warning:
@@ -71,7 +71,7 @@ class Resample(object):
         self.crop = self.slave.image_load_data_memory(input_step, in_s_lin, in_s_pix, in_shape)
 
         # Initialize output
-        self.resampled = []
+        self.resample = []
 
     def __call__(self):
 
@@ -108,7 +108,7 @@ class Resample(object):
                           ((pixel_id - half_w_pixel + 1) >= 0) * ((pixel_id + half_w_pixel) < self.crop.shape[1]))
 
             # Pre assign the final values of this step.
-            self.resampled = np.zeros(l_window_id.shape).astype(self.crop.dtype)
+            self.resample = np.zeros(l_window_id.shape).astype(self.crop.dtype)
 
             # Calculate individually for different pixels in the image window. Saves a lot of memory space...
             for i in np.arange(window_size[0]):
@@ -119,11 +119,11 @@ class Resample(object):
                     # Find the original grid values and add to the out values, applying the weights.
                     i_im = i - half_w_line + 1
                     j_im = j - half_w_pixel + 1
-                    self.resampled[valid_vals] += self.crop[line_id[valid_vals] + i_im,
+                    self.resample[valid_vals] += self.crop[line_id[valid_vals] + i_im,
                                                             pixel_id[valid_vals] + j_im] * weights[valid_vals]
 
             self.add_meta_data(self.slave, self.coordinates)
-            self.slave.image_new_data_memory(self.resampled, 'resample', self.s_lin, self.s_pix)
+            self.slave.image_new_data_memory(self.resample, 'resample', self.s_lin, self.s_pix)
 
             return True
 
@@ -173,31 +173,33 @@ class Resample(object):
         meta.image_add_processing_step('resample', meta_info)
 
     @staticmethod
-    def processing_info(coordinates, deramped=True):
+    def processing_info(coordinates, meta_type='', deramp=True):
 
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
         # Information on this processing step
-        input_dat = defaultdict()
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
+        # We choose the geometrical coreg in first instance other options could be added later...
         for t in ['new_line', 'new_pixel']:
-            input_dat['slave']['combined_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
-            input_dat['slave']['combined_coreg'][t]['coordinates'] = coordinates
-            input_dat['slave']['combined_coreg'][t]['slice'] = coordinates.slice
+            input_dat['slave']['geometrical_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
+            input_dat['slave']['geometrical_coreg'][t]['coordinates'] = coordinates
+            input_dat['slave']['geometrical_coreg'][t]['slice'] = True
 
         # Input file should always be a full resolution grid.
         in_coordinates = CoordinateSystem()
         in_coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
-        if deramped:
+        if deramp:
             input_dat['slave']['deramp']['deramp']['file'] = ['deramp.raw']
             input_dat['slave']['deramp']['deramp']['coordinates'] = in_coordinates
-            input_dat['slave']['deramp']['deramp']['slice'] = 'True'
+            input_dat['slave']['deramp']['deramp']['slice'] = True
         else:
             input_dat['slave']['crop']['crop']['file'] = ['crop.raw']
             input_dat['slave']['crop']['crop']['coordinates'] = in_coordinates
-            input_dat['slave']['crop']['crop']['slice'] = 'True'
+            input_dat['slave']['crop']['crop']['slice'] = True
 
-        output_dat = defaultdict()
+        output_dat = recursive_dict()
         output_dat['slave']['resample']['resample']['file'] = ['resample' + coordinates.sample + '.raw']
         output_dat['slave']['resample']['resample']['coordinates'] = coordinates
         output_dat['slave']['resample']['resample']['slice'] = coordinates.slice
@@ -216,7 +218,7 @@ class Resample(object):
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_create_disk('resample', file_type, coordinates)
+        meta.images_memory_to_disk('resample', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):

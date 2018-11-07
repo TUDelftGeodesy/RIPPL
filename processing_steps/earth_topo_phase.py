@@ -39,21 +39,21 @@ class EarthTopoPhase(object):
 
         if input_step not in ['reramp', 'resample']:
             if self.meta.process_control['reramp'] == '1':
-                print('We use the reramped image data for correction.')
+                # print('We use the reramp image data for correction.')
                 input_step = 'reramp'
             else:
-                print('No reramping information found. Use the original resampled data as input')
+                # print('No reramping information found. Use the original resample data as input')
                 input_step = 'resample'
 
         # Load data
-        self.new_pixel = self.meta.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape, 'new_pixel' + coordinates.sample)
-        self.resampled = self.meta.image_load_data_memory(input_step, self.s_lin, self.s_pix, self.shape, input_step + coordinates.sample)
+        self.new_pixel = self.meta.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape, 'new_pixel' + coordinates.sample)
+        self.resample = self.meta.image_load_data_memory(input_step, self.s_lin, self.s_pix, self.shape, input_step + coordinates.sample)
 
-        self.resampled_corrected = []
+        self.resample_corrected = []
 
     def __call__(self):
         # Check if needed data is loaded
-        if len(self.resampled) == 0 or len(self.new_pixel) == 0:
+        if len(self.resample) == 0 or len(self.new_pixel) == 0:
             print('Missing input data for processing earth_topo_phase for ' + self.meta.folder + '. Aborting..')
             return False
 
@@ -66,9 +66,9 @@ class EarthTopoPhase(object):
             phase_shift = np.remainder(self.new_pixel * conversion_factor, 1) * np.pi * 2
 
             # Finally correct the data
-            self.resampled_corrected = (self.resampled * np.exp(1j * phase_shift)).astype('complex64')
+            self.resample_corrected = (self.resample * np.exp(1j * phase_shift)).astype('complex64')
             self.add_meta_data(self.meta, self.coordinates)
-            self.meta.image_new_data_memory(self.resampled_corrected, 'earth_topo_phase', self.s_lin, self.s_pix)
+            self.meta.image_new_data_memory(self.resample_corrected, 'earth_topo_phase', self.s_lin, self.s_pix)
 
             return True
 
@@ -99,27 +99,28 @@ class EarthTopoPhase(object):
         meta.image_add_processing_step('earth_topo_phase', meta_info)
 
     @staticmethod
-    def processing_info(coordinates, reramped=True):
+    def processing_info(coordinates, meta_type='slave', reramp=True):
 
-        input_dat = defaultdict()
-        input_dat['meta']['combined_coreg']['new_pixel']['file'] = ['new_pixel' + coordinates.sample + '.raw']
-        input_dat['meta']['combined_coreg']['new_pixel']['coordinates'] = coordinates
-        input_dat['meta']['combined_coreg']['new_pixel']['slice'] = 'True'
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
+        input_dat[meta_type]['geometrical_coreg']['new_pixel']['file'] = ['new_pixel' + coordinates.sample + '.raw']
+        input_dat[meta_type]['geometrical_coreg']['new_pixel']['coordinates'] = coordinates
+        input_dat[meta_type]['geometrical_coreg']['new_pixel']['slice'] = True
 
         # Input file should always be a full resolution grid.
-        if reramped:
-            input_dat['meta']['reramp']['reramp']['file'] = ['reramp' + coordinates.sample + '.raw']
-            input_dat['meta']['reramp']['reramp']['coordinates'] = coordinates
-            input_dat['meta']['reramp']['reramp']['slice'] = 'True'
+        if reramp:
+            input_dat[meta_type]['reramp']['reramp']['file'] = ['reramp' + coordinates.sample + '.raw']
+            input_dat[meta_type]['reramp']['reramp']['coordinates'] = coordinates
+            input_dat[meta_type]['reramp']['reramp']['slice'] = True
         else:
-            input_dat['meta']['resample']['resample']['file'] = ['resample' + coordinates.sample + '.raw']
-            input_dat['meta']['resample']['resample']['coordinates'] = coordinates
-            input_dat['meta']['resample']['resample']['slice'] = 'True'
+            input_dat[meta_type]['resample']['resample']['file'] = ['resample' + coordinates.sample + '.raw']
+            input_dat[meta_type]['resample']['resample']['coordinates'] = coordinates
+            input_dat[meta_type]['resample']['resample']['slice'] = True
 
-        output_dat = defaultdict()
-        output_dat['meta']['earth_topo_phase']['earth_topo_phase']['file'] = ['earth_topo_phase' + coordinates.sample + '.raw']
-        output_dat['meta']['earth_topo_phase']['earth_topo_phase']['coordinates'] = coordinates
-        output_dat['meta']['earth_topo_phase']['earth_topo_phase']['slice'] = coordinates.slice
+        output_dat = recursive_dict()
+        output_dat[meta_type]['earth_topo_phase']['earth_topo_phase']['file'] = ['earth_topo_phase' + coordinates.sample + '.raw']
+        output_dat[meta_type]['earth_topo_phase']['earth_topo_phase']['coordinates'] = coordinates
+        output_dat[meta_type]['earth_topo_phase']['earth_topo_phase']['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5
@@ -135,7 +136,7 @@ class EarthTopoPhase(object):
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_create_disk('earth_topo_phase', file_type, coordinates)
+        meta.images_memory_to_disk('earth_topo_phase', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):

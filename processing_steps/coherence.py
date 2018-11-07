@@ -99,13 +99,14 @@ class Coherence(object):
         ifg_meta.image_add_processing_step('coherence', meta_info)
 
     @staticmethod
-    def processing_info(coordinates):
+    def processing_info(coordinates, meta_type=''):
 
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
         # Three input files needed x, y, z coordinates
-        input_dat = defaultdict()
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
         coor = CoordinateSystem()
         for res_type in ['slave', 'master']:
             input_dat[res_type]['square_amplitude']['square_amplitude']['file'] = ['square_amplitude' + coordinates.sample + '.raw']
@@ -117,7 +118,7 @@ class Coherence(object):
         input_dat['ifg']['interferogram']['interferogram']['slice'] = coor.slice
 
         # line and pixel output files.
-        output_dat = defaultdict()
+        output_dat = recursive_dict()
         for coor in coordinates:
             output_dat['ifg']['coherence']['coherence']['file'] = ['coherence' + coor.sample + '.raw']
             output_dat['ifg']['coherence']['coherence']['coordinates'] = coor
@@ -137,7 +138,7 @@ class Coherence(object):
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_create_disk('coherence', file_type, coordinates)
+        meta.images_memory_to_disk('coherence', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):

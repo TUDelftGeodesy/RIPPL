@@ -69,7 +69,7 @@ class Interferogram(object):
         self.slices = dict()
         slice_folders = [os.path.join(folder, x) for x in self.slice_names]
 
-    def __call__(self, step, settings, coors, file_type='', slice=True, slave='', cmaster='', master='', memory=500, cores=6,
+    def __call__(self, step, settings, coors, file_type='', slave='', cmaster='', master='', memory=500, cores=6,
                  parallel=True):
         # This calls the pipeline function for this step
 
@@ -81,7 +81,7 @@ class Interferogram(object):
 
         # The main image is always seen as the slave image. Further ifg processing is not possible here.
         pipeline = Pipeline(memory=memory, cores=cores, slave=slave, master=master, cmaster=cmaster, ifg=self, parallel=parallel)
-        pipeline(step, settings, coors, 'ifg', slice=slice, file_type=file_type)
+        pipeline(step, settings, coors, 'ifg', file_type=file_type)
 
     def unwrap(self, multilook='', offset=''):
         # Applies the unwrapping for the full interferogram.

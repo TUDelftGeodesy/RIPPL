@@ -18,7 +18,7 @@ class RadarDem(object):
     :type shape = list
     """
 
-    def __init__(self, meta, coordinates, s_lin=0, s_pix=0, lines=0, buf=3):
+    def __init__(self, meta, coordinates, s_lin=0, s_pix=0, lines=0, coor_in=''):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
@@ -34,11 +34,35 @@ class RadarDem(object):
         self.s_lin = s_lin
         self.s_pix = s_pix
         self.coordinates = coordinates
-        self.shape, self.lines, self.pixels, self.sample, self.multilook, self.oversample, self.offset = \
-            RadarDem.find_coordinates(meta, s_lin, s_pix, lines, coordinates)
+        self.sample = coordinates.sample
+        self.first_pixel = coordinates.first_pixel
+        self.first_line = coordinates.first_line
+        self.multilook = coordinates.multilook
+        self.shape, self.lines, self.pixels = RadarDem.find_coordinates(meta, s_lin, s_pix, lines, coordinates)
+
+        self.used_grids = []
+        self.dem_max_line = []
+        self.dem_min_line = []
+        self.dem_max_pixel = []
+        self.dem_min_pixel = []
 
         # Load input data and check whether extend of input data is large enough.
-        self.dem, self.dem_line, self.dem_pixel = RadarDem.source_dem_extend(self.meta, self.lines, self.pixels, dem_type, buf)
+        if isinstance(coor_in, CoordinateSystem):
+            dem_type = coor_in.sample
+        else:
+            if 'import_DEM' in self.meta.processes.keys():
+                dem_types = [key_str[3:-12] for key_str in self.meta.processes['import_DEM'] if
+                             key_str.endswith('output_file') and not key_str.startswith('DEM_q')]
+                if len(dem_types) > 0:
+                    dem_type = dem_types[0]
+                else:
+                    print('No imported DEM found. Please rerun import_DEM function')
+                    return
+            else:
+                print('Import a DEM first using the import_DEM function!')
+                return
+
+        self.dem, self.dem_line, self.dem_pixel = RadarDem.source_dem_extend(self.meta, self.lines, self.pixels, dem_type)
 
         # Initialize intermediate steps.
         self.dem_id = np.array([])
@@ -79,9 +103,9 @@ class RadarDem(object):
     @staticmethod
     def source_dem_extend(meta, lines, pixels, dem_type, buf=3):
 
-        lin_key = 'DEM_line_' + dem_type
-        pix_key = 'DEM_pixel_' + dem_type
-        dem_key = 'DEM_' + dem_type
+        lin_key = 'DEM_line' + dem_type
+        pix_key = 'DEM_pixel' + dem_type
+        dem_key = 'DEM' + dem_type
         new_dat = True
 
         if lin_key in meta.data_memory['inverse_geocode'].keys() and \
@@ -133,6 +157,7 @@ class RadarDem(object):
             # Load the input data
             dem_line = meta.image_load_data_memory('inverse_geocode', s_lin_source, s_pix_source,
                                                              shape_source, lin_key)
+            meta.clean_memory('inverse_geocode', [lin_key])
             dem_pixel = meta.image_load_data_memory('inverse_geocode', s_lin_source, s_pix_source,
                                                               shape_source, pix_key)
             dem = meta.image_load_data_memory('import_DEM', s_lin_source, s_pix_source,
@@ -141,7 +166,7 @@ class RadarDem(object):
         return dem, dem_line, dem_pixel
 
     @staticmethod
-    def find_coordinates(meta, s_lin, s_pix, lines, coordinates):
+    def find_coordinates(meta, s_lin, s_pix, n_lines, coordinates, ml_coors=False):
 
         if isinstance(coordinates, CoordinateSystem):
             if not coordinates.grid_type == 'radar_coordinates':
@@ -150,22 +175,26 @@ class RadarDem(object):
         else:
             print('coordinates should be an CoordinateSystem object')
 
-        shape = meta.image_get_data_size('crop', 'crop')
-        if lines != 0:
-            l = np.minimum(lines, shape[0] - s_lin)
+        if len(coordinates.interval_lines) == 0:
+            coordinates.add_res_info(meta)
+
+        shape = coordinates.shape
+        if n_lines != 0:
+            l = np.minimum(n_lines, shape[0] - s_lin)
         else:
             l = shape[0] - s_lin
         shape = [l, shape[1] - s_pix]
 
-        first_line = meta.data_offset['crop']['crop'][0]
-        first_pixel = meta.data_offset['crop']['crop'][1]
-        sample, multilook, oversample, offset, [lines, pixels] = \
-            FindCoordinates.interval_lines(shape, s_lin, s_pix, lines, coordinates.multilook, coordinates.oversample, coordinates.offset)
+        lines = coordinates.interval_lines[s_lin: s_lin + shape[0]] + 1
+        pixels = coordinates.interval_pixels[s_pix: s_pix + shape[1]] + 1
 
-        lines = lines + first_line
-        pixels = pixels + first_pixel
+        if ml_coors:
+            ml_lines = coordinates.ml_lines[s_lin: s_lin + shape[0]]
+            ml_pixels = coordinates.ml_pixels[s_pix: s_pix + shape[1]]
 
-        return shape, lines, pixels, sample, multilook, oversample, offset
+            return shape, lines, pixels, ml_lines, ml_pixels
+        else:
+            return shape, lines, pixels
 
     @staticmethod
     def add_meta_data(meta, coordinates):
@@ -184,28 +213,28 @@ class RadarDem(object):
         meta.image_add_processing_step('radar_DEM', meta_info)
 
     @staticmethod
-    def processing_info(in_coordinate, out_coordinate, meta_type='cmaster'):
+    def processing_info(coor_out, coor_in='', meta_type='cmaster'):
 
         # Three input files needed Dem, Dem_line and Dem_pixel
-        input_dat = defaultdict()
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
 
-        input_dat[meta_type]['inverse_geocode']['DEM']['file'] = ['DEM_' + in_coordinate.sample + '.raw']
-        input_dat[meta_type]['inverse_geocode']['DEM']['coordinates'] = in_coordinate
-        input_dat[meta_type]['inverse_geocode']['DEM']['slice'] = in_coordinate.slice
-        input_dat[meta_type]['inverse_geocode']['DEM']['coor_change'] = 'resample'
+        input_dat[meta_type]['import_DEM']['DEM']['file'] = ['DEM' + coor_in.sample + '.raw']
+        input_dat[meta_type]['import_DEM']['DEM']['coordinates'] = coor_in
+        input_dat[meta_type]['import_DEM']['DEM']['slice'] = coor_in.slice
+        input_dat[meta_type]['import_DEM']['DEM']['coor_change'] = 'resample'
 
         for dat_type in ['DEM_pixel', 'DEM_line']:
-            input_dat[meta_type]['inverse_geocode'][dat_type]['file'] = [dat_type + in_coordinate.sample + '.raw']
-            input_dat[meta_type]['inverse_geocode'][dat_type]['coordinates'] = in_coordinate
-            input_dat[meta_type]['inverse_geocode'][dat_type]['slice'] = in_coordinate.slice
+            input_dat[meta_type]['inverse_geocode'][dat_type]['file'] = [dat_type + coor_in.sample + '.raw']
+            input_dat[meta_type]['inverse_geocode'][dat_type]['coordinates'] = coor_in
+            input_dat[meta_type]['inverse_geocode'][dat_type]['slice'] = coor_in.slice
             input_dat[meta_type]['inverse_geocode'][dat_type]['coor_change'] = 'resample'
 
         # One output file created radar dem
-        output_dat = defaultdict()
-        output_dat[meta_type]['radar_DEM'] = dict()
-        output_dat[meta_type]['radar_DEM']['radar_DEM']['files'] = ['radar_DEM' + out_coordinate.sample + '.raw']
-        output_dat[meta_type]['radar_DEM']['radar_DEM']['coordinate'] = out_coordinate
-        output_dat[meta_type]['radar_DEM']['radar_DEM']['slice'] = out_coordinate.slice
+        output_dat = recursive_dict()
+        output_dat[meta_type]['radar_DEM']['radar_DEM']['files'] = ['radar_DEM' + coor_out.sample + '.raw']
+        output_dat[meta_type]['radar_DEM']['radar_DEM']['coordinate'] = coor_out
+        output_dat[meta_type]['radar_DEM']['radar_DEM']['slice'] = coor_out.slice
 
         # Number of times input data is used in ram. Bit difficult here but 15 times is ok guess.
         mem_use = 15
@@ -221,7 +250,7 @@ class RadarDem(object):
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_create_disk('radar_DEM', file_type, coordinates)
+        meta.images_memory_to_disk('radar_DEM', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):
@@ -267,8 +296,8 @@ class RadarDem(object):
                 self.dem_min_pixel = np.minimum(self.dem_min_pixel, np.ravel(self.dem_pixel[s_line:e_line, s_pix:e_pix]))
 
         # Finally remove grid boxes which are not used for interpolation.
-        self.used_grids = np.where(((self.dem_max_line > self.lines[0]) * (self.dem_min_line < self.lines[-1]) *
-                      (self.dem_max_pixel > self.pixels[0]) * (self.dem_min_pixel < self.pixels[-1])))[0]
+        self.used_grids = np.where(((self.dem_max_line > self.lines[0] - self.multilook[0]) * (self.dem_min_line < self.lines[-1] + self.multilook[0]) *
+                      (self.dem_max_pixel > self.pixels[0] - self.multilook[1]) * (self.dem_min_pixel < self.pixels[-1] + self.multilook[1])))[0]
         self.dem_max_line = self.dem_max_line[self.used_grids]
         self.dem_min_line = self.dem_min_line[self.used_grids]
         self.dem_max_pixel = self.dem_max_pixel[self.used_grids]
@@ -289,7 +318,7 @@ class RadarDem(object):
         # inside the grid box.
 
         # This is done in batches with the same maximum number of pixels inside, to prevent massive memory usage.
-        max_lines = (np.floor(self.dem_max_line) - np.floor(self.dem_min_line)).astype(np.int16)
+        max_lines = (np.ceil((self.dem_max_line - self.dem_min_line) / self.multilook[0])).astype(np.int16) + 1
         m_lin = np.unique(max_lines)
 
         self.dem_id = np.zeros(self.shape).astype(np.int32)
@@ -298,7 +327,7 @@ class RadarDem(object):
         for l in m_lin:
 
             l_ids = np.where(max_lines == l)[0]
-            max_pixels = (np.floor(self.dem_max_pixel[l_ids]) - np.floor(self.dem_min_pixel[l_ids])).astype(np.int16)
+            max_pixels = (np.ceil((self.dem_max_pixel[l_ids] - self.dem_min_pixel[l_ids]) / self.multilook[1])).astype(np.int16) + 1
             m_pix = np.unique(max_pixels)
 
             for p in m_pix:
@@ -306,14 +335,14 @@ class RadarDem(object):
                 ids = l_ids[np.where(max_pixels == p)[0]]
                 dem_max_num = [l, p]
 
-                p_mesh, l_mesh = np.meshgrid(range(int(np.floor(dem_max_num[1] / self.interval[1] + 1))),
-                                             range(int(np.floor(dem_max_num[0] / self.interval[0] + 1))))
-                dem_p = (np.ravel(np.ravel(p_mesh)[None, :] * self.interval[1] +
-                                  np.ceil((self.dem_min_pixel[ids] - self.pixels[0]) / self.interval[1])[:, None]
-                                  * self.interval[1] + self.pixels[0])).astype('int32')
-                dem_l = (np.ravel((np.ravel(l_mesh)[None, :] * self.interval[0]) +
-                                  np.ceil((self.dem_min_line[ids] - self.lines[0]) / self.interval[0])[:, None]
-                                  * self.interval[0] + self.lines[0])).astype('int32')
+                p_mesh, l_mesh = np.meshgrid(range(int(np.floor(dem_max_num[1]))),
+                                             range(int(np.floor(dem_max_num[0]))))
+                dem_p = (np.ravel(np.ravel(p_mesh)[None, :] * self.multilook[1] +
+                                  np.ceil((self.dem_min_pixel[ids] - self.pixels[0]) / self.multilook[1])[:, None]
+                                  * self.multilook[1] + self.pixels[0])).astype('int32')
+                dem_l = (np.ravel((np.ravel(l_mesh)[None, :] * self.multilook[0]) +
+                                  np.ceil((self.dem_min_line[ids] - self.lines[0]) / self.multilook[0])[:, None]
+                                  * self.multilook[0] + self.lines[0])).astype('int32')
 
                 # get the corresponding dem ids
                 dem_id = np.ravel(ids[:, None] * np.ones(shape=(1, len(np.ravel(p_mesh))), dtype='int32')[None, :]
@@ -343,10 +372,10 @@ class RadarDem(object):
                 # 1. In which dem grid cell does it fall
                 # 2. Is it included in the upper left of lower right part of this gridbox.
                 if len(in_gridbox) > 0:
-                    self.dem_id[((dem_l - self.lines[0]) / self.interval[0]),
-                                ((dem_p - self.pixels[0]) / self.interval[1])] = grid_id[in_gridbox]
-                    self.first_triangle[((dem_l - self.lines[0]) / self.interval[0]),
-                                        ((dem_p - self.pixels[0]) / self.interval[1])] = first_triangle[in_gridbox]
+                    self.dem_id[((dem_l - self.lines[0]) / self.multilook[0]).astype(np.int32),
+                                ((dem_p - self.pixels[0]) / self.multilook[1]).astype(np.int32)] = grid_id[in_gridbox]
+                    self.first_triangle[((dem_l - self.lines[0]) / self.multilook[0]).astype(np.int32),
+                                        ((dem_p - self.pixels[0]) / self.multilook[1]).astype(np.int32)] = first_triangle[in_gridbox]
 
         # Finally remove the data needed to find the corresponding points in our grid.
         del self.dem_max_line, self.dem_min_line, self.dem_min_pixel, self.dem_max_pixel

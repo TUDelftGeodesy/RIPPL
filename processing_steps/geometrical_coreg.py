@@ -12,9 +12,8 @@ from image_data import ImageData
 from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
 from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
-from find_coordinates import FindCoordinates
+from radar_dem import RadarDem
 import copy
-import numpy as np
 import os
 import logging
 
@@ -41,8 +40,7 @@ class GeometricalCoreg(object):
         self.s_lin = s_lin
         self.s_pix = s_pix
         self.coordinates = coordinates
-        self.shape, self.lines, self.pixels, fl, fp, self.sample, self.multilook, self.oversample, self.offset = \
-            GeometricalCoreg.find_coordinates(self.cmaster, s_lin, s_pix, lines, coordinates)
+        self.shape, self.lines, self.pixels = RadarDem.find_coordinates(self.cmaster, s_lin, s_pix, lines, coordinates)
 
         # Load data
         self.X = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'X')
@@ -64,9 +62,9 @@ class GeometricalCoreg(object):
         try:
             self.new_line, self.new_pixel = self.orbits.xyz2lp(self.X, self.Y, self.Z)
 
-            self.add_meta_data(self.cmaster, self.slave, self.coordinates)
-            self.slave.image_new_data_memory(self.new_line, 'combined_coreg', self.s_lin, self.s_pix, 'New_line')
-            self.slave.image_new_data_memory(self.new_pixel, 'combined_coreg', self.s_lin, self.s_pix, 'New_pixel')
+            self.add_meta_data(self.slave, self.cmaster, self.coordinates)
+            self.slave.image_new_data_memory(self.new_line, 'geometrical_coreg', self.s_lin, self.s_pix, 'new_line')
+            self.slave.image_new_data_memory(self.new_pixel, 'geometrical_coreg', self.s_lin, self.s_pix, 'new_pixel')
 
             return True
 
@@ -81,34 +79,6 @@ class GeometricalCoreg(object):
             return False
 
     @staticmethod
-    def find_coordinates(cmaster, s_lin, s_pix, lines, coordinates):
-
-        if isinstance(coordinates, CoordinateSystem):
-            if not coordinates.grid_type == 'radar_coordinates':
-                print('Other grid types than radar coordinates not supported yet.')
-                return
-        else:
-            print('coordinates should be an CoordinateSystem object')
-
-        shape = cmaster.image_get_data_size('crop', 'crop')
-
-        first_line = cmaster.data_offset['crop']['crop'][0]
-        first_pixel = cmaster.data_offset['crop']['crop'][1]
-        sample, multilook, oversample, offset, [lines, pixels] = \
-            FindCoordinates.interval_lines(shape, s_lin, s_pix, lines, multilook, oversample, offset)
-
-        if lines != 0:
-            l = np.minimum(lines, shape[0] - s_lin)
-        else:
-            l = shape[0] - s_lin
-        shape = [l, shape[1] - s_pix]
-
-        lines = lines + first_line
-        pixels = pixels + first_pixel
-
-        return shape, lines, pixels, first_line, first_pixel, sample, multilook, oversample, offset
-
-    @staticmethod
     def add_meta_data(meta, cmaster_meta, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
@@ -118,7 +88,7 @@ class GeometricalCoreg(object):
             meta_info = OrderedDict()
 
         meta_info['Master_reference_date'] = cmaster_meta.processes['readfiles']['First_pixel_azimuth_time (UTC)'][:10]
-        meta_info = coordinates.create_meta_data(['New_line', 'New_pixel'], ['real8', 'real8'], meta_info)
+        meta_info = coordinates.create_meta_data(['new_line', 'new_pixel'], ['real8', 'real8'], meta_info)
 
         meta.image_add_processing_step('geometrical_coreg', meta_info)
         meta.image_add_processing_step('combined_coreg', meta_info)
@@ -129,22 +99,23 @@ class GeometricalCoreg(object):
         meta.image_add_processing_step('coreg_crop', copy.deepcopy(cmaster_meta.processes['crop']))
 
     @staticmethod
-    def processing_info(coordinates):
+    def processing_info(coordinates, meta_type=''):
 
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
         # Three input files needed x, y, z coordinates
-        input_dat = defaultdict()
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
         for t in ['X', 'Y', 'Z']:
             input_dat['cmaster']['geocode'][t]['file'] = [t + coordinates.sample + '.raw']
             input_dat['cmaster']['geocode'][t]['coordinates'] = coordinates
-            input_dat['cmaster']['geocode'][t]['slice'] = 'True'
+            input_dat['cmaster']['geocode'][t]['slice'] = True
 
         # line and pixel output files.
-        output_dat = defaultdict()
+        output_dat = recursive_dict()
         for step in ['geometrical_coreg', 'combined_coreg']:
-            for t in ['New_line', 'New_pixel']:
+            for t in ['new_line', 'new_pixel']:
                 output_dat['slave'][step][t]['files'] = [t + coordinates.sample + '.raw']
                 output_dat['slave'][step][t]['multilook'] = coordinates
                 output_dat['slave'][step][t]['slice'] = coordinates.slice
@@ -163,7 +134,7 @@ class GeometricalCoreg(object):
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_create_disk('geometrical_coreg', file_type, coordinates)
+        meta.images_memory_to_disk('geometrical_coreg', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):

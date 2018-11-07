@@ -68,12 +68,12 @@ class Image(object):
             concat.write(self.res_file)
         self.res_data = ImageData(self.res_file, res_type='single')
 
-    def __call__(self, step, settings, coors, file_type='', slice=True, cmaster='', master='', memory=500, cores=6, parallel=True):
+    def __call__(self, step, settings, coors, file_type='', cmaster='', memory=500, cores=6, parallel=True):
         # This calls the pipeline function for this step
 
         # The main image is always seen as the slave image. Further ifg processing is not possible here.
-        pipeline = Pipeline(memory=memory, cores=cores, slave=self, master=master, cmaster=cmaster, parallel=parallel)
-        pipeline(step, settings, coors, 'slave', slice=slice, file_type=file_type)
+        pipeline = Pipeline(memory=memory, cores=cores, slave=self, cmaster=cmaster, parallel=parallel)
+        pipeline(step, settings, coors, 'slave', file_type=file_type)
 
     def check_valid_burst_res(self):
         # This function does some basic checks whether all bursts in this image are correct.

@@ -43,7 +43,7 @@ class InverseGeocode(object):
             return
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        dem_key = 'DEM_' + coordinates.sample
+        dem_key = 'DEM' + coordinates.sample
         shape = np.array(self.meta.data_sizes['import_DEM'][dem_key])
         if lines != 0:
             l = np.minimum(lines, shape[0] - s_lin)
@@ -63,7 +63,7 @@ class InverseGeocode(object):
         if coordinates.grid_type == 'geographic':
 
             self.lat = np.flip(np.linspace(coordinates.lat0, coordinates.lat0 + coordinates.dlat *
-                                           (coordinates.shape[0] - 1), coordinates.shape), axis=0)[
+                                           (shape[0] - 1), shape[0]), axis=0)[
                                             self.s_lin:self.s_lin + self.shape[0], None] * np.ones((1, self.shape[1]))
 
             self.lon = np.linspace(coordinates.lon0 + coordinates.dlon * self.s_pix,
@@ -110,8 +110,8 @@ class InverseGeocode(object):
 
             # Data can be saved using the create output files and add meta data function.
             self.add_meta_data(self.meta, self.coordinates)
-            self.meta.image_new_data_memory(self.line, 'inverse_geocode', self.s_lin, self.s_pix, file_type='DEM_line_' + self.coordinates.sample)
-            self.meta.image_new_data_memory(self.pixel, 'inverse_geocode', self.s_lin, self.s_pix, file_type='DEM_pixel_' + self.coordinates.sample)
+            self.meta.image_new_data_memory(self.line, 'inverse_geocode', self.s_lin, self.s_pix, file_type='DEM_line' + self.coordinates.sample)
+            self.meta.image_new_data_memory(self.pixel, 'inverse_geocode', self.s_lin, self.s_pix, file_type='DEM_pixel' + self.coordinates.sample)
 
             return True
 
@@ -137,8 +137,8 @@ class InverseGeocode(object):
         else:
             meta_info = OrderedDict()
 
-        meta_info = coordinates.create_meta_data(['DEM_line' 'DEM_pixel'],
-                                                 ['real8', 'real8'], meta_info)
+        meta_info = coordinates.create_meta_data(['DEM_line', 'DEM_pixel'],
+                                                 ['real4', 'real4'], meta_info)
 
         meta.image_add_processing_step('inverse_geocode', meta_info)
 
@@ -149,13 +149,14 @@ class InverseGeocode(object):
             print('coordinates should be an CoordinateSystem object')
 
         # Three input files needed Dem, Dem_line and Dem_pixel
-        input_dat = defaultdict()
-        input_dat[meta_type]['import_DEM']['import_DEM']['file'] = ['import_DEM_' + coordinates.sample + '.raw']
-        input_dat[meta_type]['import_DEM']['import_DEM']['coordinates'] = coordinates
-        input_dat[meta_type]['import_DEM']['import_DEM']['slice'] = coordinates.slice
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
+        input_dat[meta_type]['import_DEM']['DEM']['file'] = ['DEM_' + coordinates.sample + '.raw']
+        input_dat[meta_type]['import_DEM']['DEM']['coordinates'] = coordinates
+        input_dat[meta_type]['import_DEM']['DEM']['slice'] = coordinates.slice
 
         # One output file created radar dem
-        output_dat = defaultdict()
+        output_dat = recursive_dict()
         for t in ['DEM_line', 'DEM_pixel']:
             output_dat[meta_type]['inverse_geocode'][t]['files'] = [t + coordinates.sample + '.raw']
             output_dat[meta_type]['inverse_geocode'][t]['coordinates'] = coordinates
@@ -175,7 +176,7 @@ class InverseGeocode(object):
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_create_disk('inverse_geocode', file_type, coordinates)
+        meta.images_memory_to_disk('inverse_geocode', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):

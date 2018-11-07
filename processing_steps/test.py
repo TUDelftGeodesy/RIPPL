@@ -102,7 +102,7 @@ print("--- %s seconds for geocoding ---" % (time.time() - start_time))
 start_time = time.time()
 
 for slave, master in zip(slave_mat[0:len(slaves)], master_mat[0:len(masters)]):
-    # Preallocate the resampled data.
+    # Preallocate the resample data.
     EarthTopoPhase.add_meta_data(master, slave)
     EarthTopoPhase.create_output_files(slave)
     slave.clean_memory()

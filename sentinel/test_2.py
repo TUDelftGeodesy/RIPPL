@@ -3,7 +3,7 @@
 
 from stack import Stack
 from sentinel.sentinel_stack import SentinelStack
-from pipeline import Pipeline
+from coordinate_system import CoordinateSystem
 
 track_no = 37
 parallel = False
@@ -66,33 +66,59 @@ cores = 6
 #self = SentinelStack(stack_folder)
 #self.read_from_database(database_folder, shapefile, track_no, orbit_folder, start_date, end_date, master_date,
 #                         mode, product_type, polarisation, cores=6)
-# self = Stack(stack_folder)
-# self.add_master_res_info()
+#self = Stack(stack_folder)
 
 # Read stack
 self = Stack(stack_folder)
 self.read_master_slice_list()
 self.read_stack(start_date, end_date)
+self.add_master_res_info()
 
 # create an SRTM DEM
 password = 'Radar2016'
 username = 'gertmulder'
 self.create_SRTM_input_data(srtm_folder, username, password, srtm_type='SRTM1')
 
-# Process stack
-master_key = self.master_date
-slave_keys = [key for key in self.images.keys() if key != master_key]
-image_keys = self.images.keys()
+# Prepare settings by loading on of the settings for the DEM input
+settings = dict()
+settings['radar_DEM'] = dict([('full', dict())])
+slice_names = self.images[self.master_date].slice_names
+for slice_name in slice_names:
+    settings['radar_DEM'][slice_name] = dict()
+    settings['radar_DEM'][slice_name]['coor_in'] = self.images[self.master_date].slices[slice_name].read_res_coordinates('import_DEM')[0]
+settings['radar_DEM']['full']['coor_in'] = self.images[self.master_date].res_data.read_res_coordinates('import_DEM')[0]
 
-# Check stack
-for slave_key in slave_keys:
-    self.images[slave_key].check_valid_burst_res()
+parallel = True
 
-# Run till the resample step.
-for slave_key in slave_keys:
+# Run the geocoding for the slices.
+coordinates = CoordinateSystem()
+coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+coordinates.slice = True
+self('radar_DEM', settings, coordinates, 'cmaster', file_type='radar_DEM', parallel=parallel)
+# Run the geocoding for the slices.
+self('geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat', 'lon'], parallel=parallel)
 
+# Run azimuth elevation angles for the full image
+coordinates = CoordinateSystem()
+coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+coordinates.slice = False
+# Run till the earth_topo_phase step.
+self('earth_topo_phase', settings, coordinates, 'slave', file_type='earth_topo_phase', parallel=parallel)
+# Geometry of full image
+self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
+# Get the h2ph values
+self('height_to_phase', settings, coordinates, 'slave', file_type='height_to_phase', parallel=parallel)
 
+# Get the multilooked square amplitudes
+coordinates = CoordinateSystem()
+coordinates.create_radar_coordinates(multilook=[5, 20], offset=[0, 0], oversample=[1, 1])
+coordinates.slice = False
+self('square_amplitude', settings, coordinates, 'slave', file_type='square_amplitude', parallel=True)
+# Create ifgs / coherence for daisy chain.
+self('interferogram', settings, coordinates, 'ifg', file_type='interferogram', parallel=True)
+self('coherence', settings, coordinates, 'ifg', file_type='coherence', parallel=True)
 
+# Finally do the unwrapping (not implemented yet...)
 
 """
 ifgs = [self.interferograms[key] for key in self.interferograms.keys()]

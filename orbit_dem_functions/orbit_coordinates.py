@@ -38,10 +38,10 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         self.center_lambda = float(self.processes['readfiles']['Scene_centre_longitude']) * self.degree2rad
 
         # Read pixel coordinate information
-        self.first_line = int(self.processes['crop']['Data_first_line'])
-        self.first_pixel = int(self.processes['crop']['Data_first_pixel'])
-        lines = int(self.processes['crop']['Data_lines'])
-        pixels = int(self.processes['crop']['Data_pixels'])
+        self.first_line = int(self.processes['crop']['crop_first_line'])
+        self.first_pixel = int(self.processes['crop']['crop_first_pixel'])
+        lines = int(self.processes['crop']['crop_lines'])
+        pixels = int(self.processes['crop']['crop_pixels'])
         self.size = (lines, pixels)
 
         # Define the main variables for this function
@@ -49,6 +49,7 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         self.ra_times = np.asarray([])          # range times of different pixels
         self.lines = np.asarray([])             # line numbers
         self.pixels = np.asarray([])            # pixel numbers
+        self.regular = True
         self.xyz_orbit = np.asarray([])         # the orbit coordinates at azimuth times
         self.vel_orbit = np.asarray([])         # the orbit velocities at azimuth times
         self.acc_orbit = np.asarray([])         # the orbit acceleration at azimuth times
@@ -90,7 +91,7 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             self.dem_data = []
 
     # The next two processing_steps convert from and to pixel coordinates and range/azimuth times.
-    def lp_time(self, lines='', pixels=''):
+    def lp_time(self, lines='', pixels='', regular=True):
         # This function calculates the azimuth and range timing (two way), based on a resfile.
         # If there are no specific lines or pixels specified, we will assume you want to work with the first pixel.
 
@@ -103,8 +104,26 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         else:
             self.pixels = pixels
 
-        self.az_times = self.az_seconds + self.az_step * (lines - 1)
-        self.ra_times = self.ra_time + self.ra_step * (pixels - 1)
+        self.regular = regular
+
+        if not regular:
+            if len(lines) != len(pixels) or len(pixels) == 0 or len(lines) == 0:
+                print('For irregular lines/pixels arrays both arrays should be equal length and not empty')
+
+            all_lines = np.arange(np.min(lines), np.max(lines) + 1)
+            all_pixels = np.arange(np.min(pixels), np.max(pixels) + 1)
+
+            self.az_times = self.az_seconds + self.az_step * (all_lines - 1)
+            self.ra_times = self.ra_time + self.ra_step * (all_pixels - 1)
+            self.xyz_orbit, self.vel_orbit, self.acc_orbit = self.evaluate_orbit_spline(self.az_times, vel=True, acc=True)
+
+            # Reduce the line number to create right az/ra ids
+            self.lines = lines - np.min(lines)
+            self.pixels = pixels - np.min(pixels)
+
+        else:
+            self.az_times = self.az_seconds + self.az_step * (lines - 1)
+            self.ra_times = self.ra_time + self.ra_step * (pixels - 1)
 
         # Evaluate the orbit based on the given az_times
         self.xyz_orbit, self.vel_orbit, self.acc_orbit = self.evaluate_orbit_spline(self.az_times, vel=True, acc=True)
@@ -134,7 +153,6 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             print('Variables lines and pixels should be created first. Using either the lp_time or time_lp method')
 
         self.height = self.dem_data[(self.lines - self.first_line)[:, None], self.pixels - self.first_pixel]
-
 
     # The next two function are used to calculate xyz coordinates on the ground.
     # To do so we also need the heights of the points on the ground.
@@ -180,23 +198,20 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         #                - created read of .res files
         #                - vectorized to optimize for speed
 
-        if len(self.lines) == 0 or len(self.pixels) == 0:
+        if len(self.lines) == 0:
             print('First define for which pixels or which azimuth/range times you want to compute the xyz coordinates')
             return
         if len(self.height) == 0:
             print('First find the heights of the invidual pixels. This can be done using the create DEM function')
-        if len(self.height) == 0:
-            print('There is no height data loaded!')
-            return
 
         ell_a = self.ellipsoid[0]
         ell_b = self.ellipsoid[1]
         ell_e2 = 1 - ell_b ** 2 / ell_a ** 2
 
         # Some preparations to get the start conditions
-        h = np.mean(self.height)
-
         height = np.ravel(self.height)
+
+        h = np.mean(height)
         ell_a_2 = (ell_a + height)**2    # Preparation for distance on ellips with certain height
         ell_b_2 = (ell_b + height)**2    # Preparation for distance on ellips with certain height
         Ncenter = ell_a / np.sqrt(1 - ell_e2 * (np.sin(self.center_phi) ** 2))
@@ -213,21 +228,31 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         velsatz = self.vel_orbit[2, :]
 
         # First guess
-        num = len(self.lines) * len(self.pixels)
+        if self.regular:
+            num = len(self.lines) * len(self.pixels)
+            shp = (len(self.lines), len(self.pixels))
+        else:
+            num = len(self.lines)
+            shp = len(self.lines)
+
+        del height
         posonellx = np.ones(num) * scenecenterx
         posonelly = np.ones(num) * scenecentery
         posonellz = np.ones(num) * scenecenterz
 
         # 1D id, 2D row and column ids (used to extract information
         az = np.arange(len(self.lines)).astype(np.int32)[:, None]
-        az_id = np.ravel(az * np.ones((1, len(self.pixels)))).astype(np.int32)
+
+        if self.regular:
+            az_id = np.ravel(az * np.ones((1, len(self.pixels)))).astype(np.int32)
+            range_dist = np.ravel((self.sol * self.ra_times[None, :] / 2) ** 2 * np.ones((len(self.lines), 1)))
+        else:
+            az_id = self.lines
+            range_dist = np.ravel((self.sol * self.ra_times[self.pixels] / 2)**2)
 
         # Next parameter defines which points still needs another iteration to solve. If the precisions are met,
         # this point will be removed from the dataset.
-        solve_ids = np.arange(len(self.lines) * len(self.pixels)).astype(np.int32)
-
-        # distance to pixel
-        range_dist = np.ravel((self.sol * self.ra_times[None, :] / 2)**2 * np.ones((len(self.lines), 1)))
+        solve_ids = np.arange(num).astype(np.int32)
 
         for iterate in range(self.maxiter):
 
@@ -292,7 +317,6 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
                 print(str(len(solve_ids)) + 'did not converge within ' + str(
                     self.maxiter) + ' iterations. Maybe use more iterations or less stringent criteria?')
 
-        shp = (len(self.lines), len(self.pixels))
         self.x = np.reshape(posonellx, shp)
         del posonellx
         self.y = np.reshape(posonelly, shp)
@@ -537,12 +561,17 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             return
 
         # orbit vector
-        x_diff = self.xyz_orbit[0, :][:, None] - self.x
-        y_diff = self.xyz_orbit[1, :][:, None] - self.y
-        z_diff = self.xyz_orbit[2, :][:, None] - self.z
+        if self.regular:
+            x_diff = self.xyz_orbit[0, :][:, None] - self.x
+            y_diff = self.xyz_orbit[1, :][:, None] - self.y
+            z_diff = self.xyz_orbit[2, :][:, None] - self.z
+        else:
+            x_diff = self.xyz_orbit[0, self.lines] - self.x
+            y_diff = self.xyz_orbit[1, self.lines] - self.y
+            z_diff = self.xyz_orbit[2, self.lines] - self.z
 
         ray = np.stack((x_diff, y_diff, z_diff), axis=0)
-        ray = ray / np.sqrt(np.sum(ray**2, axis=0)[None, :, :])
+        ray = ray / np.sqrt(np.sum(ray**2, axis=0))
         del x_diff, y_diff, z_diff
 
         # Now find the correction for the ellipsoid
@@ -556,14 +585,17 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         N = N / np.sqrt(np.sum(N**2, axis=1))[:, None]
         del x_tan, y_tan, z_tan
 
+        # Calc off nadir angle
+        if self.regular:
+            self.off_nadir_angle = np.arccos(np.einsum('jik,ij->ik', ray, N)).astype(np.float32) / np.pi * 180
+        else:
+            self.off_nadir_angle = np.arccos(np.einsum('ji,ij->i', ray, N[self.lines, :])).astype(np.float32) / np.pi * 180
+
         # Calc vector on tangent plant to satellite and to north
         xy_dist = np.sqrt(self.xyz_orbit[0, :]**2 + self.xyz_orbit[1, :]**2)
         north_plane = np.transpose(np.vstack((self.xyz_orbit[1, :], self.xyz_orbit[0, :],
-                                 np.zeros(self.x.shape[0])))) / xy_dist[:, None]
+                                 np.zeros(self.xyz_orbit.shape[1])))) / xy_dist[:, None]
         north_vector = np.cross(north_plane, -N, axis=1)
-
-        # Calc off nadir angle
-        self.off_nadir_angle = np.arccos(np.einsum('jik,ij->ik', ray, N)).astype(np.float32) / np.pi * 180
 
         # Next part is only used for the heading, which is the same for every line.
         v = np.swapaxes(self.vel_orbit, 0, 1)
@@ -577,7 +609,10 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         det = np.einsum('ij,ij->i', N, np.cross(v_plane, north_vector, axis=1))
         del v_plane, north_vector
 
-        self.heading = np.arctan2(det, dot).astype(np.float32) / np.pi * 180
+        if self.regular:
+            self.heading = np.arctan2(det, dot).astype(np.float32) / np.pi * 180
+        else:
+            self.heading = (np.arctan2(det, dot).astype(np.float32) / np.pi * 180)[self.lines]
 
     def xyz2scatterer_azimuth_elevation(self):
         # Calculates the azimuth and elevation angle of a point on the ground based on the point on the
@@ -588,9 +623,14 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             return
 
         # point to orbit vector
-        x_diff = self.x - self.xyz_orbit[0, :][:, None]
-        y_diff = self.y - self.xyz_orbit[1, :][:, None]
-        z_diff = self.z - self.xyz_orbit[2, :][:, None]
+        if self.regular:
+            x_diff = self.xyz_orbit[0, :][:, None] - self.x
+            y_diff = self.xyz_orbit[1, :][:, None] - self.y
+            z_diff = self.xyz_orbit[2, :][:, None] - self.z
+        else:
+            x_diff = self.xyz_orbit[0, self.lines] - self.x
+            y_diff = self.xyz_orbit[1, self.lines] - self.y
+            z_diff = self.xyz_orbit[2, self.lines] - self.z
 
         # Calc normalized vector ground to satellite
         diff = np.stack((x_diff, y_diff, z_diff), axis=0)
@@ -608,21 +648,33 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         del x_tan, y_tan, z_tan
 
         # Calc elevation angle
-        self.elevation_angle = 90 - np.arccos(np.einsum('ijk,ijk->jk', ray, -N)).astype(np.float32) / np.pi * 180
+        if self.regular:
+            self.elevation_angle = 180 - np.arccos(np.einsum('ijk,ijk->jk', ray, -N)).astype(np.float32) / np.pi * 180
+        else:
+            self.elevation_angle = 180 - np.arccos(np.einsum('ij,ij->j', ray, -N)).astype(np.float32) / np.pi * 180
 
         # Calc vector on tangent plant to satellite and to north
         xy_dist = np.sqrt(self.x**2 + self.y**2)
-        north_plane = - np.stack((self.y, self.x,
-                                np.zeros((self.x.shape[0], self.x.shape[1]))), axis=0) / xy_dist
+        if self.regular:
+            north_plane = -np.stack((self.y, self.x, np.zeros((self.x.shape[0], self.x.shape[1]))), axis=0) / xy_dist
+        else:
+            north_plane = -np.stack((self.y, self.x, np.zeros((self.x.shape[0]))), axis=0) / xy_dist
         north_vector = np.cross(north_plane, N, axis=0)
         del xy_dist, north_plane
 
         # Calc heading using the knowledge that the normal vector is always directed north
-        ray_plane = ray - np.einsum('kij,kij->ij', ray, N) * N
+        if self.regular:
+            ray_plane = ray - np.einsum('kij,kij->ij', ray, N) * N
+        else:
+            ray_plane = ray - np.einsum('ki,ki->i', ray, N) * N
         ray_plane = ray_plane / np.sqrt(np.sum(ray_plane ** 2, axis=0))
 
         # Based on https://math.stackexchange.com/questions/878785/how-to-find-an-angle-in-range0-360-between-2-vectors
-        dot = np.einsum('kij,kij->ij', -ray_plane, north_vector)
-        det = np.einsum('kij,kij->ij', N, np.cross(-ray_plane, north_vector, axis=0))
+        if self.regular:
+            dot = np.einsum('kij,kij->ij', -ray_plane, north_vector)
+            det = np.einsum('kij,kij->ij', N, np.cross(-ray_plane, north_vector, axis=0))
+        else:
+            dot = np.einsum('ki,ki->i', -ray_plane, north_vector)
+            det = np.einsum('ki,ki->i', N, np.cross(-ray_plane, north_vector, axis=0))
         del ray_plane, north_vector
         self.azimuth_angle = np.arctan2(det, dot).astype(np.float32) / np.pi * 180

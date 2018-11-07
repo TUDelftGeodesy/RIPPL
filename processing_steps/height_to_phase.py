@@ -9,7 +9,7 @@
 #   - (optional) Calculate the baselines between the two images
 
 from image_data import ImageData
-from find_coordinates import FindCoordinates
+from radar_dem import RadarDem
 from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import numpy as np
@@ -38,8 +38,8 @@ class HeightToPhase(object):
         self.s_lin = s_lin
         self.s_pix = s_pix
         self.coordinates = coordinates
-        self.shape, lines, self.pixels, fl, fp, self.sample, self.multilook, self.oversample, self.offset = \
-            HeightToPhase.find_coordinates(self.cmaster, s_lin, s_pix, lines, coordinates)
+        self.sample = self.coordinates.sample
+        self.shape, lines, self.pixels = RadarDem.find_coordinates(self.cmaster, s_lin, s_pix, lines, coordinates)
 
         # Information on conversion from range to distances.
         sol = 299792458  # speed of light [m/s]
@@ -64,9 +64,13 @@ class HeightToPhase(object):
             return False
 
         try:
-            # First get the master and slave positions.
-            R = self.ra2m * (self.pixels[None, :] - 1) + self.dist_first_pix
-            self.h2ph = self.baseline / (self.wavelength * R * np.sin(self.incidence)) * 4 * np.pi
+            no0 = (self.baseline != 0) * (self.incidence != 0)
+            if np.sum(no0) > 0:
+                self.h2ph = np.zeros(self.baseline.shape).astype(np.float32)
+
+                # First get the master and slave positions.
+                R = self.ra2m * (self.pixels[None, :] - 1) + self.dist_first_pix
+                self.h2ph[no0] = self.baseline[no0] / (self.wavelength * R * np.sin(self.incidence[no0])) * 4 * np.pi
 
             # Save meta data
             self.add_meta_data(self.slave, self.coordinates)
@@ -86,32 +90,6 @@ class HeightToPhase(object):
             return False
 
     @staticmethod
-    def find_coordinates(cmaster, s_lin, s_pix, lines, coordinates):
-
-        if isinstance(coordinates, CoordinateSystem):
-            if not coordinates.grid_type == 'radar_coordinates':
-                print('Other grid types than radar coordinates not supported yet.')
-                return
-        else:
-            print('coordinates should be an CoordinateSystem object')
-
-        shape = cmaster.image_get_data_size('crop', 'crop')
-        first_line = cmaster.data_offset['crop']['crop'][0]
-        first_pixel = cmaster.data_offset['crop']['crop'][1]
-
-        sample, multilook, oversample, offset, [lines, pixels] = \
-            FindCoordinates.interval_lines(shape, s_lin, s_pix, lines, coordinates)
-
-        shape = [len(lines), len(pixels)]
-        if lines != 0:
-            l = np.minimum(lines, shape[0] - s_lin)
-        else:
-            l = shape[0] - s_lin
-        shape = [l, shape[1] - s_pix]
-
-        return shape, lines, pixels, first_line, first_pixel, sample, multilook, oversample, offset
-
-    @staticmethod
     def add_meta_data(meta, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
@@ -128,13 +106,14 @@ class HeightToPhase(object):
         meta.image_add_processing_step('height_to_phase', meta_info)
 
     @staticmethod
-    def processing_info(coordinates):
+    def processing_info(coordinates, meta_type=''):
 
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
         # Three input files needed x, y, z coordinates
-        input_dat = defaultdict()
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
         input_dat['slave']['baseline']['Perpendicular_baseline']['file'] = ['Perpendicular_baseline' + coordinates.sample + '.raw']
         input_dat['slave']['baseline']['Perpendicular_baseline']['multilook'] = coordinates
         input_dat['slave']['baseline']['Perpendicular_baseline']['slice'] = coordinates.slice
@@ -144,7 +123,7 @@ class HeightToPhase(object):
         input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['slice'] = coordinates.slice
 
         # line and pixel output files.
-        output_dat = defaultdict()
+        output_dat = recursive_dict()
         output_dat['slave']['height_to_phase']['height_to_phase']['files'] = ['height_to_phase' + coordinates.sample + '.raw']
         output_dat['slave']['height_to_phase']['height_to_phase']['files'] = coordinates
         output_dat['slave']['height_to_phase']['height_to_phase']['files'] = coordinates.slice
@@ -163,7 +142,7 @@ class HeightToPhase(object):
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_create_disk('height_to_phase', file_type, coordinates)
+        meta.images_memory_to_disk('height_to_phase', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):

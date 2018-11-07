@@ -2,6 +2,8 @@ import os
 import numpy as np
 import warnings
 from collections import defaultdict
+import sys
+import inspect
 
 from image_metadata import ImageMetadata
 from coordinate_system import CoordinateSystem
@@ -84,10 +86,13 @@ class ImageData(ImageMetadata):
 
     def images_create_disk(self, step, file_types='', coordinates='', coor_out=''):
 
-        if not file_types:
+        if len(file_types) == 0:
             meta_info = self.processes[step]
             output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
             file_types = [filename[:-12] for filename in output_file_keys]
+
+        if isinstance(file_types, str):
+            file_types = [file_types]
 
         elif isinstance(coordinates, CoordinateSystem):
             file_types = [file_type + coordinates.sample for file_type in file_types]
@@ -104,7 +109,7 @@ class ImageData(ImageMetadata):
         # easily accessible, but the file is not saved to disk!
         # Metadata should be given to in this case before adding the file (to keep track of the location and size)
 
-        if file_type == '':
+        if len(file_type) == 0:
             file_type = step
 
         path = os.path.join(os.path.dirname(self.res_path), self.data_files[step][file_type])
@@ -122,10 +127,13 @@ class ImageData(ImageMetadata):
 
     def images_memory_to_disk(self, step, file_types='', coordinates='', coor_out=''):
 
-        if not file_types:
+        if len(file_types) == 0:
             meta_info = self.processes[step]
             output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
             file_types = [filename[:-13] for filename in output_file_keys]
+
+        if isinstance(file_types, str):
+            file_types = [file_types]
 
         elif isinstance(coordinates, CoordinateSystem):
             file_types = [file_type + coordinates.sample for file_type in file_types]
@@ -343,11 +351,13 @@ class ImageData(ImageMetadata):
         # Clean the image from all data loaded in memory. Useful step before parallel processing.
         if not step:
             for step in self.data_files.keys():
-                self.data_files[step] = defaultdict()
+                for file_type in self.data_files[step].keys():
+                    self.data_disk[step][file_type] = ''
         elif step and not file_type:
-            self.data_files[step] = defaultdict()
+            for file_type in self.data_files[step].keys():
+                self.data_disk[step][file_type] = ''
         elif step and file_type:
-            self.data_files[step].pop(file_type)
+            self.data_disk[step][file_type] = ''
 
     # Next function is used to read all data files as memmaps from the slice (minimal memory use)
     def read_data(self):
@@ -503,6 +513,8 @@ class ImageData(ImageMetadata):
             file_type = step
 
         data_string = file_type + '_output_file'
+        if not data_string in self.processes[step].keys():
+            return False
 
         if os.path.dirname(self.processes[step][data_string]) == '':
             self.data_files[step][file_type] = os.path.join(self.folder, self.processes[step][data_string])
@@ -612,3 +624,38 @@ class ImageData(ImageMetadata):
                 if warn:
                     warnings.warn('Area not covered by dataset')
                 return False
+
+    def get_size_res(self):
+        size = ImageData.get_size(self)
+
+        return size
+
+    @staticmethod
+    def get_size(obj, seen=None):
+        """Recursively finds size of objects in bytes"""
+        size = sys.getsizeof(obj)
+        if seen is None:
+            seen = set()
+        obj_id = id(obj)
+        if obj_id in seen:
+            return 0
+        # Important mark as seen *before* entering recursion to gracefully handle
+        # self-referential objects
+        seen.add(obj_id)
+        if hasattr(obj, '__dict__'):
+            for cls in obj.__class__.__mro__:
+                if '__dict__' in cls.__dict__:
+                    d = cls.__dict__['__dict__']
+                    if inspect.isgetsetdescriptor(d) or inspect.ismemberdescriptor(d):
+                        size += ImageData.get_size(obj.__dict__, seen)
+                    break
+        if isinstance(obj, dict):
+            size += sum((ImageData.get_size(v, seen) for v in obj.values()))
+            size += sum((ImageData.get_size(k, seen) for k in obj.keys()))
+        elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
+            size += sum((ImageData.get_size(i, seen) for i in obj))
+
+        if hasattr(obj, '__slots__'):  # can have __slots__ with __dict__
+            size += sum(ImageData.get_size(getattr(obj, s), seen) for s in obj.__slots__ if hasattr(obj, s))
+
+        return size

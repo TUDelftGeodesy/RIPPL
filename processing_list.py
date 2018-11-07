@@ -53,13 +53,14 @@ class ProcessingList():
         # Add to dict with processing steps:
         processing = dict()
         processing['srtm_download'] = SrtmDownload
-        processing['create_srtm_DEM'] = CreateSrtmDem
+        processing['import_DEM'] = CreateSrtmDem
         processing['create_external_DEM'] = CreateExternalDem
         processing['inverse_geocode'] = InverseGeocode
         processing['radar_DEM'] = RadarDem
         processing['geocode'] = Geocode
         processing['azimuth_elevation_angle'] = AzimuthElevationAngle
         processing['geometrical_coreg'] = GeometricalCoreg
+
         # processing['correlation_coreg'] = CorrelationWindows
         processing['deramp'] = Deramp
         processing['resample'] = Resample
@@ -77,6 +78,7 @@ class ProcessingList():
 
         processing['concatenate'] = Concatenate
 
+        self.processing_steps = []
         self.processing = processing
         self.processing_inputs = dict()
         self.get_function_input()
@@ -87,8 +89,18 @@ class ProcessingList():
             self.processing_inputs[key] = dict()
 
             # Get the functions
-            functions = inspect.getmembers(self.processing[key], predicate=inspect.ismethod)
+            functions = inspect.getmembers(self.processing[key], predicate=inspect.isfunction)
+            methods = inspect.getmembers(self.processing[key], predicate=inspect.ismethod)
 
             # Get the input variable names
             for function in functions:
                 self.processing_inputs[key][function[0]] = inspect.getargspec(function[1])[0]
+            for method in methods:
+                self.processing_inputs[key][method[0]] = inspect.getargspec(method[1])[0]
+
+    def get_function_steps(self):
+        # Here we split all the different functions in 3 sub categories (1 coreg master, 2 slave info, 3 ifg info)
+
+        coreg_steps = []
+        slave_steps = []
+        ifg_steps = []

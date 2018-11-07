@@ -20,7 +20,7 @@ import logging
 
 class Concatenate(object):
 
-    def __init__(self, meta_slices, coordinates='', meta='', step='interferogram', file_type='', out_data='memory'):
+    def __init__(self, meta_slices, coordinates='', meta='', step='interferogram', file_type='', out_data='disk'):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
@@ -44,7 +44,6 @@ class Concatenate(object):
             self.coordinates = coordinates
 
         self.out_data = out_data
-        self.data_type = self.meta_slices[0].data_types[step][file_type]
 
         if meta == '':
             self.meta = Concatenate.create_concat_meta(meta_slices)
@@ -63,23 +62,25 @@ class Concatenate(object):
 
         try:
 
-            Concatenate.add_meta_data(self.meta, self.coordinates, self.file_type, self.data_type)
+            self.add_meta_data(self.meta_slices, self.meta, self.coordinates, self.step, self.file_type)
+
+            # Load the data from the slices
+            data_slices, data_type, str_data_type = Concatenate.load_slices(self.step, self.meta_slices, self.coordinates_slices, self.file_type)
 
             if self.out_data == 'disk':
                 self.meta.image_create_disk(self.step, self.file_type)
                 data = self.meta.data_disk[self.step][self.file_type]
             elif self.out_data == 'memory':
-                empty_image = np.zeros(self.coordinates.shape).astype(self.meta.dtype_numpy[self.data_type])
+                empty_image = np.zeros(self.coordinates.shape).astype(self.meta.dtype_numpy[data_type])
                 self.meta.image_new_data_memory(empty_image, self.step, 0, 0, self.file_type)
                 data = self.meta.data_memory[self.step][self.file_type]
             else:
                 print('out_data should either be disk or memory')
                 return
 
-            # Load the data from the slices
-            data_slices = Concatenate.load_slices(self.step, self.meta_slices, self.coordinates_slices, self.file_type)
+            for data_slice, coordinates_slice, meta in zip(data_slices, self.coordinates_slices, self.meta_slices):
 
-            for data_slice, coordinates_slice in zip(data_slices, self.coordinates_slices):
+                print('Adding file type ' + self.file_type + coordinates_slice.sample + ' for step ' + self.step + ' of slice ' + os.path.basename(os.path.dirname(meta.res_path)))
 
                 s_pix = coordinates_slice.first_pixel - 1
                 s_lin = coordinates_slice.first_line - 1
@@ -88,19 +89,44 @@ class Concatenate(object):
 
                 # Use different methods with different type of data. Complex data is added (radar data), while all other
                 # data is simply replaced (information on geocoding or otherwise)
-                if self.data_type in ['complex_int', 'complex_short', 'complex_real4', 'tiff'] or \
+                if str_data_type in ['complex_int', 'complex_short', 'complex_real4', 'tiff'] or \
                         self.step in ['square_amplitude']:
-                    data[s_lin:e_lin, s_pix:e_pix] += data_slice
+                    if self.out_data == 'disk':
+                        cpx_int = self.meta.dtype_disk['complex_int']
+                        cpx_flt = self.meta.dtype_disk['complex_short']
+
+                        if str_data_type == 'complex_int':
+                            data[s_lin:e_lin, s_pix:e_pix] = \
+                                (data.view(np.int16).astype('float32', subok=False).view(np.complex64)[s_lin:e_lin, s_pix:e_pix]
+                                 + data_slice.view(np.int16).astype('float32', subok=False).view(np.complex64)
+                                 ).view(np.float32).astype(np.int16).view(cpx_int)
+                        elif str_data_type == 'complex_short':
+                            data[s_lin:e_lin, s_pix:e_pix] = \
+                                (data.view(np.float16).astype('float32', subok=False).view(np.complex64)[s_lin:e_lin, s_pix:e_pix]
+                                 + data_slice.view(np.float16).astype('float32', subok=False).view(np.complex64)
+                                 ).view(np.float32).astype(np.int16).view(cpx_flt)
+                        else:
+                            data[s_lin:e_lin, s_pix:e_pix] += data_slice
+
+                    elif self.out_data == 'memory':
+                        data[s_lin:e_lin, s_pix:e_pix] += data_slice
                 else:
                     data[s_lin:e_lin, s_pix:e_pix] = data_slice
+
+            for slice in self.meta_slices:
+                slice.clean_memmap_files()
+                slice.clean_memory()
+
+            if self.out_data == 'disk':
+                data.flush()
 
             return True
 
         except Exception:
             log_file = os.path.join(self.meta.folder, 'error.log')
             logging.basicConfig(filename=log_file, level=logging.DEBUG)
-            logging.exception('Failed processing azimuth_elevation_angle for ' + self.meta.folder + '. Check ' + log_file + ' for details.')
-            print('Failed processing azimuth_elevation_angle for ' + self.meta.folder + '. Check ' + log_file + ' for details.')
+            logging.exception('Failed concatenation for ' + self.meta.folder + '. Check ' + log_file + ' for details.')
+            print('Failed concatenation for ' + self.meta.folder + '. Check ' + log_file + ' for details.')
 
             return False
 
@@ -120,11 +146,12 @@ class Concatenate(object):
         if file_type == '':
             file_type = step
 
+        data_type = meta_slices[0].data_types[step][file_type + coordinates.sample]
         meta_info = coordinates.create_meta_data([file_type], [data_type], meta_info)
         meta.image_add_processing_step(step, meta_info)
 
     @staticmethod
-    def processing_info(meta_slices, coordinates, step, file_type=''):
+    def processing_info(meta_slices, coordinates, step, meta_type='', file_type=''):
         # This is a special case where we go from slices to full images. Therefore we need some extra info to find
         # the input/output information. This function needs the input slices including the information of the radar
         # coordinates of the original or coreg grid (depending on what is needed.)
@@ -138,14 +165,15 @@ class Concatenate(object):
         slice_file_names = [file_type + coor.sample + '.raw' for coor in coordinates_slices]
 
         # Three input files needed x, y, z coordinates
-        input_dat = defaultdict()
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
         input_dat['meta'][step][file_type]['files'] = slice_file_names
         input_dat['meta'][step][file_type]['slice_names'] = slice_names
         input_dat['meta'][step][file_type]['coordinates'] = coordinates_slices
-        input_dat['meta'][step][file_type]['slice'] = 'True'
+        input_dat['meta'][step][file_type]['slice'] = True
 
         # line and pixel output files.
-        output_dat = defaultdict()
+        output_dat = recursive_dict()
         output_dat['meta'][step][file_type]['file'] = [file_type + coordinates.sample + '.raw']
         output_dat['meta'][step][file_type]['coordinates'] = coordinates
         output_dat['meta'][step][file_type]['slice'] = 'False'
@@ -164,7 +192,7 @@ class Concatenate(object):
     @staticmethod
     def save_to_disk(meta, step, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_create_disk(step, file_type, coordinates)
+        meta.images_memory_to_disk(step, file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, step, file_type='', coordinates=''):
@@ -218,8 +246,8 @@ class Concatenate(object):
             meta.processes[step_meta + 'crop']['crop_output_format'] = 'complex_int'
             meta.processes[step_meta + 'crop']['crop_first_line'] = '1'
             meta.processes[step_meta + 'crop']['crop_first_pixel'] = '1'
-            meta.processes[step_meta + 'crop']['crop_pixels'] = str(int(shape[0]))
-            meta.processes[step_meta + 'crop']['crop_lines'] = str(int(shape[1]))
+            meta.processes[step_meta + 'crop']['crop_lines'] = str(int(shape[0]))
+            meta.processes[step_meta + 'crop']['crop_pixels'] = str(int(shape[1]))
             meta.processes[step_meta + 'crop'].pop('crop_first_line (w.r.t. tiff_image)')
             meta.processes[step_meta + 'crop'].pop('crop_last_line (w.r.t. tiff_image)')
 
@@ -278,7 +306,7 @@ class Concatenate(object):
         # Finds the maximum extend of the image in original line, pixel coordinates.
 
         if meta_slices[0].process_control['coreg_readfiles'] == '1':
-            pref = 'coreg'
+            pref = 'coreg_'
         else:
             pref = ''
 
@@ -330,7 +358,7 @@ class Concatenate(object):
             print('coordinates should be an CoordinateSystem instance')
             return
         if len(slice_offset) == 0:
-            slice_offset = [10, 100]
+            slice_offset = [0, 0]
 
         # Create the concat meta file
         meta = Concatenate.create_concat_meta(meta_slices)
@@ -352,7 +380,7 @@ class Concatenate(object):
         slices_start = []
 
         # Get the coordinates of the first line/pixel within the full image.
-        for slice, coordinates_slice in meta_slices, coordinates_slices:
+        for slice, coordinates_slice in zip(meta_slices, coordinates_slices):
             coordinates_slice.add_res_info(slice, change_ref=False)
             slices_start.append([coordinates_slice.first_line, coordinates_slice.first_pixel])
 
@@ -399,6 +427,7 @@ class Concatenate(object):
                         continue
 
                     elif slice.read_data_memmap(step, file_type):
+                        image_dat.append(slice.data_disk[step][type_dat])
                         continue
 
             print('Datafile for slice ' + os.path.basename(slice.folder) + ' in step ' + step + ' with filename ' +

@@ -202,14 +202,15 @@ class ConversionGrid(object):
         sample = coor_in.sample + '_' + coor_out.sample
 
         # Three input files needed x, y, z coordinates
-        input_dat = defaultdict()
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
         for t in ['lat', 'lon']:
             input_dat[meta_type]['geocode'][t]['file'] = [t + coor_in.sample + '.raw']
             input_dat[meta_type]['geocode'][t]['coordinates'] = coor_in
             input_dat[meta_type]['geocode'][t]['slice'] = coor_in.slice
 
         # line and pixel output files.
-        output_dat = defaultdict()
+        output_dat = recursive_dict()
         for t in ['sort_ids', 'sum_ids', 'output_ids']:
             output_dat[meta_type]['conversion_grid'][t]['file'] = [t + sample + '.raw']
             output_dat[meta_type]['conversion_grid'][t]['coordinates'] = coor_out
@@ -289,7 +290,7 @@ class ConversionGrid(object):
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates='', coor_out=''):
         # Save the function output in memory to disk
-        meta.images_create_disk('conversion_grid', file_type, coordinates, coor_out)
+        meta.images_memory_to_disk('conversion_grid', file_type, coordinates, coor_out)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates='', coor_out=''):

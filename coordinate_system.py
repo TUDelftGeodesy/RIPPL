@@ -3,6 +3,7 @@ from collections import OrderedDict
 import pyproj
 import datetime
 import numpy as np
+import os
 
 
 class CoordinateSystem():
@@ -10,7 +11,7 @@ class CoordinateSystem():
     def __init__(self):
 
         self.grid_type = ''
-        self.slice = 'False'
+        self.slice = False
         self.coor_str = ''
 
         # Characteristics for all images
@@ -19,11 +20,17 @@ class CoordinateSystem():
         self.first_pixel = 1
         self.oversample = [1, 1]
         self.sample = ''
+        self.meta_name = ''
 
         # Characteristics for radar type
         self.multilook = [1, 1]
-        self.factor = [1, 1]
         self.offset = [0, 0]
+        self.interval_lines = []
+        self.interval_pixels = []
+        self.ml_lines_in = []
+        self.ml_pixels_in = []
+        self.ml_lines_out = []
+        self.ml_pixels_out = []
 
         # Next values are all in seconds (azimuth time from start of day to max of 25 hours)
         self.ra_time = 0
@@ -58,6 +65,8 @@ class CoordinateSystem():
         self.sample, self.multilook, self.oversample, self.offset, in_dat, out_dat = \
             FindCoordinates.multilook_coors([0, 0], oversample=oversample, multilook=multilook, offset=offset)
         self.grid_type = 'radar_coordinates'
+
+        self.sample = FindCoordinates.multilook_str(self.multilook, self.oversample, self.offset)[0]
 
         if res_info:
             self.add_res_info(res_info)
@@ -126,6 +135,13 @@ class CoordinateSystem():
             print('res_info should be an ImageData object')
             return
 
+        # Add the .res name
+        meta_name = os.path.basename(os.path.dirname(res_info.res_path))
+        if meta_name.startswith('slice'):
+            self.meta_name = meta_name
+        else:
+            self.meta_name = 'full'
+
         if self.grid_type == 'radar_coordinates':
 
             if not change_ref and self.az_time != 0 and self.ra_time != 0:
@@ -135,14 +151,17 @@ class CoordinateSystem():
                 self.az_time, self.ra_time, self.az_step, self.ra_step, self.first_line, self.first_pixel, orig_shape = \
                     CoordinateSystem.res_pixel_spacing(res_info)
 
-            if self.factor != [1, 1] or self.factor == '':
-                self.sample, self.multilook, self.oversample, self.offset, [s_lin, s_pix, self.shape] = \
-                    FindCoordinates.interval_sparse_coors(orig_shape, multilook=self.multilook, oversample=self.oversample,
-                                                          offset=self.offset, factor=self.factor)
-            else:
-                self.sample, self.multilook, self.oversample, self.offset, [s_lin, s_pix, self.shape] = \
-                    FindCoordinates.interval_coors(orig_shape, multilook=self.multilook, oversample=self.oversample,
-                                                   offset=self.offset)
+            # Lines and pixels in case of intervals
+            self.sample, self.multilook, self.oversample, self.offset, [self.interval_lines, self.interval_pixels] = \
+                FindCoordinates.interval_lines(orig_shape, multilook=self.multilook, oversample=self.oversample,
+                                                      offset=self.offset)
+
+            # Lines and pixels in case of multilook
+            self.sample, self.multilook, self.oversample, self.offset, [self.ml_lines_in, self.ml_pixels_in], \
+            [self.ml_lines_out, self.ml_pixels_out] = FindCoordinates.multilook_lines(orig_shape, multilook=self.multilook,
+                                                                              oversample=self.oversample,
+                                                                              offset=self.offset)
+            self.shape = [len(self.ml_lines_out), len(self.ml_pixels_out)]
 
         elif self.grid_type == 'geographic':
 
@@ -181,7 +200,7 @@ class CoordinateSystem():
             self.shape = np.array([np.ceil((x_lim[1] - self.x0) / self.dx),
                                    np.ceil((y_lim[1] - self.y0) / self.dy)]).astype(np.int32)
 
-        self.slice = res_info.processes['readfiles']['slice']
+        self.slice = res_info.processes['readfiles']['slice'] == 'True'
 
     @staticmethod
     def res_pixel_spacing(res_info, az_time=0.0, ra_time=0.0, coreg_grid=True):
@@ -253,10 +272,10 @@ class CoordinateSystem():
                 meta_info[data_name + '_projection_type'] = self.projection_type
                 meta_info[data_name + '_ellipse_type'] = self.ellipse_type
                 meta_info[data_name + '_proj4_str'] = self.proj4_str
-                meta_info[data_name + '_x0'] = str(self.lat0)
-                meta_info[data_name + '_y0'] = str(self.lon0)
-                meta_info[data_name + '_dx'] = str(self.dlat)
-                meta_info[data_name + '_dy'] = str(self.dlon)
+                meta_info[data_name + '_x0'] = str(self.x0)
+                meta_info[data_name + '_y0'] = str(self.y0)
+                meta_info[data_name + '_dx'] = str(self.dx)
+                meta_info[data_name + '_dy'] = str(self.dy)
 
         return meta_info
 

@@ -104,14 +104,15 @@ class SquareAmplitude(object):
             print('coordinates should be an CoordinateSystem object')
 
         # Data input file from a random step / file type
-        input_dat = defaultdict()
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
         input_dat[meta_type][step][file_type]['file'] = [file_type + '.raw']
         input_dat[meta_type][step][file_type]['coordinates'] = coordinates
-        input_dat[meta_type][step][file_type]['slice'] = 'True'
+        input_dat[meta_type][step][file_type]['slice'] = True
         input_dat[meta_type][step][file_type]['coor_change'] = 'multilook'
 
         # line and pixel output files.
-        output_dat = defaultdict()
+        output_dat = recursive_dict()
         output_dat[meta_type]['square_amplitude']['square_amplitude']['file'] = ['square_amplitude' + coordinates.sample + '.raw']
         output_dat[meta_type]['square_amplitude']['square_amplitude']['coordinates'] = coordinates
         output_dat[meta_type]['square_amplitude']['square_amplitude']['slice'] = coordinates.slice
@@ -130,7 +131,7 @@ class SquareAmplitude(object):
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_create_disk('square_amplitude', file_type, coordinates)
+        meta.images_memory_to_disk('square_amplitude', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):
