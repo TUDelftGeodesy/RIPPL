@@ -8,7 +8,7 @@ import logging
 import os
 
 
-class SquareAmplitude(object):
+class Amplitude(object):
 
     """
     :type s_pix = int
@@ -54,11 +54,11 @@ class SquareAmplitude(object):
 
         try:
             # Square image
-            self.squared = np.abs(self.slc_dat)**2
+            self.squared = np.abs(self.slc_dat)
 
             # If needed do the multilooking step
             self.add_meta_data(self.meta, self.coordinates, self.step, self.file_type)
-            self.meta.image_new_data_memory(self.squared, 'square_amplitude', self.s_lin, self.s_pix, 'square_amplitude' + self.coordinates.sample)
+            self.meta.image_new_data_memory(self.squared, 'amplitude', self.s_lin, self.s_pix, 'amplitude' + self.coordinates.sample)
 
             return True
 
@@ -77,8 +77,8 @@ class SquareAmplitude(object):
     def add_meta_data(meta, coordinates, step='earth_topo_phase', file_type='earth_topo_phase'):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        if 'square_amplitude' in meta.processes.keys():
-            meta_info = meta.processes['square_amplitude']
+        if 'amplitude' in meta.processes.keys():
+            meta_info = meta.processes['amplitude']
         else:
             meta_info = OrderedDict()
 
@@ -86,12 +86,12 @@ class SquareAmplitude(object):
             print('coordinates should be an CoordinateSystem object')
             return
 
-        type_str = 'square_amplitude'
+        type_str = 'amplitude'
         meta_info[type_str + '_input_step'] = step
         meta_info[type_str + '_input_file_type'] = file_type
         meta_info = coordinates.create_meta_data([type_str], ['real4'], meta_info)
 
-        meta.image_add_processing_step('square_amplitude', meta_info)
+        meta.image_add_processing_step('amplitude', meta_info)
 
     @staticmethod
     def processing_info(coordinates, coor_in='', step='earth_topo_phase', file_type='earth_topo_phase', meta_type='slave'):
@@ -112,9 +112,9 @@ class SquareAmplitude(object):
 
         # line and pixel output files.
         output_dat = recursive_dict()
-        output_dat[meta_type]['square_amplitude']['square_amplitude']['file'] = ['square_amplitude' + coordinates.sample + '.raw']
-        output_dat[meta_type]['square_amplitude']['square_amplitude']['coordinates'] = coordinates
-        output_dat[meta_type]['square_amplitude']['square_amplitude']['slice'] = coordinates.slice
+        output_dat[meta_type]['amplitude']['amplitude']['file'] = ['amplitude' + coordinates.sample + '.raw']
+        output_dat[meta_type]['amplitude']['amplitude']['coordinates'] = coordinates
+        output_dat[meta_type]['amplitude']['amplitude']['slice'] = coordinates.slice
 
         # Number of times input data is used in ram.
         mem_use = 2
@@ -125,15 +125,15 @@ class SquareAmplitude(object):
     def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-        meta.images_create_disk('square_amplitude', file_type, coordinates)
+        meta.images_create_disk('amplitude', file_type, coordinates)
 
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_memory_to_disk('square_amplitude', file_type, coordinates)
+        meta.images_memory_to_disk('amplitude', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_clean_memory('square_amplitude', file_type, coordinates)
+        meta.images_clean_memory('amplitude', file_type, coordinates)
 

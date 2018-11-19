@@ -22,6 +22,7 @@ from processing_steps.geometrical_coreg import GeometricalCoreg
 # from processing_steps.correlation_coreg import CorrelationWindows
 from processing_steps.deramping_reramping import Deramp, Reramp
 from processing_steps.square_amplitude import SquareAmplitude
+from processing_steps.amplitude import Amplitude
 from processing_steps.conversion_grid import ConversionGrid
 from processing_steps.resample import Resample
 from processing_steps.earth_topo_phase import EarthTopoPhase
@@ -70,8 +71,9 @@ class ProcessingList():
         processing['height_to_phase'] = HeightToPhase
         processing['conversion_grid'] = ConversionGrid
         processing['square_amplitude'] = SquareAmplitude
+        processing['amplitude'] = Amplitude
 
-        processing['interfero'] = Interfero
+        processing['interferogram'] = Interfero
         processing['coherence'] = Coherence
         processing['multilook'] = Multilook
         processing['unwrap'] = Unwrap

@@ -23,11 +23,12 @@ import numpy as np
 from processing_steps.concatenate import Concatenate
 from coordinate_system import CoordinateSystem
 from multiprocessing import Pool
+import sys
 
 
 class Pipeline():
 
-    def __init__(self, memory=1000, cores=6, cmaster=[], master=[], slave=[], ifg=[], parallel=True):
+    def __init__(self, memory=500, cores=6, cmaster=[], master=[], slave=[], ifg=[], parallel=True):
         # Individual images are always defined as slaves.
         # Be sure you input the right image types. Otherwise the function will not run!
         # master/slave/ifg are full images, not just the slices. The lists are just multiples of these. Only functions
@@ -83,10 +84,11 @@ class Pipeline():
 
             if type(im).__name__ == 'Image' or type(im).__name__ == 'Interferogram':
                 if im.res_file:
-                    image[im_str] = im.res_data
+                    image[im_str] = copy.deepcopy(im.res_data)
 
             self.res_dat['full'] = image
         self.clean_memmaps()
+        self.clean_memory()
 
         # Init function running variables
         self.function = ''
@@ -103,8 +105,7 @@ class Pipeline():
         self.run_slice = [[] for slice_id in self.slice_ids]
 
         # Init pool of workers for multprocessing
-        if self.parallel:
-            self.pool = Pool(self.cores)
+        self.pool = []
 
     def __call__(self, function, settings, coor, meta_type, file_type=''):
         # Here we prepare and run the parallel processing for this image at once.
@@ -118,17 +119,32 @@ class Pipeline():
             return
 
         self.coor = coor
-        self.function = function
         self.slice = coor.slice
         self.meta_type = meta_type
 
+        self.function = []
+        if isinstance(function, str):
+            self.function = [function]
+        elif isinstance(function, list):
+            self.function = function
+
+        self.file_type = []
         if not file_type:
-            self.file_type = [function]
-        else:
-            if isinstance(file_type, list):
-                self.file_type = file_type
-            else:
-                self.file_type = [file_type]
+            for func in self.function:
+                self.file_type.append([func])
+        elif isinstance(file_type, str):
+            self.file_type = [[file_type]]
+        elif isinstance(file_type, list) and len(self.function) == 1:
+            self.file_type = [file_type]
+        elif isinstance(file_type, list):
+            for f_type in file_type:
+                if isinstance(f_type, list):
+                    self.file_type.append(f_type)
+                elif isinstance(f_type, str):
+                    self.file_type.append([f_type])
+
+        if len(self.function) != len(self.file_type):
+            print('Number of input functions and file types is not the same!')
 
         self.define_function_order()
         self.run_parallel_processing()
@@ -162,9 +178,10 @@ class Pipeline():
 
         # First process for the full image
         # Check if step already exist and output is generated.
-        if not self.function in self.processes.keys():
-            print(self.function + ' does not exist!')
-            return
+        for func in self.function:
+            if not func in self.processes.keys():
+                print('processing function ' + func + ' does not exist!')
+                return
 
         # Initialize the function steps before any concatenation or multilooking.
 
@@ -195,23 +212,26 @@ class Pipeline():
         # First perform all needed steps if we process the full image.
         # Check if step exists
         if not self.slice:
-            for file_type in self.file_type:
-                if self.res_dat['full'][self.meta_type].check_datafile(self.function,
-                                                            file_type=file_type + self.coor.sample, warn=False):
-                    self.file_type.remove(file_type)
+            for step_file_type, fn in zip(self.file_type, range(len(self.file_type))):
+                for file_type in step_file_type:
+                    if self.res_dat['full'][self.meta_type].check_datafile(self.function,
+                                                                file_type=file_type + self.coor.sample, warn=False):
+                        self.file_type[fn].remove(file_type)
             if len(self.file_type) == 0:
                 print('Processing not needed, file already available')
                 return
             else:
-                start_funcs = [self.function]
+                start_funcs = self.function
                 start_meta_name = 'full'
-                start_file_type = [self.file_type]
-                start_meta_type = [self.meta_type]
+                start_file_type = self.file_type
+                start_meta_type = [self.meta_type for n in range(len(self.function))]
                 start_coor = copy.deepcopy(self.coor)
-                if 'cmaster' in self.res_dat['full'].keys():
-                    start_coor.add_res_info(self.res_dat['full']['cmaster'])
-                else:
-                    start_coor.add_res_info(self.res_dat['full'][self.meta_type])
+
+                if start_coor.meta_name != start_meta_name:
+                    if 'cmaster' in self.res_dat['full'].keys():
+                        start_coor.add_res_info(self.res_dat['full']['cmaster'])
+                    else:
+                        start_coor.add_res_info(self.res_dat['full'][self.meta_type])
 
             concat, multilook, new_pipeline = self.create_pipeline(start_funcs, start_file_type, start_meta_type, start_meta_name, start_coor,
                                                                        concat, multilook, new_pipeline, proc_depth)
@@ -233,10 +253,10 @@ class Pipeline():
                     start_file_type = np.array(new_pipeline['file_type'])[step_ids]
                     start_coor = new_pipeline['coor_out'][-1]
 
-                    if 'cmaster' in self.res_dat['full'].keys():
-                        start_coor.add_res_info(self.res_dat['full']['cmaster'])
-                    else:
-                        if start_coor.meta_name != start_meta_name:
+                    if start_coor.meta_name != start_meta_name:
+                        if 'cmaster' in self.res_dat['full'].keys():
+                            start_coor.add_res_info(self.res_dat['full']['cmaster'])
+                        else:
                             start_coor.add_res_info(self.res_dat['full'][self.meta_type])
 
                     # If we start working on the same slice, independent calculations are not possible anymore
@@ -279,24 +299,28 @@ class Pipeline():
         # If we are only processing slices, this is the moment the processing starts.
         if self.slice:
             for slice_name in self.slice_ids:
-                for file_type in self.file_type:
-                    if self.res_dat[slice_name][self.meta_type].check_datafile(self.function,
-                                                            file_type=file_type + self.coor.sample, warn=False):
-
-                        self.file_type.remove(file_type)
+                for step_file_type, fn in zip(self.file_type, range(len(self.file_type))):
+                    for file_type in step_file_type:
+                        if self.res_dat[slice_name][self.meta_type].check_datafile(self.function,
+                                                                                   file_type=file_type + self.coor.sample,
+                                                                                   warn=False):
+                            self.file_type[fn].remove(file_type)
                 if len(self.file_type) == 0:
                     print('Processing not needed, file already available')
                     return
                 else:
-                    start_funcs = [self.function]
+                    start_funcs = self.function
                     start_meta = slice_name
-                    start_file_type = [self.file_type]
-                    start_meta_type = [self.meta_type]
+                    start_file_type = self.file_type
+                    start_meta_type = [self.meta_type for n in range(len(self.function))]
                     start_coor = copy.deepcopy(self.coor)
-                    if 'cmaster' in self.res_dat[start_meta].keys():
-                        start_coor.add_res_info(self.res_dat[start_meta]['cmaster'])
-                    else:
-                        start_coor.add_res_info(self.res_dat[start_meta][self.meta_type])
+
+                    if start_coor.meta_name != start_meta:
+                        if 'cmaster' in self.res_dat[start_meta].keys():
+                            start_coor.add_res_info(self.res_dat[start_meta]['cmaster'])
+                        else:
+                            start_coor.add_res_info(self.res_dat[start_meta][self.meta_type])
+
                 concat, multilook, new_pipeline = self.create_pipeline(start_funcs, start_file_type, start_meta_type, start_meta, start_coor,
                                                                        concat, multilook, new_pipeline, proc_depth)
             proc_depth += 1
@@ -319,10 +343,10 @@ class Pipeline():
                 start_meta_name = new_pipeline['meta'][-1]
                 start_coor = new_pipeline['coor_out'][-1]
 
-                if 'cmaster' in self.res_dat[start_meta_name].keys():
-                    start_coor.add_res_info(self.res_dat[start_meta_name]['cmaster'])
-                else:
-                    if start_coor.meta_name != start_meta_name:
+                if start_coor.meta_name != start_meta_name:
+                    if 'cmaster' in self.res_dat[start_meta_name].keys():
+                        start_coor.add_res_info(self.res_dat[start_meta_name]['cmaster'])
+                    else:
                         start_coor.add_res_info(self.res_dat[start_meta_name][self.meta_type])
 
                 # If we start working on the same slice, independent calculations are not possible anymore
@@ -390,7 +414,6 @@ class Pipeline():
 
         return input_dat, output_data, mem_use
 
-
     def create_concatenate_processing(self, concat, new_pipeline, depth):
         # Create a set of functions that can be run for a concatenation step.
         # If the concatenation also includes an multilooking of the bursts, these two steps are combined.
@@ -408,15 +431,16 @@ class Pipeline():
 
             concat_names = [slice_str for slice_str in self.res_dat.keys() if slice_str != 'full']
             concat_slices = [self.res_dat[slice_str][con_meta_type] for slice_str in concat_names]
-            concat_res, concat_coors = Concatenate.find_slice_coordinates(concat_slices, con_coor_out)
+            concat_res, concat_in_coors, concat_coors = Concatenate.find_slice_coordinates(concat_slices, con_coor_in, con_coor_out)
 
             # Additional settings for concatenation.
             settings = dict()
             settings['step'] = con_step
             settings['file_type'] = con_file_type
 
-            for slice_name, slice_coor in zip(concat_names, concat_coors):
+            for slice_name, slice_coor, slice_in_coor in zip(concat_names, concat_coors, concat_in_coors):
 
+                slice_coor.meta_name = ''
                 resample = False
                 multilook = False
 
@@ -444,7 +468,7 @@ class Pipeline():
                     ml['file_type'].append(con_file_type)
                     ml['meta_type'].append(con_meta_type)
                     ml['meta'].append(slice_name)
-                    ml['coor_in'].append(in_coor)
+                    ml['coor_in'].append(slice_in_coor)
                     ml['coor_out'].append(slice_coor)
 
                 else:
@@ -458,7 +482,7 @@ class Pipeline():
                             new_pipeline['file_type'].append([con_file_type])
                             new_pipeline['meta'].append(slice_name)
                             new_pipeline['meta_type'].append(con_meta_type)
-                            new_pipeline['coor_in'].append(in_coor)
+                            new_pipeline['coor_in'].append(slice_in_coor)
                             new_pipeline['coor_out'].append(slice_coor)
                         else:
                             new_pipeline['file_type'][id[0]].append(con_file_type)
@@ -491,7 +515,7 @@ class Pipeline():
 
         # If the direct step before concatenation is a multilooking step, these two can be combined.
         # An exception is the interferogram step, which is in most cases a multilooking step too.
-        for step, file_type, meta_name, meta_type, in_coor, out_coor in zip(multilook['step'], multilook['file_type'],
+        for step, file_type, meta_type, meta_name, in_coor, out_coor in zip(multilook['step'], multilook['file_type'],
                                                                             multilook['meta_type'], multilook['meta'],
                                                                             multilook['coor_in'], multilook['coor_out']):
 
@@ -520,16 +544,16 @@ class Pipeline():
                     step_tps = [step]
                     file_tps = [file_type]
 
-                    settings['step'] = step
-                    settings['file_type'] = file_type
-                    settings['coor_out'] = out_coor
+                settings['step'] = step
+                settings['file_type'] = file_type
 
                 func_set['main_proc_depth'] = copy.copy(depth)
                 func_set['step'].append(m_step)
                 func_set['file_type'].append(m_file_type)
                 func_set['meta'].append(meta_name)
                 func_set['meta_type'].append(meta_type)
-                func_set['coor'].append(in_coor)
+                func_set['coor_in'].append(in_coor)
+                func_set['coor_out'].append(out_coor)
                 func_set['settings'].append(settings)
 
                 # Now add the original requested files to our to be processed list.
@@ -537,12 +561,21 @@ class Pipeline():
 
                     f_type = file_tp + in_coor.sample
                     if not self.res_dat[meta_name][meta_type].check_datafile(self.function, file_type=f_type, warn=False):
-                        new_pipeline['step'].append(step_tp)
-                        new_pipeline['file_type'].append(file_tp)
-                        new_pipeline['meta_type'].append(meta_tp)
-                        new_pipeline['meta'].append(meta_name)
-                        new_pipeline['coor_in'].append(in_coor)
-                        new_pipeline['coor_out'].append(out_coor)
+
+                        id = Pipeline.check_step_unique(new_pipeline, step_tp, meta_name, meta_tp, out_coor,
+                                                        in_coor, file_tp)
+                        if id is False:
+                            id = Pipeline.check_step_unique(new_pipeline, step_tp, meta_name, meta_tp, out_coor,
+                                                            in_coor)
+                            if id is False:
+                                new_pipeline['step'].append(step_tp)
+                                new_pipeline['file_type'].append([file_tp])
+                                new_pipeline['meta_type'].append(meta_tp)
+                                new_pipeline['meta'].append(meta_name)
+                                new_pipeline['coor_in'].append([])
+                                new_pipeline['coor_out'].append(in_coor)
+                            else:
+                                new_pipeline['file_type'][id[0]].append(file_tp)
 
         return func_set, new_pipeline
 
@@ -624,9 +657,10 @@ class Pipeline():
                         use_slices = self.check_slices_exist(p_meta_type, p_step, p_type + start_coor.sample)
                         if not use_slices:
                             continue
+
                     # If one of the inputs requires slices while the main image is a full this should be done first.
                     for meta_type, step, file_type in zip(meta_types, step_types, file_types):
-                        if input_dat[meta_type][step][file_type]['slice']:
+                        if input_dat[meta_type][step][file_type]['slice'] == True:
                             use_slices = True
 
                     coor_in = input_dat[meta_types[0]][step_types[0]][file_types[0]]['coordinates']
@@ -908,6 +942,7 @@ class Pipeline():
         for key in self.res_dat.keys():
             dummy_processing['res_dat'][key] = dict()
 
+        dummy_processing['proc_type'] = ''
         dummy_processing['proc'] = False
         dummy_processing['proc_var_name'] = []
         dummy_processing['proc_var'] = []
@@ -933,10 +968,12 @@ class Pipeline():
             processing_package = []
 
             for pipeline in [pipeline for pipeline in self.pipelines if pipeline['main_proc_depth'] == proc_depth]:
+
                 # create pipeline parallel processing packages.
                 if pipeline['proc_type'] == 'pipeline':
 
                     pipeline_init = copy.deepcopy(dummy_processing)
+                    pipeline_init['proc_type'] = 'pipeline_init'
                     pipeline_init['meta'] = True
                     pipeline_init['create'] = True
                     res_dat = pipeline_init['res_dat']
@@ -970,6 +1007,7 @@ class Pipeline():
 
                         # All multilook steps are independent so we give them independent steps here too.
                         pipeline_ml = copy.deepcopy(dummy_processing)
+                        pipeline_ml['proc_type'] = 'multilook'
                         pipeline_ml['proc'] = True
                         res_dat = pipeline_ml['res_dat']
 
@@ -984,14 +1022,14 @@ class Pipeline():
                             if func == 'multilook':
                                 proc_var, proc_var_names, res_dat = self.create_var_package(
                                     func, meta, meta_type, coordinates, coor_out, file_type=settings['file_type'],
-                                    res_dat=res_dat, step=settings['step'], package_type='proc_data')
+                                    res_dat=res_dat, step=settings['step'], package_type='processing')
                                 disk_var, disk_var_names, res_dat = self.create_var_package(
                                     func, meta, meta_type, coordinates, coor_out, file_type=settings['file_type'],
                                     res_dat=res_dat, step=settings['step'], package_type='disk_data')
                             else:  # If it is interferogram
                                 proc_var, proc_var_names, res_dat = self.create_var_package(
                                     func, meta, meta_type, coordinates, coor_out, file_type=file_type,
-                                    res_dat=res_dat, package_type='proc_data')
+                                    res_dat=res_dat, package_type='processing')
                                 disk_var, disk_var_names, res_dat = self.create_var_package(
                                     func, meta, meta_type, coordinates, coor_out, file_type=file_type,
                                     res_dat=res_dat, package_type='disk_data')
@@ -1022,6 +1060,7 @@ class Pipeline():
                 if pipeline['proc_type'] == 'pipeline':
 
                     pipeline_processing = copy.deepcopy(dummy_processing)
+                    pipeline_processing['proc_type'] = 'pipeline_processing'
                     pipeline_processing['proc'] = True
                     pipeline_processing['save'] = True
                     pipeline_processing['clear_mem'] = True
@@ -1037,8 +1076,8 @@ class Pipeline():
 
                         pipeline_processing['function'].append(self.processes[func])
 
-                        proc_var, proc_var_names, res_dat = self.create_var_package(func, meta, meta_type, coordinates, coor_out,
-                                                                           file_type=file_type, package_type='processing', res_dat=res_dat)
+                        proc_var, proc_var_names, res_dat = self.create_var_package(func, meta, meta_type, coordinates,
+                                                                                    coor_out, package_type='processing', res_dat=res_dat)
                         pipeline_processing['proc_var_name'].append(proc_var_names)
                         pipeline_processing['proc_var'].append(proc_var)
 
@@ -1090,6 +1129,7 @@ class Pipeline():
 
                     # All multilook steps are independent so we give them independent steps here too.
                     pipeline_ml = copy.deepcopy(dummy_processing)
+                    pipeline_ml['proc_type'] = 'concatenate'
                     pipeline_ml['proc'] = True
                     pipeline_ml['clear_mem'] = True
                     pipeline_ml['save_disk'] = True
@@ -1135,7 +1175,7 @@ class Pipeline():
                                 clear_var = [self.res_dat[meta][meta_type], settings['step'], settings['file_type'] + coor_out.sample]
                                 clear_var_name = ['meta', 'step', 'file_type']
                             else:  # If it is interferogram
-                                clear_var = [self.res_dat[meta][meta_type], func, file_type + coor_out.sample]
+                                clear_var = [self.res_dat[meta][meta_type], func, file_type[0] + coor_out.sample]
                                 clear_var_name = ['meta', 'step', 'file_type']
 
                             clear_mem_var.append(clear_var)
@@ -1147,63 +1187,17 @@ class Pipeline():
             self.run_parallel_package(processing_package)
             self.write_res()
 
-    @staticmethod
-    def copy_pipeline(pipeline, new_res=True):
-
-        new_pipeline = dict()
-        res_instances = []
-        res_files = []
-
-        for key in pipeline.keys():
-
-            if not key.endswith('var'):
-                new_pipeline[key] = copy.deepcopy(pipeline[key])
-            elif key == 'clear_mem_var':
-                new_pipeline['clear_mem_var'] = []
-                for n in range(len(pipeline['clear_mem_var'])):
-                    new_pipeline['clear_mem_var'].append(dict())
-                    for mem_key in pipeline['clear_mem_var'][n].keys():
-                        new_pipeline['clear_mem_var'][n][mem_key] = []
-                        for var in pipeline['clear_mem_var'][n][mem_key]:
-                            if isinstance(var, ImageData) and new_res:
-                                res_id = id(var)
-                                if res_id in res_instances:
-                                    res = res_files[res_instances.index(res_id)]
-                                else:
-                                    res = copy.copy(var)
-                                    res_instances.append(id(var))
-                                    res_files.append(res)
-                                new_pipeline['clear_mem_var'][n][mem_key].append(res)
-                            elif isinstance(var, ImageData):
-                                new_pipeline['clear_mem_var'][n][mem_key].append(var)
-                            else:
-                                new_pipeline['clear_mem_var'][n][mem_key].append(copy.copy(var))
-            else:
-                new_pipeline[key] = []
-                for n in range(len(pipeline[key])):
-                    new_pipeline[key].append([])
-                    for var in pipeline[key][n]:
-                        if isinstance(var, ImageData) and new_res:
-                            res_id = id(var)
-                            if res_id in res_instances:
-                                res = res_files[res_instances.index(res_id)]
-                            else:
-                                res = copy.copy(var)
-                                res_instances.append(id(var))
-                                res_files.append(res)
-                            new_pipeline[key][n].append(res)
-                        elif isinstance(var, ImageData):
-                            new_pipeline[key][n].append(var)
-                        else:
-                            new_pipeline[key][n].append(copy.copy(var))
-
-        return new_pipeline
-
     def clean_memmaps(self):
         # This function cleans all res_dat variables from memmaps. (these cause problems when copied for parallel processing)
         for slice_key in self.res_dat.keys():
             for type_key in self.res_dat[slice_key].keys():
                 self.res_dat[slice_key][type_key].clean_memmap_files()
+
+    def clean_memory(self):
+        # This function cleans all res_dat variables from memmaps. (these cause problems when copied for parallel processing)
+        for slice_key in self.res_dat.keys():
+            for type_key in self.res_dat[slice_key].keys():
+                self.res_dat[slice_key][type_key].clean_memory()
 
     def create_var_package(self, function, meta, meta_type, coor_in, coor_out, meta_list='', step='', file_type='', package_type='processing', res_dat=''):
 
@@ -1227,9 +1221,15 @@ class Pipeline():
         if 'meta' in func_var_names:
             var_names.append('meta')
 
-            vars.append(self.res_dat[meta][meta_type])
-            if res_dat:
-                res_dat[meta][meta_type] = self.res_dat[meta][meta_type]
+            # interferogram and coherence calculations are special cases where slave and ifg are needed...
+            if meta_type == 'ifg' and 'ifg_meta' in func_var_names:
+                vars.append(self.res_dat[meta]['slave'])
+                if res_dat:
+                    res_dat[meta]['slave'] = self.res_dat[meta]['slave']
+            else:
+                vars.append(self.res_dat[meta][meta_type])
+                if res_dat:
+                    res_dat[meta][meta_type] = self.res_dat[meta][meta_type]
 
         # Coordinate of input and output
         if 'coordinates' in func_var_names:
@@ -1240,10 +1240,10 @@ class Pipeline():
             vars.append(coor_in)
 
         # Step and file types
-        if 'step' in func_var_names:
+        if 'step' in func_var_names and len(step) > 0:
             var_names.append('step')
             vars.append(step)
-        if 'file_type' in func_var_names:
+        if 'file_type' in func_var_names and len(file_type) > 0:
             var_names.append('file_type')
             vars.append(file_type)
 
@@ -1297,18 +1297,34 @@ class Pipeline():
                         print(dat_type + ' is missing for processing.')
                         return dat_type
 
-        if self.parallel:
-            res_dats = self.pool.map(run_parallel, parallel_package)
-        else:
+        package_types = [package['proc_type'] for package in parallel_package]
+
+        if not self.parallel or 'concatenate' in package_types:
             # If not parallel (for debugging purposes)
             res_dats = []
             for package in parallel_package:
                 res_dats.append(run_parallel(package))
+        elif self.parallel:
+            self.pool = Pool(self.cores)
+            res_dats = self.pool.map(run_parallel, parallel_package)
+            self.pool.terminate()
+            self.pool.join()
+            self.pool = []
 
         # Update the .res files of this image
         for res_dat in res_dats:
+            if res_dat == False:
+                print('Encountered error in processing. Aborting..')
+                sys.exit()
+
             for key in res_dat.keys():
                 for meta_type in res_dat[key].keys():
                     self.res_dat[key][meta_type] = res_dat[key][meta_type]
 
         self.clean_memmaps()
+
+        print('Output Image Data sizes:')
+        for key in self.res_dat.keys():
+            for meta_type in self.res_dat[key].keys():
+                print('Size of ' + key + ' of type ' + meta_type + ' is ' + str(
+                    self.res_dat[key][meta_type].get_size(self.res_dat[key][meta_type])) + ' bytes.')

@@ -185,8 +185,8 @@ class Deramp(GetDopplerRamp):
 
     def get_az_time(self):
 
-        first_pixel = int(self.slave.processes['crop']['crop_first_pixel']) - 1 + self.s_pix
-        first_line = int(self.slave.processes['crop']['crop_first_line']) - 1 + self.s_lin
+        first_pixel = int(self.slave.processes['crop']['crop_first_pixel']) + self.s_pix
+        first_line = int(self.slave.processes['crop']['crop_first_line']) + self.s_lin
 
         t_vectrg = self.t_rg_start + np.arange(first_pixel, first_pixel + self.shape[1]) * self.dt_rg
         t_vectaz = (np.arange(first_line, first_line + self.shape[0]) * self.dt_az - 
@@ -209,7 +209,7 @@ class Deramp(GetDopplerRamp):
 
         coordinates = CoordinateSystem()
         coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
-        coordinates.add_res_info(meta)
+        coordinates.add_res_info(meta, coreg_grid=False)
         meta_info = coordinates.create_meta_data(['deramp'], ['complex_int'], meta_info)
 
         meta.image_add_processing_step('deramp', meta_info)

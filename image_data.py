@@ -234,7 +234,7 @@ class ImageData(ImageMetadata):
         # If we did not manage to load the data either from memory or disk return False
         if warn:
             print('Failed to load data for ' + step + ' file ' + file_type + ' for image ' + self.folder)
-        return False
+        return []
 
     def image_new_data_memory(self, in_data, step, s_lin, s_pix, file_type=''):
         # This function replaces the in memory data for the image. To do so we need the file together with the
@@ -370,18 +370,53 @@ class ImageData(ImageMetadata):
             for file_type in file_types:
                 self.add_data_step(step, file_type)
 
-    def read_data_memmap(self, step, file_type):
+    def read_data_memmap(self, step='', file_type=''):
 
-        if self.check_datafile(step, file_type, exist=True, warn=False):
-            # Finally read in as a memmap file
-            dat = open(self.data_files[step][file_type], 'r+')
-            self.data_disk[step][file_type] = np.memmap(dat,
-                                                   dtype=self.dtype_disk[self.data_types[step][file_type]],
-                                                   shape=self.data_sizes[step][file_type])
-            return True
-
+        if len(step) > 0:
+            if isinstance(step, list):
+                step = step
+            else:
+                step = [step]
         else:
-            return False
+            step = self.data_disk.keys()
+
+        if isinstance(file_type, list):
+            file_type = file_type
+        elif len(file_type) == 0:
+            file_type = []
+        else:
+            file_type = [file_type]
+
+        steps = []
+        file_types = []
+
+        if len(step) == len(file_type):
+            for s, f in zip(step, file_type):
+                if s in self.data_disk.keys():
+                    if f in self.data_disk[s].keys():
+                        steps.append(s)
+                        file_types.append(f)
+        else:
+            for s in step:
+                if s in self.data_disk.keys():
+                    for f in self.data_disk[s].keys():
+                        steps.append(s)
+                        file_types.append(f)
+
+        succes = False
+        for step, file_type in zip(steps, file_types):
+            if self.check_datafile(step, file_type, exist=True, warn=False):
+                # Finally read in as a memmap file
+                dat = open(self.data_files[step][file_type], 'r+')
+                self.data_disk[step][file_type] = np.memmap(dat,
+                                                       dtype=self.dtype_disk[self.data_types[step][file_type]],
+                                                       shape=self.data_sizes[step][file_type])
+                succes = True
+
+            else:
+                succes = False
+
+        return succes
 
     # Next processing_steps is used to read info from certain steps in the metadata.
     def image_add_processing_step(self, step, step_dict):

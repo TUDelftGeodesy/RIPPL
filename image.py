@@ -57,8 +57,10 @@ class Image(object):
         if slice_list:
             self.slice_names = list(set(self.slice_names) & set(slice_list))
         self.slice_folders = [os.path.join(folder, x) for x in self.slice_names]
+        self.slice_res_file = []
 
         for slice_folder, slice_name in zip(self.slice_folders, self.slice_names):
+            self.slice_res_file.append(os.path.join(slice_folder, 'info.res'))
             self.slices[slice_name] = ImageData(os.path.join(slice_folder, 'info.res'), 'single')
 
         self.check_valid_burst_res()
@@ -68,12 +70,21 @@ class Image(object):
             concat.write(self.res_file)
         self.res_data = ImageData(self.res_file, res_type='single')
 
+    def read_res(self):
+        # Read the result files again.
+
+        self.res_data = ImageData(self.res_file, res_type='single')
+        for slice_name, slice_res in zip(self.slice_names, self.slice_res_file):
+            self.slices[slice_name] = ImageData(slice_res, 'single')
+
     def __call__(self, step, settings, coors, file_type='', cmaster='', memory=500, cores=6, parallel=True):
         # This calls the pipeline function for this step
 
         # The main image is always seen as the slave image. Further ifg processing is not possible here.
         pipeline = Pipeline(memory=memory, cores=cores, slave=self, cmaster=cmaster, parallel=parallel)
         pipeline(step, settings, coors, 'slave', file_type=file_type)
+
+        self.read_res()
 
     def check_valid_burst_res(self):
         # This function does some basic checks whether all bursts in this image are correct.

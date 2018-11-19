@@ -21,6 +21,7 @@ class CoordinateSystem():
         self.oversample = [1, 1]
         self.sample = ''
         self.meta_name = ''
+        self.res_path = ''
 
         # Characteristics for radar type
         self.multilook = [1, 1]
@@ -86,7 +87,7 @@ class CoordinateSystem():
         else:
             self.oversample = oversample
 
-        self.sample = '_' + ellipse_type + '_stp_' + str(int(dlat * 3600)) + '_' + str(int(dlon * 3600))
+        self.sample = '_' + ellipse_type + '_stp_' + str(int(np.round(dlat * 3600))) + '_' + str(int(np.round(dlon * 3600)))
         if not self.oversample == [1, 1]:
             self.sample = self.sample + '_ovr_' + str(self.oversample[0]) + '_' + str(self.oversample[1])
 
@@ -127,7 +128,7 @@ class CoordinateSystem():
         if res_info:
             self.add_res_info(res_info)
 
-    def add_res_info(self, res_info, buf=0.1, round=1, change_ref=True):
+    def add_res_info(self, res_info, buf=0.1, round=1, change_ref=True, coreg_grid=True, old_coor=''):
         # Here we add extra information to our radar coordinates to get the first line/pixel and original image size.
         # This also generates some extra info on line and pixel numbers in the new configuration.
 
@@ -137,6 +138,7 @@ class CoordinateSystem():
 
         # Add the .res name
         meta_name = os.path.basename(os.path.dirname(res_info.res_path))
+        self.res_path = res_info.res_path
         if meta_name.startswith('slice'):
             self.meta_name = meta_name
         else:
@@ -146,49 +148,72 @@ class CoordinateSystem():
 
             if not change_ref and self.az_time != 0 and self.ra_time != 0:
                 self.az_time, self.ra_time, self.az_step, self.ra_step, self.first_line, self.first_pixel, orig_shape = \
-                    CoordinateSystem.res_pixel_spacing(res_info, self.az_time, self.ra_time)
+                    CoordinateSystem.res_pixel_spacing(res_info, self.az_time, self.ra_time, coreg_grid=coreg_grid)
             else:
                 self.az_time, self.ra_time, self.az_step, self.ra_step, self.first_line, self.first_pixel, orig_shape = \
-                    CoordinateSystem.res_pixel_spacing(res_info)
+                    CoordinateSystem.res_pixel_spacing(res_info, coreg_grid=coreg_grid)
 
-            # Lines and pixels in case of intervals
-            self.sample, self.multilook, self.oversample, self.offset, [self.interval_lines, self.interval_pixels] = \
-                FindCoordinates.interval_lines(orig_shape, multilook=self.multilook, oversample=self.oversample,
-                                                      offset=self.offset)
+            if old_coor == '':
+                # Lines and pixels in case of intervals
+                self.sample, self.multilook, self.oversample, self.offset, [self.interval_lines, self.interval_pixels] = \
+                    FindCoordinates.interval_lines(orig_shape, multilook=self.multilook, oversample=self.oversample,
+                                                          offset=self.offset)
 
-            # Lines and pixels in case of multilook
-            self.sample, self.multilook, self.oversample, self.offset, [self.ml_lines_in, self.ml_pixels_in], \
-            [self.ml_lines_out, self.ml_pixels_out] = FindCoordinates.multilook_lines(orig_shape, multilook=self.multilook,
-                                                                              oversample=self.oversample,
-                                                                              offset=self.offset)
-            self.shape = [len(self.ml_lines_out), len(self.ml_pixels_out)]
+                # Lines and pixels in case of multilook
+                self.sample, self.multilook, self.oversample, self.offset, [self.ml_lines_in, self.ml_pixels_in], \
+                [self.ml_lines_out, self.ml_pixels_out] = FindCoordinates.multilook_lines(orig_shape, multilook=self.multilook,
+                                                                                  oversample=self.oversample,
+                                                                                  offset=self.offset)
+                self.shape = [len(self.ml_lines_out), len(self.ml_pixels_out)]
+            else:
+                self.sample = old_coor.sample
+                self.shape = old_coor.shape
+                self.multilook = old_coor.multilook
+                self.oversample = old_coor.oversample
+                self.offset = old_coor.offset
+
 
         elif self.grid_type == 'geographic':
 
-            lat_lim = res_info.lat_lim + np.array([-buf, buf])
-            lon_lim = res_info.lon_lim + np.array([-buf, buf])
-            first_lat = np.floor((lat_lim[0] % round) / self.dlat) * self.dlat + np.floor(lat_lim[0] / round) * round
-            first_lon = np.floor((lon_lim[0] % round) / self.dlon) * self.dlon + np.floor(lon_lim[0] / round) * round
+            if old_coor == '':
+                lat_lim = res_info.lat_lim + np.array([-buf, buf])
+                lon_lim = res_info.lon_lim + np.array([-buf, buf])
+                first_lat = np.floor((lat_lim[0] % round) / self.dlat) * self.dlat + np.floor(lat_lim[0] / round) * round
+                first_lon = np.floor((lon_lim[0] % round) / self.dlon) * self.dlon + np.floor(lon_lim[0] / round) * round
 
-            if not change_ref and self.lat0 != '' and self.lon0 != 0:
+                self.shape = np.array([np.round((lat_lim[1] - first_lat) / self.dlat),
+                                       np.round((lon_lim[1] - first_lon) / self.dlon)]).astype(np.int32)
+            else:
+                first_lat = old_coor.lat0
+                first_lon = old_coor.lon0
+                self.shape = old_coor.shape
+
+            if not change_ref and self.lat0 != 0 and self.lon0 != 0:
                 self.first_line = int((first_lat - self.lat0) / self.dlat) + 1
                 self.first_pixel = int((first_lon - self.lon0) / self.dlon) + 1
             else:
                 self.lat0 = first_lat
                 self.lon0 = first_lon
-            self.shape = np.array([np.ceil((lat_lim[1] - first_lat) / self.dlat),
-                                   np.ceil((lon_lim[1] - first_lon) / self.dlon)]).astype(np.int32)
 
         elif self.grid_type == 'projection':
 
-            lat = [l[0] for l in res_info.polygon.coords]
-            lon = [l[1] for l in res_info.polygon.coords]
-            x, y = self.ell2proj(lat, lon)
+            if old_coor == '':
+                lat = [l[0] for l in res_info.polygon.coords]
+                lon = [l[1] for l in res_info.polygon.coords]
+                x, y = self.ell2proj(lat, lon)
 
-            x_lim = [np.min(x), np.max(x)] + np.array([-buf, buf])
-            y_lim = [np.min(y), np.max(y)] + np.array([-buf, buf])
-            first_x = np.floor((x_lim[0] % round) / self.dx) * self.dx + np.floor(x_lim[0] / round) * round
-            first_y = np.floor((y_lim[0] % round) / self.dy) * self.dy + np.floor(y_lim[0] / round) * round
+                x_lim = [np.min(x), np.max(x)] + np.array([-buf, buf])
+                y_lim = [np.min(y), np.max(y)] + np.array([-buf, buf])
+                first_x = np.floor((x_lim[0] % round) / self.dx) * self.dx + np.floor(x_lim[0] / round) * round
+                first_y = np.floor((y_lim[0] % round) / self.dy) * self.dy + np.floor(y_lim[0] / round) * round
+
+                self.shape = np.array([np.round((x_lim[1] - self.x0) / self.dx),
+                                       np.round((y_lim[1] - self.y0) / self.dy)]).astype(np.int32)
+
+            else:
+                first_x = old_coor.x0
+                first_y = old_coor.y0
+                self.shape = old_coor.shape
 
             if not change_ref and self.lat0 != '' and self.lon0 != 0:
                 self.first_line = int((first_x - self.x0) / self.dx) + 1
@@ -197,10 +222,10 @@ class CoordinateSystem():
                 self.x0 = first_x
                 self.y0 = first_y
 
-            self.shape = np.array([np.ceil((x_lim[1] - self.x0) / self.dx),
-                                   np.ceil((y_lim[1] - self.y0) / self.dy)]).astype(np.int32)
-
-        self.slice = res_info.processes['readfiles']['slice'] == 'True'
+        if 'readfiles' in res_info.processes:
+            self.slice = res_info.processes['readfiles']['slice'] == 'True'
+        else:
+            self.slice = res_info.processes['coreg_readfiles']['slice'] == 'True'
 
     @staticmethod
     def res_pixel_spacing(res_info, az_time=0.0, ra_time=0.0, coreg_grid=True):

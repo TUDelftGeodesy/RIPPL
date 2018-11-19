@@ -85,7 +85,7 @@ class AzimuthElevationAngle(object):
                 if self.orbit:
                     self.orbits.xyz2ell(orbit=True, pixel=False)
                     self.orbits.xyz2orbit_heading_off_nadir()
-                    self.heading = self.orbits.heading[:, None]
+                    self.heading[self.no0] = self.orbits.heading
                     self.off_nadir_angle[self.no0] = self.orbits.off_nadir_angle
 
             if self.scatterer:

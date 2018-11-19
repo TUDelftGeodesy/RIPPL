@@ -118,6 +118,8 @@ class Stack(object):
                 self.images[im_dir[-8:]] = Image(image_dir, self.master_slice_names)
                 self.image_dates.append(im_dir[-8:])
 
+        cmaster_image = self.images[self.master_date]
+
         for ifgs_dir in ifgs:
             ifg_dir = os.path.join(self.datastack_folder, ifgs_dir)
 
@@ -136,7 +138,7 @@ class Stack(object):
             except ValueError:
                 slave_image = []
 
-            self.interferograms[ifgs_dir[-17:]] = Interferogram(ifg_dir, master_image, slave_image, self.master_slice_names)
+            self.interferograms[ifgs_dir[-17:]] = Interferogram(ifg_dir, master_image, slave_image, cmaster_image, self.master_slice_names)
 
             if master not in self.ifg_dates:
                 self.ifg_dates.append(master)
@@ -159,6 +161,7 @@ class Stack(object):
             for key in self.images.keys():
                 self.images[key](step, settings, coor, file_type, cmaster=self.images[self.master_date],
                                  memory=memory, cores=cores, parallel=parallel)
+
         elif meta_type == 'ifg':
             for key in self.interferograms.keys():
                 master_key = key[:8]
@@ -198,20 +201,21 @@ class Stack(object):
 
             self.images[self.master_date].slices[slice].write()
 
-    def create_network_ifgs(self, network_type='temp_baseline', temp_baseline=2, n_images=1):
+    def create_network_ifgs(self, network_type='temp_baseline', temp_baseline=14, n_images=1):
 
         # Get all the dates in the stack.
         date_int = np.sort([int(key) for key in self.images.keys()])
+        master_int = int(self.master_date)
         dates = np.array([datetime.datetime.strptime(str(date), '%Y%m%d') for date in date_int])
 
         ifg_pairs = []
 
         if network_type == 'temp_baseline':
-            days = np.array([diff.day for diff in dates - np.min(dates)])
+            days = np.array([diff.days for diff in dates - np.min(dates)])
 
             # Define network based on network type
             for n in range(len(days)):
-                ids = np.where(days > 0 * days <= temp_baseline)
+                ids = np.where((days - days[n] > 0) * (days - days[n] <= temp_baseline))[0]
                 for id in ids:
                     ifg_pairs.append([n, id])
 
@@ -222,8 +226,17 @@ class Stack(object):
                     if n + i < n_im:
                         ifg_pairs.append([i, n])
 
+        elif network_type == 'single_master':
+
+            master_n = np.where(date_int == master_int)[0][0]
+
+            for n in range(len(date_int)):
+                if n != master_n:
+                    ifg_pairs.append([master_n, n])
+
         # Finally create the requested ifg if they do not exist already
         ifg_ids = self.interferograms.keys()
+        cmaster_key = self.master_date
 
         for ifg_pair in ifg_pairs:
 
@@ -234,7 +247,7 @@ class Stack(object):
             ifg_key_2 = slave_key + '_' + master_key
 
             if not ifg_key_1 in ifg_ids and not ifg_key_2 in ifg_ids:
-                ifg = Interferogram(slave=self.images[slave_key], master=self.images[master_key])
+                ifg = Interferogram(slave=self.images[slave_key], master=self.images[master_key], cmaster=self.images[cmaster_key])
                 self.interferograms[ifg_key_1] = ifg
 
     def create_SRTM_input_data(self, srtm_folder, username, password, buf=0.2, rounding=0.2,  srtm_type='SRTM3'):

@@ -12,7 +12,7 @@ import copy
 
 class Multilook(object):
 
-    def __init__(self, meta, cmaster_meta, step, file_type, coor_out, coordinates=''):
+    def __init__(self, meta, cmaster_meta, step, file_type, coordinates, coor_in=''):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
         # When you want to use a certain projection, please give the proj4 string to do the conversion. Most projection
@@ -27,13 +27,13 @@ class Multilook(object):
 
         # If the in coordinates are not defined, we default to the original radar coordinate system. This is the obvious
         # choiche
-        if not isinstance(coordinates, CoordinateSystem):
+        if not isinstance(coor_in, CoordinateSystem):
             self.coor_in = CoordinateSystem()
             self.coor_in.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
         else:
-            self.coor_in = coordinates
-        if isinstance(coor_out, CoordinateSystem):
-            self.coor_out = coor_out
+            self.coor_in = coor_in
+        if isinstance(coordinates, CoordinateSystem):
+            self.coor_out = coordinates
 
         # Load input data.
         self.data = self.meta.image_load_data_memory(step, 0, 0, self.coor_in.shape, file_type)
@@ -43,13 +43,17 @@ class Multilook(object):
         else:
             self.file_type = file_type
 
+        self.sort_ids = []
+        self.sum_ids = []
+        self.output_ids = []
+
         # Load data (somewhat complicated for the geographical multilooking.
         if self.coor_in.grid_type == 'radar_coordinates' and self.coor_out.grid_type in ['geographic', 'projection']:
 
             self.use_ids = True
 
             # Check additional information on geographical multilooking
-            convert_sample = coor_in.sample + '_' + coor_out.sample
+            convert_sample = self.coor_in.sample + '_' + self.coor_out.sample
             
             sort_ids_shape = self.cmaster.image_get_data_size(step, 'sort_ids' + convert_sample)
             sum_ids_shape = self.cmaster.image_get_data_size(step, 'sum_ids' + convert_sample)
@@ -96,7 +100,7 @@ class Multilook(object):
                 print('Conversion from a projection or geographic coordinate system to another system is not possible')
 
             # Save meta data and results
-            self.add_meta_data(self.meta, self.coor_in, self.coor_out, self.step, self.file_type)
+            self.add_meta_data(self.meta, self.coor_out, self.coor_in, self.step, self.file_type)
             self.meta.image_new_data_memory(self.multilooked, self.step, 0, 0, file_type= self.file_type + self.coor_out.sample)
 
             return True
@@ -113,12 +117,15 @@ class Multilook(object):
     def grid_multilooking(values, lin_in, pix_in, lin_out, pix_out, ml_diff, ovr_out):
         # Multilooking of a grid, where the output grid is possibly
 
+        lin_in = list(lin_in)
+        pix_in = list(pix_in)
+
         lin_id = [lin_in.index(x) for x in lin_out]
         pix_id = [pix_in.index(x) for x in pix_out]
-        d_lin = (lin_in[-1] - lin_in[-2])
-        d_pix = (pix_in[-1] - pix_in[-2])
-        last_lin = pix_in[-1] + d_lin
-        last_pix = lin_in[-1] + d_pix
+        d_lin = (lin_out[-1] - lin_out[-2])
+        d_pix = (pix_out[-1] - pix_out[-2])
+        last_lin = lin_id[-1] + d_lin
+        last_pix = pix_id[-1] + d_pix
 
         if ovr_out == [1, 1]:
             values_out = np.add.reduceat(np.add.reduceat(values[:last_lin, :last_pix], lin_id), pix_id, axis=1)
@@ -157,14 +164,14 @@ class Multilook(object):
 
         # Coordinates of lines in both input and output image.
         smp_in, ml_in, ovr_in, off_in, [lin, pix], [lin_in, pix_in] = FindCoordinates.multilook_lines(
-            coor_in.shape, 0, 0, 0, coor_in.multilook, coor_in.oversample, coor_in.offset)
+            coor_in.shape, 0, 0, 0, 0, 0, coor_in.multilook, coor_in.oversample, coor_in.offset)
         lin_in += coor_in.first_line
         pix_in += coor_in.first_pixel
 
         smp_out, ml_out, ovr_out, off_out, [lin, pix], [lin_out, pix_out] = FindCoordinates.multilook_lines(
-            coor_out.shape, 0, 0, 0, coor_out.multilook, coor_out.oversample, coor_out.offset)
-        lin_out += coor_out.first_line
-        pix_out += coor_out.first_pixel
+            coor_in.shape, 0, 0, 0, 0, 0, coor_out.multilook, coor_out.oversample, coor_out.offset)
+        lin_out += coor_in.first_line
+        pix_out += coor_in.first_pixel
         ml_diff = np.array(ml_out) / np.array(ml_in)
 
         # Check if multilooking is possible
@@ -339,7 +346,7 @@ class Multilook(object):
         return values_out
 
     @staticmethod
-    def input_output_info(coor_out, coor_in='', step='earth_topo_phase', file_type=''):
+    def processing_info(coor_out, coor_in='', step='earth_topo_phase', file_type=''):
         # Information on this processing step. meta type should be defined here because this method is not directly
         # connected to either slave/master/ifg/coreg_master data type.
 
@@ -381,10 +388,10 @@ class Multilook(object):
         return input_dat, output_dat, mem_use
 
     @staticmethod
-    def add_meta_data(meta, coordinates, coor_out, step, file_type=''):
+    def add_meta_data(meta, coordinates, coor_in, step, file_type=''):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        if not isinstance(coordinates, CoordinateSystem) or not isinstance(coor_out, CoordinateSystem):
+        if not isinstance(coordinates, CoordinateSystem) or not isinstance(coor_in, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
         if step in meta.processes.keys():
@@ -395,8 +402,8 @@ class Multilook(object):
         if not file_type:
             file_type = step
 
-        data_types = [meta.data_types[step][file_type + coordinates.sample]]
-        meta_info = coor_out.create_meta_data([file_type + coor_out.sample], data_types, meta_info)
+        data_types = [meta.data_types[step][file_type + coor_in.sample]]
+        meta_info = coordinates.create_meta_data([file_type], data_types, meta_info)
         meta.image_add_processing_step(step, meta_info)
 
     @staticmethod

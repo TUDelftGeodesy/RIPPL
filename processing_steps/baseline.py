@@ -27,7 +27,7 @@ class Baseline(object):
     :type shape = list
     """
 
-    def __init__(self, cmaster_meta, meta, coordinates, s_lin=0, s_pix=0, lines=0,
+    def __init__(self, meta, cmaster_meta, coordinates, s_lin=0, s_pix=0, lines=0,
                  perpendicular=True, parallel=False, horizontal=False, vertical=False, total_baseline=False, angle=False):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
@@ -47,7 +47,7 @@ class Baseline(object):
 
         # Information on conversion from range/azimuth to distances.
         sol = 299792458  # speed of light [m/s]
-        self.ra2m = 1 / float(self.cmaster.processes['readfiles']['Range_sampling_rate (computed, MHz)']) / 1000000 * sol
+        self.ra2m = 1 / float(self.cmaster.processes['readfiles']['Range_sampling_rate (computed, MHz)']) / 1000000 * sol / 2
 
         az_time = self.cmaster.processes['readfiles']['First_pixel_azimuth_time (UTC)']
         az_seconds = (datetime.datetime.strptime(az_time, '%Y-%m-%dT%H:%M:%S.%f') -
@@ -62,8 +62,15 @@ class Baseline(object):
         self.slave_az_step = 1 / float(self.slave.processes['readfiles']['Pulse_Repetition_Frequency (computed, Hz)'])
 
         # Load data
-        self.ra_shift = self.cmaster.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape, 'new_pixel' + self.sample)
-        self.az_shift = self.cmaster.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape, 'new_line' + self.sample)
+        self.X = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'X')
+        self.Y = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'Y')
+        self.Z = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'Z')
+        ra = self.slave.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape, 'new_pixel' + self.sample)
+        self.az = self.slave.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape, 'new_line' + self.sample)
+
+        self.no0 = (ra != 0) * (self.az != 0)
+        first_pix = int(self.slave.processes['crop']['crop_first_pixel'])
+        self.ra_shift = ra - np.arange(first_pix, first_pix + ra.shape[1])[None, :]
 
         if horizontal or vertical or angle:
             self.incidence = (90 - self.cmaster.image_load_data_memory('azimuth_elevation_angle', self.s_lin, self.s_pix,
@@ -78,11 +85,10 @@ class Baseline(object):
         self.angle = angle
 
         self.baseline = np.zeros(self.ra_shift.shape).astype(np.float32)
+        self.parallel_b = np.zeros(self.ra_shift.shape).astype(np.float32)
 
         if perpendicular:
             self.perp_b = np.zeros(self.ra_shift.shape).astype(np.float32)
-        if self.parallel:
-            self.parallel_b = np.zeros(self.ra_shift.shape).astype(np.float32)
         if horizontal:
             self.horizontal_b = np.zeros(self.ra_shift.shape).astype(np.float32)
         if vertical:
@@ -95,33 +101,53 @@ class Baseline(object):
         # Prepare orbit interpolation
         self.master_orbit = OrbitInterpolate(self.cmaster)
         self.master_orbit.fit_orbit_spline(vel=False, acc=False)
-        self.slave_orbit = OrbitInterpolate(self.cmaster)
+        self.slave_orbit = OrbitInterpolate(self.slave)
         self.slave_orbit.fit_orbit_spline(vel=False, acc=False)
 
     def __call__(self):
         # Calculate the new line and pixel coordinates based orbits / geometry
-        if len(self.ra_shift) == 0 or len(self.az_shift) == 0:
+        if len(self.ra_shift) == 0 or len(self.az) == 0:
             print('Missing input data for geometrical coregistration for ' + self.slave.folder + '. Aborting..')
             return False
 
         try:
-            no0 = (self.ra_shift != 0) * (self.az_shift != 0)
 
-            if np.sum(no0) > 0:
+            if np.sum(self.no0) > 0:
                 # First get the master and slave positions.
+                lines, pixels = np.where(self.no0)
+                del pixels
+
                 master_az_times = self.master_az_time + self.master_az_step * (self.lines - 1)
                 [m_x, m_y, m_z], v, a = self.master_orbit.evaluate_orbit_spline(master_az_times)
-                slave_az_times = self.slave_az_time + self.slave_az_step * (self.lines - 1)
-                [s_x, s_y, s_z], v, a = self.slave_orbit.evaluate_orbit_spline(self.az_shift[no0] * self.slave_az_step + slave_az_times[:, None])
+                m_xyz = np.concatenate((m_x[lines][None, :], m_y[lines][None, :], m_z[lines][None, :]))
+                del m_x, m_y, m_z
+
+                [s_x, s_y, s_z], v, a = self.slave_orbit.evaluate_orbit_spline((self.az[self.no0] - 1) * self.slave_az_step + self.slave_az_time)
+                s_xyz = np.concatenate((s_x[None, :], s_y[None, :], s_z[None, :]))
+                del s_x, s_y, s_z
 
                 # Then calculate the parallel and perpendicular baseline.
                 self.baseline_2 = np.zeros(self.ra_shift.shape)
-                self.baseline_2[no0] = ((s_x - m_x[:, None])**2 + (s_y - m_y[:, None])**2 + (s_z - m_z[:, None])**2).astype(np.float32)
-                del m_x, m_y, m_z, s_x, s_y, s_z
+                self.baseline_2[self.no0] = np.sum((m_xyz - s_xyz)**2, axis=0).astype(np.float32)
 
-                self.parallel_b[no0] = self.ra_shift[no0] * self.ra2m
-                self.perpendicular_b = np.zeros(self.ra_shift.shape)
-                self.perpendicular_b[no0] = np.sqrt(self.parallel**2 + self.baseline_2[no0])
+                p_xyz = np.concatenate((self.X[self.no0][None, :], self.Y[self.no0][None, :], self.Z[self.no0][None, :]))
+                m_xyz -= p_xyz
+                s_xyz -= p_xyz
+                self.parallel_b[self.no0] = np.sqrt(np.sum((m_xyz) ** 2, axis=0)) - np.sqrt(np.sum((s_xyz) ** 2, axis=0))
+
+                m_xyz = m_xyz / np.sqrt(np.sum(m_xyz ** 2, axis=0))
+                s_xyz = s_xyz / np.sqrt(np.sum(s_xyz ** 2, axis=0))
+                p_xyz = p_xyz / np.sqrt(np.sum(p_xyz ** 2, axis=0))
+
+                angle_m = np.arccos(np.einsum('ij,ij->j', m_xyz, p_xyz)).astype(np.float32)
+                del m_xyz
+                angle_s = np.arccos(np.einsum('ij,ij->j', s_xyz, p_xyz)).astype(np.float32)
+                del s_xyz, p_xyz
+                pos_neg = np.array(angle_m > angle_s).astype(np.int8)
+                del angle_m, angle_s
+
+                self.perpendicular_b = np.zeros(self.ra_shift.shape).astype(np.float32)
+                self.perpendicular_b[self.no0] = np.sqrt(self.baseline_2[self.no0] - self.parallel_b[self.no0]**2) * pos_neg
 
             # Save meta data
             self.add_meta_data(self.slave, self.coordinates, self.perpendicular,
@@ -137,21 +163,21 @@ class Baseline(object):
 
             # Create and save the other baseline types if needed.
             if self.horizontal:
-                self.horizontal_b[no0] = self.perpendicular_b[no0] * np.cos(self.incidence[no0]) \
-                                                 + self.parallel_b[no0] * np.sin(self.incidence[no0])
+                self.horizontal_b[self.no0] = self.perpendicular_b[self.no0] * np.cos(self.incidence[self.no0]) \
+                                                 + self.parallel_b[self.no0] * np.sin(self.incidence[self.no0])
                 self.slave.image_new_data_memory(self.horizontal_b, 'baseline', self.s_lin, self.s_pix,
                                             file_type='horizontal_baseline' + self.sample)
             if self.vertical:
-                self.vertical_b[no0] = self.perpendicular_b[no0] * np.sin(self.incidence[no0])\
-                                               - self.parallel_b[no0] * np.cos(self.incidence[no0])
+                self.vertical_b[self.no0] = self.perpendicular_b[self.no0] * np.sin(self.incidence[self.no0])\
+                                               - self.parallel_b[self.no0] * np.cos(self.incidence[self.no0])
                 self.slave.image_new_data_memory(self.vertical_b, 'baseline', self.s_lin, self.s_pix,
                                                 file_type='vertical_baseline' + self.sample)
             if self.angle:
-                self.angle_b[no0] = (self.incidence[no0] - np.arctan(self.parallel_b[no0] / self.perpendicular_b[no0])) / np.pi * 180
+                self.angle_b[self.no0] = (self.incidence[self.no0] - np.arctan(self.parallel_b[self.no0] / self.perpendicular_b[self.no0])) / np.pi * 180
                 self.slave.image_new_data_memory(self.angle_b, 'baseline', self.s_lin, self.s_pix,
                                                 file_type='horizontal_baseline' + self.sample)
             if self.total_baseline:
-                self.total_b[no0] = np.sqrt(self.baseline_2[no0])
+                self.total_b[self.no0] = np.sqrt(self.baseline_2[self.no0])
                 self.slave.image_new_data_memory(self.angle_b, 'baseline', self.s_lin, self.s_pix,
                                                 file_type='total_baseline' + self.sample)
 
@@ -223,12 +249,12 @@ class Baseline(object):
         for t in ['new_line', 'new_pixel']:
             input_dat['slave']['geometrical_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
             input_dat['slave']['geometrical_coreg'][t]['coordinates'] = coordinates
-            input_dat['slave']['geometrical_coreg'][t]['slice'] = coordinates.slice
+            input_dat['slave']['geometrical_coreg'][t]['slice'] = True
 
         if horizontal or vertical or angle:
-            input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['file'] = [t + coordinates.sample + '.raw']
-            input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['coordinates'] = coordinates
-            input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['slice'] = coordinates.slice
+            input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle']['file'] = ['elevation_angle' + coordinates.sample + '.raw']
+            input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle']['coordinates'] = coordinates
+            input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle']['slice'] = coordinates.slice
 
         # line and pixel output files.
         output_dat = recursive_dict()

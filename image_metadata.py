@@ -71,11 +71,12 @@ class ImageMetadata(object):
                                                         ('azimuth_elevation_angle', '0'), ('deramp', '0'),
                                                         ('sim_amplitude', '0'), ('coreg_readfiles', '0'),
                                                         ('coreg_orbits', '0'), ('coreg_crop', '0'),
-                                                        ('geometrical_coreg', '0'),
+                                                        ('geometrical_coreg', '0'), ('square_amplitude', '0'),
+                                                        ('amplitude', '0'),
                                                         ('correl_coreg', '0'), ('combined_coreg', '0'),
                                                         ('master_timing', '0'), ('oversample', '0'),
-                                                        ('resample', '0'), ('reramp', '0'),
-                                                        ('earth_topo_phase', '0'), ('filt_azi', '0'),
+                                                        ('resample', '0'), ('reramp', '0'), ('height_to_phase', '0'),
+                                                        ('earth_topo_phase', '0'), ('filt_azi', '0'), ('baseline', '0'),
                                                         ('filt_range', '0'), ('NWP_phase', '0'),
                                                         ('structure_function', '0'), ('split_spectrum', '0')])
         elif res_type == 'interferogram':
@@ -189,6 +190,12 @@ class ImageMetadata(object):
             dat_coors.shape = [int(type_info['lines']), int(type_info['pixels'])]
             dat_coors.first_line = int(type_info['first_line'])
             dat_coors.first_pixel = int(type_info['first_pixel'])
+            meta_name = os.path.basename(os.path.dirname(self.res_path))
+            dat_coors.res_path = self.res_path
+            if meta_name.startswith('slice'):
+                dat_coors.meta_name = meta_name
+            else:
+                dat_coors.meta_name = 'full'
 
             dat_coors.slice = self.processes['readfiles']['slice'] == 'True'
             coordinates_list.append(dat_coors)
@@ -362,7 +369,7 @@ class ImageMetadata(object):
                 self.process_control[proc] = '0'
                 del self.processes[proc]
 
-    def write(self, new_filename=''):
+    def write(self, new_filename='', warn=True):
         # Here all the available information acquired is written to a new resfile. Generally if information is manually
         # added or removed and the file should be created or created again. (For example the readfiles for Sentinel 1
         # which are not added yet..)
@@ -372,7 +379,7 @@ class ImageMetadata(object):
             return
         elif not new_filename:
             new_filename = self.res_path
-        if not self.process_control or not self.processes:
+        if not self.process_control or not self.processes and warn:
             warnings.warn('Every result file needs at least a process control and one process to make any sense: ' + str(new_filename))
 
         # Open file and write header, process control and processes

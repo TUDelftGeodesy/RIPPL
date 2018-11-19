@@ -34,7 +34,7 @@ class CreateSrtmDem(OrbitCoordinates):
     :type meta = ImageData
     """
 
-    def __init__(self, meta, srtm_folder='', quality=False, buf=0.2, rounding=0.2, srtm_type='SRTM3'):
+    def __init__(self, meta, srtm_folder='', quality=False, buf=0.2, rounding=0.2, srtm_type='SRTM3', s_lin=0, s_pix=0, lines=0):
 
         # Define the limits of our image
         if isinstance(meta, ImageData):

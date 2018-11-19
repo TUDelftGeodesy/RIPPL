@@ -649,9 +649,9 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
 
         # Calc elevation angle
         if self.regular:
-            self.elevation_angle = 180 - np.arccos(np.einsum('ijk,ijk->jk', ray, -N)).astype(np.float32) / np.pi * 180
+            self.elevation_angle = np.arccos(np.einsum('ijk,ijk->jk', ray, -N)).astype(np.float32) / np.pi * 180 - 90
         else:
-            self.elevation_angle = 180 - np.arccos(np.einsum('ij,ij->j', ray, -N)).astype(np.float32) / np.pi * 180
+            self.elevation_angle = np.arccos(np.einsum('ij,ij->j', ray, -N)).astype(np.float32) / np.pi * 180 - 90
 
         # Calc vector on tangent plant to satellite and to north
         xy_dist = np.sqrt(self.x**2 + self.y**2)

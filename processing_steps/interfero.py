@@ -17,7 +17,7 @@ class Interfero(object):
     :type s_lin = int
     """
 
-    def __init__(self, meta, master_meta, coordinates, coor_out='', cmaster_meta='', ifg_meta='', s_lin=0, s_pix=0, lines=0,
+    def __init__(self, meta, master_meta, coordinates, coor_in='', cmaster_meta='', ifg_meta='', s_lin=0, s_pix=0, lines=0,
                  step='earth_topo_phase', file_type=''):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
@@ -37,12 +37,13 @@ class Interfero(object):
             self.add_meta_data(master_meta, meta)
 
         if isinstance(coordinates, CoordinateSystem):
-            self.coor_in = coordinates
+            self.coor_out = coordinates
 
-        if isinstance(coor_out, CoordinateSystem):
-            self.coor_out = coor_out
+
+        if isinstance(coor_in, CoordinateSystem):
+            self.coor_in = coor_in
         else:
-            self.coor_out = self.coor_in
+            self.coor_in = self.coor_out
 
         # Load data (somewhat complicated for the geographical multilooking.
         if self.coor_in.grid_type == 'radar_coordinates' and self.coor_out.grid_type in ['geographic', 'projection']:
@@ -50,7 +51,7 @@ class Interfero(object):
             self.use_ids = True
 
             # Check additional information on geographical multilooking
-            convert_sample = coor_in.sample + '_' + coor_out.sample
+            convert_sample = self.coor_in.sample + '_' + self.coor_out.sample
 
             sort_ids_shape = self.cmaster.image_get_data_size(step, 'sort_ids' + convert_sample)
             sum_ids_shape = self.cmaster.image_get_data_size(step, 'sum_ids' + convert_sample)
@@ -78,8 +79,8 @@ class Interfero(object):
 
         # Currently not possible to perform this step in slices because it includes multilooking. Maybe this will be
         # able later on. (Convert to different grids and slicing can cause problems at the sides of the slices.)
-        self.master_dat = self.master.image_load_data_memory(self.step, 0, 0, coor_in.shape, self.step, warn=False)
-        self.slave_dat = self.slave.image_load_data_memory('earth_topo_phase', 0, 0, coor_in.shape, 'earth_topo_phase', warn=False)
+        self.master_dat = self.master.image_load_data_memory(self.step, 0, 0, self.coor_in.shape, self.step, warn=False)
+        self.slave_dat = self.slave.image_load_data_memory('earth_topo_phase', 0, 0, self.coor_in.shape, 'earth_topo_phase', warn=False)
 
         self.interferogram = []
 
@@ -138,7 +139,7 @@ class Interfero(object):
             return False
 
     @staticmethod
-    def create_meta_data(meta, master_meta):
+    def create_meta_data(meta, master_meta, ifg_meta=''):
         # This function creates a folder and .res file for this interferogram.
         master_path = master_meta.res_path
         slave_path = meta.res_path
@@ -155,26 +156,27 @@ class Interfero(object):
                                        master_date + '_' + slave_date,
                                        os.path.basename(os.path.dirname(master_path)))
 
-        ifg = ImageData(filename='', res_type='interferogram')
-        ifg.res_path = os.path.join(ifgs_folder, 'info.res')
-        ifg.folder = ifgs_folder
-        
-        if 'coreg_readfiles' in master.processes.keys():
-            ifg.image_add_processing_step('coreg_readfiles', copy.deepcopy(master.processes['coreg_readfiles']))
-            ifg.image_add_processing_step('coreg_orbits', copy.deepcopy(master.processes['coreg_orbits']))
-            ifg.image_add_processing_step('coreg_crop', copy.deepcopy(master.processes['coreg_crop']))
-        elif 'coreg_readfiles' in slave.processes.keys():
-            ifg.image_add_processing_step('coreg_readfiles', copy.deepcopy(slave.processes['coreg_readfiles']))
-            ifg.image_add_processing_step('coreg_orbits', copy.deepcopy(slave.processes['coreg_orbits']))
-            ifg.image_add_processing_step('coreg_crop', copy.deepcopy(slave.processes['coreg_crop']))
+        if not ifg_meta:
+            ifg_meta = ImageData(filename='', res_type='interferogram')
+            ifg_meta.res_path = os.path.join(ifgs_folder, 'info.res')
+            ifg_meta.folder = ifgs_folder
 
-        # Derive geometry
-        ifg.geometry()
+            if 'coreg_readfiles' in master_meta.processes.keys():
+                ifg_meta.image_add_processing_step('coreg_readfiles', copy.deepcopy(master_meta.processes['coreg_readfiles']))
+                ifg_meta.image_add_processing_step('coreg_orbits', copy.deepcopy(master_meta.processes['coreg_orbits']))
+                ifg_meta.image_add_processing_step('coreg_crop', copy.deepcopy(master_meta.processes['coreg_crop']))
+            elif 'coreg_readfiles' in meta.processes.keys():
+                ifg_meta.image_add_processing_step('coreg_readfiles', copy.deepcopy(meta.processes['coreg_readfiles']))
+                ifg_meta.image_add_processing_step('coreg_orbits', copy.deepcopy(meta.processes['coreg_orbits']))
+                ifg_meta.image_add_processing_step('coreg_crop', copy.deepcopy(meta.processes['coreg_crop']))
 
-        return ifg
+            # Derive geometry
+            ifg_meta.geometry()
+
+        return ifg_meta
 
     @staticmethod
-    def add_meta_data(ifg_meta, coordinates):
+    def add_meta_data(ifg_meta, coordinates, step='', type=''):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
         if 'interferogram' in ifg_meta.processes.keys():
@@ -182,17 +184,17 @@ class Interfero(object):
         else:
             meta_info = OrderedDict()
 
-        for coor in coordinates:
-            if not isinstance(coor, CoordinateSystem):
-                print('coordinates should be an CoordinateSystem object')
-                return
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
+            return
 
-            meta_info = coor.create_meta_data(['interferogram' + coor.sample], ['complex_float'])
-
+        meta_info = coordinates.create_meta_data(['interferogram'], ['complex_real4'], meta_info)
+        meta_info['interferogram' + coordinates.sample + '_input_step'] = step
+        meta_info['interferogram' + coordinates.sample + '_input_type'] = type
         ifg_meta.image_add_processing_step('interferogram', meta_info)
 
     @staticmethod
-    def processing_info(coor_out, coor_in='', meta_type='', ifg_input_step='earth_topo_phase', ifg_input_type='earth_topo_phase'):
+    def processing_info(coor_out, coor_in='', step='earth_topo_phase', file_type='earth_topo_phase'):
 
         if not isinstance(coor_in, CoordinateSystem):
             coor_in = CoordinateSystem()
@@ -203,15 +205,15 @@ class Interfero(object):
         # Three input files needed x, y, z coordinates
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat['slave'][ifg_input_step][ifg_input_type]['file'] = [ifg_input_type + '.raw']
-        input_dat['slave'][ifg_input_step][ifg_input_type]['coordinates'] = coor_in
-        input_dat['slave'][ifg_input_step][ifg_input_type]['slice'] = True
-        input_dat['slave'][ifg_input_step][ifg_input_type]['coor_change'] = 'multilook'
+        input_dat['slave'][step][file_type]['file'] = [file_type + '.raw']
+        input_dat['slave'][step][file_type]['coordinates'] = coor_in
+        input_dat['slave'][step][file_type]['slice'] = True
+        input_dat['slave'][step][file_type]['coor_change'] = 'multilook'
 
-        input_dat['master'][ifg_input_step][ifg_input_type]['file'] = [ifg_input_type + '.raw']
-        input_dat['master'][ifg_input_step][ifg_input_type]['coordinates'] = coor_in
-        input_dat['master'][ifg_input_step][ifg_input_type]['slice'] = True
-        input_dat['master'][ifg_input_step][ifg_input_type]['coor_change'] = 'multilook'
+        input_dat['master'][step][file_type]['file'] = [file_type + '.raw']
+        input_dat['master'][step][file_type]['coordinates'] = coor_in
+        input_dat['master'][step][file_type]['slice'] = True
+        input_dat['master'][step][file_type]['coor_change'] = 'multilook'
 
         # line and pixel output files.
         output_dat = recursive_dict()

@@ -52,7 +52,8 @@ class Concatenate(object):
         else:
             return
 
-        dummy, self.coordinates_slices = Concatenate.find_slice_coordinates(self.meta_slices, self.coordinates)
+        dummy, self.in_coordinates_slices, self.coordinates_slices = \
+            Concatenate.find_slice_coordinates(self.meta_slices, self.coordinates, self.coordinates, step=self.step, file_type=self.file_type)
 
     def __call__(self):
 
@@ -62,23 +63,23 @@ class Concatenate(object):
 
         try:
 
-            self.add_meta_data(self.meta_slices, self.meta, self.coordinates, self.step, self.file_type)
+            self.add_meta_data(self.meta_slices, self.coordinates_slices, self.meta, self.coordinates, self.step, self.file_type)
 
             # Load the data from the slices
-            data_slices, data_type, str_data_type = Concatenate.load_slices(self.step, self.meta_slices, self.coordinates_slices, self.file_type)
+            data_slices, data_type, str_data_type = Concatenate.load_slices(self.step, self.meta_slices, self.in_coordinates_slices, self.file_type)
 
             if self.out_data == 'disk':
-                self.meta.image_create_disk(self.step, self.file_type)
-                data = self.meta.data_disk[self.step][self.file_type]
+                self.meta.image_create_disk(self.step, self.file_type + self.coordinates.sample)
+                data = self.meta.data_disk[self.step][self.file_type + self.coordinates.sample]
             elif self.out_data == 'memory':
                 empty_image = np.zeros(self.coordinates.shape).astype(self.meta.dtype_numpy[data_type])
-                self.meta.image_new_data_memory(empty_image, self.step, 0, 0, self.file_type)
-                data = self.meta.data_memory[self.step][self.file_type]
+                self.meta.image_new_data_memory(empty_image, self.step, 0, 0, self.file_type + self.coordinates.sample)
+                data = self.meta.data_memory[self.step][self.file_type + self.coordinates.sample]
             else:
                 print('out_data should either be disk or memory')
                 return
 
-            for data_slice, coordinates_slice, meta in zip(data_slices, self.coordinates_slices, self.meta_slices):
+            for data_slice, coordinates_slice, meta in zip(data_slices, self.in_coordinates_slices, self.meta_slices):
 
                 print('Adding file type ' + self.file_type + coordinates_slice.sample + ' for step ' + self.step + ' of slice ' + os.path.basename(os.path.dirname(meta.res_path)))
 
@@ -131,7 +132,7 @@ class Concatenate(object):
             return False
 
     @staticmethod
-    def add_meta_data(meta_slices, meta, coordinates, step, file_type=''):
+    def add_meta_data(meta_slices, meta_coordinates, meta, coordinates, step, file_type=''):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
 
@@ -146,7 +147,7 @@ class Concatenate(object):
         if file_type == '':
             file_type = step
 
-        data_type = meta_slices[0].data_types[step][file_type + coordinates.sample]
+        data_type = meta_slices[0].data_types[step][file_type + meta_coordinates[0].sample]
         meta_info = coordinates.create_meta_data([file_type], [data_type], meta_info)
         meta.image_add_processing_step(step, meta_info)
 
@@ -160,7 +161,7 @@ class Concatenate(object):
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
-        meta, coordinates_slices = Concatenate.find_slice_coordinates(meta_slices, coordinates)
+        meta, coordinates_slices, in_coordinates_slices = Concatenate.find_slice_coordinates(meta_slices, coordinates)
         slice_names = [os.path.basename(slice.folder) for slice in meta_slices]
         slice_file_names = [file_type + coor.sample + '.raw' for coor in coordinates_slices]
 
@@ -299,6 +300,8 @@ class Concatenate(object):
             meta.processes[step_meta + 'readfiles'].pop('Datafile')
             meta.processes[step_meta + 'readfiles'].pop('Dataformat')
 
+        meta.geometry()
+
         return meta
 
     @staticmethod
@@ -344,7 +347,7 @@ class Concatenate(object):
         return min_az, min_ra, shape
 
     @staticmethod
-    def find_slice_coordinates(meta_slices, coordinates, slice_offset=''):
+    def find_slice_coordinates(meta_slices, in_coor, out_coor, slice_offset='', step='', file_type=''):
         # This function is used to create an oversight of the coordinates of the available slices. This results in an
         # oversight of the start pixel/line of every burst compared to the full image.
         # This function can be run using the base readfiles and crop data of the coregistration image.
@@ -354,7 +357,7 @@ class Concatenate(object):
             if not isinstance(slice, ImageData):
                 print('Slices should be an ImageData instance')
                 return
-        if not isinstance(coordinates, CoordinateSystem):
+        if not isinstance(in_coor, CoordinateSystem) and not isinstance(out_coor, CoordinateSystem):
             print('coordinates should be an CoordinateSystem instance')
             return
         if len(slice_offset) == 0:
@@ -364,36 +367,74 @@ class Concatenate(object):
         meta = Concatenate.create_concat_meta(meta_slices)
 
         # Load the data for the provided coordinate system
-        if coordinates.grid_type == 'geographic':
-            if coordinates.shape == '' or coordinates.lat0 == '' or coordinates.lon0 == '':
-                coordinates.add_res_info(meta)
-        if coordinates.grid_type == 'projection':
-            if coordinates.shape == '' or coordinates.x0 == '' or coordinates.y0 == '':
-                coordinates.add_res_info(meta)
-        elif coordinates.grid_type == 'radar_coordinates':
-            coordinates.add_res_info(meta)
+        if out_coor.grid_type == 'geographic':
+            if len(out_coor.shape) == 0 or out_coor.lat0 == '' or out_coor.lon0 == '':
+                out_coor.add_res_info(meta)
+        if out_coor.grid_type == 'projection':
+            if len(out_coor.shape) == 0 or out_coor.x0 == '' or out_coor.y0 == '':
+                out_coor.add_res_info(meta)
+        elif out_coor.grid_type == 'radar_coordinates':
+            out_coor.add_res_info(meta)
+
+        if in_coor.grid_type == 'geographic':
+            if len(in_coor.shape) == 0 or in_coor.lat0 == '' or in_coor.lon0 == '':
+                in_coor.add_res_info(meta)
+        if in_coor.grid_type == 'projection':
+            if len(in_coor.shape) == 0 or in_coor.x0 == '' or in_coor.y0 == '':
+                in_coor.add_res_info(meta)
+        elif in_coor.grid_type == 'radar_coordinates':
+            in_coor.add_res_info(meta)
 
         # Create output coordinate systems
-        coordinates_slices = [copy.deepcopy(coordinates) for slice in meta_slices]
+        in_coor_slices = [copy.deepcopy(in_coor) for slice in meta_slices]
+        out_coor_slices = [copy.deepcopy(out_coor) for slice in meta_slices]
 
         # First pixels of slices (only relevant for radar coordinates later on.)
         slices_start = []
 
         # Get the coordinates of the first line/pixel within the full image.
-        for slice, coordinates_slice in zip(meta_slices, coordinates_slices):
-            coordinates_slice.add_res_info(slice, change_ref=False)
-            slices_start.append([coordinates_slice.first_line, coordinates_slice.first_pixel])
+        coordinates_slices = []
+        out_coordinates_slices = []
+        in_coordinates_slices = []
+
+        for slice, in_coor_slice, out_coor_slice in zip(meta_slices, in_coor_slices, out_coor_slices):
+            if step == '' or file_type == '':
+                in_coor_slice.add_res_info(slice, change_ref=False)
+                out_coor_slice.add_res_info(slice, change_ref=False)
+            else:
+                old_in_coor = slice.read_res_coordinates(step, [file_type + in_coor_slice.sample])[0]
+                in_coor_slice.add_res_info(slice, change_ref=False, old_coor=old_in_coor)
+                old_out_coor = slice.read_res_coordinates(step, [file_type + out_coor_slice.sample])[0]
+                out_coor_slice.add_res_info(slice, change_ref=False, old_coor=old_out_coor)
+
+            in_coordinates_slices.append(in_coor_slice)
+            coordinates_slices.append(out_coor_slice)
+            slices_start.append([in_coor_slice.first_line, in_coor_slice.first_pixel])
 
         # For the radar coordinates calculate the new offsets
-        if coordinates.grid_type == 'radar_coordinates':
-            slices_offsets = FindCoordinates.find_slices_offset(coordinates.shape, coordinates.multilook,
-                                                                coordinates.oversample,  coordinates.offset,
+        if out_coor.grid_type == 'radar_coordinates':
+            slices_offsets = FindCoordinates.find_slices_offset(out_coor.shape, 0, 0, out_coor.multilook,
+                                                                out_coor.oversample,  out_coor.offset,
                                                                 slices_start, slice_offset=slice_offset)
 
-            for slice_offset, coordinates_slice in zip(slices_offsets, coordinates_slices):
+            for slice, slice_offset, slice_start, coordinates_slice in zip(meta_slices, slices_offsets, slices_start, coordinates_slices):
                 coordinates_slice.offset = slice_offset
+                coordinates_slice.add_res_info(slice, change_ref=False)
+                coordinates_slice.first_pixel = (slice_start[1] - slice_offset[1]) / out_coor.multilook[1]
+                coordinates_slice.first_line = (slice_start[0] - slice_offset[0]) / out_coor.multilook[0]
+                sample = FindCoordinates.multilook_str(coordinates_slice.multilook, coordinates_slice.oversample, coordinates_slice.offset)[0]
+                coordinates_slice.sample = sample
+                out_coordinates_slices.append(coordinates_slice)
+        else:
+            for slice, slice_start, coordinates_slice in zip(meta_slices, slices_start, coordinates_slices):
+                coordinates_slice.offset = slice_offset
+                coordinates_slice.add_res_info(slice, change_ref=False)
+                coordinates_slice.first_pixel = slice_start[1]
+                coordinates_slice.first_line = slice_start[0]
+                coordinates_slice.sample = out_coor.sample
+                out_coordinates_slices.append(coordinates_slice)
 
-        return meta, coordinates_slices
+        return meta, in_coordinates_slices, out_coordinates_slices
 
     @staticmethod
     def load_slices(step, slices, slices_coordinates, file_type=''):
@@ -426,7 +467,7 @@ class Concatenate(object):
                         image_dat.append(slice.data_disk[step][type_dat])
                         continue
 
-                    elif slice.read_data_memmap(step, file_type):
+                    elif slice.read_data_memmap(step, type_dat):
                         image_dat.append(slice.data_disk[step][type_dat])
                         continue
 

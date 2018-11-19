@@ -185,12 +185,12 @@ class RadarDem(object):
             l = shape[0] - s_lin
         shape = [l, shape[1] - s_pix]
 
-        lines = coordinates.interval_lines[s_lin: s_lin + shape[0]] + 1
-        pixels = coordinates.interval_pixels[s_pix: s_pix + shape[1]] + 1
+        lines = coordinates.interval_lines[s_lin: s_lin + shape[0]] + coordinates.first_line
+        pixels = coordinates.interval_pixels[s_pix: s_pix + shape[1]] + coordinates.first_pixel
 
         if ml_coors:
-            ml_lines = coordinates.ml_lines[s_lin: s_lin + shape[0]]
-            ml_pixels = coordinates.ml_pixels[s_pix: s_pix + shape[1]]
+            ml_lines = coordinates.ml_lines[s_lin: s_lin + shape[0]] + coordinates.first_line
+            ml_pixels = coordinates.ml_pixels[s_pix: s_pix + shape[1]] + coordinates.first_pixel
 
             return shape, lines, pixels, ml_lines, ml_pixels
         else:

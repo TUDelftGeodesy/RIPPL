@@ -32,9 +32,9 @@ class Coherence(object):
             Interfero.create_meta_data(master_meta, meta)
 
         if isinstance(coordinates, CoordinateSystem):
-            self.coordinates = [coordinates]
-        else:
             self.coordinates = coordinates
+        else:
+            print('coordinates variable should be an CoordinateSystem object')
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
         self.s_lin = s_lin
@@ -48,7 +48,7 @@ class Coherence(object):
                                                                  'square_amplitude' + coordinates.sample, warn=False)
         self.slave_squared = self.slave.image_load_data_memory('square_amplitude', self.s_lin, self.s_pix, self.shape,
                                                                'square_amplitude' + coordinates.sample, warn=False)
-        self.ifg_dat = self.slave.image_load_data_memory('interferogram', self.s_lin, self.s_pix, self.shape,
+        self.ifg_dat = self.ifg.image_load_data_memory('interferogram', self.s_lin, self.s_pix, self.shape,
                                                          'interferogram' + coordinates.sample, warn=False)
 
         self.coherence = []
@@ -61,7 +61,9 @@ class Coherence(object):
 
         try:
             # Calculate new coherence from squared amplitudes and interferogram
-            self.coherence = self.ifg_dat / np.sqrt(self.slave_squared * self.master_squared)
+            self.coherence = np.zeros(self.ifg_dat.shape).astype(np.float32)
+            no0 = (self.slave_squared > 0) * (self.master_squared > 0)
+            self.coherence[no0] = np.abs(self.ifg_dat[no0]) / np.sqrt(self.slave_squared[no0] * self.master_squared[no0])
 
             # If needed do the multilooking step
             self.add_meta_data(self.ifg, self.coordinates)
@@ -89,13 +91,7 @@ class Coherence(object):
         else:
             meta_info = OrderedDict()
 
-        for coor in coordinates:
-            if not isinstance(coor, CoordinateSystem):
-                print('coordinates should be an CoordinateSystem object')
-                return
-
-            meta_info = coor.create_meta_data(['coherence' + coor.sample], ['complex_float'])
-
+        meta_info = coordinates.create_meta_data(['coherence'], ['real4'], meta_info)
         ifg_meta.image_add_processing_step('coherence', meta_info)
 
     @staticmethod
@@ -107,22 +103,20 @@ class Coherence(object):
         # Three input files needed x, y, z coordinates
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        coor = CoordinateSystem()
         for res_type in ['slave', 'master']:
             input_dat[res_type]['square_amplitude']['square_amplitude']['file'] = ['square_amplitude' + coordinates.sample + '.raw']
-            input_dat[res_type]['square_amplitude']['square_amplitude']['coordinates'] = coor
-            input_dat[res_type]['square_amplitude']['square_amplitude']['slice'] = coor.slice
+            input_dat[res_type]['square_amplitude']['square_amplitude']['coordinates'] = coordinates
+            input_dat[res_type]['square_amplitude']['square_amplitude']['slice'] = coordinates.slice
 
         input_dat['ifg']['interferogram']['interferogram']['file'] = ['interferogram' + coordinates.sample + '.raw']
-        input_dat['ifg']['interferogram']['interferogram']['coordinates'] = coor
-        input_dat['ifg']['interferogram']['interferogram']['slice'] = coor.slice
+        input_dat['ifg']['interferogram']['interferogram']['coordinates'] = coordinates
+        input_dat['ifg']['interferogram']['interferogram']['slice'] = coordinates.slice
 
         # line and pixel output files.
         output_dat = recursive_dict()
-        for coor in coordinates:
-            output_dat['ifg']['coherence']['coherence']['file'] = ['coherence' + coor.sample + '.raw']
-            output_dat['ifg']['coherence']['coherence']['coordinates'] = coor
-            output_dat['ifg']['coherence']['coherence']['slice'] = coor.slice
+        output_dat['ifg']['coherence']['coherence']['file'] = ['coherence' + coordinates.sample + '.raw']
+        output_dat['ifg']['coherence']['coherence']['coordinates'] = coordinates
+        output_dat['ifg']['coherence']['coherence']['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 20

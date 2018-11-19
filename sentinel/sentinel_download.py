@@ -325,7 +325,7 @@ class DownloadSentinelOrbit(object):
         self.restituted_folder = restituted_folder
 
         last_precise = '' # Last precise orbit file. Used to remove unused restituted orbit files.
-        gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+        gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 
         # From now on the start date and end date should be given to find the right path.
         start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
@@ -391,7 +391,7 @@ class DownloadSentinelOrbit(object):
     def download_orbits(self):
         # Do the actual download
 
-        gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+        gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 
         if self.precise_folder:
             for orb, url in zip(self.precise_files, self.precise_links):

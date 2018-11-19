@@ -5,6 +5,7 @@ import os
 def run_parallel(dat):
     # First split the functions and variables
     functions = dat['function']
+    succes = True
 
     for func, n in zip(functions, range(len(functions))):
 
@@ -48,7 +49,8 @@ def run_parallel(dat):
                 exec(eval_str)
 
             # Run the function created by the eval() string
-            proc_func()
+            succes = proc_func()
+
 
             if 's_lin' in var_names and 'lines' in var_names and 'meta' in var_names:
 
@@ -77,6 +79,11 @@ def run_parallel(dat):
                                 meta_str in ['meta', 'master_meta', 'cmaster_meta', 'ifg_meta']]
             for meta in memmap_data_vars:
                 meta.clean_memmap_files()
+
+            # If
+            if not succes:
+                break
+
 
         if dat['save']:
             var = dat['save_var'][n]
@@ -108,4 +115,7 @@ def run_parallel(dat):
                     eval_str = 'meta.clean_memory(' + ','.join(func_str) + ')'
                     exec(eval_str)
 
-    return dat['res_dat']
+    if succes:
+        return dat['res_dat']
+    else:
+        return False

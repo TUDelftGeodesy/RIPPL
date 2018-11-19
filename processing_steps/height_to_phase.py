@@ -24,7 +24,7 @@ class HeightToPhase(object):
     :type shape = list
     """
 
-    def __init__(self, cmaster_meta, meta, coordinates, s_lin=0, s_pix=0, lines=0):
+    def __init__(self, meta, cmaster_meta, coordinates, s_lin=0, s_pix=0, lines=0):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
@@ -49,10 +49,10 @@ class HeightToPhase(object):
         self.wavelength = 1.0 / float(self.cmaster.processes['readfiles']['RADAR_FREQUENCY (HZ)']) * sol
 
         # Load data
-        self.baseline = self.cmaster.image_load_data_memory('baseline', self.s_lin, self.s_pix, self.shape,
-                                                            'Perpendicular_baseline')
+        self.baseline = self.slave.image_load_data_memory('baseline', self.s_lin, self.s_pix, self.shape,
+                                                            'perpendicular_baseline')
         self.incidence = (90 - self.cmaster.image_load_data_memory('azimuth_elevation_angle', self.s_lin, self.s_pix,
-                                                                       self.shape, 'Elevation_angle')) / 180 * np.pi
+                                                                       self.shape, 'elevation_angle')) / 180 * np.pi
 
         # Initialize output
         self.h2ph = []
@@ -65,12 +65,15 @@ class HeightToPhase(object):
 
         try:
             no0 = (self.baseline != 0) * (self.incidence != 0)
-            if np.sum(no0) > 0:
-                self.h2ph = np.zeros(self.baseline.shape).astype(np.float32)
+            lines, pixels = np.where(no0)
+            del lines
 
+            self.h2ph = np.zeros(self.baseline.shape).astype(np.float32)
+
+            if np.sum(no0) > 0:
                 # First get the master and slave positions.
-                R = self.ra2m * (self.pixels[None, :] - 1) + self.dist_first_pix
-                self.h2ph[no0] = self.baseline[no0] / (self.wavelength * R * np.sin(self.incidence[no0])) * 4 * np.pi
+                R = self.ra2m * (self.pixels[pixels] - 1) + self.dist_first_pix
+                self.h2ph[no0] = self.baseline[no0] / (R * np.sin(self.incidence[no0]))
 
             # Save meta data
             self.add_meta_data(self.slave, self.coordinates)
@@ -114,13 +117,13 @@ class HeightToPhase(object):
         # Three input files needed x, y, z coordinates
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat['slave']['baseline']['Perpendicular_baseline']['file'] = ['Perpendicular_baseline' + coordinates.sample + '.raw']
-        input_dat['slave']['baseline']['Perpendicular_baseline']['multilook'] = coordinates
-        input_dat['slave']['baseline']['Perpendicular_baseline']['slice'] = coordinates.slice
+        input_dat['slave']['baseline']['perpendicular_baseline']['file'] = ['perpendicular_baseline' + coordinates.sample + '.raw']
+        input_dat['slave']['baseline']['perpendicular_baseline']['coordinates'] = coordinates
+        input_dat['slave']['baseline']['perpendicular_baseline']['slice'] = True
 
-        input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['file'] = ['Elevation_angle' + coordinates.sample + '.raw']
-        input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['multilook'] = coordinates
-        input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['slice'] = coordinates.slice
+        input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle']['file'] = ['elevation_angle' + coordinates.sample + '.raw']
+        input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle']['coordinates'] = coordinates
+        input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle']['slice'] = coordinates.slice
 
         # line and pixel output files.
         output_dat = recursive_dict()
