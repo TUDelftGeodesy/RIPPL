@@ -1115,7 +1115,11 @@ class Pipeline():
                         pipeline_processing['clear_mem_var'].append(clear_mem_var)
 
                     # Then the parallel processing in blocks
-                    blocks = (pipeline['coor_out'][0].shape[0] * pipeline['coor_out'][0].shape[1]) // self.pixels + 1
+                    if 'unwrap' in pipeline['step']:
+                        blocks = 1
+                    else:
+                        blocks = (pipeline['coor_out'][0].shape[0] * pipeline['coor_out'][0].shape[1]) // self.pixels + 1
+
                     lines = pipeline['coor_out'][0].shape[0] // blocks + 1
 
                     for block_no in np.arange(int(blocks)):

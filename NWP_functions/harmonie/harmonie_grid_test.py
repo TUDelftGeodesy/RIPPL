@@ -13,13 +13,13 @@ import csv
 import json
 import datetime
 
-from doris_processing.image_data import ImageData
-from slant_delay.weather_models.model_ray_tracing import ModelRayTracing
-from slant_delay.weather_models.radar_data import RadarData
-from slant_delay.weather_models.model_to_delay import ModelToDelay
-from slant_delay.weather_models.model_interpolate_delays import ModelInterpolateDelays
-from slant_delay.weather_models.harmonie.harmonie_database import HarmonieDatabase
-from slant_delay.weather_models.harmonie.harmonie_load_file import HarmonieData
+from image_data import ImageData
+from NWP_functions.model_ray_tracing import ModelRayTracing
+from NWP_functions.radar_data import RadarData
+from NWP_functions.model_to_delay import ModelToDelay
+from NWP_functions.model_interpolate_delays import ModelInterpolateDelays
+from NWP_functions.harmonie.harmonie_database import HarmonieDatabase
+from NWP_functions.harmonie.harmonie_load_file import HarmonieData
 
 # path to your test data folder
 archive_folder = '/media/gert/Data/weather_models/harmonie_data'

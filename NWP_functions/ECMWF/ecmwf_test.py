@@ -12,15 +12,15 @@ import numpy as np
 import csv
 import datetime
 
-from slant_delay.weather_models.ECMWF.ecmwf_type import ECMWFType
-from slant_delay.weather_models.ECMWF.ecmwf_download import ECMWFdownload
-from slant_delay.weather_models.ECMWF.ecmwf_load_file import ECMWFData
+from NWP_functions.ECMWF.ecmwf_type import ECMWFType
+from NWP_functions.ECMWF.ecmwf_download import ECMWFdownload
+from NWP_functions.ECMWF.ecmwf_load_file import ECMWFData
 
-from doris_processing.image_data import ImageData
-from slant_delay.weather_models.model_ray_tracing import ModelRayTracing
-from slant_delay.weather_models.radar_data import RadarData
-from slant_delay.weather_models.model_to_delay import ModelToDelay
-from slant_delay.weather_models.model_interpolate_delays import ModelInterpolateDelays
+from image_data import ImageData
+from NWP_functions.model_ray_tracing import ModelRayTracing
+from NWP_functions.radar_data import RadarData
+from NWP_functions.model_to_delay import ModelToDelay
+from NWP_functions.model_interpolate_delays import ModelInterpolateDelays
 
 # path to your test data folder
 track = '15'

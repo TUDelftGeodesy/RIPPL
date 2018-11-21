@@ -1,7 +1,7 @@
 import numpy as np
 import os
 
-from doris_processing.orbit_dem_functions.srtm_download import SrtmDownloadTile
+from orbit_dem_functions.srtm_download import SrtmDownloadTile
 
 
 class ModelReference(object):

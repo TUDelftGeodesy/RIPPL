@@ -4,9 +4,9 @@ import datetime
 import os
 import numpy as np
 from ecmwfapi import ECMWFDataServer, ECMWFService
-from slant_delay.weather_models.ECMWF.ecmwf_type import ECMWFType
+from NWP_functions.ECMWF.ecmwf_type import ECMWFType
 from joblib import Parallel, delayed
-from slant_delay.weather_models.ECMWF.ecmwf_mars_request import MarsRequest
+from NWP_functions.ECMWF.ecmwf_mars_request import MarsRequest
 
 
 class ECMWFdownload(ECMWFType):

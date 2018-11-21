@@ -1,8 +1,8 @@
 
 from image_data import ImageData
-from find_coordinates import FindCoordinates
 import os
 from collections import OrderedDict, defaultdict
+from coordinate_system import CoordinateSystem
 
 
 class Unwrap(object):
@@ -13,33 +13,28 @@ class Unwrap(object):
     :type shape = list
     """
 
-    def __init__(self, meta, s_lin=0, s_pix=0, lines=0, step='interferogram', file_type='', multilook='', oversampling='', offset='', run=False):
+    def __init__(self, ifg_meta, coordinates, s_lin=0, s_pix=0, lines=0, step='interferogram', file_type='interferogram'):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
         # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
         # 3. Give the first and last line plus the buffer of the input and output
 
-        if isinstance(meta, str):
-            if len(meta) != 0:
-                self.meta = ImageData(meta, 'interferogram')
-        elif isinstance(meta, ImageData):
-            self.meta = meta
-
-        #
-        if s_lin != 0 or s_pix != 0 or lines != 0:
-            print('Unwrapping of partial ifg not supported currently.')
+        if isinstance(ifg_meta, ImageData):
+            self.ifg_meta = ifg_meta
+        else:
             return
 
         if file_type == '':
             file_type = step
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        self.sample, self.multilook, self.oversampling, self.offset, coor_in, coor_out = FindCoordinates.multilook_coors(ifg=self.meta, multilook=multilook, oversampling=oversampling, offset=offset)
+        self.coordinates = coordinates
+        self.sample = self.coordinates.sample
 
         # Create the command to do unwrapping.
-        in_file = self.meta.data_files[step][file_type + self.sample]
-        self.shape = self.meta.data_sizes[step][file_type + self.sample]
+        in_file = self.ifg_meta.data_files[step][file_type + self.sample]
+        self.shape = self.ifg_meta.data_sizes[step][file_type + self.sample]
         lines = str(self.shape[1])
 
         self.out_file = os.path.join(os.path.dirname(in_file), 'unwrapped_ifg' + self.sample + '.raw')
@@ -50,9 +45,9 @@ class Unwrap(object):
         c.write('INFILE ' + in_file + '\n')
         c.write('LINELENGTH ' + str(lines) + '\n')
 
-        if 'coherence' in self.meta.data_files.keys():
-            if 'coherence' + self.sample in self.meta.data_files['coherence'].keys():
-                c.write('CORRFILE ' + self.meta.data_files['coherence']['coherence' + self.sample] + '\n')
+        if 'coherence' in self.ifg_meta.data_files.keys():
+            if 'coherence' + self.sample in self.ifg_meta.data_files['coherence'].keys():
+                c.write('CORRFILE ' + self.ifg_meta.data_files['coherence']['coherence' + self.sample] + '\n')
                 c.write('CORRFILEFORMAT		FLOAT_DATA\n')
 
         c.write('OUTFILE ' + os.path.join(os.path.dirname(in_file), 'unwrapped_ifg' + self.sample + '.raw') + '\n')
@@ -68,49 +63,63 @@ class Unwrap(object):
         # Do the unwrapping and create a metadata file.
 
         if os.path.exists(self.out_file):
-            print('Unwrapping for this file is already done')
-            return
-
+            os.remove(self.out_file)
         os.system(self.command)
-        self.add_meta_data(self.meta, self.step, self.shape, self.sample, self.multilook, self.offset)
+
+        # Add meta data.
+        self.add_meta_data(self.ifg_meta, self.coordinates)
 
     @staticmethod
-    def add_meta_data(meta, step):
+    def add_meta_data(ifg_meta, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        if 'unwrap' in ifg.processes.keys():
-            meta_info = ifg.processes['unwrap']
+        if 'unwrap' in ifg_meta.processes.keys():
+            meta_info = ifg_meta.processes['unwrap']
         else:
             meta_info = OrderedDict()
 
-        dat = 'Data' + sample
-        meta_info[dat + '_output_file'] = 'unwrapped_ifg' + sample + '.raw'
-        meta_info[dat + '_output_format'] = 'real4'
-
-        meta_info[dat + '_lines'] = str(shape[0])
-        meta_info[dat + '_pixels'] = str(shape[1])
-        meta_info[dat + '_first_line'] = ifg.processes[step][dat + '_first_line']
-        meta_info[dat + '_first_pixel'] = ifg.processes[step][dat + '_first_pixel']
-        meta_info[dat + '_multilook_azimuth'] = str(multilook[0])
-        meta_info[dat + '_multilook_range'] = str(multilook[1])
-        meta_info[dat + '_offset_azimuth'] = str(offset[0])
-        meta_info[dat + '_offset_range'] = str(offset[1])
-
-        ifg.image_add_processing_step('unwrap', meta_info)
+        meta_info = coordinates.create_meta_data(['unwrap'], ['real4'], meta_info)
+        ifg_meta.image_add_processing_step('unwrap', meta_info)
 
     @staticmethod
-    def processing_info():
+    def processing_info(coordinates):
 
-        # Information on this processing step
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
+
+        # Three input files needed x, y, z coordinates
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat['slave']['coreg'] = ['new_line', 'new_pixel']
-        input_dat['slave']['resample'] = ['Data']
+        input_dat['ifg']['interferogram']['interferogram']['file'] = ['interferogram' + coordinates.sample + '.raw']
+        input_dat['ifg']['interferogram']['interferogram']['coordinates'] = coordinates
+        input_dat['ifg']['interferogram']['interferogram']['slice'] = coordinates.slice
 
+        # line and pixel output files.
         output_dat = recursive_dict()
-        output_dat['slave']['reramp'] = ['Data']
+        output_dat['ifg']['unwrap']['unwrap']['file'] = ['unwrap' + coordinates.sample + '.raw']
+        output_dat['ifg']['unwrap']['unwrap']['coordinates'] = coordinates
+        output_dat['ifg']['unwrap']['unwrap']['slice'] = coordinates.slice
 
-        # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
-        mem_use = 5
+        # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
+        mem_use = 1
 
         return input_dat, output_dat, mem_use
+
+    @staticmethod
+    def create_output_files(meta, file_type='', coordinates=''):
+        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
+        # done before the actual processing.
+
+        print('Not needed for unwrapping')
+
+    @staticmethod
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+
+        print('Not needed for unwrapping')
+
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+
+        print('No memory data for unwrapping')

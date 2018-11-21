@@ -1,5 +1,5 @@
 import numpy as np
-from slant_delay.weather_models.resample import Resample
+from NWP_functions.resample import Resample
 
 
 class ModelInterpolateDelays(object):

@@ -2,7 +2,7 @@
 import pygrib
 import numpy as np
 
-from slant_delay.weather_models.model_reference import ModelReference
+from NWP_functions.model_reference import ModelReference
 
 
 class ECMWFData(object):

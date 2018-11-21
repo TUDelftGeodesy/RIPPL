@@ -1,8 +1,8 @@
 # This is the main script to calculate delays
 import numpy as np
 
-from slant_delay.weather_models.massive_spline import MassiveSpline
-from slant_delay.weather_models.resample import Resample
+from NWP_functions.massive_spline import MassiveSpline
+from NWP_functions.resample import Resample
 
 class ModelRayTracing(object):
 

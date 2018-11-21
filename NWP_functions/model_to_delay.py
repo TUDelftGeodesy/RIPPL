@@ -2,7 +2,7 @@
 import numpy as np
 from collections import defaultdict
 
-from slant_delay.weather_models.model_reference import ModelReference
+from NWP_functions.model_reference import ModelReference
 
 
 class ModelToDelay(object):

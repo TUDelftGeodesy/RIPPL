@@ -1,14 +1,14 @@
 import datetime
 import numpy as np
 import locale
-from doris_processing.image_data import ImageData
-from doris_processing.orbit_dem_functions.orbit_coordinates import OrbitCoordinates
-from doris_processing.orbit_dem_functions.srtm_download import SrtmDownload
-from doris_processing.processing_steps.import_dem import CreateSrtmDem
-from doris_processing.processing_steps.inverse_geocode import InverseGeocode
-from doris_processing.processing_steps.radar_dem import RadarDem
-from doris_processing.processing_steps.geocode import Geocode
-from doris_processing.processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
+from image_data import ImageData
+from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
+from orbit_dem_functions.srtm_download import SrtmDownload
+from processing_steps.import_dem import CreateSrtmDem
+from processing_steps.inverse_geocode import InverseGeocode
+from processing_steps.radar_dem import RadarDem
+from processing_steps.geocode import Geocode
+from processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
 
 
 class RadarData(OrbitCoordinates, ImageData):
