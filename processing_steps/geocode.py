@@ -2,7 +2,7 @@
 # In principle this has the same functionality as some other
 from image_data import ImageData
 from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
-from radar_dem import RadarDem
+from processing_steps.radar_dem import RadarDem
 from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import numpy as np

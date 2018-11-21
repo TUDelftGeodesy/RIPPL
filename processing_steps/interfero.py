@@ -1,7 +1,7 @@
 # The following class creates an interferogram from a master and slave image.
 
 from image_data import ImageData
-from multilook import Multilook
+from processing_steps.multilook import Multilook
 from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import os
@@ -100,25 +100,28 @@ class Interfero(object):
 
             self.interferogram = self.master_dat * self.slave_dat.conj()
 
-            # Calculate the multilooked image.
-            if self.coor_in.grid_type == 'radar_coordinates' and self.coor_out.grid_type in ['geographic','projection']:
-                if self.coor_out.grid_type == 'geographic':
-                    self.multilooked = Multilook.radar2geographical(self.interferogram, self.coor_out, self.sort_ids,
-                                                                    self.sum_ids, self.output_ids)
-                elif self.coor_out.grid_type == 'projection':
-                    self.multilooked = Multilook.radar2projection(self.interferogram, self.coor_out, self.sort_ids,
-                                                                    self.sum_ids, self.output_ids)
-            # If we use the same coordinate system for input and output.
-            elif self.coor_in.grid_type == self.coor_out.grid_type:
+            if self.coor_out.multilook != [1,1]:
+                # Calculate the multilooked image.
+                if self.coor_in.grid_type == 'radar_coordinates' and self.coor_out.grid_type in ['geographic','projection']:
+                    if self.coor_out.grid_type == 'geographic':
+                        self.multilooked = Multilook.radar2geographical(self.interferogram, self.coor_out, self.sort_ids,
+                                                                        self.sum_ids, self.output_ids)
+                    elif self.coor_out.grid_type == 'projection':
+                        self.multilooked = Multilook.radar2projection(self.interferogram, self.coor_out, self.sort_ids,
+                                                                        self.sum_ids, self.output_ids)
+                # If we use the same coordinate system for input and output.
+                elif self.coor_in.grid_type == self.coor_out.grid_type:
 
-                if self.coor_in.grid_type == 'radar_coordinates':
-                    self.multilooked = Multilook.radar2radar(self.interferogram, self.coor_in, self.coor_out)
-                elif self.coor_in.grid_type == 'projection':
-                    self.multilooked = Multilook.projection2projection(self.interferogram, self.coor_in, self.coor_out)
-                elif self.coor_in.grid_type == 'geographic':
-                    self.multilooked = Multilook.geographic2geographic(self.interferogram, self.coor_in, self.coor_out)
+                    if self.coor_in.grid_type == 'radar_coordinates':
+                        self.multilooked = Multilook.radar2radar(self.interferogram, self.coor_in, self.coor_out)
+                    elif self.coor_in.grid_type == 'projection':
+                        self.multilooked = Multilook.projection2projection(self.interferogram, self.coor_in, self.coor_out)
+                    elif self.coor_in.grid_type == 'geographic':
+                        self.multilooked = Multilook.geographic2geographic(self.interferogram, self.coor_in, self.coor_out)
+                else:
+                    print('Conversion from a projection or geographic coordinate system to another system is not possible')
             else:
-                print('Conversion from a projection or geographic coordinate system to another system is not possible')
+                self.multilooked = self.interferogram
 
             # Save meta data and results
             self.add_meta_data(self.ifg, self.coor_out, self.step, self.file_type)
@@ -217,9 +220,9 @@ class Interfero(object):
 
         # line and pixel output files.
         output_dat = recursive_dict()
-        output_dat['slave']['interferogram']['interferogram']['file'] = ['interferogram' + coor_out.sample + '.raw']
-        output_dat['slave']['interferogram']['interferogram']['coordinates'] = coor_out
-        output_dat['slave']['interferogram']['interferogram']['slice'] = coor_out.slice
+        output_dat['ifg']['interferogram']['interferogram']['file'] = ['interferogram' + coor_out.sample + '.raw']
+        output_dat['ifg']['interferogram']['interferogram']['coordinates'] = coor_out
+        output_dat['ifg']['interferogram']['interferogram']['slice'] = coor_out.slice
 
         # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 2

@@ -12,7 +12,7 @@ def sentinel_read_data(path_tiff, s_pix, s_lin, size):
     else:
         src_ds = gdal.Open(path_tiff, gdal.GA_ReadOnly)
     if src_ds is None:
-        print 'Unable to open ' + path_tiff
+        print('Unable to open ' + path_tiff)
         return
 
     band = src_ds.GetRasterBand(1)

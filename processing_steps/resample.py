@@ -102,8 +102,8 @@ class Resample(object):
 
             # Check wether the pixels are far enough from the border of the image. Otherwise interpolation kernel cannot
             # Be applied. Missing pixels will be filled with zeros.
-            half_w_line = window_size[0] / 2
-            half_w_pixel = window_size[1] / 2
+            half_w_line = window_size[0] // 2
+            half_w_pixel = window_size[1] // 2
             valid_vals = (((line_id - half_w_line + 1) >= 0) * ((line_id + half_w_line) < self.crop.shape[0]) *
                           ((pixel_id - half_w_pixel + 1) >= 0) * ((pixel_id + half_w_pixel) < self.crop.shape[1]))
 

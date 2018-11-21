@@ -337,6 +337,8 @@ class ImageData(ImageMetadata):
                 self.data_memory[step] = defaultdict()
                 self.data_memory_limits[step] = defaultdict()
                 self.data_memory_sizes[step] = defaultdict()
+        elif step not in list(self.data_memory.keys()):
+            pass
         elif step and not file_type:
             self.data_memory[step] = defaultdict()
             self.data_memory_limits[step] = defaultdict()
@@ -570,7 +572,7 @@ class ImageData(ImageMetadata):
 
     def check_step_exist(self, step):
         # Check if this step even exists.
-        if step not in self.processes.keys():
+        if step not in list(self.processes.keys()):
             warnings.warn('Step does not exist')
             return False
 

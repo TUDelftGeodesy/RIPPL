@@ -10,7 +10,7 @@
 
 from image_data import ImageData
 from orbit_dem_functions.orbit_interpolate import OrbitInterpolate
-from radar_dem import RadarDem
+from processing_steps.radar_dem import RadarDem
 from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import numpy as np
@@ -250,6 +250,11 @@ class Baseline(object):
             input_dat['slave']['geometrical_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
             input_dat['slave']['geometrical_coreg'][t]['coordinates'] = coordinates
             input_dat['slave']['geometrical_coreg'][t]['slice'] = True
+
+        for t in ['X', 'Y', 'Z']:
+            input_dat['cmaster']['geocode'][t]['file'] = [t + coordinates.sample + '.raw']
+            input_dat['cmaster']['geocode'][t]['coordinates'] = coordinates
+            input_dat['cmaster']['geocode'][t]['slice'] = coordinates.slice
 
         if horizontal or vertical or angle:
             input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle']['file'] = ['elevation_angle' + coordinates.sample + '.raw']

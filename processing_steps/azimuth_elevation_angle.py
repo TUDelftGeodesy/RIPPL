@@ -5,7 +5,7 @@ from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
 from collections import OrderedDict, defaultdict
 from find_coordinates import FindCoordinates
 from coordinate_system import CoordinateSystem
-from radar_dem import RadarDem
+from processing_steps.radar_dem import RadarDem
 import numpy as np
 import logging
 import os

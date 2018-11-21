@@ -62,7 +62,11 @@ class Pipeline():
         # Find slice ids
         for im in [self.cmaster, self.master, self.slave, self.ifg]:
             if type(im).__name__ == 'Image' or type(im).__name__ == 'Interferogram':
-                self.slice_ids.extend(im.slices.keys())
+
+                if len(self.slice_ids) == 0:
+                    self.slice_ids.extend(im.slices.keys())
+                else:
+                    self.slice_ids = list(set(self.slice_ids) & set(im.slices.keys()))
 
         self.slice_ids = sorted(list(set(self.slice_ids)))
 
@@ -149,6 +153,9 @@ class Pipeline():
         self.define_function_order()
         self.run_parallel_processing()
 
+        self.clean_memmaps()
+        self.clean_memory()
+
         # Finally save the resultfile information
         for slice_id in self.slice_ids:
             for im, im_str in zip([self.cmaster, self.master, self.slave, self.ifg], ['cmaster', 'master', 'slave', 'ifg']):
@@ -212,7 +219,7 @@ class Pipeline():
         # First perform all needed steps if we process the full image.
         # Check if step exists
         if not self.slice:
-            for step_file_type, fn in zip(self.file_type, range(len(self.file_type))):
+            for step_file_type, fn in zip(self.file_type, np.arange(len(self.file_type))):
                 for file_type in step_file_type:
                     if self.res_dat['full'][self.meta_type].check_datafile(self.function,
                                                                 file_type=file_type + self.coor.sample, warn=False):
@@ -224,7 +231,7 @@ class Pipeline():
                 start_funcs = self.function
                 start_meta_name = 'full'
                 start_file_type = self.file_type
-                start_meta_type = [self.meta_type for n in range(len(self.function))]
+                start_meta_type = [self.meta_type for n in np.arange(len(self.function))]
                 start_coor = copy.deepcopy(self.coor)
 
                 if start_coor.meta_name != start_meta_name:
@@ -299,7 +306,7 @@ class Pipeline():
         # If we are only processing slices, this is the moment the processing starts.
         if self.slice:
             for slice_name in self.slice_ids:
-                for step_file_type, fn in zip(self.file_type, range(len(self.file_type))):
+                for step_file_type, fn in zip(self.file_type, np.arange(len(self.file_type))):
                     for file_type in step_file_type:
                         if self.res_dat[slice_name][self.meta_type].check_datafile(self.function,
                                                                                    file_type=file_type + self.coor.sample,
@@ -312,7 +319,7 @@ class Pipeline():
                     start_funcs = self.function
                     start_meta = slice_name
                     start_file_type = self.file_type
-                    start_meta_type = [self.meta_type for n in range(len(self.function))]
+                    start_meta_type = [self.meta_type for n in np.arange(len(self.function))]
                     start_coor = copy.deepcopy(self.coor)
 
                     if start_coor.meta_name != start_meta:
@@ -445,13 +452,13 @@ class Pipeline():
                 multilook = False
 
                 # First check whether additional multilooking is needed.
-                for meta_type, step_type, file_type, n in zip(meta_types, step_types, file_types, range(len(file_types))):
+                for meta_type, step_type, file_type, n in zip(meta_types, step_types, file_types, np.arange(len(file_types))):
                     if 'coor_change' in input_data[meta_type][step_type][file_type].keys():
                         if input_data[meta_type][step_type][file_type]['coor_change'] == 'resample':
                             resample = True
 
                     in_sample = input_data[meta_type][step_type][file_type]['coordinates'].sample
-                    if slice_coor.sample != in_sample and not resample:
+                    if (slice_coor.sample != in_sample and not resample) or con_step == 'interferogram':
                         in_coor = input_data[meta_type][step_type][file_type]['coordinates']
                         multilook = True
                     elif resample:
@@ -689,7 +696,7 @@ class Pipeline():
 
                 # Now check whether the input and output coordinates match. If they do no match, a multilooking step
                 # should be performed, which discontinues the pipeline.
-                for meta_type, step, file_type, i in zip(meta_types, step_types, file_types, range(len(meta_types))):
+                for meta_type, step, file_type, i in zip(meta_types, step_types, file_types, np.arange(len(meta_types))):
                     # If data already exist we do not need to process it
 
                     ml_count = 0
@@ -979,7 +986,7 @@ class Pipeline():
                     res_dat = pipeline_init['res_dat']
 
                     # First define the processing order
-                    save_disk = [pipeline['step'][n] for n in range(len(pipeline['step'])) if pipeline['save_disk'][n] == True]
+                    save_disk = [pipeline['step'][n] for n in np.arange(len(pipeline['step'])) if pipeline['save_disk'][n] == True]
 
                     #  Then add the variables which are independent from the block size
                     for func, file_type, meta, meta_type, coordinates, coor_out in zip(pipeline['step'], pipeline['file_type'],
@@ -1067,7 +1074,7 @@ class Pipeline():
 
                     # First define the processing order
                     remove_mem = []
-                    save_disk = [pipeline['step'][n] for n in range(len(pipeline['step'])) if pipeline['save_disk'][n] == True]
+                    save_disk = [pipeline['step'][n] for n in np.arange(len(pipeline['step'])) if pipeline['save_disk'][n] == True]
                     res_dat = pipeline_processing['res_dat']
 
                     #  Then add the variables which are independent from the block size
@@ -1108,16 +1115,16 @@ class Pipeline():
                         pipeline_processing['clear_mem_var'].append(clear_mem_var)
 
                     # Then the parallel processing in blocks
-                    blocks = (pipeline['coor_out'][0].shape[0] * pipeline['coor_out'][0].shape[1]) / self.pixels + 1
-                    lines = pipeline['coor_out'][0].shape[0] / blocks + 1
+                    blocks = (pipeline['coor_out'][0].shape[0] * pipeline['coor_out'][0].shape[1]) // self.pixels + 1
+                    lines = pipeline['coor_out'][0].shape[0] // blocks + 1
 
-                    for block_no in range(blocks):
+                    for block_no in np.arange(int(blocks)):
 
                         start_line = block_no * lines
                         if start_line < pipeline['coor_out'][0].shape[0]:
                             block_pipeline = copy.deepcopy(pipeline_processing)
 
-                            for i in range(len(block_pipeline['function'])):
+                            for i in np.arange(len(block_pipeline['function'])):
                                 block_pipeline['proc_var_name'][i].append('s_lin')
                                 block_pipeline['proc_var'][i].append(start_line)
                                 block_pipeline['proc_var_name'][i].append('lines')
@@ -1303,23 +1310,32 @@ class Pipeline():
             # If not parallel (for debugging purposes)
             res_dats = []
             for package in parallel_package:
-                res_dats.append(run_parallel(package))
+                res_dat = run_parallel(package)
+
+                # Update the .res files of this image
+                if res_dat == False:
+                    print('Encountered error in processing. Aborting..')
+                    sys.exit()
+
+                for key in res_dat.keys():
+                    for meta_type in res_dat[key].keys():
+                        self.res_dat[key][meta_type] = res_dat[key][meta_type]
+
         elif self.parallel:
             self.pool = Pool(self.cores)
-            res_dats = self.pool.map(run_parallel, parallel_package)
-            self.pool.terminate()
-            self.pool.join()
+
+            for res_dat in self.pool.imap_unordered(run_parallel, parallel_package):
+                # Update the .res files of this image
+                if res_dat == False:
+                    print('Encountered error in processing. Aborting..')
+                    sys.exit()
+
+                for key in res_dat.keys():
+                    for meta_type in res_dat[key].keys():
+                        self.res_dat[key][meta_type] = res_dat[key][meta_type]
+
+            self.pool.close()
             self.pool = []
-
-        # Update the .res files of this image
-        for res_dat in res_dats:
-            if res_dat == False:
-                print('Encountered error in processing. Aborting..')
-                sys.exit()
-
-            for key in res_dat.keys():
-                for meta_type in res_dat[key].keys():
-                    self.res_dat[key][meta_type] = res_dat[key][meta_type]
 
         self.clean_memmaps()
 

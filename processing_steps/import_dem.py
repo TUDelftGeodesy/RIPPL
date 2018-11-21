@@ -247,7 +247,7 @@ class CreateExternalDem(CreateSrtmDem):
         lon = gdal.Open(lon_tiff, gdal.GA_ReadOnly)
 
         if h is None or lat is None or lon is None:
-            print 'Unable to open one of the DEM files'
+            print('Unable to open one of the DEM files')
             return
 
         # Find the start and end line by reading lat and lon information in chunks.

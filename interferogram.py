@@ -92,6 +92,7 @@ class Interferogram(object):
                     cmaster.slices[slice_name].processes['crop']))
                 self.slices[slice_name].geometry()
                 self.slices[slice_name].res_path = res_path
+                self.slices[slice_name].write(res_path)
 
     def read_res(self):
         # Read the result files again.

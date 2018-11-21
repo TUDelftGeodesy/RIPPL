@@ -214,15 +214,15 @@ class Stack(object):
             days = np.array([diff.days for diff in dates - np.min(dates)])
 
             # Define network based on network type
-            for n in range(len(days)):
+            for n in np.arange(len(days)):
                 ids = np.where((days - days[n] > 0) * (days - days[n] <= temp_baseline))[0]
                 for id in ids:
                     ifg_pairs.append([n, id])
 
         elif network_type == 'daisy_chain':
             n_im = len(dates)
-            for i in range(n_im):
-                for n in range(0, n_images + 1):
+            for i in np.arange(n_im):
+                for n in np.arange(0, n_images + 1):
                     if n + i < n_im:
                         ifg_pairs.append([i, n])
 
@@ -230,7 +230,7 @@ class Stack(object):
 
             master_n = np.where(date_int == master_int)[0][0]
 
-            for n in range(len(date_int)):
+            for n in np.arange(len(date_int)):
                 if n != master_n:
                     ifg_pairs.append([master_n, n])
 

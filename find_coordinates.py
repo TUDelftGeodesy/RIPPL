@@ -50,8 +50,8 @@ class FindCoordinates():
                   'integer number! Aborting...')
             return
 
-        az = multilook[0] / oversample[0]
-        ra = multilook[1] / oversample[1]
+        az = multilook[0] // oversample[0]
+        ra = multilook[1] // oversample[1]
         ovr_lin = float(multilook[0] / 2.0) - (float(multilook[0]) / float(oversample[0]) / 2)
         ovr_pix = float(multilook[1] / 2.0) - (float(multilook[1]) / float(oversample[1]) / 2)
 
@@ -73,10 +73,10 @@ class FindCoordinates():
         if offset[0] < ovr_lin or offset[1] < ovr_pix:
             if offset[0] < ovr_lin:
                 print('Offset in lines not large enough to do oversample (larger window needed.)')
-                offset[0] = offset[0] + int(np.ceil(float(offset[0] - ovr_lin) / az))
+                offset[0] = offset[0] + int(np.ceil(float(offset[0] - ovr_lin) // az))
             if offset[1] < ovr_pix:
                 print('Offset in pixels not large enough to do oversample (larger window needed.)')
-                offset[1] = offset[1] + int(np.ceil(float(offset[1] - ovr_pix) / ra))
+                offset[1] = offset[1] + int(np.ceil(float(offset[1] - ovr_pix) // ra))
 
             # We will have to find a new sample string to!
             sample, multilook, oversample, offset = FindCoordinates.multilook_str(multilook, oversample, offset)
@@ -95,7 +95,7 @@ class FindCoordinates():
             in_s_pix = s_pix * ra + offset[1] - ovr_pix
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        out_shape = [(in_shape[0] - (in_s_lin + ovr_lin + offset[0])) / az, (in_shape[1] - (in_s_pix + ovr_pix + offset[1])) / ra]
+        out_shape = [(in_shape[0] - (in_s_lin + ovr_lin + offset[0])) // az, (in_shape[1] - (in_s_pix + ovr_pix + offset[1])) // ra]
 
         if lines != 0:
             out_shape[0] = np.minimum(out_shape[0], lines)
@@ -115,8 +115,8 @@ class FindCoordinates():
         lines_in = in_s_lin + np.arange(in_shape[0])
         pixels_in = in_s_pix + np.arange(in_shape[1])
 
-        lines_out = s_lin + np.arange(out_shape[0]) * (multilook[0] / oversample[0]) + offset[0]
-        pixels_out = s_pix + np.arange(out_shape[1]) * (multilook[1] / oversample[1]) + offset[1]
+        lines_out = s_lin + np.arange(out_shape[0]) * (multilook[0] // oversample[0]) + offset[0]
+        pixels_out = s_pix + np.arange(out_shape[1]) * (multilook[1] // oversample[1]) + offset[1]
 
         return sample, multilook, oversample, offset, [lines_in, pixels_in], [lines_out, pixels_out]
 
@@ -135,7 +135,7 @@ class FindCoordinates():
         new_slices_offset = []
 
         for slice_start in slices_start:
-            eff_ml = np.array([(multilook[0] / oversample[0]), (multilook[1] / oversample[1])])
+            eff_ml = np.array([(multilook[0] // oversample[0]), (multilook[1] // oversample[1])])
             slice_first = np.array(slice_start) + np.array(slice_offset)
 
             # Now check whether the overlap due to oversampling is large enough if this configuration is used.
@@ -144,7 +144,7 @@ class FindCoordinates():
             ovr_pix = float(multilook[1] / 2.0) - (float(multilook[1]) / float(oversample[1]) / 2)
 
             in_offset = np.array([int(slice_first[0] + ovr_lin - in_s_lin), int(slice_first[1] + ovr_pix - in_s_pix)])
-            out_offset = in_offset / eff_ml + (in_offset % eff_ml > 0)
+            out_offset = in_offset // eff_ml + (in_offset % eff_ml > 0)
 
             # Now calculate the offset for this slide
             new_slices_offset.append([in_s_lin + out_offset[0] * eff_ml[0] - slice_start[0],
@@ -158,7 +158,7 @@ class FindCoordinates():
         sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, shape] = \
             FindCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset)
 
-        ml_shift = (np.array(multilook).astype(np.float32) - np.array([1,1])) / 2
+        ml_shift = (np.array(multilook).astype(np.float32) - np.array([1,1])) // 2
 
         if ml_shift[0] % 1 > 0.1 or ml_shift[1] % 1 > 0.1:
             # print('Warning. Interval coordinates do not start with an integer number.')
@@ -177,16 +177,16 @@ class FindCoordinates():
         sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, out_shape] = \
             FindCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset)
 
-        ml_shift = (np.array(multilook).astype(np.float32) - np.array([1, 1])) / 2
+        ml_shift = (np.array(multilook).astype(np.float32) - np.array([1, 1])) // 2
 
         if ml_shift[0] % 1 > 0.1 or ml_shift[1] % 1 > 0.1:
             # print('Warning. Interval coordinates do not have integer numbers.')
 
-            lines = in_s_lin + np.arange(out_shape[0]) * (multilook[0] / oversample[0]) + ml_shift[0]
-            pixels = in_s_pix + np.arange(out_shape[1]) * (multilook[1] / oversample[1]) + ml_shift[1]
+            lines = in_s_lin + np.arange(out_shape[0]) * (multilook[0] // oversample[0]) + ml_shift[0]
+            pixels = in_s_pix + np.arange(out_shape[1]) * (multilook[1] // oversample[1]) + ml_shift[1]
 
         else:
-            lines = in_s_lin + np.arange(out_shape[0]) * (multilook[0] / oversample[0]) + int(ml_shift[0])
-            pixels = in_s_pix + np.arange(out_shape[1]) * (multilook[1] / oversample[1]) + int(ml_shift[1])
+            lines = in_s_lin + np.arange(out_shape[0]) * (multilook[0] // oversample[0]) + int(ml_shift[0])
+            pixels = in_s_pix + np.arange(out_shape[1]) * (multilook[1] // oversample[1]) + int(ml_shift[1])
 
         return sample, multilook, oversample, offset, [lines, pixels]

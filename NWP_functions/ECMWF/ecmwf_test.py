@@ -154,7 +154,7 @@ for dat in all_fields:
 
 fields = [d.strftime('%Y%m%dT%H%M') for d, f in zip(all_overpasses, down.filenames) if f]
 keys = sorted(point_delays.interp_delays['total'].keys())
-for i in range(len(ps_height)):
+for i in np.arange(len(ps_height)):
 
     print('Save row ' + str(i))
 
@@ -168,7 +168,7 @@ csv_file.close()
 # Show images of ps delays
 plt.ioff()
 
-for i in range(len(keys) - 1):
+for i in np.arange(len(keys) - 1):
     dat_1 = keys[i]
     dat_2 = keys[i + 1]
     plt.figure()

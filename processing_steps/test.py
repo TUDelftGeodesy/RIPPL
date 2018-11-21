@@ -73,7 +73,7 @@ for master in masters:
 master_mat = []
 slave_mat = []
 i_mat = []
-for n in range(n_jobs):
+for n in np.arange(n_jobs):
     master_mat.extend(copy.copy(masters))
     slave_mat.extend(copy.copy(slaves))
     i_mat.extend(list(np.ones(len(masters)).astype(np.int32) * n))
@@ -111,7 +111,7 @@ for slave, master in zip(slave_mat[0:len(slaves)], master_mat[0:len(masters)]):
 master_mat = []
 slave_mat = []
 i_mat = []
-for n in range(n_jobs):
+for n in np.arange(n_jobs):
     master_mat.extend(copy.copy(masters))
     slave_mat.extend(copy.copy(slaves))
     i_mat.extend(list(np.ones(len(masters)).astype(np.int32) * n))

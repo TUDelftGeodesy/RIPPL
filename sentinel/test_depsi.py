@@ -44,12 +44,12 @@ srtm_folder = data_disk + 'DEM/DEM_new'
 # download_orbit.download_orbits()
 
 # Number of cores
-cores = 6
+cores = 8
 
 # Prepare processing
-self = SentinelStack(stack_folder)
-self.read_from_database(database_folder, shapefile, track_no, orbit_folder, start_date, end_date, master_date,
-                         mode, product_type, polarisation, cores=6)
+#self = SentinelStack(stack_folder)
+#self.read_from_database(database_folder, shapefile, track_no, orbit_folder, start_date, end_date, master_date,
+#                         mode, product_type, polarisation, cores=6)
 
 self = Stack(stack_folder)
 self.read_master_slice_list()
@@ -58,9 +58,9 @@ self.add_master_res_info()
 self.create_network_ifgs(network_type='single_master')
 
 # create an SRTM DEM
-#password = 'Radar2016'
-#username = 'gertmulder'
-#self.create_SRTM_input_data(srtm_folder, username, password, srtm_type='SRTM3')
+password = 'Radar2016'
+username = 'gertmulder'
+self.create_SRTM_input_data(srtm_folder, username, password, srtm_type='SRTM3')
 
 # Prepare settings by loading on of the settings for the DEM input
 settings = dict()
@@ -74,14 +74,14 @@ settings['radar_DEM']['full']['coor_in'] = self.images[self.master_date].res_dat
 parallel = True
 
 # Run the geocoding for the slices.
-#coordinates = CoordinateSystem()
-#coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
-#coordinates.slice = True
-#self('radar_DEM', settings, coordinates, 'cmaster', file_type='radar_DEM', parallel=parallel)
+coordinates = CoordinateSystem()
+coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+coordinates.slice = True
+self('radar_DEM', settings, coordinates, 'cmaster', file_type='radar_DEM', parallel=parallel)
 # Run the geocoding for the slices.
-#self('geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat', 'lon'], parallel=parallel)
+self('geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat', 'lon'], parallel=parallel)
 # Get the image orientation
-#self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
+self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
 
 # Run azimuth elevation angles for the full image
 coordinates = CoordinateSystem()
@@ -89,10 +89,37 @@ coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample
 coordinates.slice = False
 # Run till the earth_topo_phase step.
 self(['earth_topo_phase', 'height_to_phase'], settings, coordinates, 'slave', file_type=[['earth_topo_phase'], ['height_to_phase']], parallel=parallel)
+# Get the image orientation
+self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
+# Create ifgs for single master.
+
+
+# Run azimuth elevation angles for the full image
+coordinates = CoordinateSystem()
+coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+coordinates.slice = False
+self('interferogram', settings, coordinates, 'ifg', file_type='interferogram', parallel=parallel)
+
+coordinates.slice = True
 # Create amplitude images
 self(['amplitude'], settings, coordinates, 'slave', file_type=['amplitude'], parallel=parallel)
-# Get the image orientation
-#self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
 
-# Create ifgs for single master.
+coordinates.slice = False
+self(['amplitude'], settings, coordinates, 'slave', file_type=['amplitude'], parallel=parallel)
+
+# Get the harmonie (h38) and ECMWF (ERA5) data
+self('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_h38_aps'])
+self('ecmwf_aps', settings, coordinates, 'slave', file_type=['ecmwf_ERA5_aps'])
+
+##############################
+# Next steps are not needed but merely used as an additional check..
+##############################
+
+# Finally the ifgs multilooked (just to check whether it makes sense what we did)
+coordinates = CoordinateSystem()
+coordinates.create_radar_coordinates(multilook=[20, 80], offset=[0, 0], oversample=[1, 1])
+coordinates.slice = False
+self('square_amplitude', settings, coordinates, 'slave', file_type='square_amplitude', parallel=parallel)
+# Create ifgs / coherence for daisy chain.
 self('interferogram', settings, coordinates, 'ifg', file_type='interferogram', parallel=parallel)
+self('coherence', settings, coordinates, 'ifg', file_type='coherence', parallel=parallel)

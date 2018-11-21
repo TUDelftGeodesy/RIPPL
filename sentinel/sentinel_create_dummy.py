@@ -139,7 +139,7 @@ class DummyRes(object):
         self.orbit['NUMBER_OF_DATAPOINTS'] = str(len(t))
 
         # Save the rows
-        for n in range(len(t)):
+        for n in np.arange(len(t)):
             self.orbit['row_' + str(n + 1)] = ["{:.6f}".format(t[n]),
                                                      "{:.7f}".format(float(x[n])),
                                                      "{:.7f}".format(float(y[n])),

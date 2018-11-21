@@ -5,6 +5,7 @@ import locale
 from shapely import geometry
 import numpy as np
 from coordinate_system import CoordinateSystem
+from six import string_types
 
 
 class ImageMetadata(object):
@@ -197,7 +198,10 @@ class ImageMetadata(object):
             else:
                 dat_coors.meta_name = 'full'
 
-            dat_coors.slice = self.processes['readfiles']['slice'] == 'True'
+            if 'readfiles' in self.processes.keys():
+                dat_coors.slice = self.processes['readfiles']['slice'] == 'True'
+            else:
+                dat_coors.slice = self.processes['coreg_readfiles']['slice'] == 'True'
             coordinates_list.append(dat_coors)
 
         return coordinates_list
@@ -229,7 +233,7 @@ class ImageMetadata(object):
                         temp[name] = [line]
 
                 except:
-                    print 'Error occurred at line: ' + line
+                    print('Error occurred at line: ' + line)
 
     def process_reader(self,processes = ''):
         # This function reads random processes based on standard buildup of processes in res files.
@@ -237,7 +241,7 @@ class ImageMetadata(object):
         # If loc is true, it will only return the locations where different processes start.
 
         if not processes:
-            processes = self.process_control.keys()
+            processes = list(self.process_control.keys())
 
         processes.append('leader_datapoints')
         process = ''
@@ -320,11 +324,11 @@ class ImageMetadata(object):
                             # If the line does not contain a : it is likely a table.
                             l_split = line.replace('\t',' ').split()
                             row_name = 'row_' + str(row)
-                            temp[row_name] = [l_split[i].strip() for i in range(len(l_split))]
+                            temp[row_name] = [l_split[i].strip() for i in np.arange(len(l_split))]
                             row += 1
 
                 except:
-                    print 'Error occurred at line: ' + line
+                    print('Error occurred at line: ' + line)
 
     def process_spacing(self,process=''):
 
@@ -348,7 +352,7 @@ class ImageMetadata(object):
     def del_process(self,process=''):
         # function deletes one or multiple processes from the corresponding res file
 
-        if isinstance(process, basestring): # one process
+        if isinstance(process, string_types): # one process
             if not process in self.process_control.keys():
                 warnings.warn('The requested process does not exist! (or processes are not read jet, use self.process_reader): ' + str(process))
                 return
@@ -361,7 +365,7 @@ class ImageMetadata(object):
             warnings.warn('process should contain either a string of one process or a list of multiple processes: ' + str(process))
 
         # Now remove the process and write the file again.
-        if isinstance(process, basestring): # Only one process should be removed
+        if isinstance(process, string_types): # Only one process should be removed
             self.process_control[process] = '0'
             del self.processes[process]
         else:
@@ -398,7 +402,7 @@ class ImageMetadata(object):
                     f.write((key + ':').ljust(spacing[0]) + self.header[key] + '\n')
 
         # Write the process control
-        for i in range(3):
+        for i in np.arange(3):
             f.write('\n')
         f.write('Start_process_control\n')
         for process in self.process_control.keys():
@@ -410,7 +414,7 @@ class ImageMetadata(object):
         for process in [p for p in self.processes.keys()]:
             # First check for a timestamp and add it if needed.
             if self.process_timestamp[process]:
-                for i in range(2):
+                for i in np.arange(2):
                     f.write('\n')
                 f.write('   *====================================================================* \n')
                 for key in self.process_timestamp[process].keys():
@@ -425,7 +429,7 @@ class ImageMetadata(object):
                 spacing, spacing_row = self.process_spacing(process)
             data = self.processes[process]
 
-            for i in range(3):
+            for i in np.arange(3):
                 f.write('\n')
             f.write('******************************************************************* \n')
             f.write('*_Start_' + process + ':\n')
@@ -433,15 +437,15 @@ class ImageMetadata(object):
 
             for line_key in self.processes[process].keys():
                 if 'row' in line_key:  # If it is a table of consists of several different parts
-                    line = ''.join([(' ' + data[line_key][i]).replace(' -','-').ljust(spacing_row[i]) for i in range(len(data[line_key]))])
+                    line = ''.join([(' ' + data[line_key][i]).replace(' -','-').ljust(spacing_row[i]) for i in np.arange(len(data[line_key]))])
                     f.write(line + '\n')
                 elif process == 'coarse_orbits':  # the coarse orbits output is different from the others.
                     if 'Control point' in line_key: # Special case coarse orbits...
                         f.write((line_key + ' =').ljust(spacing[0]) + str(self.processes[process][line_key]) + '\n')
-                    elif not isinstance(data[line_key], basestring): # Another special case
+                    elif not isinstance(data[line_key], string_types): # Another special case
                         f.write(line_key.ljust(spacing_row[0]) + (data[line_key][0]).ljust(spacing_row[1]) +
                                 data[line_key][1].ljust(spacing_row[2]) + ' '.join(data[line_key][2:]) + '\n')
-                    elif isinstance(data[line_key], basestring): # Handle as in normal cases
+                    elif isinstance(data[line_key], string_types): # Handle as in normal cases
                         f.write((line_key + ':').ljust(spacing[0]) + str(self.processes[process][line_key]) + '\n')
                 else: # If it consists out of two parts
                     f.write((line_key + ':').ljust(spacing[0]) + str(self.processes[process][line_key]) + '\n')
@@ -456,7 +460,7 @@ class ImageMetadata(object):
 
     def insert(self, data, process, variable=''):
         # This function inserts a variable or a process which does not exist at the moment
-        processes = self.process_control.keys()
+        processes = list(self.process_control.keys())
         processes.extend(['header', 'leader_datapoints'])
 
         if process not in processes:

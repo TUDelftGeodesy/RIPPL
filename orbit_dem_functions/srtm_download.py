@@ -258,7 +258,7 @@ class SrtmDownload(object):
 
         data_file = os.path.join(srtm_folder, 'filelist')
         if os.path.exists(data_file):
-            dat = open(data_file, 'r')
+            dat = open(data_file, 'rb')
             filelist = pickle.load(dat)
             dat.close()
             return filelist
@@ -293,9 +293,9 @@ class SrtmDownload(object):
 
             conn = requests.get(server + '/' + folder, auth=(username, password))
             if conn.status_code == 200:
-                print "status200 received ok"
+                print("status200 received ok")
             else:
-                print "an error occurred during connection"
+                print("an error occurred during connection")
 
             data = conn.text
             parser = ParseHTMLDirectoryListing()
@@ -324,7 +324,7 @@ class SrtmDownload(object):
                     filelist[key_value][str(n)] = dict()
                 filelist[key_value][str(n)][str(e)] = server + '/' + os.path.dirname(folder) + '/' + filename
 
-        file_list = open(os.path.join(srtm_folder, 'filelist'), 'w')
+        file_list = open(os.path.join(srtm_folder, 'filelist'), 'wb')
         pickle.dump(filelist, file_list)
         file_list.close()
 

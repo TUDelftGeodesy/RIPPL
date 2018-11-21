@@ -4,18 +4,20 @@ import os
 import numpy as np
 import datetime
 import logging
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
-from doris_processing.image_data import ImageData
-from doris_processing.find_coordinates import FindCoordinates
+from image_data import ImageData
+from coordinate_system import CoordinateSystem
 
-from slant_delay.weather_models.ECMWF.ecmwf_type import ECMWFType
-from slant_delay.weather_models.ECMWF.ecmwf_download import ECMWFdownload
-from slant_delay.weather_models.ECMWF.ecmwf_load_file import ECMWFData
-from slant_delay.weather_models.model_ray_tracing import ModelRayTracing
-from slant_delay.weather_models.radar_data import RadarData
-from slant_delay.weather_models.model_to_delay import ModelToDelay
-from slant_delay.weather_models.model_interpolate_delays import ModelInterpolateDelays
+from processing_steps.radar_dem import RadarDem
+
+from NWP_functions.ECMWF.ecmwf_type import ECMWFType
+from NWP_functions.ECMWF.ecmwf_download import ECMWFdownload
+from NWP_functions.ECMWF.ecmwf_load_file import ECMWFData
+from NWP_functions.model_ray_tracing import ModelRayTracing
+from NWP_functions.radar_data import RadarData
+from NWP_functions.model_to_delay import ModelToDelay
+from NWP_functions.model_interpolate_delays import ModelInterpolateDelays
 
 
 class EcmwfAps(object):
@@ -24,23 +26,16 @@ class EcmwfAps(object):
     :type s_lin = int
     """
 
-    def __init__(self, meta, ref_meta, s_lin=0, s_pix=0, lines=0, multilook_coarse='', multilook_fine='', offset='',
+    def __init__(self, meta, cmaster_meta, coor_in, coor_out, s_lin=0, s_pix=0, lines=0,
                  weather_data_archive='', ecmwf_type='era5', time_interp='nearest', split=False, download=True):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
-        if isinstance(meta, str):
-            if len(meta) != 0:
-                self.meta = ImageData(meta, 'single')
-        elif isinstance(meta, ImageData):
-            self.meta = meta
-
-        # Load the reference image, used for geocoding and resampling of the other images
-        if isinstance(ref_meta, str):
-            if len(ref_meta) != 0:
-                self.ref_meta = ImageData(ref_meta, 'single')
-        elif isinstance(ref_meta, ImageData):
-            self.ref_meta = ref_meta
+        if isinstance(meta, ImageData) and isinstance(cmaster_meta, ImageData):
+            self.slave = meta
+            self.cmaster = cmaster_meta
+        else:
+            return
 
         # The weather data archive
         if ecmwf_type in ['oper', 'interim', 'era5']:
@@ -61,7 +56,7 @@ class EcmwfAps(object):
             self.ecmwf_type = ecmwf_type
 
         if len(weather_data_archive) == 0 or not os.path.exists(weather_data_archive):
-            self.weather_data_archive = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(self.ref_meta.folder))), 'weather_models')
+            self.weather_data_archive = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(self.cmaster.folder))), 'weather_models')
         else:
             self.weather_data_archive = weather_data_archive
         self.weather_data_folder = os.path.join(self.weather_data_archive, 'ecmwf_data')
@@ -69,28 +64,27 @@ class EcmwfAps(object):
         self.download = download
         self.s_lin = s_lin
         self.s_pix = s_pix
+        self.coor_out = coor_out
+        self.coor_in = coor_in
 
-        # Define the output grid
-        # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-
-        # Information is loaded for:
-        # 1. the output multilooking factor and offset
-        # 2. the output multilooking factor and offset transformed to an interval and buffer for geocoding.
-        self.str_ml, self.multilook_fine, self.offset, self.ml_shape, self.fine_lines, self.fine_pixels, \
-        str_int_coarse, interval_coarse, buffer_coarse, offset_coarse, coarse_shape, self.coarse_lines, self.coarse_pixels, \
-        str_int_fine, interval_fine, buffer_fine, offset_fine, fine_shape \
-            = FindCoordinates.interval_multilook_coors(self.meta, s_lin, s_pix, lines, multilook_coarse=multilook_coarse,
-                                                       multilook_fine=multilook_fine, offset=offset)
+        # The coor_in grid is a course grid to find the height delay dependence of our Harmonie data.
+        # The coor_out grid is the final interpolation grid that is generated as an output.
+        # Normally the coor_in grid can be of more or less the same resolution as the Harmonie data, which is 2 km.
+        # For Sentinel-1 data this means a multilooking of about [50, 200]
+        self.shape_in, self.coarse_lines, self.coarse_pixels = RadarDem.find_coordinates(meta, s_lin, s_pix, lines, coor_in)
+        self.shape_out, self.lines, self.pixels = RadarDem.find_coordinates(meta, s_lin, s_pix, lines, coor_out)
 
         # Load data input grid
-        self.lat = self.ref_meta.image_load_data_memory('geocode', 0, 0, coarse_shape, 'Lat' + str_int_coarse)
-        self.lon = self.ref_meta.image_load_data_memory('geocode', 0, 0, coarse_shape, 'Lon' + str_int_coarse)
-        self.height = self.ref_meta.image_load_data_memory('radar_dem', 0, 0, coarse_shape, 'Data' + str_int_coarse)
-        self.azimuth_angle = self.ref_meta.image_load_data_memory('azimuth_elevation_angle', 0, 0, coarse_shape, 'Azimuth_angle' + str_int_coarse)
-        self.elevation_angle = self.ref_meta.image_load_data_memory('azimuth_elevation_angle', 0, 0, coarse_shape, 'Elevation_angle' + str_int_coarse)
+        self.lat = self.cmaster.image_load_data_memory('geocode', s_lin, 0, self.shape_in, 'Lat' + coor_in.sample)
+        self.lon = self.cmaster.image_load_data_memory('geocode', s_lin, 0, self.shape_in, 'Lon' + coor_in.sample)
+        self.height = self.cmaster.image_load_data_memory('radar_dem', s_lin, 0, self.shape_in, 'Data' + coor_in.sample)
+        self.azimuth_angle = self.cmaster.image_load_data_memory('azimuth_elevation_angle', s_lin, 0, self.shape_in,
+                                                                 'Azimuth_angle' + coor_in.sample)
+        self.elevation_angle = self.cmaster.image_load_data_memory('azimuth_elevation_angle', s_lin, 0, self.shape_in,
+                                                                   'Elevation_angle' + coor_in.sample)
 
         # Load height of multilook grid (from an interval, buffer grid, which makes it a bit complicated...)
-        self.out_height = self.ref_meta.image_load_data_memory('radar_dem', offset_fine[0], offset_fine[1], fine_shape, 'Data' + str_int_fine)
+        self.out_height = self.cmaster.image_load_data_memory('radar_dem', s_lin, 0, self.shape_in, 'Data' + coor_out.sample)
         self.simulated_delay = []
         self.split = split
         if self.split:
@@ -100,7 +94,7 @@ class EcmwfAps(object):
     def __call__(self, latlim='', lonlim=''):
         # Check if needed data is loaded
         if len(self.lat) == 0 or len(self.lon) == 0 or len(self.height) == 0 or len(self.azimuth_angle) == 0 or len(self.elevation_angle) == 0:
-            print('Missing input data for ray tracing weather model ' + self.ref_meta.folder +
+            print('Missing input data for ray tracing weather model ' + self.cmaster.folder +
                   '. Check whether you are using the right reference image. If so, you can run the geocode image '
                   'function to calculate the needed values. Aborting..')
             return False
@@ -113,7 +107,7 @@ class EcmwfAps(object):
                                      self.lat, self.lon, self.height)
 
             # Define date we need weather data.
-            date = datetime.datetime.strptime(self.meta.processes['readfiles']['First_pixel_azimuth_time (UTC)'], '%Y-%m-%dT%H:%M:%S.%f')
+            date = datetime.datetime.strptime(self.slave.processes['readfiles']['First_pixel_azimuth_time (UTC)'], '%Y-%m-%dT%H:%M:%S.%f')
 
             ecmwf_type = ECMWFType(self.ecmwf_type)
             radar_data = RadarData(self.time_interp, ecmwf_type.t_step, 0)
@@ -121,7 +115,7 @@ class EcmwfAps(object):
 
             # Load the ECMWF data
             # Download the needed files
-            # For simplicity we limit ourselves here to europe is the lat/lon limits are not given.
+            # For simplicity we limit ourselves here to europe if the lat/lon limits are not given.
             if len(latlim) != 2:
                 latlim = [45, 56]
             if len(lonlim) != 2:
@@ -158,7 +152,7 @@ class EcmwfAps(object):
             model_delays.remove_delay(date)
 
             # Finally resample to the full grid
-            pixel_points, lines_points = np.meshgrid(self.fine_pixels, self.fine_lines)
+            pixel_points, lines_points = np.meshgrid(self.pixels, self.lines)
             point_delays = ModelInterpolateDelays(self.coarse_lines, self.coarse_pixels, split=self.split)
             point_delays.add_interp_points(np.ravel(lines_points), np.ravel(pixel_points), np.ravel(self.out_height))
 
@@ -166,7 +160,7 @@ class EcmwfAps(object):
             point_delays.interpolate_points()
 
             # Save the file
-            shp = (len(self.fine_lines), len(self.fine_pixels))
+            shp = (len(self.lines), len(self.pixels))
             self.simulated_delay = point_delays.interp_delays['total'][date].reshape(shp).astype(np.float32)
             if self.split:
                 self.hydrostatic_delay = point_delays.interp_delays['hydrostatic'][date].reshape(shp).astype(np.float32)
@@ -175,78 +169,101 @@ class EcmwfAps(object):
             ray_delays.remove_delay(date)
 
             # If needed do the multilooking step
+            self.slave.image_new_data_memory(self.simulated_delay, 'NWP_phase', self.s_lin, self.s_pix, 'harmonie_' +
+                                             self.ecmwf_type + '_aps' + self.coor_out.sample)
             if self.split:
-                self.add_meta_data(self.meta, self.str_ml, self.ml_shape, self.multilook_fine, self.offset,
-                                   self.ecmwf_type, ['total', 'hydrostatic', 'wet'])
-            else:
-                self.add_meta_data(self.meta, self.str_ml, self.ml_shape, self.multilook_fine, self.offset,
-                                   self.ecmwf_type, ['total'])
-
-            self.meta.image_new_data_memory(self.simulated_delay, 'NWP_phase', self.s_lin, self.s_pix, 'ECMWF_' + self.ecmwf_type + '_total' + self.str_ml)
-            if self.split:
-                self.meta.image_new_data_memory(self.hydrostatic_delay, 'NWP_phase', self.s_lin, self.s_pix,
-                                                'ECMWF_' + self.ecmwf_type + '_hydrostatic' + self.str_ml)
-                self.meta.image_new_data_memory(self.wet_delay, 'NWP_phase', self.s_lin, self.s_pix,
-                                                'ECMWF_' + self.ecmwf_type + '_wet' + self.str_ml)
+                self.slave.image_new_data_memory(self.hydrostatic_delay, 'NWP_phase', self.s_lin, self.s_pix,
+                                                'harmonie_' + self.ecmwf_type + '_hydrostatic' + self.coor_out.sample)
+                self.slave.image_new_data_memory(self.wet_delay, 'NWP_phase', self.s_lin, self.s_pix,
+                                                'harmonie_' + self.ecmwf_type + '_wet' + self.coor_out.sample)
 
         except Exception:
-            log_file = os.path.join(self.meta.folder, 'error.log')
+            log_file = os.path.join(self.slave.folder, 'error.log')
             logging.basicConfig(filename=log_file, level=logging.DEBUG)
             logging.exception('Failed creating aps from ECMWF for ' +
-                              self.meta.folder + '. Check ' + log_file + ' for details.')
+                              self.slave.folder + '. Check ' + log_file + ' for details.')
             print('Failed creating aps from ECMWF for ' +
-                  self.meta.folder + '. Check ' + log_file + ' for details.')
+                  self.slave.folder + '. Check ' + log_file + ' for details.')
 
             return False
 
     @staticmethod
-    def create_output_files(meta, to_disk):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-
-        for s in to_disk:
-            meta.image_create_disk('NWP_phase', s)
-
-    def save_to_disk(self, to_disk=''):
-
-        if not to_disk:
-            if self.split:
-                to_disk = ['ECMWF_' + self.ecmwf_type + '_total' + self.str_ml,
-                           'ECMWF_' + self.ecmwf_type + '_wet' + self.str_ml,
-                           'ECMWF_' + self.ecmwf_type + '_hydrostatic' + self.str_ml]
-            else:
-                to_disk = ['ECMWF_' + self.ecmwf_type + '_total' + self.str_ml]
-
-        for s in to_disk:
-            self.meta.image_memory_to_disk('NWP_phase', s)
-
-
-
-    @staticmethod
-    def add_meta_data(meta, sample, shape, multilook, offset, ecmwf_type, data_types):
+    def add_meta_data(meta, coordinates, e_type='ERA5', split=False):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
+
         if 'NWP_phase' in meta.processes.keys():
             meta_info = meta.processes['NWP_phase']
         else:
             meta_info = OrderedDict()
 
-        if 'coreg_crop' in meta.processes.keys():
-            step = 'coreg_crop'
+        if split:
+            aps_types = ['ecmwf_' + e_type + '_aps', 'ecmwf_' + e_type + '_wet', 'ecmwf_' + e_type + '_hydrostatic']
+            data_types = ['real4', 'real4', 'real4']
         else:
-            step = 'crop'
-        for data_type in data_types:
-            dat = 'ECMWF_' + ecmwf_type + '_' + data_type + sample
-            meta_info[dat + '_output_file'] = dat + '.raw'
-            meta_info[dat + '_output_format'] = 'real4'
+            aps_types = ['ecmwf_' + e_type + '_aps']
+            data_types = ['real4']
 
-            meta_info[dat + '_lines'] = str(shape[0])
-            meta_info[dat + '_pixels'] = str(shape[1])
-            meta_info[dat + '_first_line'] = meta.processes[step]['Data_first_line']
-            meta_info[dat + '_first_pixel'] = meta.processes[step]['Data_first_pixel']
-            meta_info[dat + '_multilook_azimuth'] = str(multilook[0])
-            meta_info[dat + '_multilook_range'] = str(multilook[1])
-            meta_info[dat + '_offset_azimuth'] = str(offset[0])
-            meta_info[dat + '_offset_range'] = str(offset[1])
+        meta_info = coordinates.create_meta_data(aps_types, data_types, meta_info)
 
         meta.image_add_processing_step('NWP_phase', meta_info)
+
+    @staticmethod
+    def processing_info(coordinates, e_type='ERA5', split=False):
+
+        # Fix the input coordinate system to fit the ecmwf grid... (1 km grid more or less)
+        # TODO adapt the coor_in when the output is not in radar coordinates
+        coor_in = CoordinateSystem()
+        coor_in.create_radar_coordinates(multilook=[200, 50])
+
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
+        input_dat['cmaster']['radar_dem']['radar_dem']['file'] = ['radar_dem' + coordinates.sample]
+        input_dat['cmaster']['radar_dem']['radar_dem']['coordinates'] = coordinates
+        input_dat['cmaster']['radar_dem']['radar_dem']['slice'] = True
+
+        # For multiprocessing this information is needed to define the selected area to deramp.
+        for t in ['azimuth_angle', 'elevation_angle']:
+            input_dat['cmaster']['azimuth_elevation_angle'][t]['file'] = [t + coor_in.sample + '.raw']
+            input_dat['cmaster']['azimuth_elevation_angle'][t]['coordinates'] = coor_in
+            input_dat['cmaster']['azimuth_elevation_angle'][t]['slice'] = True
+            input_dat['cmaster']['azimuth_elevation_angle'][t]['coor_change'] = 'resample'
+
+        # For multiprocessing this information is needed to define the selected area to deramp.
+        for t in ['lat', 'lon']:
+            input_dat['cmaster']['geocode'][t]['file'] = [t + coor_in.sample + '.raw']
+            input_dat['cmaster']['geocode'][t]['coordinates'] = coor_in
+            input_dat['cmaster']['geocode'][t]['slice'] = True
+            input_dat['cmaster']['geocode'][t]['coor_change'] = 'resample'
+
+        if split:
+            aps_types = ['ecmwf_' + e_type + '_aps', 'ecmwf_' + e_type + '_wet', 'ecmwf_' + e_type + '_hydrostatic']
+        else:
+            aps_types = ['ecmwf_' + e_type + '_aps']
+
+        output_dat = recursive_dict()
+        for t in aps_types:
+            output_dat['slave']['NWP_phase'][t]['file'] = [t + coor_out.sample + '.raw']
+            output_dat['slave']['NWP_phase'][t]['coordinates'] = coor_out
+            output_dat['slave']['NWP_phase'][t]['slice'] = coor_out.slice
+
+        # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
+        mem_use = 5
+
+        return input_dat, output_dat, mem_use
+
+    @staticmethod
+    def create_output_files(meta, file_type='', coordinates=''):
+        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
+        # done before the actual processing.
+        meta.images_create_disk('NWP_phase', file_type, coordinates)
+
+    @staticmethod
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_memory_to_disk('NWP_phase', file_type, coordinates)
+
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('NWP_phase', file_type, coordinates)

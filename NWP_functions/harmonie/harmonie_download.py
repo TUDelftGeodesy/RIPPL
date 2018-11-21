@@ -1,3 +1,4 @@
+
 import os
 import sys, tarfile
 import datetime
@@ -45,9 +46,9 @@ for track, analysis_time, forecast_time in zip(tracks, analysis_times, forecast_
                 os.makedirs(dest_path)
             dest = os.path.join(dest_path, filename)
 
-            print mos_zipfile
-            print filename
-            print dest
+            print(mos_zipfile)
+            print(filename)
+            print(dest)
 
             print('Timestamp: {:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()))
 
@@ -67,7 +68,7 @@ for track, analysis_time, forecast_time in zip(tracks, analysis_times, forecast_
                 dat = pygrib.open(in_file)
 
                 for g in dat:
-                    print g
+                    print(g)
 
                 # Select variables to save..
                 out = open(out_file, 'wb')

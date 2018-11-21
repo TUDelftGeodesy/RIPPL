@@ -335,8 +335,8 @@ class RadarDem(object):
                 ids = l_ids[np.where(max_pixels == p)[0]]
                 dem_max_num = [l, p]
 
-                p_mesh, l_mesh = np.meshgrid(range(int(np.floor(dem_max_num[1]))),
-                                             range(int(np.floor(dem_max_num[0]))))
+                p_mesh, l_mesh = np.meshgrid(np.arange(int(np.floor(dem_max_num[1]))),
+                                             np.arange(int(np.floor(dem_max_num[0]))))
                 dem_p = (np.ravel(np.ravel(p_mesh)[None, :] * self.multilook[1] +
                                   np.ceil((self.dem_min_pixel[ids] - self.pixels[0]) / self.multilook[1])[:, None]
                                   * self.multilook[1] + self.pixels[0])).astype('int32')

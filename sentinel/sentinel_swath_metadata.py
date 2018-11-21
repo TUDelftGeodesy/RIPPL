@@ -269,7 +269,7 @@ class CreateSwathXmlRes():
         self.swath_orbit['NUMBER_OF_DATAPOINTS'] = str(len(t))
 
         # Save the rows
-        for n in range(len(t)):
+        for n in np.arange(len(t)):
             self.swath_orbit['row_' + str(n + 1)] = ["{:.6f}".format(t[n]),
                                                      "{:.7f}".format(float(x[n])),
                                                      "{:.7f}".format(float(y[n])),
@@ -304,7 +304,7 @@ class CreateSwathXmlRes():
         self.burst_center_coors = []
 
         # Now calculate the polygons for the different bursts
-        for n in range(size[0] - 1):
+        for n in np.arange(size[0] - 1):
             self.burst_coors.append([[lon[n, 0], lat[n, 0]],          [lon[n, -1], lat[n, -1]],
                                      [lon[n+1, -1], lat[n+1, -1]],    [lon[n+1, 0], lat[n+1, 0]]])
             self.burst_coverage.append(geometry.Polygon(self.burst_coors[n]))
@@ -331,7 +331,7 @@ class CreateSwathXmlRes():
         burst_start_time = np.asarray([datetime.strptime(i, '%Y-%m-%dT%H:%M:%S.%f') for i in
                                        self.burst_xml_dat['azimuthTimeStart']])
 
-        for n in range(int(self.swath_readfiles['total_Burst'])):
+        for n in np.arange(int(self.swath_readfiles['total_Burst'])):
 
             readfiles = copy.deepcopy(self.swath_readfiles)
 
@@ -387,7 +387,7 @@ class CreateSwathXmlRes():
 
         self.burst_crop = []
 
-        for n in range(int(self.swath_readfiles['total_Burst'])):
+        for n in np.arange(int(self.swath_readfiles['total_Burst'])):
             # Line and pixel coordinates in .tiff file (We do the crop directly here to prevent confusion)
             last_sample = np.array([int(x) for x in self.burst_xml_dat['lastValidSample'][n].split()])
             first_sample = np.array([int(x) for x in self.burst_xml_dat['firstValidSample'][n].split()])

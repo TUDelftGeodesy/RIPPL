@@ -12,7 +12,7 @@ from image_data import ImageData
 from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
 from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
-from radar_dem import RadarDem
+from processing_steps.radar_dem import RadarDem
 import copy
 import os
 import logging

@@ -9,7 +9,7 @@
 #   - (optional) Calculate the baselines between the two images
 
 from image_data import ImageData
-from radar_dem import RadarDem
+from processing_steps.radar_dem import RadarDem
 from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import numpy as np
@@ -52,7 +52,7 @@ class HeightToPhase(object):
         self.baseline = self.slave.image_load_data_memory('baseline', self.s_lin, self.s_pix, self.shape,
                                                             'perpendicular_baseline')
         self.incidence = (90 - self.cmaster.image_load_data_memory('azimuth_elevation_angle', self.s_lin, self.s_pix,
-                                                                       self.shape, 'elevation_angle')) / 180 * np.pi
+                                                                       self.shape, 'elevation_angle')) / 180.0 * np.pi
 
         # Initialize output
         self.h2ph = []

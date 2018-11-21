@@ -98,7 +98,7 @@ self('geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat
 # Get the image orientation
 self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
 
-# Run azimuth elevation angles for the full image
+
 coordinates = CoordinateSystem()
 coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
 coordinates.slice = False
@@ -113,6 +113,10 @@ for multilook in [[5, 20], [10, 40], [20, 80]]:
     coordinates.create_radar_coordinates(multilook=multilook, offset=[0, 0], oversample=[1, 1])
     coordinates.slice = False
     self('square_amplitude', settings, coordinates, 'slave', file_type='square_amplitude', parallel=parallel)
+    # Get the harmonie (h38) and ECMWF (ERA5) data
+    self('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_h38_aps'])
+    self('ecmwf_aps', settings, coordinates, 'slave', file_type=['ecmwf_ERA5_aps'])
+
     # Create ifgs / coherence for daisy chain.
     self('interferogram', settings, coordinates, 'ifg', file_type='interferogram', parallel=parallel)
     self('coherence', settings, coordinates, 'ifg', file_type='coherence', parallel=parallel)
