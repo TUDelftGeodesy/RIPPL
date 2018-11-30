@@ -94,27 +94,27 @@ class SquareAmplitude(object):
         meta.image_add_processing_step('square_amplitude', meta_info)
 
     @staticmethod
-    def processing_info(coordinates, coor_in='', step='earth_topo_phase', file_type='earth_topo_phase', meta_type='slave'):
+    def processing_info(coordinates, step='earth_topo_phase', file_type='earth_topo_phase', meta_type='slave'):
 
-        if not isinstance(coor_in, CoordinateSystem):
-            coor_in = CoordinateSystem()
-            coor_in.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+        in_coordinates = CoordinateSystem()
+        in_coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
         # Data input file from a random step / file type
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat[meta_type][step][file_type]['file'] = [file_type + '.raw']
-        input_dat[meta_type][step][file_type]['coordinates'] = coor_in
-        input_dat[meta_type][step][file_type]['slice'] = True
-        input_dat[meta_type][step][file_type]['coor_change'] = 'multilook'
+        input_dat[meta_type][step][file_type + in_coordinates.sample]['file'] = file_type + in_coordinates.sample + '.raw'
+        input_dat[meta_type][step][file_type + in_coordinates.sample]['coordinates'] = in_coordinates
+        input_dat[meta_type][step][file_type + in_coordinates.sample]['slice'] = True
+        input_dat[meta_type][step][file_type + in_coordinates.sample]['coor_change'] = 'multilook'
 
         # line and pixel output files.
         output_dat = recursive_dict()
-        output_dat[meta_type]['square_amplitude']['square_amplitude']['file'] = ['square_amplitude' + coordinates.sample + '.raw']
-        output_dat[meta_type]['square_amplitude']['square_amplitude']['coordinates'] = coordinates
-        output_dat[meta_type]['square_amplitude']['square_amplitude']['slice'] = coordinates.slice
+        output_dat[meta_type]['square_amplitude']['square_amplitude' + coordinates.sample]['file'] = 'square_amplitude' + coordinates.sample + '.raw'
+        output_dat[meta_type]['square_amplitude']['square_amplitude' + coordinates.sample]['coordinates'] = coordinates
+        output_dat[meta_type]['square_amplitude']['square_amplitude' + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram.
         mem_use = 2

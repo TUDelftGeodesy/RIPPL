@@ -85,7 +85,6 @@ def run_parallel(dat):
             if not succes:
                 break
 
-
         if dat['save']:
             var = dat['save_var'][n]
             var_names = dat['save_var_name'][n]

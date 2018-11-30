@@ -208,21 +208,21 @@ class Interfero(object):
         # Three input files needed x, y, z coordinates
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat['slave'][step][file_type]['file'] = [file_type + '.raw']
-        input_dat['slave'][step][file_type]['coordinates'] = coor_in
-        input_dat['slave'][step][file_type]['slice'] = True
-        input_dat['slave'][step][file_type]['coor_change'] = 'multilook'
+        input_dat['slave'][step][file_type + coor_in.sample]['file'] = file_type + '.raw'
+        input_dat['slave'][step][file_type + coor_in.sample]['coordinates'] = coor_in
+        input_dat['slave'][step][file_type + coor_in.sample]['slice'] = True
+        input_dat['slave'][step][file_type + coor_in.sample]['coor_change'] = 'multilook'
 
-        input_dat['master'][step][file_type]['file'] = [file_type + '.raw']
-        input_dat['master'][step][file_type]['coordinates'] = coor_in
-        input_dat['master'][step][file_type]['slice'] = True
-        input_dat['master'][step][file_type]['coor_change'] = 'multilook'
+        input_dat['master'][step][file_type + coor_in.sample]['file'] = file_type + '.raw'
+        input_dat['master'][step][file_type + coor_in.sample]['coordinates'] = coor_in
+        input_dat['master'][step][file_type + coor_in.sample]['slice'] = True
+        input_dat['master'][step][file_type + coor_in.sample]['coor_change'] = 'multilook'
 
         # line and pixel output files.
         output_dat = recursive_dict()
-        output_dat['ifg']['interferogram']['interferogram']['file'] = ['interferogram' + coor_out.sample + '.raw']
-        output_dat['ifg']['interferogram']['interferogram']['coordinates'] = coor_out
-        output_dat['ifg']['interferogram']['interferogram']['slice'] = coor_out.slice
+        output_dat['ifg']['interferogram']['interferogram' + coor_out.sample]['file'] = 'interferogram' + coor_out.sample + '.raw'
+        output_dat['ifg']['interferogram']['interferogram' + coor_out.sample]['coordinates'] = coor_out
+        output_dat['ifg']['interferogram']['interferogram' + coor_out.sample]['slice'] = coor_out.slice
 
         # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 2

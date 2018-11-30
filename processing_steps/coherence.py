@@ -104,19 +104,19 @@ class Coherence(object):
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
         for res_type in ['slave', 'master']:
-            input_dat[res_type]['square_amplitude']['square_amplitude']['file'] = ['square_amplitude' + coordinates.sample + '.raw']
-            input_dat[res_type]['square_amplitude']['square_amplitude']['coordinates'] = coordinates
-            input_dat[res_type]['square_amplitude']['square_amplitude']['slice'] = coordinates.slice
+            input_dat[res_type]['square_amplitude']['square_amplitude' + coordinates.sample]['file'] = 'square_amplitude' + coordinates.sample + '.raw'
+            input_dat[res_type]['square_amplitude']['square_amplitude' + coordinates.sample]['coordinates'] = coordinates
+            input_dat[res_type]['square_amplitude']['square_amplitude' + coordinates.sample]['slice'] = coordinates.slice
 
-        input_dat['ifg']['interferogram']['interferogram']['file'] = ['interferogram' + coordinates.sample + '.raw']
-        input_dat['ifg']['interferogram']['interferogram']['coordinates'] = coordinates
-        input_dat['ifg']['interferogram']['interferogram']['slice'] = coordinates.slice
+        input_dat['ifg']['interferogram']['interferogram' + coordinates.sample]['file'] = 'interferogram' + coordinates.sample + '.raw'
+        input_dat['ifg']['interferogram']['interferogram' + coordinates.sample]['coordinates'] = coordinates
+        input_dat['ifg']['interferogram']['interferogram' + coordinates.sample]['slice'] = coordinates.slice
 
         # line and pixel output files.
         output_dat = recursive_dict()
-        output_dat['ifg']['coherence']['coherence']['file'] = ['coherence' + coordinates.sample + '.raw']
-        output_dat['ifg']['coherence']['coherence']['coordinates'] = coordinates
-        output_dat['ifg']['coherence']['coherence']['slice'] = coordinates.slice
+        output_dat['ifg']['coherence']['coherence' + coordinates.sample]['file'] = 'coherence' + coordinates.sample + '.raw'
+        output_dat['ifg']['coherence']['coherence' + coordinates.sample]['coordinates'] = coordinates
+        output_dat['ifg']['coherence']['coherence' + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 20

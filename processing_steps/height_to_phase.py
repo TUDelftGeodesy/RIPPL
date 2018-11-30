@@ -117,19 +117,19 @@ class HeightToPhase(object):
         # Three input files needed x, y, z coordinates
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat['slave']['baseline']['perpendicular_baseline']['file'] = ['perpendicular_baseline' + coordinates.sample + '.raw']
-        input_dat['slave']['baseline']['perpendicular_baseline']['coordinates'] = coordinates
-        input_dat['slave']['baseline']['perpendicular_baseline']['slice'] = True
+        input_dat['slave']['baseline']['perpendicular_baseline' + coordinates.sample]['file'] = 'perpendicular_baseline' + coordinates.sample + '.raw'
+        input_dat['slave']['baseline']['perpendicular_baseline' + coordinates.sample]['coordinates'] = coordinates
+        input_dat['slave']['baseline']['perpendicular_baseline' + coordinates.sample]['slice'] = True
 
-        input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle']['file'] = ['elevation_angle' + coordinates.sample + '.raw']
-        input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle']['coordinates'] = coordinates
-        input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle']['slice'] = coordinates.slice
+        input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle' + coordinates.sample]['file'] = 'elevation_angle' + coordinates.sample + '.raw'
+        input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle' + coordinates.sample]['coordinates'] = coordinates
+        input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle' + coordinates.sample]['slice'] = coordinates.slice
 
         # line and pixel output files.
         output_dat = recursive_dict()
-        output_dat['slave']['height_to_phase']['height_to_phase']['files'] = ['height_to_phase' + coordinates.sample + '.raw']
-        output_dat['slave']['height_to_phase']['height_to_phase']['files'] = coordinates
-        output_dat['slave']['height_to_phase']['height_to_phase']['files'] = coordinates.slice
+        output_dat['slave']['height_to_phase']['height_to_phase' + coordinates.sample]['files'] = 'height_to_phase' + coordinates.sample + '.raw'
+        output_dat['slave']['height_to_phase']['height_to_phase' + coordinates.sample]['files'] = coordinates
+        output_dat['slave']['height_to_phase']['height_to_phase' + coordinates.sample]['files'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5

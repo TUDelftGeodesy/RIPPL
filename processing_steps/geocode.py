@@ -115,16 +115,16 @@ class Geocode(object):
         # Three input files needed Dem, Dem_line and Dem_pixel
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat[meta_type]['radar_DEM']['radar_DEM']['file'] = ['Data_' + coordinates.sample + '.raw']
-        input_dat[meta_type]['radar_DEM']['radar_DEM']['coordinates'] = coordinates
-        input_dat[meta_type]['radar_DEM']['radar_DEM']['slice'] = coordinates.slice
+        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['file'] = 'radar_DEM' + coordinates.sample + '.raw'
+        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['coordinates'] = coordinates
+        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['slice'] = coordinates.slice
 
         # One output file created radar dem
         output_dat = recursive_dict()
         for t in ['lat', 'lon', 'X', 'Y', 'Z']:
-            output_dat[meta_type]['geocode'][t]['files'] = [t + coordinates.sample + '.raw']
-            output_dat[meta_type]['geocode'][t]['coordinates'] = coordinates
-            output_dat[meta_type]['geocode'][t]['slice'] = coordinates.slice
+            output_dat[meta_type]['geocode'][t + coordinates.sample]['files'] = t + coordinates.sample + '.raw'
+            output_dat[meta_type]['geocode'][t + coordinates.sample]['coordinates'] = coordinates
+            output_dat[meta_type]['geocode'][t + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 20

@@ -90,15 +90,15 @@ class Unwrap(object):
         # Three input files needed x, y, z coordinates
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat['ifg']['interferogram']['interferogram']['file'] = ['interferogram' + coordinates.sample + '.raw']
-        input_dat['ifg']['interferogram']['interferogram']['coordinates'] = coordinates
-        input_dat['ifg']['interferogram']['interferogram']['slice'] = coordinates.slice
+        input_dat['ifg']['interferogram']['interferogram' + coordinates.sample]['file'] = 'interferogram' + coordinates.sample + '.raw'
+        input_dat['ifg']['interferogram']['interferogram' + coordinates.sample]['coordinates'] = coordinates
+        input_dat['ifg']['interferogram']['interferogram' + coordinates.sample]['slice'] = coordinates.slice
 
         # line and pixel output files.
         output_dat = recursive_dict()
-        output_dat['ifg']['unwrap']['unwrap']['file'] = ['unwrap' + coordinates.sample + '.raw']
-        output_dat['ifg']['unwrap']['unwrap']['coordinates'] = coordinates
-        output_dat['ifg']['unwrap']['unwrap']['slice'] = coordinates.slice
+        output_dat['ifg']['unwrap']['unwrap' + coordinates.sample]['file'] = 'unwrap' + coordinates.sample + '.raw'
+        output_dat['ifg']['unwrap']['unwrap' + coordinates.sample]['coordinates'] = coordinates
+        output_dat['ifg']['unwrap']['unwrap' + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 1

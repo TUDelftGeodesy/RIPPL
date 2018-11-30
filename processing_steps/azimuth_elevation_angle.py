@@ -138,13 +138,13 @@ class AzimuthElevationAngle(object):
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
         for t in ['X', 'Y', 'Z']:
-            input_dat[meta_type]['geocode'][t]['file'] = [t + coordinates.sample + '.raw']
-            input_dat[meta_type]['geocode'][t]['coordinates'] = coordinates
-            input_dat[meta_type]['geocode'][t]['slice'] = coordinates.slice
+            input_dat[meta_type]['geocode'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
+            input_dat[meta_type]['geocode'][t + coordinates.sample]['coordinates'] = coordinates
+            input_dat[meta_type]['geocode'][t + coordinates.sample]['slice'] = coordinates.slice
 
-        input_dat[meta_type]['radar_DEM']['radar_DEM']['file'] = ['radar_DEM' + coordinates.sample + '.raw']
-        input_dat[meta_type]['radar_DEM']['radar_DEM']['coordinates'] = coordinates
-        input_dat[meta_type]['radar_DEM']['radar_DEM']['slice'] = coordinates.slice
+        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['file'] = 'radar_DEM' + coordinates.sample + '.raw'
+        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['coordinates'] = coordinates
+        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['slice'] = coordinates.slice
 
         file_type = []
         if scatterer:
@@ -155,9 +155,9 @@ class AzimuthElevationAngle(object):
         # 2 or 4 output files.
         output_dat = recursive_dict()
         for t in file_type:
-            output_dat[meta_type]['azimuth_elevation_angle'][t]['file'] = [t + coordinates.sample + '.raw']
-            output_dat[meta_type]['azimuth_elevation_angle'][t]['multilook'] = coordinates
-            output_dat[meta_type]['azimuth_elevation_angle'][t]['slice'] = coordinates.slice
+            output_dat[meta_type]['azimuth_elevation_angle'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
+            output_dat[meta_type]['azimuth_elevation_angle'][t + coordinates.sample]['multilook'] = coordinates
+            output_dat[meta_type]['azimuth_elevation_angle'][t + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 20

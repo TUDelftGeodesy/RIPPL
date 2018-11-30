@@ -219,22 +219,22 @@ class RadarDem(object):
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
 
-        input_dat[meta_type]['import_DEM']['DEM']['file'] = ['DEM' + coor_in.sample + '.raw']
-        input_dat[meta_type]['import_DEM']['DEM']['coordinates'] = coor_in
-        input_dat[meta_type]['import_DEM']['DEM']['slice'] = coor_in.slice
-        input_dat[meta_type]['import_DEM']['DEM']['coor_change'] = 'resample'
+        input_dat[meta_type]['import_DEM']['DEM' + coor_in.sample]['file'] = 'DEM' + coor_in.sample + '.raw'
+        input_dat[meta_type]['import_DEM']['DEM' + coor_in.sample]['coordinates'] = coor_in
+        input_dat[meta_type]['import_DEM']['DEM' + coor_in.sample]['slice'] = coor_in.slice
+        input_dat[meta_type]['import_DEM']['DEM' + coor_in.sample]['coor_change'] = 'resample'
 
         for dat_type in ['DEM_pixel', 'DEM_line']:
-            input_dat[meta_type]['inverse_geocode'][dat_type]['file'] = [dat_type + coor_in.sample + '.raw']
-            input_dat[meta_type]['inverse_geocode'][dat_type]['coordinates'] = coor_in
-            input_dat[meta_type]['inverse_geocode'][dat_type]['slice'] = coor_in.slice
-            input_dat[meta_type]['inverse_geocode'][dat_type]['coor_change'] = 'resample'
+            input_dat[meta_type]['inverse_geocode'][dat_type + coor_in.sample]['file'] = dat_type + coor_in.sample + '.raw'
+            input_dat[meta_type]['inverse_geocode'][dat_type + coor_in.sample]['coordinates'] = coor_in
+            input_dat[meta_type]['inverse_geocode'][dat_type + coor_in.sample]['slice'] = coor_in.slice
+            input_dat[meta_type]['inverse_geocode'][dat_type + coor_in.sample]['coor_change'] = 'resample'
 
         # One output file created radar dem
         output_dat = recursive_dict()
-        output_dat[meta_type]['radar_DEM']['radar_DEM']['files'] = ['radar_DEM' + coor_out.sample + '.raw']
-        output_dat[meta_type]['radar_DEM']['radar_DEM']['coordinate'] = coor_out
-        output_dat[meta_type]['radar_DEM']['radar_DEM']['slice'] = coor_out.slice
+        output_dat[meta_type]['radar_DEM']['radar_DEM' + coor_out.sample]['files'] = 'radar_DEM' + coor_out.sample + '.raw'
+        output_dat[meta_type]['radar_DEM']['radar_DEM' + coor_out.sample]['coordinate'] = coor_out
+        output_dat[meta_type]['radar_DEM']['radar_DEM' + coor_out.sample]['slice'] = coor_out.slice
 
         # Number of times input data is used in ram. Bit difficult here but 15 times is ok guess.
         mem_use = 15
@@ -279,29 +279,61 @@ class RadarDem(object):
 
         # First we calculate the pixel limits for every grid cell:
         # We use a none sparse matrix because it will become to complicated and possibly slow otherwise.
+
+        # First step is to remove all the grid cells that do not contain points (Case where DEM grid is finer than the
+
         p_num = (self.dem.shape[0] - 1) * (self.dem.shape[1] - 1)
 
         # Find the max and min grid values
-        self.dem_max_line = - np.ones(p_num) * 10**10
-        self.dem_min_line = np.ones(p_num) * 10**10
-        self.dem_max_pixel = - np.ones(p_num) * 10**10
-        self.dem_min_pixel = np.ones(p_num) * 10**10
+        self.used_grids = np.ones(self.dem.shape - np.array([1, 1])).astype(np.bool)
+        for s_line, e_line in zip([0, 1], [-1, self.dem.shape[0]]):
+            for s_pix, e_pix in zip([0, 1], [-1, self.dem.shape[1]]):
+                self.used_grids *= (self.dem_line[s_line:e_line, s_pix:e_pix] != 0) * (self.dem_pixel[s_line:e_line, s_pix:e_pix] != 0)
+        self.used_grids = np.ravel(self.used_grids)
+
+        dem_max_line = - np.ones(np.sum(self.used_grids)) * 10**10
+        dem_min_line = np.ones(np.sum(self.used_grids)) * 10**10
 
         # Now find the bounding boxes
         for s_line, e_line in zip([0, 1], [-1, self.dem.shape[0]]):
             for s_pix, e_pix in zip([0, 1], [-1, self.dem.shape[1]]):
-                self.dem_max_line = np.maximum(self.dem_max_line, np.ravel(self.dem_line[s_line:e_line, s_pix:e_pix]))
-                self.dem_min_line = np.minimum(self.dem_min_line, np.ravel(self.dem_line[s_line:e_line, s_pix:e_pix]))
-                self.dem_max_pixel = np.maximum(self.dem_max_pixel, np.ravel(self.dem_pixel[s_line:e_line, s_pix:e_pix]))
-                self.dem_min_pixel = np.minimum(self.dem_min_pixel, np.ravel(self.dem_pixel[s_line:e_line, s_pix:e_pix]))
+                dem_max_line = np.maximum(dem_max_line, np.ravel(self.dem_line[s_line:e_line, s_pix:e_pix])[self.used_grids])
+                dem_min_line = np.minimum(dem_min_line, np.ravel(self.dem_line[s_line:e_line, s_pix:e_pix])[self.used_grids])
+
+        self.used_grids[self.used_grids] = (np.floor((dem_max_line - self.lines[0]) / self.multilook[0]) - np.floor((dem_min_line - self.lines[0]) / self.multilook[0])).astype(np.int16) > 0
+        dem_max_pixel = - np.ones(np.sum(self.used_grids)) * 10**10
+        dem_min_pixel = np.ones(np.sum(self.used_grids)) * 10**10
+
+        for s_line, e_line in zip([0, 1], [-1, self.dem.shape[0]]):
+            for s_pix, e_pix in zip([0, 1], [-1, self.dem.shape[1]]):
+                dem_max_pixel = np.maximum(dem_max_pixel, np.ravel(self.dem_pixel[s_line:e_line, s_pix:e_pix])[self.used_grids])
+                dem_min_pixel = np.minimum(dem_min_pixel, np.ravel(self.dem_pixel[s_line:e_line, s_pix:e_pix])[self.used_grids])
+
+        self.used_grids[self.used_grids] = (np.floor((dem_max_pixel - self.pixels[0]) / self.multilook[1]) - np.floor((dem_min_pixel - self.pixels[0]) / self.multilook[1])).astype(np.int16) > 0
+        no_grid_cells = np.sum(self.used_grids)
+
+        self.dem_max_line = - np.ones(no_grid_cells) * 10**10
+        self.dem_min_line = np.ones(no_grid_cells) * 10**10
+        self.dem_max_pixel = - np.ones(no_grid_cells) * 10**10
+        self.dem_min_pixel = np.ones(no_grid_cells) * 10**10
+
+        for s_line, e_line in zip([0, 1], [-1, self.dem.shape[0]]):
+            for s_pix, e_pix in zip([0, 1], [-1, self.dem.shape[1]]):
+                self.dem_max_line = np.maximum(self.dem_max_line, np.ravel(self.dem_line[s_line:e_line, s_pix:e_pix])[self.used_grids])
+                self.dem_min_line = np.minimum(self.dem_min_line, np.ravel(self.dem_line[s_line:e_line, s_pix:e_pix])[self.used_grids])
+                self.dem_max_pixel = np.maximum(self.dem_max_pixel, np.ravel(self.dem_pixel[s_line:e_line, s_pix:e_pix])[self.used_grids])
+                self.dem_min_pixel = np.minimum(self.dem_min_pixel, np.ravel(self.dem_pixel[s_line:e_line, s_pix:e_pix])[self.used_grids])
 
         # Finally remove grid boxes which are not used for interpolation.
-        self.used_grids = np.where(((self.dem_max_line > self.lines[0] - self.multilook[0]) * (self.dem_min_line < self.lines[-1] + self.multilook[0]) *
-                      (self.dem_max_pixel > self.pixels[0] - self.multilook[1]) * (self.dem_min_pixel < self.pixels[-1] + self.multilook[1])))[0]
-        self.dem_max_line = self.dem_max_line[self.used_grids]
-        self.dem_min_line = self.dem_min_line[self.used_grids]
-        self.dem_max_pixel = self.dem_max_pixel[self.used_grids]
-        self.dem_min_pixel = self.dem_min_pixel[self.used_grids]
+        self.used_dem_grids = ((self.dem_max_line > self.lines[0] - self.multilook[0]) * (self.dem_min_line < self.lines[-1] + self.multilook[0]) *
+                      (self.dem_max_pixel > self.pixels[0] - self.multilook[1]) * (self.dem_min_pixel < self.pixels[-1] + self.multilook[1]))
+
+        self.used_grids[self.used_grids] = self.used_dem_grids
+        self.used_grids = np.where(self.used_grids)[0]
+        self.dem_max_line = self.dem_max_line[self.used_dem_grids]
+        self.dem_min_line = self.dem_min_line[self.used_dem_grids]
+        self.dem_max_pixel = self.dem_max_pixel[self.used_dem_grids]
+        self.dem_min_pixel = self.dem_min_pixel[self.used_dem_grids]
 
     def radar_in_dem_grid(self):
         # This processing_steps links the dem grid boxes to line and pixel coordinates. It returns a sparse matrix with all the

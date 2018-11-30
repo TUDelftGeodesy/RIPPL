@@ -27,7 +27,16 @@ class FindCoordinates():
             offset = [0, 0]
             buf_str = ''
         else:
-            buf_str = 'off_' + str(offset[0]) + '_' + str(offset[1])
+            if offset[0] < 0:
+                str_1 = 'm' + str(np.abs(offset[0]))
+            else:
+                str_1 = str(offset[0])
+            if offset[1] < 0:
+                str_2 = 'm' + str(np.abs(offset[1]))
+            else:
+                str_2 = str(offset[1])
+
+            buf_str = 'off_' + str_1 + '_' + str_2
 
         sample = ''
 
@@ -41,7 +50,7 @@ class FindCoordinates():
         return sample, multilook, oversample, offset
 
     @staticmethod
-    def multilook_coors(in_shape, s_lin=0, s_pix=0, lines=0, first_line=0, first_pixel=0, multilook='', oversample='', offset=''):
+    def multilook_coors(in_shape, s_lin=0, s_pix=0, lines=0, first_line=0, first_pixel=0, multilook='', oversample='', offset='', interval=False):
 
         sample, multilook, oversample, offset = FindCoordinates.multilook_str(multilook, oversample, offset)
 
@@ -70,16 +79,17 @@ class FindCoordinates():
             ovr_pix = int(np.round(ovr_pix))
 
         # Check if offset is large enough
-        if offset[0] < ovr_lin or offset[1] < ovr_pix:
-            if offset[0] < ovr_lin:
-                print('Offset in lines not large enough to do oversample (larger window needed.)')
-                offset[0] = offset[0] + int(np.ceil(float(offset[0] - ovr_lin) // az))
-            if offset[1] < ovr_pix:
-                print('Offset in pixels not large enough to do oversample (larger window needed.)')
-                offset[1] = offset[1] + int(np.ceil(float(offset[1] - ovr_pix) // ra))
+        if not interval:
+            if offset[0] < ovr_lin or offset[1] < ovr_pix:
+                if offset[0] < ovr_lin:
+                    print('Offset in lines not large enough to do oversample (larger window needed.)')
+                    offset[0] = offset[0] + int(np.ceil(float(offset[0] - ovr_lin) // az))
+                if offset[1] < ovr_pix:
+                    print('Offset in pixels not large enough to do oversample (larger window needed.)')
+                    offset[1] = offset[1] + int(np.ceil(float(offset[1] - ovr_pix) // ra))
 
-            # We will have to find a new sample string to!
-            sample, multilook, oversample, offset = FindCoordinates.multilook_str(multilook, oversample, offset)
+                # We will have to find a new sample string to!
+                sample, multilook, oversample, offset = FindCoordinates.multilook_str(multilook, oversample, offset)
 
         # Adjust the first line/pixel based on first_line / first_pixel
         if first_line != 0:
@@ -107,10 +117,10 @@ class FindCoordinates():
         return sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, out_shape]
 
     @staticmethod
-    def multilook_lines(in_shape, s_lin=0, s_pix=0, lines=0, first_line=0, first_pixel=0, multilook='', oversample='', offset=''):
+    def multilook_lines(in_shape, s_lin=0, s_pix=0, lines=0, first_line=0, first_pixel=0, multilook='', oversample='', offset='', interval=False):
 
         sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, out_shape] = \
-            FindCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset)
+            FindCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset, interval)
 
         lines_in = in_s_lin + np.arange(in_shape[0])
         pixels_in = in_s_pix + np.arange(in_shape[1])
@@ -153,10 +163,10 @@ class FindCoordinates():
         return new_slices_offset
 
     @staticmethod
-    def interval_coors(in_shape, s_lin=0, s_pix=0, lines=0, first_line=0, first_pixel=0, multilook='', oversample='', offset=''):
+    def interval_coors(in_shape, s_lin=0, s_pix=0, lines=0, first_line=0, first_pixel=0, multilook='', oversample='', offset='', interval=True):
 
         sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, shape] = \
-            FindCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset)
+            FindCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset, interval)
 
         ml_shift = (np.array(multilook).astype(np.float32) - np.array([1,1])) // 2
 
@@ -172,10 +182,10 @@ class FindCoordinates():
         return sample, multilook, oversample, offset, [s_lin, s_pix, shape]
 
     @staticmethod
-    def interval_lines(in_shape, s_lin=0, s_pix=0, lines=0, first_line=0, first_pixel=0, multilook='', oversample='', offset=''):
+    def interval_lines(in_shape, s_lin=0, s_pix=0, lines=0, first_line=0, first_pixel=0, multilook='', oversample='', offset='', interval=True):
 
         sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, out_shape] = \
-            FindCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset)
+            FindCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset, interval)
 
         ml_shift = (np.array(multilook).astype(np.float32) - np.array([1, 1])) // 2
 

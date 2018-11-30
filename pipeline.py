@@ -135,17 +135,17 @@ class Pipeline():
         self.file_type = []
         if not file_type:
             for func in self.function:
-                self.file_type.append([func])
+                self.file_type.append([func + coor.sample])
         elif isinstance(file_type, str):
-            self.file_type = [[file_type]]
+            self.file_type = [[file_type + coor.sample]]
         elif isinstance(file_type, list) and len(self.function) == 1:
-            self.file_type = [file_type]
+            self.file_type = [[f_type + coor.sample for f_type in file_type]]
         elif isinstance(file_type, list):
             for f_type in file_type:
                 if isinstance(f_type, list):
-                    self.file_type.append(f_type)
+                    self.file_type.append([f_t + coor.sample for f_t in f_type])
                 elif isinstance(f_type, str):
-                    self.file_type.append([f_type])
+                    self.file_type.append([f_type + coor.sample])
 
         if len(self.function) != len(self.file_type):
             print('Number of input functions and file types is not the same!')
@@ -253,8 +253,8 @@ class Pipeline():
                 while len(new_pipeline['step']) > 0:
                     out_samples = [coor.sample for coor in new_pipeline['coor_out']]
 
-                    step_ids = np.where((np.array(out_samples) == new_pipeline['coor_out'][0].sample) *
-                                        (np.array(new_pipeline['meta']) == new_pipeline['meta'][0]))[0]
+                    step_ids = np.where((np.array(out_samples) == new_pipeline['coor_out'][-1].sample) *
+                                        (np.array(new_pipeline['meta']) == new_pipeline['meta'][-1]))[0]
                     start_funcs = np.array(new_pipeline['step'])[step_ids]
                     start_meta_type = np.array(new_pipeline['meta_type'])[step_ids]
                     start_file_type = np.array(new_pipeline['file_type'])[step_ids]
@@ -443,6 +443,9 @@ class Pipeline():
             # Additional settings for concatenation.
             settings = dict()
             settings['step'] = con_step
+            if con_file_type.endswith(con_coor_out.sample) and len(con_coor_out.sample) > 0:
+                con_file_type = con_file_type[:-len(con_coor_out.sample)]
+
             settings['file_type'] = con_file_type
 
             for slice_name, slice_coor, slice_in_coor in zip(concat_names, concat_coors, concat_in_coors):
@@ -605,7 +608,7 @@ class Pipeline():
 
             new_file_types = []
             for file_type in file_types:
-                if not self.res_dat[meta_name][meta_type].check_datafile(step, file_type=file_type + start_coor.sample, warn=False):
+                if not self.res_dat[meta_name][meta_type].check_datafile(step, file_type=file_type, warn=False):
                     new_file_types.append(file_type)
 
             if len(new_file_types) > 0:
@@ -661,7 +664,7 @@ class Pipeline():
 
                     use_slices = False
                     for p_type in p_file_type:
-                        use_slices = self.check_slices_exist(p_meta_type, p_step, p_type + start_coor.sample)
+                        use_slices = self.check_slices_exist(p_meta_type, p_step, p_type)
                         if not use_slices:
                             continue
 
@@ -670,9 +673,11 @@ class Pipeline():
                         if input_dat[meta_type][step][file_type]['slice'] == True:
                             use_slices = True
 
+                    if p_step in ['inverse_geocode', 'geometrical_coreg']:
+                        use_slices = False
+
                     coor_in = input_dat[meta_types[0]][step_types[0]][file_types[0]]['coordinates']
                     if use_slices:
-
 
                         for p_type in p_file_type:
                             id = Pipeline.check_step_unique(concat, p_step, meta_name, p_meta_type,
@@ -742,7 +747,8 @@ class Pipeline():
 
                     parent_id = np.where(np.array(pipeline['step']) == p_step)[0][0]
                     coor_in = input_dat[meta_type][step][file_type]['coordinates']
-                    if self.res_dat[meta_name][meta_type].check_datafile(step, file_type=file_type + coor_in.sample, warn=False):
+
+                    if self.res_dat[meta_name][meta_type].check_datafile(step, file_type=file_type, warn=False):
 
                         # If the input files already exist they can be removed from memory directly after processing.
                         if meta_type in pipeline['rem_mem'][parent_id].keys():
@@ -812,14 +818,9 @@ class Pipeline():
                                 else:
                                     pipeline['save_disk'].append(False)
 
-
                             else:
                                 # In case the step exists
                                 pipeline['file_type'][id[0]].append(file_type)
-
-                                # To iterate further.
-                                nd = np.where(np.array(depend) == step)[0][0]
-                                depend_file_type[nd].append(file_type)
 
                             # In both cases add the remove memory step
                             parent_id = np.where(np.array(pipeline['step']) == p_step)[0][0]
@@ -989,8 +990,18 @@ class Pipeline():
                     save_disk = [pipeline['step'][n] for n in np.arange(len(pipeline['step'])) if pipeline['save_disk'][n] == True]
 
                     #  Then add the variables which are independent from the block size
-                    for func, file_type, meta, meta_type, coordinates, coor_out in zip(pipeline['step'], pipeline['file_type'],
+                    for func, f_type, meta, meta_type, coordinates, coor_out in zip(pipeline['step'], pipeline['file_type'],
                             pipeline['meta'], pipeline['meta_type'], pipeline['coor_in'], pipeline['coor_out']):
+
+                        file_type = []
+                        for f in f_type:
+                            if f.endswith(coor_out.sample) and len(coor_out.sample) > 0:
+                                file_type.append(f[:-len(coor_out.sample)])
+                            elif len(coor_out.sample) == 0:
+                                file_type.append(f)
+                            else:
+                                print('Out coordinate system does not fit with file type name. Review your processing_info of step ' + func)
+                                return
 
                         if func in save_disk:
                             meta_var, meta_var_names, res_dat = self.create_var_package(
@@ -1078,8 +1089,18 @@ class Pipeline():
                     res_dat = pipeline_processing['res_dat']
 
                     #  Then add the variables which are independent from the block size
-                    for func, file_type, meta, meta_type, coordinates, coor_out, rem_mem in zip(pipeline['step'], pipeline['file_type'],
+                    for func, f_type, meta, meta_type, coordinates, coor_out, rem_mem in zip(pipeline['step'], pipeline['file_type'],
                             pipeline['meta'], pipeline['meta_type'], pipeline['coor_in'], pipeline['coor_out'], pipeline['rem_mem']):
+
+                        file_type = []
+                        for f in f_type:
+                            if f.endswith(coor_out.sample) and len(coor_out.sample) > 0:
+                                file_type.append(f[:-len(coor_out.sample)])
+                            elif len(coor_out.sample) == 0:
+                                file_type.append(f)
+                            else:
+                                print('Out coordinate system does not fit with file type name. Review your processing_info of step ' + func)
+                                return
 
                         pipeline_processing['function'].append(self.processes[func])
 
@@ -1343,8 +1364,8 @@ class Pipeline():
 
         self.clean_memmaps()
 
-        print('Output Image Data sizes:')
-        for key in self.res_dat.keys():
-            for meta_type in self.res_dat[key].keys():
-                print('Size of ' + key + ' of type ' + meta_type + ' is ' + str(
-                    self.res_dat[key][meta_type].get_size(self.res_dat[key][meta_type])) + ' bytes.')
+        #print('Output Image Data sizes:')
+        #for key in self.res_dat.keys():
+        #    for meta_type in self.res_dat[key].keys():
+        #        print('Size of ' + key + ' of type ' + meta_type + ' is ' + str(
+        #            self.res_dat[key][meta_type].get_size(self.res_dat[key][meta_type])) + ' bytes.')

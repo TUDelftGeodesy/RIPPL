@@ -222,20 +222,20 @@ class Deramp(GetDopplerRamp):
 
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat[meta_type]['crop']['crop']['file'] = ['crop.raw']
-        input_dat[meta_type]['crop']['crop']['coordinates'] = coordinates
-        input_dat[meta_type]['crop']['crop']['slice'] = True
+        input_dat[meta_type]['crop']['crop' + coordinates.sample]['file'] = 'crop.raw'
+        input_dat[meta_type]['crop']['crop' + coordinates.sample]['coordinates'] = coordinates
+        input_dat[meta_type]['crop']['crop' + coordinates.sample]['slice'] = True
 
         # For multiprocessing this information is needed to define the selected area to deramp.
         for t in ['new_line', 'new_pixel']:
-            input_dat[meta_type]['geometrical_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
-            input_dat[meta_type]['geometrical_coreg'][t]['coordinates'] = coordinates
-            input_dat[meta_type]['geometrical_coreg'][t]['slice'] = True
+            input_dat[meta_type]['geometrical_coreg'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
+            input_dat[meta_type]['geometrical_coreg'][t + coordinates.sample]['coordinates'] = coordinates
+            input_dat[meta_type]['geometrical_coreg'][t + coordinates.sample]['slice'] = True
 
         output_dat = recursive_dict()
-        output_dat[meta_type]['deramp']['deramp']['file'] = ['deramp.raw']
-        output_dat[meta_type]['deramp']['deramp']['coordinates'] = coordinates
-        output_dat[meta_type]['deramp']['deramp']['slice'] = coordinates.slice
+        output_dat[meta_type]['deramp']['deramp' + coordinates.sample]['file'] = 'deramp.raw'
+        output_dat[meta_type]['deramp']['deramp' + coordinates.sample]['coordinates'] = coordinates
+        output_dat[meta_type]['deramp']['deramp' + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5
@@ -359,18 +359,18 @@ class Reramp(GetDopplerRamp):
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
         for t in ['new_line', 'new_pixel']:
-            input_dat[meta_type]['geometrical_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
-            input_dat[meta_type]['geometrical_coreg'][t]['coordinates'] = coordinates
-            input_dat[meta_type]['geometrical_coreg'][t]['slice'] = True
+            input_dat[meta_type]['geometrical_coreg' + coordinates.sample][t]['file'] = t + coordinates.sample + '.raw'
+            input_dat[meta_type]['geometrical_coreg' + coordinates.sample][t]['coordinates'] = coordinates
+            input_dat[meta_type]['geometrical_coreg' + coordinates.sample][t]['slice'] = True
 
-        input_dat[meta_type]['resample']['resample']['file'] = ['resample.raw']
-        input_dat[meta_type]['resample']['resample']['coordinates'] = coordinates
-        input_dat[meta_type]['resample']['resample']['slice'] = True
+        input_dat[meta_type]['resample']['resample' + coordinates.sample]['file'] = ['resample.raw']
+        input_dat[meta_type]['resample']['resample' + coordinates.sample]['coordinates'] = coordinates
+        input_dat[meta_type]['resample']['resample' + coordinates.sample]['slice'] = True
 
         output_dat = recursive_dict()
-        output_dat[meta_type]['reramp']['reramp']['file'] = ['reramp' + coordinates.sample + '.raw']
-        output_dat[meta_type]['reramp']['reramp']['coordinates'] = coordinates
-        output_dat[meta_type]['reramp']['reramp']['slice'] = coordinates.slice
+        output_dat[meta_type]['reramp']['reramp' + coordinates.sample]['file'] = 'reramp' + coordinates.sample + '.raw'
+        output_dat[meta_type]['reramp']['reramp' + coordinates.sample]['coordinates'] = coordinates
+        output_dat[meta_type]['reramp']['reramp' + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5

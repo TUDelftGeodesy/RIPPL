@@ -207,9 +207,9 @@ class CreateSrtmDem(OrbitCoordinates):
 
         output_dat = recursive_dict()
         for name in names:
-            output_dat['slave']['import_DEM'][name]['files'] = [name + coordinates.sample + '.raw']
-            output_dat['slave']['import_DEM'][name]['coordinates'] = coordinates
-            output_dat['slave']['import_DEM'][name]['slice'] = coordinates.slice
+            output_dat[meta_type]['import_DEM'][name + coordinates.sample]['files'] = name + coordinates.sample + '.raw'
+            output_dat[meta_type]['import_DEM'][name + coordinates.sample]['coordinates'] = coordinates
+            output_dat[meta_type]['import_DEM'][name + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 2

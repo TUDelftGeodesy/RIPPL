@@ -8,7 +8,7 @@ import os
 
 class CoordinateSystem():
 
-    def __init__(self):
+    def __init__(self, over_size=False):
 
         self.grid_type = ''
         self.slice = False
@@ -16,12 +16,13 @@ class CoordinateSystem():
 
         # Characteristics for all images
         self.shape = [0, 0]
-        self.first_line = 1
-        self.first_pixel = 1
+        self.first_line = 0
+        self.first_pixel = 0
         self.oversample = [1, 1]
         self.sample = ''
         self.meta_name = ''
         self.res_path = ''
+        self.over_size = over_size
 
         # Characteristics for radar type
         self.multilook = [1, 1]
@@ -63,8 +64,11 @@ class CoordinateSystem():
 
     def create_radar_coordinates(self, res_info='', multilook='', oversample='', offset=''):
 
+        if self.over_size:
+            offset = [self.offset[0] - multilook[0] * 2, self.offset[1] - multilook[1] * 2]
+
         self.sample, self.multilook, self.oversample, self.offset, in_dat, out_dat = \
-            FindCoordinates.multilook_coors([0, 0], oversample=oversample, multilook=multilook, offset=offset)
+            FindCoordinates.multilook_coors([0, 0], oversample=oversample, multilook=multilook, offset=offset, interval=self.over_size)
         self.grid_type = 'radar_coordinates'
 
         self.sample = FindCoordinates.multilook_str(self.multilook, self.oversample, self.offset)[0]
@@ -157,14 +161,15 @@ class CoordinateSystem():
                 # Lines and pixels in case of intervals
                 self.sample, self.multilook, self.oversample, self.offset, [self.interval_lines, self.interval_pixels] = \
                     FindCoordinates.interval_lines(orig_shape, multilook=self.multilook, oversample=self.oversample,
-                                                          offset=self.offset)
+                                                          offset=self.offset, interval=self.over_size)
 
                 # Lines and pixels in case of multilook
                 self.sample, self.multilook, self.oversample, self.offset, [self.ml_lines_in, self.ml_pixels_in], \
                 [self.ml_lines_out, self.ml_pixels_out] = FindCoordinates.multilook_lines(orig_shape, multilook=self.multilook,
                                                                                   oversample=self.oversample,
-                                                                                  offset=self.offset)
+                                                                                  offset=self.offset, interval=self.over_size)
                 self.shape = [len(self.ml_lines_out), len(self.ml_pixels_out)]
+
             else:
                 self.sample = old_coor.sample
                 self.shape = old_coor.shape

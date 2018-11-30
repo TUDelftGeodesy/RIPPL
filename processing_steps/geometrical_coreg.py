@@ -108,17 +108,17 @@ class GeometricalCoreg(object):
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
         for t in ['X', 'Y', 'Z']:
-            input_dat['cmaster']['geocode'][t]['file'] = [t + coordinates.sample + '.raw']
-            input_dat['cmaster']['geocode'][t]['coordinates'] = coordinates
-            input_dat['cmaster']['geocode'][t]['slice'] = True
+            input_dat['cmaster']['geocode'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
+            input_dat['cmaster']['geocode'][t + coordinates.sample]['coordinates'] = coordinates
+            input_dat['cmaster']['geocode'][t + coordinates.sample]['slice'] = True
 
         # line and pixel output files.
         output_dat = recursive_dict()
         for step in ['geometrical_coreg', 'combined_coreg']:
             for t in ['new_line', 'new_pixel']:
-                output_dat['slave'][step][t]['files'] = [t + coordinates.sample + '.raw']
-                output_dat['slave'][step][t]['multilook'] = coordinates
-                output_dat['slave'][step][t]['slice'] = coordinates.slice
+                output_dat['slave'][step][t + coordinates.sample]['files'] = t + coordinates.sample + '.raw'
+                output_dat['slave'][step][t + coordinates.sample]['multilook'] = coordinates
+                output_dat['slave'][step][t + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 20

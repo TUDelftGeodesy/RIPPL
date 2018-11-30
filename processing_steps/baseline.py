@@ -247,26 +247,26 @@ class Baseline(object):
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
         for t in ['new_line', 'new_pixel']:
-            input_dat['slave']['geometrical_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
-            input_dat['slave']['geometrical_coreg'][t]['coordinates'] = coordinates
-            input_dat['slave']['geometrical_coreg'][t]['slice'] = True
+            input_dat['slave']['geometrical_coreg' + coordinates.sample][t]['file'] = t + coordinates.sample + '.raw'
+            input_dat['slave']['geometrical_coreg' + coordinates.sample][t]['coordinates'] = coordinates
+            input_dat['slave']['geometrical_coreg' + coordinates.sample][t]['slice'] = True
 
         for t in ['X', 'Y', 'Z']:
-            input_dat['cmaster']['geocode'][t]['file'] = [t + coordinates.sample + '.raw']
-            input_dat['cmaster']['geocode'][t]['coordinates'] = coordinates
-            input_dat['cmaster']['geocode'][t]['slice'] = coordinates.slice
+            input_dat['cmaster']['geocode'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
+            input_dat['cmaster']['geocode'][t + coordinates.sample]['coordinates'] = coordinates
+            input_dat['cmaster']['geocode'][t + coordinates.sample]['slice'] = coordinates.slice
 
         if horizontal or vertical or angle:
-            input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle']['file'] = ['elevation_angle' + coordinates.sample + '.raw']
-            input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle']['coordinates'] = coordinates
-            input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle']['slice'] = coordinates.slice
+            input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle' + coordinates.sample]['file'] = 'elevation_angle' + coordinates.sample + '.raw'
+            input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle' + coordinates.sample]['coordinates'] = coordinates
+            input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle' + coordinates.sample]['slice'] = coordinates.slice
 
         # line and pixel output files.
         output_dat = recursive_dict()
         for name in data_names:
-            output_dat['slave']['baseline'][name]['file'] = [name + coordinates.sample + '.raw']
-            output_dat['slave']['baseline'][name]['coordinates'] = coordinates
-            output_dat['slave']['baseline'][name]['slice'] = coordinates.slice
+            output_dat['slave']['baseline'][name + coordinates.sample]['file'] = name + coordinates.sample + '.raw'
+            output_dat['slave']['baseline'][name + coordinates.sample]['coordinates'] = coordinates
+            output_dat['slave']['baseline'][name + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 20

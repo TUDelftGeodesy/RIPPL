@@ -63,8 +63,8 @@ srtm_folder = data_disk + 'DEM/DEM_new'
 cores = 6
 
 # Prepare processing
-#self = SentinelStack(stack_folder)
-#self.read_from_database(database_folder, shapefile, track_no, orbit_folder, start_date, end_date, master_date,
+# self = SentinelStack(stack_folder)
+# self.read_from_database(database_folder, shapefile, track_no, orbit_folder, start_date, end_date, master_date,
 #                         mode, product_type, polarisation, cores=6)
 self = Stack(stack_folder)
 self.read_master_slice_list()
@@ -86,8 +86,7 @@ for slice_name in slice_names:
     settings['radar_DEM'][slice_name]['coor_in'] = self.images[self.master_date].slices[slice_name].read_res_coordinates('import_DEM')[0]
 settings['radar_DEM']['full']['coor_in'] = self.images[self.master_date].res_data.read_res_coordinates('import_DEM')[0]
 
-parallel = False
-
+parallel = True
 # Run the geocoding for the slices.
 coordinates = CoordinateSystem()
 coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
@@ -98,14 +97,18 @@ self('geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat
 # Get the image orientation
 self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
 
-
 coordinates = CoordinateSystem()
 coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
 coordinates.slice = False
+# Full radar DEM grid
+self('radar_DEM', settings, coordinates, 'cmaster', file_type='radar_DEM', parallel=parallel)
 # Get the image orientation
 self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
 # Run till the earth_topo_phase step.
 self(['earth_topo_phase', 'height_to_phase'], settings, coordinates, 'slave', file_type=[['earth_topo_phase'], ['height_to_phase']], parallel=parallel)
+
+# Creat a non multilooked ifg (just to check whether this works)
+self('interferogram', settings, coordinates, 'ifg', file_type='interferogram', parallel=parallel)
 
 # Get the multilooked square amplitudes
 for multilook in [[5, 20], [10, 40], [20, 80]]:
@@ -113,21 +116,31 @@ for multilook in [[5, 20], [10, 40], [20, 80]]:
     coordinates.create_radar_coordinates(multilook=multilook, offset=[0, 0], oversample=[1, 1])
     coordinates.slice = False
     self('square_amplitude', settings, coordinates, 'slave', file_type='square_amplitude', parallel=parallel)
+    # Create the DEM first
+    self('radar_DEM', settings, coordinates, 'cmaster', file_type='radar_DEM', parallel=parallel)
+
     # Get the harmonie (h38) and ECMWF (ERA5) data
-    self('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_h38_aps'])
-    self('ecmwf_aps', settings, coordinates, 'slave', file_type=['ecmwf_ERA5_aps'])
+    self('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_h38_aps'], parallel=parallel)
+    #self('ecmwf_aps', settings, coordinates, 'slave', file_type=['ecmwf_ERA5_aps'], parallel=parallel)
 
     # Create ifgs / coherence for daisy chain.
     self('interferogram', settings, coordinates, 'ifg', file_type='interferogram', parallel=parallel)
     self('coherence', settings, coordinates, 'ifg', file_type='coherence', parallel=parallel)
 
-    self('radar_DEM', settings, coordinates, 'cmaster', file_type='radar_DEM', parallel=parallel)
     # Run the geocoding for the slices.
     self('geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat', 'lon'], parallel=parallel)
     self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
 
-
+# Get the multilooked square amplitudes
 # Finally do the unwrapping (not implemented yet...)
+for multilook in [[5, 20], [10, 40], [20, 80]]:
+    coordinates = CoordinateSystem()
+    coordinates.create_radar_coordinates(multilook=multilook, offset=[0, 0], oversample=[1, 1])
+    coordinates.slice = False
+
+    self('unwrap', settings, coordinates, 'ifg', file_type='unwrap', parallel=parallel)
+
+
 """
 ifgs = [self.interferograms[key] for key in self.interferograms.keys()]
 

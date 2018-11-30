@@ -183,26 +183,26 @@ class Resample(object):
         input_dat = recursive_dict()
         # We choose the geometrical coreg in first instance other options could be added later...
         for t in ['new_line', 'new_pixel']:
-            input_dat['slave']['geometrical_coreg'][t]['file'] = [t + coordinates.sample + '.raw']
-            input_dat['slave']['geometrical_coreg'][t]['coordinates'] = coordinates
-            input_dat['slave']['geometrical_coreg'][t]['slice'] = True
+            input_dat['slave']['geometrical_coreg'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
+            input_dat['slave']['geometrical_coreg'][t + coordinates.sample]['coordinates'] = coordinates
+            input_dat['slave']['geometrical_coreg'][t + coordinates.sample]['slice'] = True
 
         # Input file should always be a full resolution grid.
         in_coordinates = CoordinateSystem()
         in_coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
         if deramp:
-            input_dat['slave']['deramp']['deramp']['file'] = ['deramp.raw']
-            input_dat['slave']['deramp']['deramp']['coordinates'] = in_coordinates
-            input_dat['slave']['deramp']['deramp']['slice'] = True
+            input_dat['slave']['deramp']['deramp' + in_coordinates.sample]['file'] = 'deramp.raw'
+            input_dat['slave']['deramp']['deramp' + in_coordinates.sample]['coordinates'] = in_coordinates
+            input_dat['slave']['deramp']['deramp' + in_coordinates.sample]['slice'] = True
         else:
-            input_dat['slave']['crop']['crop']['file'] = ['crop.raw']
-            input_dat['slave']['crop']['crop']['coordinates'] = in_coordinates
-            input_dat['slave']['crop']['crop']['slice'] = True
+            input_dat['slave']['crop']['crop' + in_coordinates.sample]['file'] = 'crop.raw'
+            input_dat['slave']['crop']['crop' + in_coordinates.sample]['coordinates'] = in_coordinates
+            input_dat['slave']['crop']['crop' + in_coordinates.sample]['slice'] = True
 
         output_dat = recursive_dict()
-        output_dat['slave']['resample']['resample']['file'] = ['resample' + coordinates.sample + '.raw']
-        output_dat['slave']['resample']['resample']['coordinates'] = coordinates
-        output_dat['slave']['resample']['resample']['slice'] = coordinates.slice
+        output_dat['slave']['resample']['resample' + coordinates.sample]['file'] = 'resample' + coordinates.sample + '.raw'
+        output_dat['slave']['resample']['resample' + coordinates.sample]['coordinates'] = coordinates
+        output_dat['slave']['resample']['resample' + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5

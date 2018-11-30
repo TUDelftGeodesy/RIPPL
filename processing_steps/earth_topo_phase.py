@@ -102,25 +102,29 @@ class EarthTopoPhase(object):
     def processing_info(coordinates, meta_type='slave', reramp=True):
 
         recursive_dict = lambda: defaultdict(recursive_dict)
+
+        in_coordinates = CoordinateSystem()
+        in_coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+
         input_dat = recursive_dict()
-        input_dat[meta_type]['geometrical_coreg']['new_pixel']['file'] = ['new_pixel' + coordinates.sample + '.raw']
-        input_dat[meta_type]['geometrical_coreg']['new_pixel']['coordinates'] = coordinates
-        input_dat[meta_type]['geometrical_coreg']['new_pixel']['slice'] = True
+        input_dat[meta_type]['geometrical_coreg']['new_pixel' + in_coordinates.sample]['file'] = 'new_pixel' + in_coordinates.sample + '.raw'
+        input_dat[meta_type]['geometrical_coreg']['new_pixel' + in_coordinates.sample]['coordinates'] = in_coordinates
+        input_dat[meta_type]['geometrical_coreg']['new_pixel' + in_coordinates.sample]['slice'] = True
 
         # Input file should always be a full resolution grid.
         if reramp:
-            input_dat[meta_type]['reramp']['reramp']['file'] = ['reramp' + coordinates.sample + '.raw']
-            input_dat[meta_type]['reramp']['reramp']['coordinates'] = coordinates
-            input_dat[meta_type]['reramp']['reramp']['slice'] = True
+            input_dat[meta_type]['reramp']['reramp' + in_coordinates.sample]['file'] = 'reramp' + in_coordinates.sample + '.raw'
+            input_dat[meta_type]['reramp']['reramp' + in_coordinates.sample]['coordinates'] = in_coordinates
+            input_dat[meta_type]['reramp']['reramp' + in_coordinates.sample]['slice'] = True
         else:
-            input_dat[meta_type]['resample']['resample']['file'] = ['resample' + coordinates.sample + '.raw']
-            input_dat[meta_type]['resample']['resample']['coordinates'] = coordinates
-            input_dat[meta_type]['resample']['resample']['slice'] = True
+            input_dat[meta_type]['resample']['resample' + in_coordinates.sample]['file'] = 'resample' + in_coordinates.sample + '.raw'
+            input_dat[meta_type]['resample']['resample' + in_coordinates.sample]['coordinates'] = in_coordinates
+            input_dat[meta_type]['resample']['resample' + in_coordinates.sample]['slice'] = True
 
         output_dat = recursive_dict()
-        output_dat[meta_type]['earth_topo_phase']['earth_topo_phase']['file'] = ['earth_topo_phase' + coordinates.sample + '.raw']
-        output_dat[meta_type]['earth_topo_phase']['earth_topo_phase']['coordinates'] = coordinates
-        output_dat[meta_type]['earth_topo_phase']['earth_topo_phase']['slice'] = coordinates.slice
+        output_dat[meta_type]['earth_topo_phase']['earth_topo_phase' + coordinates.sample]['file'] = 'earth_topo_phase' + coordinates.sample + '.raw'
+        output_dat[meta_type]['earth_topo_phase']['earth_topo_phase' + coordinates.sample]['coordinates'] = coordinates
+        output_dat[meta_type]['earth_topo_phase']['earth_topo_phase' + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5

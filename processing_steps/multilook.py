@@ -363,24 +363,24 @@ class Multilook(object):
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
 
-        input_dat['slave'][step][file_type]['file'] = [file_type + coor_in.sample + '.raw']
-        input_dat['slave'][step][file_type]['coordinates'] = coor_in
-        input_dat['slave'][step][file_type]['slice'] = coor_in.slice
+        input_dat['slave'][step][file_type + coor_in.sample]['file'] = file_type + coor_in.sample + '.raw'
+        input_dat['slave'][step][file_type + coor_in.sample]['coordinates'] = coor_in
+        input_dat['slave'][step][file_type + coor_in.sample]['slice'] = coor_in.slice
 
         if coor_in.grid_type == 'radar_coordinates' and coor_out.grid_type in ['geographic', 'projection']:
 
             conv_sample = coor_in.sample + '_' + coor_out.sample
 
             for t in ['sort_ids', 'sum_ids', 'output_ids']:
-                input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['file'] = [t + conv_sample + '.raw']
-                input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['coordinates'] = coor_out
-                input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle']['slice'] = coor_out.slice
+                input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle' + coor_out.sample]['file'] = t + conv_sample + '.raw'
+                input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle' + coor_out.sample]['coordinates'] = coor_out
+                input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle' + coor_out.sample]['slice'] = coor_out.slice
 
         # line and pixel output files.
         output_dat = recursive_dict()
-        input_dat['slave'][step][file_type]['file'] = [file_type + coor_out.sample + '.raw']
-        input_dat['slave'][step][file_type]['coordinates'] = coor_out
-        input_dat['slave'][step][file_type]['slice'] = coor_out.slice
+        input_dat['slave'][step][file_type + coor_out.sample]['file'] = file_type + coor_out.sample + '.raw'
+        input_dat['slave'][step][file_type + coor_out.sample]['coordinates'] = coor_out
+        input_dat['slave'][step][file_type + coor_out.sample]['slice'] = coor_out.slice
 
         # Number of times input data is used in ram.
         mem_use = 2

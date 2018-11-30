@@ -105,16 +105,16 @@ class Amplitude(object):
         # Data input file from a random step / file type
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat[meta_type][step][file_type]['file'] = [file_type + '.raw']
-        input_dat[meta_type][step][file_type]['coordinates'] = coor_in
-        input_dat[meta_type][step][file_type]['slice'] = True
-        input_dat[meta_type][step][file_type]['coor_change'] = 'multilook'
+        input_dat[meta_type][step][file_type + coor_in.sample]['file'] = file_type + coor_in.sample + '.raw'
+        input_dat[meta_type][step][file_type + coor_in.sample]['coordinates'] = coor_in
+        input_dat[meta_type][step][file_type + coor_in.sample]['slice'] = True
+        input_dat[meta_type][step][file_type + coor_in.sample]['coor_change'] = 'multilook'
 
         # line and pixel output files.
         output_dat = recursive_dict()
-        output_dat[meta_type]['amplitude']['amplitude']['file'] = ['amplitude' + coordinates.sample + '.raw']
-        output_dat[meta_type]['amplitude']['amplitude']['coordinates'] = coordinates
-        output_dat[meta_type]['amplitude']['amplitude']['slice'] = coordinates.slice
+        output_dat[meta_type]['amplitude']['amplitude' + coordinates.sample]['file'] = 'amplitude' + coordinates.sample + '.raw'
+        output_dat[meta_type]['amplitude']['amplitude' + coordinates.sample]['coordinates'] = coordinates
+        output_dat[meta_type]['amplitude']['amplitude' + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram.
         mem_use = 2

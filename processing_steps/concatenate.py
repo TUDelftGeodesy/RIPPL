@@ -66,7 +66,7 @@ class Concatenate(object):
             self.add_meta_data(self.meta_slices, self.coordinates_slices, self.meta, self.coordinates, self.step, self.file_type)
 
             # Load the data from the slices
-            data_slices, data_type, str_data_type = Concatenate.load_slices(self.step, self.meta_slices, self.in_coordinates_slices, self.file_type)
+            data_slices, data_type, str_data_type = Concatenate.load_slices(self.step, self.meta_slices, self.coordinates_slices, self.file_type)
 
             if self.out_data == 'disk':
                 self.meta.image_create_disk(self.step, self.file_type + self.coordinates.sample)
@@ -79,7 +79,7 @@ class Concatenate(object):
                 print('out_data should either be disk or memory')
                 return
 
-            for data_slice, coordinates_slice, meta in zip(data_slices, self.in_coordinates_slices, self.meta_slices):
+            for data_slice, coordinates_slice, meta in zip(data_slices, self.coordinates_slices, self.meta_slices):
 
                 print('Adding file type ' + self.file_type + coordinates_slice.sample + ' for step ' + self.step + ' of slice ' + os.path.basename(os.path.dirname(meta.res_path)))
 
@@ -175,9 +175,9 @@ class Concatenate(object):
 
         # line and pixel output files.
         output_dat = recursive_dict()
-        output_dat['meta'][step][file_type]['file'] = [file_type + coordinates.sample + '.raw']
-        output_dat['meta'][step][file_type]['coordinates'] = coordinates
-        output_dat['meta'][step][file_type]['slice'] = 'False'
+        output_dat['meta'][step][file_type + coordinates.sample]['file'] = file_type + coordinates.sample + '.raw'
+        output_dat['meta'][step][file_type + coordinates.sample]['coordinates'] = coordinates
+        output_dat['meta'][step][file_type + coordinates.sample]['slice'] = 'False'
 
         # Data is used only once for concatenation.
         mem_use = 1
@@ -212,6 +212,10 @@ class Concatenate(object):
         meta = ImageData('', meta_type)
         meta.res_path = filename
         meta.folder = os.path.dirname(meta_slices[0].folder)
+
+        if len(meta_slices[0].lat_lim) == 0:
+            for slice in meta_slices:
+                slice.geometry()
 
         lat_lim = [np.min(np.array([slice.lat_lim[0] for slice in meta_slices])),
                    np.max(np.array([slice.lat_lim[1] for slice in meta_slices]))]
@@ -257,7 +261,7 @@ class Concatenate(object):
 
             # Add coordinates and azimuth/range timing
             meta.processes[step_meta + 'readfiles']['Number_of_lines_original'] = str(int(shape[0]))
-            meta.processes[step_meta + 'readfiles']['Number_of_pixels_original'] = str(int(shape[0]))
+            meta.processes[step_meta + 'readfiles']['Number_of_pixels_original'] = str(int(shape[1]))
             meta.processes[step_meta + 'readfiles']['First_pixel_azimuth_time (UTC)'] = az_time
             meta.processes[step_meta + 'readfiles']['Range_time_to_first_pixel (2way) (ms)'] = ra_time
 
@@ -402,10 +406,9 @@ class Concatenate(object):
                 in_coor_slice.add_res_info(slice, change_ref=False)
                 out_coor_slice.add_res_info(slice, change_ref=False)
             else:
-                old_in_coor = slice.read_res_coordinates(step, [file_type + in_coor_slice.sample])[0]
-                in_coor_slice.add_res_info(slice, change_ref=False, old_coor=old_in_coor)
-                old_out_coor = slice.read_res_coordinates(step, [file_type + out_coor_slice.sample])[0]
-                out_coor_slice.add_res_info(slice, change_ref=False, old_coor=old_out_coor)
+                old_coor = slice.read_res_coordinates(step)[-1]
+                in_coor_slice.add_res_info(slice, change_ref=False, old_coor=old_coor)
+                out_coor_slice.add_res_info(slice, change_ref=False, old_coor=old_coor)
 
             in_coordinates_slices.append(in_coor_slice)
             coordinates_slices.append(out_coor_slice)
@@ -419,7 +422,13 @@ class Concatenate(object):
 
             for slice, slice_offset, slice_start, coordinates_slice in zip(meta_slices, slices_offsets, slices_start, coordinates_slices):
                 coordinates_slice.offset = slice_offset
-                coordinates_slice.add_res_info(slice, change_ref=False)
+
+                if step == '' or file_type == '':
+                    coordinates_slice.add_res_info(slice, change_ref=False)
+                else:
+                    old_coor = slice.read_res_coordinates(step)[-1]
+
+                    coordinates_slice.add_res_info(slice, change_ref=False, old_coor=old_coor)
                 coordinates_slice.first_pixel = (slice_start[1] - slice_offset[1]) / out_coor.multilook[1]
                 coordinates_slice.first_line = (slice_start[0] - slice_offset[0]) / out_coor.multilook[0]
                 sample = FindCoordinates.multilook_str(coordinates_slice.multilook, coordinates_slice.oversample, coordinates_slice.offset)[0]
@@ -428,7 +437,13 @@ class Concatenate(object):
         else:
             for slice, slice_start, coordinates_slice in zip(meta_slices, slices_start, coordinates_slices):
                 coordinates_slice.offset = slice_offset
-                coordinates_slice.add_res_info(slice, change_ref=False)
+
+                if step == '' or file_type == '':
+                    coordinates_slice.add_res_info(slice, change_ref=False)
+                else:
+                    old_coor = slice.read_res_coordinates(step)[-1]
+                    coordinates_slice.add_res_info(slice, change_ref=False, old_coor=old_coor)
+
                 coordinates_slice.first_pixel = slice_start[1]
                 coordinates_slice.first_line = slice_start[0]
                 coordinates_slice.sample = out_coor.sample

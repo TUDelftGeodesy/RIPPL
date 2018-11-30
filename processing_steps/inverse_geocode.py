@@ -151,16 +151,16 @@ class InverseGeocode(object):
         # Three input files needed Dem, Dem_line and Dem_pixel
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat[meta_type]['import_DEM']['DEM']['file'] = ['DEM_' + coordinates.sample + '.raw']
-        input_dat[meta_type]['import_DEM']['DEM']['coordinates'] = coordinates
-        input_dat[meta_type]['import_DEM']['DEM']['slice'] = coordinates.slice
+        input_dat[meta_type]['import_DEM']['DEM' + coordinates.sample]['file'] = 'DEM_' + coordinates.sample + '.raw'
+        input_dat[meta_type]['import_DEM']['DEM' + coordinates.sample]['coordinates'] = coordinates
+        input_dat[meta_type]['import_DEM']['DEM' + coordinates.sample]['slice'] = coordinates.slice
 
         # One output file created radar dem
         output_dat = recursive_dict()
         for t in ['DEM_line', 'DEM_pixel']:
-            output_dat[meta_type]['inverse_geocode'][t]['files'] = [t + coordinates.sample + '.raw']
-            output_dat[meta_type]['inverse_geocode'][t]['coordinates'] = coordinates
-            output_dat[meta_type]['inverse_geocode'][t]['slice'] = coordinates.slice
+            output_dat[meta_type]['inverse_geocode'][t + coordinates.sample]['files'] = t + coordinates.sample + '.raw'
+            output_dat[meta_type]['inverse_geocode'][t + coordinates.sample]['coordinates'] = coordinates
+            output_dat[meta_type]['inverse_geocode'][t + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 20

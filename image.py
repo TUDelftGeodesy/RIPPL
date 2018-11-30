@@ -95,7 +95,7 @@ class Image(object):
                              ('sim_amplitude', 0), ('coreg_readfiles', 0),('coreg_orbits', 0), ('coreg_crop', 0),
                              ('geometrical_coreg', 0),('correl_coreg', 0), ('combined_coreg', 0),('master_timing', 0),
                              ('oversample', 0),('resample', 0), ('reramp', 0),('earth_topo_phase', 0), ('filt_azi', 0),
-                             ('filt_range', 0), ('NWP_phase', 0), ('structure_function', 0), ('split_spectrum', 0)])
+                             ('filt_range', 0), ('harmonie_aps', 0), ('ecmwf_aps', 0), ('structure_function', 0), ('split_spectrum', 0)])
 
 
         # Check process control and expected length.

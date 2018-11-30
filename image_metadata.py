@@ -78,7 +78,7 @@ class ImageMetadata(object):
                                                         ('master_timing', '0'), ('oversample', '0'),
                                                         ('resample', '0'), ('reramp', '0'), ('height_to_phase', '0'),
                                                         ('earth_topo_phase', '0'), ('filt_azi', '0'), ('baseline', '0'),
-                                                        ('filt_range', '0'), ('NWP_phase', '0'),
+                                                        ('filt_range', '0'), ('harmonie_aps', '0'), ('ecmwf_aps', '0'),
                                                         ('structure_function', '0'), ('split_spectrum', '0')])
         elif res_type == 'interferogram':
             process_control = collections.OrderedDict([('coreg_readfiles', '0'), ('coreg_orbits', '0'),

@@ -29,6 +29,9 @@ from processing_steps.earth_topo_phase import EarthTopoPhase
 from processing_steps.baseline import Baseline
 from processing_steps.height_to_phase import HeightToPhase
 
+from processing_steps.ecmwf_aps import EcmwfAps
+from processing_steps.harmonie_aps import HarmonieAps
+
 # Interferograms > interferogram creation, coherence, filters, corrections.
 from processing_steps.interfero import Interfero
 from processing_steps.coherence import Coherence
@@ -77,6 +80,9 @@ class ProcessingList():
         processing['coherence'] = Coherence
         processing['multilook'] = Multilook
         processing['unwrap'] = Unwrap
+
+        processing['harmonie_aps'] = HarmonieAps
+        processing['ecmwf_aps'] = EcmwfAps
 
         processing['concatenate'] = Concatenate
 

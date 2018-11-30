@@ -23,8 +23,8 @@ class HarmonieAps(object):
     :type s_lin = int
     """
 
-    def __init__(self, meta, cmaster_meta, coor_in, coor_out, s_lin=0, s_pix=0, lines=0,
-                 weather_data_archive='', h_type='h_38', time_interp='nearest', split=False, t_step=1, t_offset=0):
+    def __init__(self, meta, cmaster_meta, coor_in, coordinates, s_lin=0, s_pix=0, lines=0,
+                 weather_data_archive='', h_type='h38', time_interp='nearest', split=False, t_step=1, t_offset=0):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
@@ -41,9 +41,9 @@ class HarmonieAps(object):
             print('time_interp should be nearest of linear. Using nearest')
             self.time_interp = 'nearest'
 
-        if h_type not in ['h_37', 'h_38', 'h_40']:
-            print('harmonie type should be h_37, h_38, h_40. Switching to default h_38')
-            self.harmonie_type = 'h_38'
+        if h_type not in ['h37', 'h38', 'h40']:
+            print('harmonie type should be h37, h38, h40. Switching to default h38')
+            self.harmonie_type = 'h38'
         else:
             self.harmonie_type = h_type
 
@@ -57,27 +57,27 @@ class HarmonieAps(object):
         self.t_offset = t_offset
         self.s_lin = s_lin
         self.s_pix = s_pix
-        self.coor_out = coor_out
+        self.coor_out = coordinates
         self.coor_in = coor_in
 
         # The coor_in grid is a course grid to find the height delay dependence of our Harmonie data.
         # The coor_out grid is the final interpolation grid that is generated as an output.
         # Normally the coor_in grid can be of more or less the same resolution as the Harmonie data, which is 2 km.
         # For Sentinel-1 data this means a multilooking of about [50, 200]
-        self.shape_in, self.coarse_lines, self.coarse_pixels = RadarDem.find_coordinates(meta, s_lin, s_pix, lines, coor_in)
-        self.shape_out, self.lines, self.pixels = RadarDem.find_coordinates(meta, s_lin, s_pix, lines, coor_out)
+        self.shape_in, self.coarse_lines, self.coarse_pixels = RadarDem.find_coordinates(cmaster_meta, 0, 0, 0, coor_in)
+        self.shape_out, self.lines, self.pixels = RadarDem.find_coordinates(cmaster_meta, s_lin, s_pix, lines, self.coor_out)
 
         # Load data input grid
-        self.lat = self.cmaster.image_load_data_memory('geocode', s_lin, 0, self.shape_in, 'Lat' + coor_in.sample)
-        self.lon = self.cmaster.image_load_data_memory('geocode', s_lin, 0, self.shape_in, 'Lon' + coor_in.sample)
-        self.height = self.cmaster.image_load_data_memory('radar_dem', s_lin, 0, self.shape_in, 'Data' + coor_in.sample)
-        self.azimuth_angle = self.cmaster.image_load_data_memory('azimuth_elevation_angle', s_lin, 0, self.shape_in,
-                                                                 'Azimuth_angle' + coor_in.sample)
-        self.elevation_angle = self.cmaster.image_load_data_memory('azimuth_elevation_angle', s_lin, 0, self.shape_in,
-                                                                   'Elevation_angle' + coor_in.sample)
+        self.lat = self.cmaster.image_load_data_memory('geocode', 0, 0, self.shape_in, 'lat' + coor_in.sample)
+        self.lon = self.cmaster.image_load_data_memory('geocode', 0, 0, self.shape_in, 'lon' + coor_in.sample)
+        self.height = self.cmaster.image_load_data_memory('radar_DEM', 0, 0, self.shape_in, 'radar_DEM' + coor_in.sample)
+        self.azimuth_angle = self.cmaster.image_load_data_memory('azimuth_elevation_angle', 0, 0, self.shape_in,
+                                                                 'azimuth_angle' + coor_in.sample)
+        self.elevation_angle = self.cmaster.image_load_data_memory('azimuth_elevation_angle', 0, 0, self.shape_in,
+                                                                   'elevation_angle' + coor_in.sample)
 
         # Load height of multilook grid (from an interval, buffer grid, which makes it a bit complicated...)
-        self.out_height = self.cmaster.image_load_data_memory('radar_dem', s_lin, 0, self.shape_in, 'Data' + coor_out.sample)
+        self.out_height = self.cmaster.image_load_data_memory('radar_DEM', s_lin, 0, self.shape_out, 'radar_DEM' + self.coor_out.sample)
         self.simulated_delay = []
         self.split = split
         if self.split:
@@ -150,15 +150,17 @@ class HarmonieAps(object):
             self.add_meta_data(self.slave, self.coor_out, self.harmonie_type, self.split)
 
             # Save the data itself
-            self.slave.image_new_data_memory(self.simulated_delay, 'NWP_phase', self.s_lin, self.s_pix, 'harmonie_' +
+            self.slave.image_new_data_memory(self.simulated_delay, 'harmonie_aps', self.s_lin, self.s_pix, 'harmonie_' +
                                              self.harmonie_type + '_aps' + self.coor_out.sample)
             if self.split:
-                self.slave.image_new_data_memory(self.hydrostatic_delay, 'NWP_phase', self.s_lin, self.s_pix,
+                self.slave.image_new_data_memory(self.hydrostatic_delay, 'harmonie_aps', self.s_lin, self.s_pix,
                                                 'harmonie_' + self.harmonie_type + '_hydrostatic' + self.coor_out.sample)
-                self.slave.image_new_data_memory(self.wet_delay, 'NWP_phase', self.s_lin, self.s_pix,
+                self.slave.image_new_data_memory(self.wet_delay, 'harmonie_aps', self.s_lin, self.s_pix,
                                                 'harmonie_' + self.harmonie_type + '_wet' + self.coor_out.sample)
 
-        except Exception:
+            return True
+
+        except ValueError:
             log_file = os.path.join(self.slave.folder, 'error.log')
             logging.basicConfig(filename=log_file, level=logging.DEBUG)
             logging.exception('Failed creating aps from Harmonie for ' +
@@ -173,8 +175,8 @@ class HarmonieAps(object):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
 
-        if 'NWP_phase' in meta.processes.keys():
-            meta_info = meta.processes['NWP_phase']
+        if 'harmonie_aps' in meta.processes.keys():
+            meta_info = meta.processes['harmonie_aps']
         else:
             meta_info = OrderedDict()
 
@@ -187,35 +189,40 @@ class HarmonieAps(object):
 
         meta_info = coordinates.create_meta_data(aps_types, data_types, meta_info)
 
-        meta.image_add_processing_step('NWP_phase', meta_info)
+        meta.image_add_processing_step('harmonie_aps', meta_info)
 
     @staticmethod
     def processing_info(coordinates, h_type='h38', split=False):
 
         # Fix the input coordinate system to fit the harmonie grid...
         # TODO adapt the coor_in when the output is not in radar coordinates
-        coor_in = CoordinateSystem()
-        coor_in.create_radar_coordinates(multilook=[200, 50])
+        coor_in = CoordinateSystem(over_size=True)
+        coor_in.create_radar_coordinates(multilook=[50, 200])
 
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat['cmaster']['radar_dem']['radar_dem']['file'] = ['radar_dem' + coordinates.sample]
-        input_dat['cmaster']['radar_dem']['radar_dem']['coordinates'] = coordinates
-        input_dat['cmaster']['radar_dem']['radar_dem']['slice'] = True
+        input_dat['cmaster']['radar_DEM']['radar_DEM' + coordinates.sample]['file'] = 'radar_dem' + coordinates.sample
+        input_dat['cmaster']['radar_DEM']['radar_DEM' + coordinates.sample]['coordinates'] = coordinates
+        input_dat['cmaster']['radar_DEM']['radar_DEM' + coordinates.sample]['slice'] = coordinates.slice
+
+        input_dat['cmaster']['radar_DEM']['radar_DEM' + coor_in.sample]['file'] = 'radar_dem' + coor_in.sample
+        input_dat['cmaster']['radar_DEM']['radar_DEM' + coor_in.sample]['coordinates'] = coor_in
+        input_dat['cmaster']['radar_DEM']['radar_DEM' + coor_in.sample]['slice'] = coor_in.slice
+        input_dat['cmaster']['radar_DEM']['radar_DEM' + coor_in.sample]['coor_change'] = 'resample'
 
         # For multiprocessing this information is needed to define the selected area to deramp.
         for t in ['azimuth_angle', 'elevation_angle']:
-            input_dat['cmaster']['azimuth_elevation_angle'][t]['file'] = [t + coor_in.sample + '.raw']
-            input_dat['cmaster']['azimuth_elevation_angle'][t]['coordinates'] = coor_in
-            input_dat['cmaster']['azimuth_elevation_angle'][t]['slice'] = True
-            input_dat['cmaster']['azimuth_elevation_angle'][t]['coor_change'] = 'resample'
+            input_dat['cmaster']['azimuth_elevation_angle'][t + coor_in.sample]['file'] = t + coor_in.sample + '.raw'
+            input_dat['cmaster']['azimuth_elevation_angle'][t + coor_in.sample]['coordinates'] = coor_in
+            input_dat['cmaster']['azimuth_elevation_angle'][t + coor_in.sample]['slice'] = coor_in.slice
+            input_dat['cmaster']['azimuth_elevation_angle'][t + coor_in.sample]['coor_change'] = 'resample'
 
         # For multiprocessing this information is needed to define the selected area to deramp.
         for t in ['lat', 'lon']:
-            input_dat['cmaster']['geocode'][t]['file'] = [t + coor_in.sample + '.raw']
-            input_dat['cmaster']['geocode'][t]['coordinates'] = coor_in
-            input_dat['cmaster']['geocode'][t]['slice'] = True
-            input_dat['cmaster']['geocode'][t]['coor_change'] = 'resample'
+            input_dat['cmaster']['geocode'][t + coor_in.sample]['file'] = t + coor_in.sample + '.raw'
+            input_dat['cmaster']['geocode'][t + coor_in.sample]['coordinates'] = coor_in
+            input_dat['cmaster']['geocode'][t + coor_in.sample]['slice'] = coor_in.slice
+            input_dat['cmaster']['geocode'][t + coor_in.sample]['coor_change'] = 'resample'
 
         if split:
             aps_types = ['harmonie_' + h_type + '_aps', 'harmonie_' + h_type + '_wet', 'harmonie_' + h_type + '_hydrostatic']
@@ -224,9 +231,9 @@ class HarmonieAps(object):
 
         output_dat = recursive_dict()
         for t in aps_types:
-            output_dat['slave']['NWP_phase'][t]['file'] = [t + coor_out.sample + '.raw']
-            output_dat['slave']['NWP_phase'][t]['coordinates'] = coor_out
-            output_dat['slave']['NWP_phase'][t]['slice'] = coor_out.slice
+            output_dat['slave']['harmonie_aps'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
+            output_dat['slave']['harmonie_aps'][t + coordinates.sample]['coordinates'] = coordinates
+            output_dat['slave']['harmonie_aps'][t + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5
@@ -237,14 +244,14 @@ class HarmonieAps(object):
     def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-        meta.images_create_disk('NWP_phase', file_type, coordinates)
+        meta.images_create_disk('harmonie_aps', file_type, coordinates)
 
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_memory_to_disk('NWP_phase', file_type, coordinates)
+        meta.images_memory_to_disk('harmonie_aps', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_clean_memory('NWP_phase', file_type, coordinates)
+        meta.images_clean_memory('harmonie_aps', file_type, coordinates)

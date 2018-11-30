@@ -96,9 +96,9 @@ class Interferogram(object):
 
     def read_res(self):
         # Read the result files again.
-        self.res_data = ImageData(self.res_file, res_type='single')
+        self.res_data = ImageData(self.res_file, res_type='interferogram')
         for slice_name, slice_res in zip(self.slice_names, self.slice_res_file):
-            self.slices[slice_name] = ImageData(slice_res, 'single')
+            self.slices[slice_name] = ImageData(slice_res, 'interferogram')
 
     def __call__(self, step, settings, coors, file_type='', slave='', cmaster='', master='', memory=500, cores=6,
                  parallel=True):
