@@ -37,7 +37,7 @@ class Unwrap(object):
         self.shape = self.ifg_meta.data_sizes[step][file_type + self.sample]
         lines = str(self.shape[1])
 
-        self.out_file = os.path.join(os.path.dirname(in_file), 'unwrapped_ifg' + self.sample + '.raw')
+        self.out_file = os.path.join(os.path.dirname(in_file), 'unwrap' + self.sample + '.raw')
 
         conf_file = os.path.join(os.path.dirname(in_file), 'unwrap' + self.sample + '.conf')
         c = open(conf_file, 'w+')
@@ -50,9 +50,9 @@ class Unwrap(object):
                 c.write('CORRFILE ' + self.ifg_meta.data_files['coherence']['coherence' + self.sample] + '\n')
                 c.write('CORRFILEFORMAT		FLOAT_DATA\n')
 
-        c.write('OUTFILE ' + os.path.join(os.path.dirname(in_file), 'unwrapped_ifg' + self.sample + '.raw') + '\n')
+        c.write('OUTFILE ' + os.path.join(os.path.dirname(in_file), 'unwrap' + self.sample + '.raw') + '\n')
         c.write('OUTFILEFORMAT		FLOAT_DATA\n')
-        c.write('LOGFILE ' + os.path.join(os.path.dirname(in_file), 'unwrapped_ifg' + self.sample + '.log') + '\n')
+        c.write('LOGFILE ' + os.path.join(os.path.dirname(in_file), 'unwrap' + self.sample + '.log') + '\n')
         c.write('STATCOSTMODE SMOOTH')
         c.close()
 
@@ -68,6 +68,8 @@ class Unwrap(object):
 
         # Add meta data.
         self.add_meta_data(self.ifg_meta, self.coordinates)
+
+        return True
 
     @staticmethod
     def add_meta_data(ifg_meta, coordinates):

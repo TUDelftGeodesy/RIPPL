@@ -125,8 +125,8 @@ class ModelRayTracing(object):
             np.cos(distances)[None, :] - np.sin(slice_lat)[:, None] * np.sin(self.slice_lat))
 
         # Get the ids in the old grid.
-        lat_id = (model_lat[-1] - self.slice_lat) / d_lat
-        lon_id = (self.slice_lon - model_lon[0]) / d_lon
+        lat_id = (model_lat[-1] - self.slice_lat) // d_lat
+        lon_id = (self.slice_lon - model_lon[0]) // d_lon
 
         mat_size = (self.lev, no, self.dist_steps + 1)
         h_size = (self.lev + 1, no, self.dist_steps + 1)

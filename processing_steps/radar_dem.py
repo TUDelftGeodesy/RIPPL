@@ -394,7 +394,7 @@ class RadarDem(object):
                 # Now check whether the remaining points are inside our quadrilateral
                 # This is done using a double barycentric approach.
                 # The result also gives us a weighting based on the distance of pixel in range and azimuth
-                grid_id = self.used_grids[dem_id]
+                grid_id = self.used_grids[dem_id].astype(np.int32)
                 in_gridbox, first_triangle = self.barycentric_check(self.dem_line, self.dem_pixel, grid_id, dem_l, dem_p)
                 dem_p = dem_p[in_gridbox]
                 dem_l = dem_l[in_gridbox]
@@ -410,8 +410,11 @@ class RadarDem(object):
                                         ((dem_p - self.pixels[0]) / self.multilook[1]).astype(np.int32)] = first_triangle[in_gridbox]
 
         # Finally remove the data needed to find the corresponding points in our grid.
-        del self.dem_max_line, self.dem_min_line, self.dem_min_pixel, self.dem_max_pixel
-        del self.used_grids
+        self.dem_max_line = []
+        self.dem_min_line = []
+        self.dem_min_pixel = []
+        self.dem_max_pixel = []
+        self.used_grids = []
 
     def dem_barycentric_interpolation(self):
         # This function interpolates all grid points based on the four surrounding points. We will use a barycentric
@@ -422,7 +425,7 @@ class RadarDem(object):
 
         # lower triangle
         dem_l, dem_p = np.where(self.first_triangle)
-        l_id = self.dem_id[self.first_triangle] / (self.dem_line.shape[1] - 1)
+        l_id = self.dem_id[self.first_triangle] // (self.dem_line.shape[1] - 1)
         p_id = self.dem_id[self.first_triangle] - (l_id * (self.dem_line.shape[1] - 1))
 
         s_p = [0, 1, 1, 0]
@@ -443,7 +446,7 @@ class RadarDem(object):
 
         # upper triangle
         dem_l, dem_p = np.where(~self.first_triangle)
-        l_id = self.dem_id[~self.first_triangle] / (self.dem_line.shape[1] - 1)
+        l_id = self.dem_id[~self.first_triangle] // (self.dem_line.shape[1] - 1)
         p_id = self.dem_id[~self.first_triangle] - (l_id * (self.dem_line.shape[1] - 1))
 
         for c in [[1, 3, 2], [3, 2, 1], [2, 1, 3]]:  # coordinate values (ul, ur, lr, ll)
@@ -459,7 +462,10 @@ class RadarDem(object):
             area[dem_l, dem_p] += np.abs(ax)
             h[dem_l, dem_p] += np.abs(ax) * self.dem[l_id + s_l[c[2]], p_id + s_p[c[2]]]
 
-        del dem_l, dem_p, l_id, p_id
+        dem_l = []
+        dem_p = []
+        l_id = []
+        p_id = []
 
         self.radar_dem = h / area
 
@@ -469,7 +475,7 @@ class RadarDem(object):
 
         valid_id = np.zeros(dem_id.shape, dtype=bool)
         triangle = np.zeros(dem_id.shape, dtype=bool)
-        l_id = dem_id / (dem_pixels.shape[1] - 1)
+        l_id = dem_id // (dem_pixels.shape[1] - 1)
         p_id = dem_id - (l_id * (dem_lines.shape[1] - 1))
 
         s_p = [0, 1, 1, 0]
@@ -481,16 +487,17 @@ class RadarDem(object):
             v_0 = np.vstack((dem_lines[l_id + 0, p_id + 1], dem_pixels[l_id + 0, p_id + 1])) - a
             v_1 = np.vstack((dem_lines[l_id + 1, p_id + 0], dem_pixels[l_id + 1, p_id + 0])) - a
             v_2 = np.vstack((dem_l, dem_p)) - a
-            del a
+            a = []
 
             # Calculate dot products
             dot00 = np.einsum('ij,ij->j', v_0, v_0)
             dot01 = np.einsum('ij,ij->j', v_0, v_1)
             dot02 = np.einsum('ij,ij->j', v_0, v_2)
-            del v_0
+            v_0 = []
             dot11 = np.einsum('ij,ij->j', v_1, v_1)
             dot12 = np.einsum('ij,ij->j', v_1, v_2)
-            del v_2, v_1
+            v_2 = []
+            v_1 = []
 
             # compute barycentric coordinates
             np.seterr(divide='ignore')
@@ -498,7 +505,7 @@ class RadarDem(object):
             inv_denom[np.isinf(inv_denom)] = -10**10
             u = (dot11 * dot02 - dot01 * dot12) * inv_denom
             v = (dot00 * dot12 - dot01 * dot02) * inv_denom
-            del inv_denom
+            inv_denom = []
 
             # Check if pixel is in triangle. Only if the point lies on one of the lines it is valid.
             valid_id[((u > 0) * (v >= 0) * (u + v < 1))] = True

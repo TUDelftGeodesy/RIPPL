@@ -429,8 +429,8 @@ class Concatenate(object):
                     old_coor = slice.read_res_coordinates(step)[-1]
 
                     coordinates_slice.add_res_info(slice, change_ref=False, old_coor=old_coor)
-                coordinates_slice.first_pixel = (slice_start[1] - slice_offset[1]) / out_coor.multilook[1]
-                coordinates_slice.first_line = (slice_start[0] - slice_offset[0]) / out_coor.multilook[0]
+                coordinates_slice.first_pixel = (slice_start[1] - slice_offset[1]) // out_coor.multilook[1]
+                coordinates_slice.first_line = (slice_start[0] - slice_offset[0]) // out_coor.multilook[0]
                 sample = FindCoordinates.multilook_str(coordinates_slice.multilook, coordinates_slice.oversample, coordinates_slice.offset)[0]
                 coordinates_slice.sample = sample
                 out_coordinates_slices.append(coordinates_slice)
@@ -444,8 +444,8 @@ class Concatenate(object):
                     old_coor = slice.read_res_coordinates(step)[-1]
                     coordinates_slice.add_res_info(slice, change_ref=False, old_coor=old_coor)
 
-                coordinates_slice.first_pixel = slice_start[1]
-                coordinates_slice.first_line = slice_start[0]
+                coordinates_slice.first_pixel = int(slice_start[1])
+                coordinates_slice.first_line = int(slice_start[0])
                 coordinates_slice.sample = out_coor.sample
                 out_coordinates_slices.append(coordinates_slice)
 

@@ -344,7 +344,7 @@ class ImageData(ImageMetadata):
             self.data_memory_limits[step] = defaultdict()
             self.data_memory_sizes[step] = defaultdict()
         elif step and file_type:
-            if file_type in self.data_memory[step].keys():
+            if file_type in list(self.data_memory[step].keys()):
                 self.data_memory[step].pop(file_type)
                 self.data_memory_limits[step].pop(file_type)
                 self.data_memory_sizes[step].pop(file_type)

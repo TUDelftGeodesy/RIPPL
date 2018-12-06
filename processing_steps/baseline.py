@@ -115,16 +115,20 @@ class Baseline(object):
             if np.sum(self.no0) > 0:
                 # First get the master and slave positions.
                 lines, pixels = np.where(self.no0)
-                del pixels
+                pixels = []
 
                 master_az_times = self.master_az_time + self.master_az_step * (self.lines - 1)
                 [m_x, m_y, m_z], v, a = self.master_orbit.evaluate_orbit_spline(master_az_times)
                 m_xyz = np.concatenate((m_x[lines][None, :], m_y[lines][None, :], m_z[lines][None, :]))
-                del m_x, m_y, m_z
+                m_x = []
+                m_y = []
+                m_z = []
 
                 [s_x, s_y, s_z], v, a = self.slave_orbit.evaluate_orbit_spline((self.az[self.no0] - 1) * self.slave_az_step + self.slave_az_time)
                 s_xyz = np.concatenate((s_x[None, :], s_y[None, :], s_z[None, :]))
-                del s_x, s_y, s_z
+                s_x = []
+                s_y = []
+                s_z = []
 
                 # Then calculate the parallel and perpendicular baseline.
                 self.baseline_2 = np.zeros(self.ra_shift.shape)
@@ -140,11 +144,13 @@ class Baseline(object):
                 p_xyz = p_xyz / np.sqrt(np.sum(p_xyz ** 2, axis=0))
 
                 angle_m = np.arccos(np.einsum('ij,ij->j', m_xyz, p_xyz)).astype(np.float32)
-                del m_xyz
+                m_xyz = []
                 angle_s = np.arccos(np.einsum('ij,ij->j', s_xyz, p_xyz)).astype(np.float32)
-                del s_xyz, p_xyz
+                s_xyz = []
+                p_xyz = []
                 pos_neg = np.array(angle_m > angle_s).astype(np.int8)
-                del angle_m, angle_s
+                angle_m = []
+                angle_s = []
 
                 self.perpendicular_b = np.zeros(self.ra_shift.shape).astype(np.float32)
                 self.perpendicular_b[self.no0] = np.sqrt(self.baseline_2[self.no0] - self.parallel_b[self.no0]**2) * pos_neg

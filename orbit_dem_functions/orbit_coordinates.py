@@ -235,7 +235,7 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             num = len(self.lines)
             shp = len(self.lines)
 
-        del height
+        height = []
         posonellx = np.ones(num) * scenecenterx
         posonelly = np.ones(num) * scenecentery
         posonellz = np.ones(num) * scenecenterz
@@ -284,7 +284,9 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             derivatives[0, 2, :] = (2 * np.take(posonellx, solve_ids)) / ell_a_2
             derivatives[1, 2, :] = (2 * np.take(posonelly, solve_ids)) / ell_a_2
             derivatives[2, 2, :] = (2 * np.take(posonellz, solve_ids)) / ell_b_2
-            del dsat_Px, dsat_Py, dsat_Pz
+            dsat_Px = []
+            dsat_Py = []
+            dsat_Pz = []
 
             # Solve system of equations
             solpos = np.linalg.solve(derivatives.swapaxes(0, 2), equations.swapaxes(0, 1)).swapaxes(0, 1)
@@ -293,7 +295,7 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             posonellx[solve_ids] += solpos[0, :]
             posonelly[solve_ids] += solpos[1, :]
             posonellz[solve_ids] += solpos[2, :]
-            del derivatives
+            derivatives = []
 
             # Check which ids are close enough
             not_finished = np.ravel(np.argwhere(((np.abs(solpos[0, :]) < self.criterpos) *
@@ -318,11 +320,11 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
                     self.maxiter) + ' iterations. Maybe use more iterations or less stringent criteria?')
 
         self.x = np.reshape(posonellx, shp)
-        del posonellx
+        posonellx = []
         self.y = np.reshape(posonelly, shp)
-        del posonelly
+        posonelly = []
         self.z = np.reshape(posonellz, shp)
-        del posonellz
+        posonellz = []
 
     # This function is mainly used to find the coordinates of known points on the ground in the radar grid
     def xyz2lp(self, x, y, z, az_times=''):
@@ -363,7 +365,9 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
 
         old_shape = x.shape
         xyz = np.concatenate((np.ravel(x)[None, :], np.ravel(y)[None, :], np.ravel(z)[None, :]), axis=0)
-        del x, y, z
+        x = []
+        y = []
+        z = []
 
         # Make a first guess of the azimuth times:
         if len(az_times) == 0:
@@ -377,7 +381,7 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             if iterate != 0:
                 sort = np.argsort(az_times[0, solve_ids])
                 solve_ids = solve_ids[sort]
-                del sort
+                sort = []
                 az_time = az_times[0, solve_ids]
             else:
                 az_time = np.ravel(az_times)
@@ -387,12 +391,12 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
 
             accsat = self.evaluate_orbit_spline(az_time, pos=False, acc=True, vel=False, sorted=True)[2]
             s1 = np.sum(delta * accsat, axis=0)
-            del accsat
+            accsat = []
             velsat = self.evaluate_orbit_spline(az_time, pos=False, acc=False, vel=True, sorted=True)[1]
             s0 = np.sum(delta * velsat, axis=0)
-            del delta
+            delta = []
             s2 = np.sum(velsat * velsat, axis=0)
-            del velsat
+            velsat = []
 
             t_diff = -s0 / (s1 - s2)
             az_times[0, solve_ids] += t_diff
@@ -414,7 +418,7 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         # Calculate range times
         dist_diff = self.evaluate_orbit_spline(np.ravel(az_times))[0] - xyz
         range_dist = np.sqrt(np.sum(dist_diff**2, axis=0))
-        del dist_diff
+        dist_diff = []
         ra_times = range_dist / self.sol * 2
 
         lines = (((az_times - self.az_seconds) / self.az_step) + 1.0).reshape(old_shape)
@@ -572,7 +576,9 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
 
         ray = np.stack((x_diff, y_diff, z_diff), axis=0)
         ray = ray / np.sqrt(np.sum(ray**2, axis=0))
-        del x_diff, y_diff, z_diff
+        x_diff = []
+        y_diff = []
+        z_diff = []
 
         # Now find the correction for the ellipsoid
         # Calc tangent plane
@@ -583,7 +589,9 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         # Calc normalized vector
         N = np.transpose(np.vstack((x_tan, y_tan, z_tan)))
         N = N / np.sqrt(np.sum(N**2, axis=1))[:, None]
-        del x_tan, y_tan, z_tan
+        x_tan = []
+        y_tan = []
+        z_tan = []
 
         # Calc off nadir angle
         if self.regular:
@@ -602,12 +610,13 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         v = v / np.sqrt(np.sum(v**2, axis=1))[:, None]
         v_plane = v - np.einsum('ij,ij->i', v, N)[:, None] * N
         v_plane = v_plane / np.sqrt(np.sum(v_plane ** 2, axis=1))[:, None]
-        del v
+        v = []
 
         # Based on https://math.stackexchange.com/questions/878785/how-to-find-an-angle-in-range0-360-between-2-vectors
         dot = np.einsum('ij,ij->i', v_plane, north_vector)
         det = np.einsum('ij,ij->i', N, np.cross(v_plane, north_vector, axis=1))
-        del v_plane, north_vector
+        v_plane = []
+        north_vector = []
 
         if self.regular:
             self.heading = np.arctan2(det, dot).astype(np.float32) / np.pi * 180
@@ -635,7 +644,10 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         # Calc normalized vector ground to satellite
         diff = np.stack((x_diff, y_diff, z_diff), axis=0)
         ray = diff / np.sqrt(np.sum(diff**2, axis=0))
-        del diff, x_diff, y_diff, z_diff
+        diff = []
+        x_diff = []
+        y_diff = []
+        z_diff = []
 
         # Calc tangent plane
         x_tan = 2 * self.x / (self.ellipsoid[0] + self.height)**2
@@ -645,7 +657,9 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         # Calc normalized vector normal to surface ellipsoid
         N = np.stack((x_tan, y_tan, z_tan), axis=0)
         N = N / np.sqrt(np.sum(N**2, axis=0))
-        del x_tan, y_tan, z_tan
+        x_tan = []
+        y_tan = []
+        z_tan = []
 
         # Calc elevation angle
         if self.regular:
@@ -660,7 +674,8 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         else:
             north_plane = -np.stack((self.y, self.x, np.zeros((self.x.shape[0]))), axis=0) / xy_dist
         north_vector = np.cross(north_plane, N, axis=0)
-        del xy_dist, north_plane
+        xy_dist = []
+        north_plane = []
 
         # Calc heading using the knowledge that the normal vector is always directed north
         if self.regular:
@@ -676,5 +691,6 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         else:
             dot = np.einsum('ki,ki->i', -ray_plane, north_vector)
             det = np.einsum('ki,ki->i', N, np.cross(-ray_plane, north_vector, axis=0))
-        del ray_plane, north_vector
+        ray_plane = []
+        north_vector = []
         self.azimuth_angle = np.arctan2(det, dot).astype(np.float32) / np.pi * 180

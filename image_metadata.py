@@ -367,11 +367,11 @@ class ImageMetadata(object):
         # Now remove the process and write the file again.
         if isinstance(process, string_types): # Only one process should be removed
             self.process_control[process] = '0'
-            del self.processes[process]
+            self.processes.pop(process)
         else:
             for proc in process:
                 self.process_control[proc] = '0'
-                del self.processes[proc]
+                self.processes.pop(proc)
 
     def write(self, new_filename='', warn=True):
         # Here all the available information acquired is written to a new resfile. Generally if information is manually
@@ -501,8 +501,8 @@ class ImageMetadata(object):
                 return
             elif self.process_control[process] == '1':
                 self.process_control[process] = '0'
-                del self.processes[process]
-                del self.process_timestamp[process]
+                self.processes.pop(process)
+                self.process_timestamp.pop(process)
 
         # A variable is deleted
         if variable:
@@ -510,4 +510,4 @@ class ImageMetadata(object):
                 warnings.warn('This variable does not exist: ' + str(variable))
                 return
             else:
-                del self.processes[process][variable]
+                self.processes[process].pop(variable)

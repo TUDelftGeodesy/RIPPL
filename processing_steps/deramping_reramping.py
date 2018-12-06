@@ -81,7 +81,7 @@ class GetDopplerRamp(OrbitInterpolate):
         df_az_ctr = self.c_dc[0] + self.c_dc[1] * (ra_time - self.t_dc) + self.c_dc[2] * (ra_time - self.t_dc) ** 2
         f_dc_ref_0 = (self.c_dc[0] + self.c_dc[1] * (self.t_rg_start - self.t_dc) + self.c_dc[2] * 
                       (self.t_rg_start - self.t_dc) ** 2)
-        del ra_time
+        ra_time = []
 
         # From S-1 steering rate and orbit information %
         # Computes sensor velocity from orbits
@@ -95,13 +95,15 @@ class GetDopplerRamp(OrbitInterpolate):
 
         # DC Azimuth rate [Hz/s]
         dr_est = ks_hz / alpha_nom
-        del ks_hz, alpha_nom
+        ks_hz = []
+        alpha_nom = []
 
         # Reference time
         az_dc = -(df_az_ctr / k_fm) + (f_dc_ref_0 / k_fm_0)
-        del k_fm, k_fm_0
+        k_fm = []
+        k_fm_0 = []
         t_az_vec = az_time - az_dc
-        del az_dc
+        az_dc = []
 
         # % Generate inverse chirp %
         if demodulation:

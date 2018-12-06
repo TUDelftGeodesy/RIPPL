@@ -52,13 +52,13 @@ class Resample(object):
 
             line_id = np.floor(grid_lines).astype('int32')
             pixel_id = np.floor(grid_pixels).astype('int32')
-            l_window_id = table_size[0] - np.round((grid_lines - line_id) / w_steps[0]).astype(np.int32)
-            p_window_id = table_size[1] - np.round((grid_pixels - pixel_id) / w_steps[1]).astype(np.int32)
+            l_window_id = table_size[0] - np.round((grid_lines - line_id) // w_steps[0]).astype(np.int32)
+            p_window_id = table_size[1] - np.round((grid_pixels - pixel_id) // w_steps[1]).astype(np.int32)
 
             # Check wether the pixels are far enough from the border of the image. Otherwise interpolation kernel cannot
             # Be applied. Missing pixels will be filled with zeros.
-            half_w_line = window_size[0] / 2
-            half_w_pixel = window_size[1] / 2
+            half_w_line = window_size[0] // 2
+            half_w_pixel = window_size[1] // 2
             valid_vals = (((line_id - half_w_line + 1) >= 0) * ((line_id + half_w_line) < orig_grid.shape[0]) *
                           ((pixel_id - half_w_pixel + 1) >= 0) * ((pixel_id + half_w_pixel) < orig_grid.shape[1]))
 

@@ -110,7 +110,7 @@ class HarmonieAps(object):
                 data.load_harmonie(date[0], filename[0])
             else:
                 print('No harmonie data available for ' + date[0].strftime('%Y-%m-%dT%H:%M:%S.%f'))
-                return
+                return True
 
             # TODO Add a loop to run this method for different time steps. So the wind vectors will be used to create
             # new delay images on different time scales.

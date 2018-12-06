@@ -45,7 +45,7 @@ class Interferogram(object):
             new_res.image_add_processing_step('coreg_orbits', copy.copy(cmaster.res_data.processes['orbits']))
             new_res.image_add_processing_step('coreg_crop',copy.copy(cmaster.res_data.processes['crop']))
             new_res.write(self.res_file, warn=False)
-            del new_res
+            new_res = []
         elif not os.path.exists(self.res_file):
             print('resfile of interferogram cannot be found and either slave/master/coreg master data is missing.')
 

@@ -91,6 +91,12 @@ class Pipeline():
                     image[im_str] = copy.deepcopy(im.res_data)
 
             self.res_dat['full'] = image
+
+        if self.cmaster == self.slave:
+            for slice_id in self.slice_ids:
+                self.res_dat[slice_id]['cmaster'] = self.res_dat[slice_id]['slave']
+            self.res_dat['full']['cmaster'] = self.res_dat['full']['slave']
+
         self.clean_memmaps()
         self.clean_memory()
 
@@ -245,7 +251,7 @@ class Pipeline():
             proc_depth += 1
 
             # First iterate over the full image till there are no resolution shifts existing anymore.
-            while len(new_pipeline['step']) > 0 or len(multilook['step']) > 0 :
+            while len(new_pipeline['step']) > 0 or len(multilook['step']) > 0:
 
                 old_meta = ''
 

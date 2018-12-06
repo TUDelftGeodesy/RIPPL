@@ -191,12 +191,28 @@ class Stack(object):
         coor.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
 
         for slice in self.images[self.master_date].slices.keys():
+
+            coor.add_res_info(self.images[self.master_date].slices[slice])
             for step in ['reramp', 'earth_topo_phase']:
                 if not self.images[self.master_date].slices[slice].process_control[step] == '1':
-                    coor.add_res_info(self.images[self.master_date].slices[slice])
-
                     res_info = coor.create_meta_data([step], ['complex_int'])
                     res_info[step + '_output_file'] = 'crop.raw'
+                    self.images[self.master_date].slices[slice].image_add_processing_step(step, res_info)
+
+            # Create a file with zeros for both baseline, coreg, height_to_phase.
+            filename = os.path.join(os.path.dirname(self.images[self.master_date].slices[slice].res_path), 'height_to_phase.raw')
+            new_file = np.memmap(filename, dtype=np.float32, mode='w+', shape=tuple(coor.shape))
+            new_file.flush()
+
+            for step, file_types, file_data_types in zip(['baseline', 'height_to_phase'], [
+                ['perpendicular_baseline', 'parallel_baseline', 'vertical_baseline', 'angle_baseline', 'total_baseline'],
+                ['height_to_phase']], [['real4', 'real4', 'real4', 'real4', 'real4', 'real4'], ['real4']]):
+
+                if not self.images[self.master_date].slices[slice].process_control[step] == '1':
+
+                    res_info = coor.create_meta_data(file_types, file_data_types)
+                    for file_type in file_types:
+                        res_info[file_type + '_output_file'] = 'height_to_phase.raw'
                     self.images[self.master_date].slices[slice].image_add_processing_step(step, res_info)
 
             self.images[self.master_date].slices[slice].write()

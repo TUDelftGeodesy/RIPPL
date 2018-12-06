@@ -2,18 +2,20 @@
 import os
 import six
 import numpy as np
+from image_data import ImageData
+
 
 def run_parallel(dat):
     # First split the functions and variables
     functions = dat['function']
     succes = True
 
-    for func, n in zip(functions, np.arange(len(functions))):
+    for func in functions:
 
         if dat['meta']:
 
-            var = dat['meta_var'][n]
-            var_names = dat['meta_var_name'][n]
+            var = dat['meta_var'][0]
+            var_names = dat['meta_var_name'][0]
 
             if len(var_names) > 0:
                 # Because the number of variables can vary we use the eval functions.
@@ -22,10 +24,13 @@ def run_parallel(dat):
                 print(func)
                 eval(eval_str)
 
+            dat['meta_var'].pop(0)
+            dat['meta_var_name'].pop(0)
+
         if dat['create']:
 
-            var = dat['create_var'][n]
-            var_names = dat['create_var_name'][n]
+            var = dat['create_var'][0]
+            var_names = dat['create_var_name'][0]
 
             if len(var_names) > 0:
                 # Because the number of variables can vary we use the eval functions.
@@ -33,16 +38,13 @@ def run_parallel(dat):
                 eval_str = 'func.create_output_files(' + ','.join(func_str) + ')'
                 eval(eval_str)
 
-            # Finally clean the memmap files (can cause memory problems when copying these objects)
-            memmap_data_vars = [var[var_names.index(meta_str)] for meta_str in var_names if
-                                meta_str in ['meta', 'master_meta', 'cmaster_meta', 'ifg_meta']]
-            for meta in memmap_data_vars:
-                meta.clean_memmap_files()
+            dat['create_var'].pop(0)
+            dat['create_var_name'].pop(0)
 
         if dat['proc']:
 
-            var = dat['proc_var'][n]
-            var_names = dat['proc_var_name'][n]
+            var = dat['proc_var'][0]
+            var_names = dat['proc_var_name'][0]
 
             if len(var_names) > 0:
                 # Because the number of variables can vary we use the eval functions.
@@ -75,19 +77,16 @@ def run_parallel(dat):
                         os.path.dirname(meta_name))
                 print('Finished processing ' + func.__name__ + ' for ' + meta_name)
 
-            # Finally clean the memmap files (can cause memory problems when copying these objects)
-            memmap_data_vars = [var[var_names.index(meta_str)] for meta_str in var_names if
-                                meta_str in ['meta', 'master_meta', 'cmaster_meta', 'ifg_meta']]
-            for meta in memmap_data_vars:
-                meta.clean_memmap_files()
+            dat['proc_var'].pop(0)
+            dat['proc_var_name'].pop(0)
 
             # If
             if not succes:
                 break
 
         if dat['save']:
-            var = dat['save_var'][n]
-            var_names = dat['save_var_name'][n]
+            var = dat['save_var'][0]
+            var_names = dat['save_var_name'][0]
 
             if len(var_names) > 0:
                 # Because the number of variables can vary we use the eval functions.
@@ -95,15 +94,12 @@ def run_parallel(dat):
                 eval_str = 'func.save_to_disk(' + ','.join(func_str) + ')'
                 eval(eval_str)
 
-            # Finally clean the memmap files (can cause memory problems when copying these objects)
-            memmap_data_vars = [var[var_names.index(meta_str)] for meta_str in var_names if
-                                meta_str in ['meta', 'master_meta', 'cmaster_meta', 'ifg_meta']]
-            for meta in memmap_data_vars:
-                meta.clean_memmap_files()
+            dat['save_var'].pop(0)
+            dat['save_var_name'].pop(0)
 
         if dat['clear_mem']:
-            var_list = dat['clear_mem_var'][n]
-            var_names_list = dat['clear_mem_var_name'][n]
+            var_list = dat['clear_mem_var'][0]
+            var_names_list = dat['clear_mem_var_name'][0]
 
             for var, var_names in zip(var_list, var_names_list):
 
@@ -114,6 +110,15 @@ def run_parallel(dat):
                     func_str = [var_names[i] + '=var[' + str(i) + ']' for i in np.arange(1, len(var_names))]
                     eval_str = 'meta.clean_memory(' + ','.join(func_str) + ')'
                     eval(eval_str)
+
+            dat['clear_mem_var'].pop(0)
+            dat['clear_mem_var_name'].pop(0)
+
+        # Finally clean the memmap files (can cause memory problems when copying these objects)
+        for im in list(dat['res_dat'].keys()):
+            for im_type in list(dat['res_dat'][im].keys()):
+                if isinstance(dat['res_dat'][im][im_type], ImageData):
+                    dat['res_dat'][im][im_type].clean_memmap_files()
 
     if succes:
         return dat['res_dat']

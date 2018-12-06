@@ -284,7 +284,7 @@ class CreateSwathXmlRes():
 
         # Now calculate the centre pixels of individual bursts.
         line_nums = np.array([int(n) for n in self.burst_xml_dat['sceneCenLine_number']])
-        size = (len(np.unique(line_nums)), line_nums.size / len(np.unique(line_nums)))
+        size = (len(np.unique(line_nums)), line_nums.size // len(np.unique(line_nums)))
         line_nums = np.reshape(line_nums, size)
 
         lat = np.reshape([float(n) for n in self.burst_xml_dat['sceneCenLat']], size)

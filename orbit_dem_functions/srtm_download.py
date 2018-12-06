@@ -118,7 +118,7 @@ class SrtmDownloadTile(object):
         im[:, :] = image + egm96
         im.flush()
 
-        del egm96
+        egm96 = []
 
 
 class SrtmDownload(object):

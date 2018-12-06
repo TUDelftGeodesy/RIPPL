@@ -130,7 +130,8 @@ class ConversionGrid(object):
         lat_id = np.int32((radar_lat - latlim[0]) / dlat)
         lon_id = np.int32((radar_lon - lonlim[0]) / dlon)
         flat_id = lat_id * shape[0] + lon_id
-        del lat_id, lon_id
+        lat_id = []
+        lon_id = []
 
         # Sort ids and find number of pixels in every grid cell
         sort_ids = np.argsort(np.ravel(flat_id))[np.ravel(inside)]
@@ -182,7 +183,8 @@ class ConversionGrid(object):
         y_id = np.int32((radar_y - ylim[0]) / dy)
         x_id = np.int32((radar_x - xlim[0]) / dx)
         flat_id = y_id * shape[0] + x_id
-        del y_id, x_id
+        y_id = []
+        x_id = []
 
         # Sort ids and find number of pixels in every grid cell
         sort_ids = np.argsort(np.ravel(flat_id))[np.ravel(inside)]

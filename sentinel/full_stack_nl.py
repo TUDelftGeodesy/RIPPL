@@ -4,9 +4,9 @@
 from stack import Stack
 from sentinel.sentinel_stack import SentinelStack
 from coordinate_system import CoordinateSystem
-import os
 
-track_no = 88
+track_no = 37
+parallel = False
 
 data_disk = '/mnt/fcf5fddd-48eb-445a-a9a6-bbbb3400ba42/'
 datastack_disk = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/'
@@ -16,28 +16,28 @@ ecmwf_data = data_disk + 'weather_models/ecmwf_data'
 
 # t 37
 if track_no == 37:
-    start_date = '2017-11-01'
-    end_date = '2017-11-25'
+    start_date = '2017-01-01'
+    end_date = '2017-12-31'
     master_date = '2017-11-09'
 
     database_folder = data_disk + 'radar_database/sentinel-1/dsc_t037'
-    shapefile = data_disk + 'GIS/shapes/netherlands/zuid_holland.shp'
+    shapefile = data_disk + 'GIS/shapes/netherlands/netherland.shp'
     orbit_folder = data_disk + 'orbits/sentinel-1'
-    stack_folder = datastack_disk + 'radar_datastacks/sentinel-1/dsc_t037_test'
+    stack_folder = datastack_disk + 'radar_datastacks/sentinel-1/dsc_t037'
     polarisation = 'VV'
     mode = 'IW'
     product_type = 'SLC'
 
 # t 88
 elif track_no == 88:
-    start_date = '2017-02-10'
-    end_date = '2017-02-23'
+    start_date = '2015-07-01'
+    end_date = '2018-09-12'
     master_date = '2017-02-21'
 
     database_folder = data_disk + 'radar_database/sentinel-1/asc_t088'
     shapefile = data_disk + 'GIS/shapes/netherlands/netherland.shp'
     orbit_folder = data_disk + 'orbits/sentinel-1'
-    stack_folder = datastack_disk + 'radar_datastacks/sentinel-1/asc_t088_test'
+    stack_folder = datastack_disk + 'radar_datastacks/sentinel-1/asc_t088'
     polarisation = 'VV'
     mode = 'IW'
     product_type = 'SLC'
@@ -60,22 +60,17 @@ srtm_folder = data_disk + 'DEM/DEM_new'
 #download_orbit.download_orbits()
 
 # Number of cores
-cores = 8
+cores = 6
 
 # Prepare processing
-if not os.listdir(stack_folder):
-    s1_stack = SentinelStack(stack_folder)
-    s1_stack.read_from_database(database_folder, shapefile, track_no, orbit_folder, start_date, end_date, master_date,
-                             mode, product_type, polarisation, cores=6)
-    s1_stack = Stack(stack_folder)
-    s1_stack.read_master_slice_list()
-    s1_stack.read_stack(start_date, end_date)
-    s1_stack.add_master_res_info()
-    s1_stack.create_network_ifgs(temp_baseline=30)
-else:
-    s1_stack = Stack(stack_folder)
-    s1_stack.read_master_slice_list()
-    s1_stack.read_stack(start_date, end_date)
+#s1_stack = SentinelStack(stack_folder)
+#s1_stack.read_from_database(database_folder, shapefile, track_no, orbit_folder, start_date, end_date, master_date,
+#                         mode, product_type, polarisation, cores=6)
+s1_stack = Stack(stack_folder)
+s1_stack.read_master_slice_list()
+s1_stack.read_stack(start_date, end_date)
+s1_stack.add_master_res_info()
+s1_stack.create_network_ifgs(temp_baseline=30)
 
 # create an SRTM DEM
 password = 'Radar2016'
@@ -91,7 +86,7 @@ for slice_name in slice_names:
     settings['radar_DEM'][slice_name]['coor_in'] = s1_stack.images[s1_stack.master_date].slices[slice_name].read_res_coordinates('import_DEM')[0]
 settings['radar_DEM']['full']['coor_in'] = s1_stack.images[s1_stack.master_date].res_data.read_res_coordinates('import_DEM')[0]
 
-parallel = False
+parallel = True
 # Run the geocoding for the slices.
 coordinates = CoordinateSystem()
 coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
@@ -102,14 +97,15 @@ s1_stack('geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 
 # Get the image orientation
 s1_stack('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
 
+coordinates = CoordinateSystem()
+coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
 coordinates.slice = False
 # Full radar DEM grid
 s1_stack('radar_DEM', settings, coordinates, 'cmaster', file_type='radar_DEM', parallel=parallel)
 # Get the image orientation
 s1_stack('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
 # Run till the earth_topo_phase step.
-coordinates.slice = True
-s1_stack(['earth_topo_phase'], settings, coordinates, 'slave', file_type=['earth_topo_phase'], parallel=parallel)
+s1_stack(['earth_topo_phase', 'height_to_phase'], settings, coordinates, 'slave', file_type=[['earth_topo_phase'], ['height_to_phase']], parallel=parallel)
 
 # Get the multilooked square amplitudes
 for multilook in [[5, 20], [10, 40], [20, 80]]:

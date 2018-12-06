@@ -104,7 +104,9 @@ class InverseGeocode(object):
 
             # Finally calculate the lat/lon coordinates
             self.line, self.pixel = self.orbits.xyz2lp(self.x, self.y, self.z)
-            del self.x, self.y, self.z
+            self.x = []
+            self.y = []
+            self.z = []
             self.line = self.line.reshape(self.shape).astype(np.float32)
             self.pixel = self.pixel.reshape(self.shape).astype(np.float32)
 
