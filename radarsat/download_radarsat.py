@@ -2,9 +2,10 @@
 # check for the files which are downloaded.
 
 
-def radarsat_available(shape=''):
 
-    print 'lets add some code'
+
+def radarsat_available(shape=''):
+    print('lets add some code')
 
 def radarsat_download(''):
     

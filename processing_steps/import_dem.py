@@ -16,11 +16,11 @@ import os
 import numpy as np
 import gdal
 
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
 from orbit_dem_functions.srtm_download import SrtmDownload
 from image_data import ImageData
-
+from coordinate_system import CoordinateSystem
 
 class CreateSrtmDem(OrbitCoordinates):
     # This class stitches the different files together. If no data is available values will be zero. Which is
@@ -34,129 +34,84 @@ class CreateSrtmDem(OrbitCoordinates):
     :type meta = ImageData
     """
 
-    def __init__(self, out_folder, dem_data_folder='', resolution='SRTM3', meta='', quality=False,
-                 shapefile='', polygon='', border=0.1, rounding=0.1,
-                 username='', password='',
-                 s_lin=0, s_pix=0, lines=0,
-                 n_processes=1, max_pix_num=10000000):
+    def __init__(self, meta, srtm_folder='', quality=False, buf=0.2, rounding=0.2, srtm_type='SRTM3', s_lin=0, s_pix=0, lines=0):
 
         # Define the limits of our image
-        self.srtm_tiles = SrtmDownload(dem_data_folder, username, password, resolution, n_processes)
-        self.max_pix_num = max_pix_num
-        self.n_processes = n_processes
-        self.latlim = []
-        self.lonlim = []
-
-        if isinstance(meta, str):
-            if len(meta) != 0:
-                self.meta = ImageData(meta, 'single')
-        elif isinstance(meta, ImageData):
+        if isinstance(meta, ImageData):
             self.meta = meta
         else:
-            self.meta = []
-
-        if self.meta:
-            self.polygon = self.meta.polygon
-        elif shapefile:
-            self.polygon = SrtmDownload.load_shp(shapefile)
-        elif polygon:
-            self.polygon = polygon
-        else:
-            print('No shape selected')
             return
 
-        self.rounding = rounding
-        self.border = border
-        self.resolution = resolution
+        # Quality file also created?
         self.quality = quality
+        self.srtm_type = srtm_type
+        self.srtm_folder = srtm_folder
 
-        # Image shapes/limits
-        self.pixel_degree = int
-        self.tiff_latlim = []
-        self.tiff_lonlim = []
-        self.lat_size = ''
-        self.lon_size = ''
+        # Buffer and rounding
+        self.buf = buf
+        self.rounding = rounding
+
+        # Image coordinates
+        self.coordinates = CoordinateSystem()
+
+        if self.srtm_type == 'SRTM3':
+            step = 1.0 / 3600 * 3
+        elif self.srtm_type == 'SRTM1':
+            step = 1.0 / 3600
+        else:
+            print('Unkown SRTM type' + self.srtm_type)
+            return
+
+        self.coordinates.create_geographic(dlat=step, dlon=step)
+        self.coordinates.add_res_info(self.meta, buf=self.buf, round=self.rounding)
 
         # Initialize output files
-        self.out_folder = out_folder
-        self.dem = os.path.join(self.out_folder, 'dem_' + resolution + '.raw')
-        self.q_dem = os.path.join(self.out_folder, 'dem_q_' + resolution + '.raw')
+        self.out_folder = os.path.dirname(self.meta.res_path)
+        self.dem = os.path.join(self.out_folder, 'DEM' + self.coordinates.sample + '.raw')
+        self.q_dem = os.path.join(self.out_folder, 'DEM_q' + self.coordinates.sample + '.raw')
 
     def __call__(self):
         # Create the DEM and xyz coordinates
         # First download and load needed tiles
 
-        self.srtm_tiles(polygon=self.polygon, border=self.border, rounding=self.rounding)
-        self.lonlim = self.srtm_tiles.lonlim
-        self.latlim = self.srtm_tiles.latlim
-        self.define_image_coverage()
+        # Download cannot be done here, because concurrent DEM creation processes can conflict with each other.
+        # self.srtm_tiles(polygon=self.polygon, border=self.border, rounding=self.rounding)
 
-        tiles = [tile[:-4] for tile in self.srtm_tiles.tiles if tile.endswith('.hgt')]
+        # Find the needed tiles.
+        filelist = SrtmDownload.srtm_listing(self.srtm_folder)
+        tiles, n, v, t = SrtmDownload.select_tiles(filelist, self.coordinates, self.srtm_folder, self.srtm_type, self.quality, download=False)
+        tiles = [tile[:-4] for tile in tiles if tile.endswith('.hgt')]
+
+        # Finally add metadata if it is directly linked to a SAR image
+        self.add_meta_data(self.meta, self.coordinates, self.quality)
 
         # Then create needed files
         if self.quality:
-            self.q = self.create_image(dat_type='.q', tiles=tiles)
-        self.dem = self.create_image(dat_type='.hgt', tiles=tiles)
+            self.create_output_files(self.meta, file_type=['DEM_q' + self.coordinates.sample])
+            self.q_dat = self.create_image(dat_type='.q', tiles=tiles)
+            self.meta.image_new_data_memory(self.q_dat, 'import_DEM', 0, 0, file_type='DEM_q' + self.coordinates.sample)
 
-        # Finally add metadata if it is directly linked to a SAR image
-        if isinstance(self.meta, ImageData):
-            self.add_meta_data()
-            self.meta.image_new_data_memory(self.dem, 'import_dem', 0, 0, file_type='Dem_' + self.resolution)
-
-    @staticmethod
-    def create_output_files(meta, to_disk='', resolution='SRTM3'):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-
-        if not to_disk:
-            to_disk = ['Dem_' + resolution]
-
-        for s in to_disk:
-            meta.image_create_disk('import_dem', s)
-
-    def save_to_disk(self, to_disk=''):
-
-        if not to_disk:
-            to_disk = ['Dem_' + self.resolution]
-
-        for s in to_disk:
-            self.meta.image_memory_to_disk('import_dem', s)
-
-    def define_image_coverage(self):
-        # Define image resolution
-        if self.resolution == 'SRTM1':
-            self.pixel_degree = 3600
-        elif self.resolution == 'SRTM3':
-            self.pixel_degree = 1200
-        else:
-            print('quality should be either SRTM1 or SRTM3!')
-            return
-
-        self.dtype = np.int16
-        self.tiff_latlim = [self.latlim[0] - 0.5 / self.pixel_degree, self.latlim[1] + 0.5 / self.pixel_degree]
-        self.tiff_lonlim = [self.lonlim[0] - 0.5 / self.pixel_degree, self.lonlim[1] + 0.5 / self.pixel_degree]
-
-        # Define the final size of the grid
-        self.lat_size = int(np.round((self.latlim[1] - self.latlim[0]) * self.pixel_degree)) + 1
-        self.lon_size = int(np.round((self.lonlim[1] - self.lonlim[0]) * self.pixel_degree)) + 1
-        print('Bounding box is:')
-        print('from ' + str(self.latlim[0]) + ' latitude to ' + str(self.latlim[1]))
-        print('from ' + str(self.lonlim[0]) + ' longitude to ' + str(self.lonlim[1]))
+        self.create_output_files(self.meta, file_type=['DEM' + self.coordinates.sample])
+        self.dem_dat = self.create_image(dat_type='.hgt', tiles=tiles)
+        self.meta.image_new_data_memory(self.dem_dat, 'import_DEM', 0, 0, file_type='DEM' + self.coordinates.sample)
 
     def create_image(self, tiles, dat_type='.hgt'):
         # This function adds tiles to np.memmap file
 
         if dat_type == '.q':
-            outputdata = np.memmap(self.q_dem, dtype=np.int8, shape=(self.lat_size, self.lon_size), mode='w+')
+            outputdata = np.memmap(self.q_dem, dtype=np.int8, shape=tuple(self.coordinates.shape), mode='w+')
         elif dat_type == '.hgt':
-            outputdata = np.memmap(self.dem, dtype=np.float32, shape=(self.lat_size, self.lon_size), mode='w+')
+            outputdata = np.memmap(self.dem, dtype=np.float32, shape=tuple(self.coordinates.shape), mode='w+')
+        else:
+            print('images type should be ".q or .hgt"')
+            return
 
-        if self.resolution == 'SRTM1':
+        if self.srtm_type == 'SRTM1':
             shape = (3601, 3601)
             s_size = 1.0 / 3600.0
             step_lat = 1
             step_lon = 1
-        elif self.resolution == 'SRTM3':
+        elif self.srtm_type == 'SRTM3':
             shape = (1201, 1201)
             s_size = 1.0 / 1200.0
             step_lat = 1
@@ -164,9 +119,6 @@ class CreateSrtmDem(OrbitCoordinates):
         else:
             print('quality should be either SRTM1 or SRTM3!')
             return
-        
-        print('total file size is ' + str(self.lat_size) + ' in latitude and '
-                                    + str(self.lon_size) + ' in longitude')
 
         for tile in tiles:
             tile_name = tile + dat_type
@@ -177,6 +129,9 @@ class CreateSrtmDem(OrbitCoordinates):
                 image = np.fromfile(tile + dat_type, dtype='>u1').reshape(shape)
             elif dat_type == '.hgt':
                 image = np.fromfile(tile + dat_type, dtype='float32').reshape(shape)
+            else:
+                print('images type should be ".q or .hgt"')
+                #return
 
             if os.path.basename(tile)[7] == 'N':
                 lat = float(os.path.basename(tile)[8:10])
@@ -186,29 +141,29 @@ class CreateSrtmDem(OrbitCoordinates):
                 lon = float(os.path.basename(tile)[11:14])
             else:
                 lon = - float(os.path.basename(tile)[11:14])
-            if self.resolution == 'SRTM30':
-                lat = lat - 50 + (s_size / 2)
-                lon += (s_size / 2)
 
             print('adding ' + tile)
 
+            latlim = [self.coordinates.lat0, self.coordinates.lat0 + self.coordinates.dlat * (self.coordinates.shape[0] -1)]
+            lonlim = [self.coordinates.lon0, self.coordinates.lon0 + self.coordinates.dlon * (self.coordinates.shape[1] -1)]
+
             # Find the coordinates of the part of the tile that should be written to the output data.
-            t_latlim = [max(lat, self.latlim[0]), min(lat + step_lat, self.latlim[1])]
-            t_lonlim = [max(lon, self.lonlim[0]), min(lon + step_lon, self.lonlim[1])]
+            t_latlim = [max(lat, latlim[0]), min(lat + step_lat, latlim[1])]
+            t_lonlim = [max(lon, lonlim[0]), min(lon + step_lon, lonlim[1])]
             t_latid = [shape[0] - int(round((t_latlim[0] - lat) / s_size)), 
                        shape[0] - (int(round((t_latlim[1] - lat) / s_size)) + 1)]
             t_lonid = [int(round((t_lonlim[0] - lon) / s_size)), 
                        int(round((t_lonlim[1] - lon) / s_size)) + 1]
             
-            latsize = int(round((self.latlim[1] - self.latlim[0]) / s_size)) + 1
-            latid = [latsize - int(round((t_latlim[0] - self.latlim[0]) / s_size)), 
-                     latsize - (int(round((t_latlim[1] - self.latlim[0]) / s_size)) + 1)]
-            lonid = [int(round((t_lonlim[0] - self.lonlim[0]) / s_size)), 
-                     int(round((t_lonlim[1] - self.lonlim[0]) / s_size)) + 1]
+            latsize = int(round((latlim[1] - latlim[0]) / s_size)) + 1
+            latid = [latsize - int(round((t_latlim[0] - latlim[0]) / s_size)),
+                     latsize - (int(round((t_latlim[1] - latlim[0]) / s_size)) + 1)]
+            lonid = [int(round((t_lonlim[0] - lonlim[0]) / s_size)),
+                     int(round((t_lonlim[1] - lonlim[0]) / s_size)) + 1]
 
-            print('Adding tile lat ' + str(t_latid[1] + 1) + ' to ' + str(t_latid[0]) + ' into dem file ' +
+            print('Adding tile lat ' + str(t_latid[1] + 1) + ' to ' + str(t_latid[0]) + ' into DEM file ' +
                   str(latid[1] + 1) + ' to ' + str(latid[0]))
-            print('Adding tile lon ' + str(t_lonid[0] + 1) + ' to ' + str(t_lonid[1]) + ' into dem file ' +
+            print('Adding tile lon ' + str(t_lonid[0] + 1) + ' to ' + str(t_lonid[1]) + ' into DEM file ' +
                   str(lonid[0] + 1) + ' to ' + str(lonid[1]))
 
             # Assign values from tiles to outputdata
@@ -218,33 +173,70 @@ class CreateSrtmDem(OrbitCoordinates):
 
         return outputdata
 
-    def add_meta_data(self):
+    @staticmethod
+    def add_meta_data(meta, coordinates, quality=False):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        if 'import_dem' in self.meta.processes.keys():
-            meta_info = self.meta.processes['import_dem']
+        if 'import_DEM' in meta.processes.keys():
+            meta_info = meta.processes['import_DEM']
         else:
             meta_info = OrderedDict()
 
-        for dat, dat_type in zip(['Dem_' + self.resolution, 'Dem_q_' + self.resolution],
-                                 ['real4', 'int8']):
-            meta_info[dat + '_output_file'] = dat + '.raw'
-            meta_info[dat + '_output_format'] = dat_type
+        if quality:
+            meta_info = coordinates.create_meta_data(['DEM', 'DEM_q'], ['real4', 'int8'], meta_info)
+        else:
+            meta_info = coordinates.create_meta_data(['DEM'], ['real4'], meta_info)
 
-            meta_info[dat + '_regular_grid'] = 'True'
-            meta_info[dat + '_size_in_latitude'] = self.lat_size
-            meta_info[dat + '_size_in_longitude'] = self.lon_size
-            meta_info[dat + '_latitude_start'] = str(self.latlim[0])
-            meta_info[dat + '_longitude_start'] = str(self.lonlim[0])
-            meta_info[dat + '_latitude_step'] = str(1.0 / self.pixel_degree)
-            meta_info[dat + '_longitude_step'] = str(1.0 / self.pixel_degree)
+        meta.image_add_processing_step('import_DEM', meta_info)
 
-        self.meta.image_add_processing_step('import_dem', meta_info)
+    @staticmethod
+    def processing_info(coordinates, meta_type='', quality=False):
+
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
+
+        # Three input files needed x, y, z coordinates
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
+
+        # line and pixel output files.
+        if quality:
+            names = ['DEM', 'DEM_q']
+        else:
+            names = ['DEM']
+
+        output_dat = recursive_dict()
+        for name in names:
+            output_dat[meta_type]['import_DEM'][name + coordinates.sample]['files'] = name + coordinates.sample + '.raw'
+            output_dat[meta_type]['import_DEM'][name + coordinates.sample]['coordinates'] = coordinates
+            output_dat[meta_type]['import_DEM'][name + coordinates.sample]['slice'] = coordinates.slice
+
+        # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
+        mem_use = 2
+
+        return input_dat, output_dat, mem_use
+
+    @staticmethod
+    def create_output_files(meta, file_type='', coordinates=''):
+        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
+        # done before the actual processing.
+        meta.images_create_disk('import_DEM', file_type, coordinates)
+
+    @staticmethod
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_memory_to_disk('import_DEM', file_type, coordinates)
+
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('import_DEM', file_type, coordinates)
 
 # This class loads a non SRTM DEM grid. Inputs are:
 # - grid with heights
 # - grid with lat/lon coordinate of all points
 # Grid should be given in geotiff format.
+
 
 class CreateExternalDem(CreateSrtmDem):
 
@@ -255,7 +247,7 @@ class CreateExternalDem(CreateSrtmDem):
         lon = gdal.Open(lon_tiff, gdal.GA_ReadOnly)
 
         if h is None or lat is None or lon is None:
-            print 'Unable to open one of the dem files'
+            print('Unable to open one of the DEM files')
             return
 
         # Find the start and end line by reading lat and lon information in chunks.

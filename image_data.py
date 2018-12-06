@@ -2,8 +2,11 @@ import os
 import numpy as np
 import warnings
 from collections import defaultdict
+import sys
+import inspect
 
 from image_metadata import ImageMetadata
+from coordinate_system import CoordinateSystem
 
 
 class ImageData(ImageMetadata):
@@ -27,7 +30,8 @@ class ImageData(ImageMetadata):
 
         # [lines, pixels]
         self.data_sizes = defaultdict()
-        self.data_intervals = defaultdict()
+        self.data_multilook = defaultdict()
+        self.data_oversample = defaultdict()
         self.data_offset = defaultdict()
         # Limits are [first_line, first_pix]
         self.data_limits = defaultdict()
@@ -65,9 +69,12 @@ class ImageData(ImageMetadata):
         self.read_data()
 
     # Next processing_steps are used to subtract, add, read or write from this slice
-    def image_read_disk(self, step, file_type='Data'):
+    def image_read_disk(self, step, file_type=''):
         # This function initializes a dataset using a memmap or a simple numpy matrix. This can be used to store data
         # from a processing step that is performed in parallel blocks.
+
+        if file_type == '':
+            file_type = step
 
         if not self.check_datafile(step, file_type, exist=False):
             return
@@ -77,10 +84,33 @@ class ImageData(ImageMetadata):
                                                dtype=self.dtype_disk[self.data_types[step][file_type]],
                                                shape=self.data_sizes[step][file_type])
 
-    def image_create_disk(self, step, file_type='Data', overwrite=True):
+    def images_create_disk(self, step, file_types='', coordinates='', coor_out=''):
+
+        if len(file_types) == 0:
+            meta_info = self.processes[step]
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            file_types = [filename[:-12] for filename in output_file_keys]
+
+        if isinstance(file_types, str):
+            file_types = [file_types]
+
+        elif isinstance(coordinates, CoordinateSystem):
+            file_types = [file_type + coordinates.sample for file_type in file_types]
+
+            # Only used for the conversion grid
+            if isinstance(coor_out, CoordinateSystem):
+                file_types = [file_type + coor_out.sample for file_type in file_types]
+
+        for file_type in file_types:
+            self.image_create_disk(step, file_type)
+
+    def image_create_disk(self, step, file_type='', overwrite=True):
         # With this function we add a certain data file to the image data structure. This is only used to make it
         # easily accessible, but the file is not saved to disk!
         # Metadata should be given to in this case before adding the file (to keep track of the location and size)
+
+        if len(file_type) == 0:
+            file_type = step
 
         path = os.path.join(os.path.dirname(self.res_path), self.data_files[step][file_type])
 
@@ -95,9 +125,32 @@ class ImageData(ImageMetadata):
                                                dtype=self.dtype_disk[self.data_types[step][file_type]],
                                                shape=self.data_sizes[step][file_type])
 
-    def image_memory_to_disk(self, step, file_type='Data'):
+    def images_memory_to_disk(self, step, file_types='', coordinates='', coor_out=''):
+
+        if len(file_types) == 0:
+            meta_info = self.processes[step]
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            file_types = [filename[:-13] for filename in output_file_keys]
+
+        if isinstance(file_types, str):
+            file_types = [file_types]
+
+        elif isinstance(coordinates, CoordinateSystem):
+            file_types = [file_type + coordinates.sample for file_type in file_types]
+
+            # Only used for the conversion grid
+            if isinstance(coor_out, CoordinateSystem):
+                file_types = [file_type + coor_out.sample for file_type in file_types]
+
+        for file_type in file_types:
+            self.image_memory_to_disk(step, file_type)
+
+    def image_memory_to_disk(self, step, file_type=''):
         # This function is used to save a data crop to the image file. Normally this can be done directly but in case
         # the format is not a native numpy dtype we have to adjust.
+
+        if file_type == '':
+            file_type = step
 
         if not self.check_datafile(step, file_type, exist=True, warn=False):
             return
@@ -133,7 +186,7 @@ class ImageData(ImageMetadata):
         # Flush to disk
         self.data_disk[step][file_type].flush()
 
-    def image_load_data_memory(self, step, s_lin, s_pix, shape, file_type='Data', warn=True):
+    def image_load_data_memory(self, step, s_lin, s_pix, shape, file_type='', warn=True):
         # This function loads data in memory using the most efficient way.
         #
         # First we check whether this step exists in the datafile
@@ -153,6 +206,9 @@ class ImageData(ImageMetadata):
         #           - 2.1.1 Yes, load data from disk to memory > Succes, return data
         #           - 2.2.2 No > Failure, return False
         #       - 2.2. No > Failure, return False
+
+        if file_type == '':
+            file_type = step
 
         if not self.check_step_exist(step):
             return []
@@ -178,11 +234,14 @@ class ImageData(ImageMetadata):
         # If we did not manage to load the data either from memory or disk return False
         if warn:
             print('Failed to load data for ' + step + ' file ' + file_type + ' for image ' + self.folder)
-        return False
+        return []
 
-    def image_new_data_memory(self, in_data, step, s_lin, s_pix, file_type='Data'):
+    def image_new_data_memory(self, in_data, step, s_lin, s_pix, file_type=''):
         # This function replaces the in memory data for the image. To do so we need the file together with the
         # first line and pixels of the data. If not defined we assume it starts at the first line and pixel.
+
+        if file_type == '':
+            file_type = step
 
         if not self.check_step_exist(step):
             return
@@ -198,8 +257,11 @@ class ImageData(ImageMetadata):
         self.data_memory_limits[step][file_type] = (s_lin, s_pix)
         self.data_memory_sizes[step][file_type] = in_data.shape
 
-    def image_subset_memory(self, step, s_lin, s_pix, shape, file_type='Data'):
+    def image_subset_memory(self, step, s_lin, s_pix, shape, file_type=''):
         # This function subsets the data stored in memory.
+
+        if file_type == '':
+            file_type = step
 
         if not self.check_coverage(step, s_lin, s_pix, shape, 'memory', file_type):
             return False
@@ -215,9 +277,12 @@ class ImageData(ImageMetadata):
         self.data_memory_sizes[step][file_type] = shape
         return True
 
-    def image_disk_to_memory(self, step, s_lin, s_pix, shape, file_type='Data'):
+    def image_disk_to_memory(self, step, s_lin, s_pix, shape, file_type=''):
         # This function loads a part of the information either from a memmap or standard numpy file. If needed the data
         # is also converted to a usable format (in case of complex int16 or complex float 16 datasets)
+
+        if file_type == '':
+            file_type = step
 
         if not self.check_datafile(step, file_type, exist=True):
             return False
@@ -248,6 +313,23 @@ class ImageData(ImageMetadata):
 
         return True
 
+    def images_clean_memory(self, step, file_types='', coordinates='', coor_out=''):
+
+        if not file_types:
+            meta_info = self.processes[step]
+            output_file_keys = [key for key in meta_info.keys() if key.endswith('_output_file')]
+            file_types = [filename[:-13] for filename in output_file_keys]
+
+        elif isinstance(coordinates, CoordinateSystem):
+            file_types = [file_type + coordinates.sample for file_type in file_types]
+
+            # Only used for the conversion grid
+            if isinstance(coor_out, CoordinateSystem):
+                file_types = [file_type + coor_out.sample for file_type in file_types]
+
+        for file_type in file_types:
+            self.clean_memory(step, file_type)
+
     def clean_memory(self, step='', file_type=''):
         # Clean the image from all data loaded in memory. Useful step before parallel processing.
         if not step:
@@ -255,24 +337,29 @@ class ImageData(ImageMetadata):
                 self.data_memory[step] = defaultdict()
                 self.data_memory_limits[step] = defaultdict()
                 self.data_memory_sizes[step] = defaultdict()
+        elif step not in list(self.data_memory.keys()):
+            pass
         elif step and not file_type:
             self.data_memory[step] = defaultdict()
             self.data_memory_limits[step] = defaultdict()
             self.data_memory_sizes[step] = defaultdict()
         elif step and file_type:
-            self.data_memory[step].pop(file_type)
-            self.data_memory_limits[step].pop(file_type)
-            self.data_memory_sizes[step].pop(file_type)
+            if file_type in list(self.data_memory[step].keys()):
+                self.data_memory[step].pop(file_type)
+                self.data_memory_limits[step].pop(file_type)
+                self.data_memory_sizes[step].pop(file_type)
 
     def clean_memmap_files(self, step='', file_type=''):
         # Clean the image from all data loaded in memory. Useful step before parallel processing.
         if not step:
             for step in self.data_files.keys():
-                self.data_files[step] = defaultdict()
+                for file_type in self.data_files[step].keys():
+                    self.data_disk[step][file_type] = ''
         elif step and not file_type:
-            self.data_files[step] = defaultdict()
+            for file_type in self.data_files[step].keys():
+                self.data_disk[step][file_type] = ''
         elif step and file_type:
-            self.data_files[step].pop(file_type)
+            self.data_disk[step][file_type] = ''
 
     # Next function is used to read all data files as memmaps from the slice (minimal memory use)
     def read_data(self):
@@ -285,18 +372,53 @@ class ImageData(ImageMetadata):
             for file_type in file_types:
                 self.add_data_step(step, file_type)
 
-    def read_data_memmap(self, step, file_type):
+    def read_data_memmap(self, step='', file_type=''):
 
-        if self.check_datafile(step, file_type, exist=True, warn=False):
-            # Finally read in as a memmap file
-            dat = open(self.data_files[step][file_type], 'r+')
-            self.data_disk[step][file_type] = np.memmap(dat,
-                                                   dtype=self.dtype_disk[self.data_types[step][file_type]],
-                                                   shape=self.data_sizes[step][file_type])
-            return True
-
+        if len(step) > 0:
+            if isinstance(step, list):
+                step = step
+            else:
+                step = [step]
         else:
-            return False
+            step = self.data_disk.keys()
+
+        if isinstance(file_type, list):
+            file_type = file_type
+        elif len(file_type) == 0:
+            file_type = []
+        else:
+            file_type = [file_type]
+
+        steps = []
+        file_types = []
+
+        if len(step) == len(file_type):
+            for s, f in zip(step, file_type):
+                if s in self.data_disk.keys():
+                    if f in self.data_disk[s].keys():
+                        steps.append(s)
+                        file_types.append(f)
+        else:
+            for s in step:
+                if s in self.data_disk.keys():
+                    for f in self.data_disk[s].keys():
+                        steps.append(s)
+                        file_types.append(f)
+
+        succes = False
+        for step, file_type in zip(steps, file_types):
+            if self.check_datafile(step, file_type, exist=True, warn=False):
+                # Finally read in as a memmap file
+                dat = open(self.data_files[step][file_type], 'r+')
+                self.data_disk[step][file_type] = np.memmap(dat,
+                                                       dtype=self.dtype_disk[self.data_types[step][file_type]],
+                                                       shape=self.data_sizes[step][file_type])
+                succes = True
+
+            else:
+                succes = False
+
+        return succes
 
     # Next processing_steps is used to read info from certain steps in the metadata.
     def image_add_processing_step(self, step, step_dict):
@@ -311,8 +433,11 @@ class ImageData(ImageMetadata):
         for file_type in file_types:
             self.add_data_step(step, file_type)
 
-    def add_data_step(self, step, file_type='Data'):
+    def add_data_step(self, step, file_type=''):
         # Read the path, data size and data format from metadata.
+
+        if file_type == '':
+            file_type = step
 
         if step == 'readfiles':
             data_string = file_type + 'file'
@@ -339,38 +464,35 @@ class ImageData(ImageMetadata):
         if file_type + '_output_file' in self.processes[step]:
             keys = self.processes[step]
 
-            if file_type + '_first_pixel' in self.processes[step].keys():
+            if file_type + '_pixels' in self.processes[step].keys():
                 lin_min = int(self.processes[step][file_type + '_first_line'])
                 pix_min = int(self.processes[step][file_type + '_first_pixel'])
                 lines = int(self.processes[step][file_type + '_lines'])
                 pixels = int(self.processes[step][file_type + '_pixels'])
-            elif file_type + '_size_in_longitude' in keys:
-                pix_min = 1
-                pixels = int(self.processes[step][file_type + '_size_in_longitude'])
-                lin_min = 1
-                lines = int(self.processes[step][file_type + '_size_in_latitude'])
             else:
                 warnings.warn('No image size information found')
                 return False
 
-            if file_type + '_interval_range' in self.processes[step].keys():
-                pix_int = int(self.processes[step][file_type + '_interval_range'])
-                lin_int = int(self.processes[step][file_type + '_interval_azimuth'])
-            elif file_type + '_multilook_range' in self.processes[step].keys():
-                pix_int = int(self.processes[step][file_type + '_multilook_range'])
-                lin_int = int(self.processes[step][file_type + '_multilook_azimuth'])
+            if file_type + '_multilook_range' in self.processes[step].keys():
+                pix_ml = int(self.processes[step][file_type + '_multilook_range'])
+                lin_ml = int(self.processes[step][file_type + '_multilook_azimuth'])
             else:
-                pix_int = 1
-                lin_int = 1
-            if file_type + '_buffer_range' in self.processes[step].keys():
-                pix_off = int(self.processes[step][file_type + '_buffer_range'])
-                lin_off = int(self.processes[step][file_type + '_buffer_azimuth'])
-            elif file_type + '_offset_range' in self.processes[step].keys():
+                pix_ml = 1
+                lin_ml = 1
+
+            if file_type + '_offset_range' in self.processes[step].keys():
                 pix_off = int(self.processes[step][file_type + '_offset_range'])
                 lin_off = int(self.processes[step][file_type + '_offset_azimuth'])
             else:
                 pix_off = 0
                 lin_off = 0
+
+            if file_type + '_offset_range' in self.processes[step].keys():
+                pix_ovr = int(self.processes[step][file_type + '_oversample_range'])
+                lin_ovr = int(self.processes[step][file_type + '_oversample_azimuth'])
+            else:
+                pix_ovr = 1
+                lin_ovr = 1
         else:
             warnings.warn('No image size information found')
             return False
@@ -382,18 +504,19 @@ class ImageData(ImageMetadata):
             self.data_limits[step] = defaultdict()
             self.data_disk[step] = defaultdict()
             self.data_files[step] = defaultdict()
-            self.data_intervals[step] = defaultdict()
+            self.data_multilook[step] = defaultdict()
+            self.data_oversample[step] = defaultdict()
             self.data_offset[step] = defaultdict()
 
             self.data_memory_sizes[step] = defaultdict()
             self.data_memory_limits[step] = defaultdict()
             self.data_memory[step] = defaultdict()
-            self.data_memory_intervals[step] = defaultdict()
             self.data_memory_offset[step] = defaultdict()
 
         self.data_disk[step][file_type] = ''
         self.data_files[step][file_type] = os.path.join(self.folder, self.processes[step][file_type + '_output_file'])
-        self.data_intervals[step][file_type] = (lin_int, pix_int)
+        self.data_multilook[step][file_type] = (lin_ml, pix_ml)
+        self.data_oversample[step][file_type] = (lin_ovr, pix_ovr)
         self.data_offset[step][file_type] = (lin_off, pix_off)
         self.data_types[step][file_type] = self.processes[step][type_string]
         self.data_sizes[step][file_type] = (lines, pixels)
@@ -401,13 +524,34 @@ class ImageData(ImageMetadata):
 
         return True
 
+    def image_get_data_size(self, step, file_type, loc='disk'):
+        # Returns the shape of the file on disk. If not found it returns a warning and [0, 0] size.
+
+        if self.check_file_type_exist(step, file_type):
+            if loc == 'disk':
+                shape = np.array(self.data_sizes[step][file_type])
+            elif loc == 'memory':
+                shape = np.array(self.data_memory_sizes[step][file_type])
+            else:
+                print('variable loc should either be disk or memory')
+                shape = [0, 0]
+        else:
+            shape = [0, 0]
+
+        return shape
+
     # Following processing_steps are used to check whether a certain file exists, is loaded or covers a certain region
-    def check_datafile(self, step, file_type='Data', exist=True, warn=True):
+    def check_datafile(self, step, file_type='', exist=True, warn=True):
         # Function to check whether file exists or not. This assumes that all metadata is already read in.
         if not self.check_step_exist(step):
             return False
 
+        if file_type == '':
+            file_type = step
+
         data_string = file_type + '_output_file'
+        if not data_string in self.processes[step].keys():
+            return False
 
         if os.path.dirname(self.processes[step][data_string]) == '':
             self.data_files[step][file_type] = os.path.join(self.folder, self.processes[step][data_string])
@@ -428,16 +572,29 @@ class ImageData(ImageMetadata):
 
     def check_step_exist(self, step):
         # Check if this step even exists.
-        if step not in self.processes.keys():
+        if step not in list(self.processes.keys()):
             warnings.warn('Step does not exist')
             return False
 
         return True
 
-    def check_loaded(self, step, loc='disk', file_type='Data', warn=True):
+    def check_file_type_exist(self, step, file_type):
+        # Check if this step even exists.
+        if step not in self.processes.keys():
+            warnings.warn('Step ' + step + ' does not exist')
+            return False
+        if file_type in self.processes[step].keys():
+            warnings.warn('Data type' + file_type + ' in step ' + step + ' does not exist')
+
+        return True
+
+    def check_loaded(self, step, loc='disk', file_type='', warn=True):
         # Check if this datafile is loaded.
         if not self.check_step_exist(step):
             return False
+
+        if file_type == '':
+            file_type = step
 
         if loc == 'disk':
             if file_type not in self.data_disk[step].keys():
@@ -461,9 +618,12 @@ class ImageData(ImageMetadata):
 
         return True
 
-    def check_coverage(self, step, s_lin, s_pix, shape, loc='disk', file_type='Data', warn=True):
+    def check_coverage(self, step, s_lin, s_pix, shape, loc='disk', file_type='', warn=True):
         # Check if the coverage of our file is large enough for the requested area
         # Or check if the replacing file has the same size as defined in the metadata
+
+        if file_type == '':
+            file_type = step
 
         e_lin = s_lin + shape[0]
         e_pix = s_pix + shape[1]
@@ -501,3 +661,38 @@ class ImageData(ImageMetadata):
                 if warn:
                     warnings.warn('Area not covered by dataset')
                 return False
+
+    def get_size_res(self):
+        size = ImageData.get_size(self)
+
+        return size
+
+    @staticmethod
+    def get_size(obj, seen=None):
+        """Recursively finds size of objects in bytes"""
+        size = sys.getsizeof(obj)
+        if seen is None:
+            seen = set()
+        obj_id = id(obj)
+        if obj_id in seen:
+            return 0
+        # Important mark as seen *before* entering recursion to gracefully handle
+        # self-referential objects
+        seen.add(obj_id)
+        if hasattr(obj, '__dict__'):
+            for cls in obj.__class__.__mro__:
+                if '__dict__' in cls.__dict__:
+                    d = cls.__dict__['__dict__']
+                    if inspect.isgetsetdescriptor(d) or inspect.ismemberdescriptor(d):
+                        size += ImageData.get_size(obj.__dict__, seen)
+                    break
+        if isinstance(obj, dict):
+            size += sum((ImageData.get_size(v, seen) for v in obj.values()))
+            size += sum((ImageData.get_size(k, seen) for k in obj.keys()))
+        elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
+            size += sum((ImageData.get_size(i, seen) for i in obj))
+
+        if hasattr(obj, '__slots__'):  # can have __slots__ with __dict__
+            size += sum(ImageData.get_size(getattr(obj, s), seen) for s in obj.__slots__ if hasattr(obj, s))
+
+        return size

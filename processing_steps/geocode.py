@@ -2,8 +2,10 @@
 # In principle this has the same functionality as some other
 from image_data import ImageData
 from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
-from find_coordinates import FindCoordinates
-from collections import OrderedDict
+from processing_steps.radar_dem import RadarDem
+from coordinate_system import CoordinateSystem
+from collections import OrderedDict, defaultdict
+import numpy as np
 import os
 import logging
 
@@ -15,40 +17,34 @@ class Geocode(object):
     :type s_lin = int
     """
 
-    def __init__(self, meta, s_lin=0, s_pix=0, lines=0, interval='', buffer=''):
+    def __init__(self, meta, coordinates, s_lin=0, s_pix=0, lines=0):
         # There are three options for processing:
 
-        if isinstance(meta, str):
-            if len(meta) != 0:
-                self.meta = ImageData(meta, 'single')
-        elif isinstance(meta, ImageData):
+        if isinstance(meta, ImageData):
             self.meta = meta
-
-        if not isinstance(self.meta, ImageData):
+        else:
             return
 
-        self.sample, self.interval, self.buffer, self.coors, self.in_coors, self.out_coors = FindCoordinates.interval_coors(meta, s_lin, s_pix, lines, interval, buffer)
-        self.out_s_lin = self.out_coors[0]
-        self.out_s_pix = self.out_coors[1]
-        self.out_shape = self.out_coors[2]
-        self.lines_out = self.coors[0]
-        self.pixels_out = self.coors[1]
-        self.lines = self.lines_out[self.out_s_lin:self.out_s_lin + self.out_shape[0]]
-        self.pixels = self.pixels_out[self.out_s_pix:self.out_s_pix + self.out_shape[1]]
+        # Load coordinates
+        self.s_lin = s_lin
+        self.s_pix = s_pix
+        self.coordinates = coordinates
+        self.shape, self.lines, self.pixels = RadarDem.find_coordinates(meta, s_lin, s_pix, lines, coordinates)
+        self.sample = coordinates.sample
 
-        dat_key = 'Data' + self.sample
-        self.height = self.meta.image_load_data_memory('radar_dem',self.out_s_lin, self.out_s_pix, self.out_shape, dat_key)
+        dat_key = 'radar_DEM' + self.sample
+        self.height = self.meta.image_load_data_memory('radar_DEM', self.s_lin, self.s_pix, self.shape, dat_key)
         self.orbits = OrbitCoordinates(self.meta)
-        self.orbits.height = self.height
 
-        self.orbits.lp_time(lines=self.lines, pixels=self.pixels)
+        self.no0 = (self.height != 0)
+        self.orbits.height = self.height[self.no0]
 
         # And the output data
-        self.lat = []
-        self.lon = []
-        self.x_coordinate = []
-        self.y_coordinate = []
-        self.z_coordinate = []
+        self.lat = np.zeros(self.height.shape).astype(np.float32)
+        self.lon = np.zeros(self.height.shape).astype(np.float32)
+        self.x_coordinate = np.zeros(self.height.shape).astype(np.float64)
+        self.y_coordinate = np.zeros(self.height.shape).astype(np.float64)
+        self.z_coordinate = np.zeros(self.height.shape).astype(np.float64)
 
     def __call__(self):
         # Here the actual geocoding is done.
@@ -58,24 +54,28 @@ class Geocode(object):
             return False
 
         try:
-            # Then calculate the x,y,z coordinates
-            self.orbits.lph2xyz()
-            self.x_coordinate = self.orbits.x
-            self.y_coordinate = self.orbits.y
-            self.z_coordinate = self.orbits.z
+            if np.sum(self.no0) > 0:
+                l_id, p_id = np.where(self.no0)
+                self.orbits.lp_time(lines=self.lines[l_id], pixels=self.pixels[p_id], regular=False)
 
-            # Finally calculate the lat/lon coordinates
-            self.orbits.xyz2ell()
-            self.lat = self.orbits.lat
-            self.lon = self.orbits.lon
+                # Then calculate the x,y,z coordinates
+                self.orbits.lph2xyz()
+                self.x_coordinate[self.no0] = self.orbits.x
+                self.y_coordinate[self.no0] = self.orbits.y
+                self.z_coordinate[self.no0] = self.orbits.z
+
+                # Finally calculate the lat/lon coordinates
+                self.orbits.xyz2ell()
+                self.lat[self.no0] = self.orbits.lat
+                self.lon[self.no0] = self.orbits.lon
 
             # Data can be saved using the create output files and add meta data function.
-            self.add_meta_data(self.meta, self.sample, [self.lines_out, self.pixels_out], self.interval, self.buffer)
-            self.meta.image_new_data_memory(self.lat, 'geocode', self.out_s_lin, self.out_s_pix, file_type='Lat' + self.sample)
-            self.meta.image_new_data_memory(self.lon, 'geocode', self.out_s_lin, self.out_s_pix, file_type='Lon' + self.sample)
-            self.meta.image_new_data_memory(self.x_coordinate, 'geocode', self.out_s_lin, self.out_s_pix, file_type='X' + self.sample)
-            self.meta.image_new_data_memory(self.y_coordinate, 'geocode', self.out_s_lin, self.out_s_pix, file_type='Y' + self.sample)
-            self.meta.image_new_data_memory(self.z_coordinate, 'geocode', self.out_s_lin, self.out_s_pix, file_type='Z' + self.sample)
+            self.add_meta_data(self.meta, self.coordinates)
+            self.meta.image_new_data_memory(self.lat, 'geocode', self.s_lin, self.s_pix, file_type='lat' + self.sample)
+            self.meta.image_new_data_memory(self.lon, 'geocode', self.s_lin, self.s_pix, file_type='lon' + self.sample)
+            self.meta.image_new_data_memory(self.x_coordinate, 'geocode', self.s_lin, self.s_pix, file_type='X' + self.sample)
+            self.meta.image_new_data_memory(self.y_coordinate, 'geocode', self.s_lin, self.s_pix, file_type='Y' + self.sample)
+            self.meta.image_new_data_memory(self.z_coordinate, 'geocode', self.s_lin, self.s_pix, file_type='Z' + self.sample)
 
             return True
 
@@ -90,61 +90,59 @@ class Geocode(object):
             return False
 
     @staticmethod
-    def create_output_files(meta, sample, to_disk=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-
-        if not to_disk:
-            to_disk = ['Lat' + sample, 'Lon' + sample, 'X' + sample, 'Y' + sample,
-                       'Z' + sample]
-
-        for s in to_disk:
-            meta.image_create_disk('geocode', s)
-
-    def save_to_disk(self, to_disk=''):
-
-        if not to_disk:
-            to_disk = ['Lat' + self.sample, 'Lon' + self.sample, 'X' + self.sample, 'Y' + self.sample,
-                       'Z' + self.sample]
-
-        for s in to_disk:
-            self.meta.image_memory_to_disk('geocode', s, )
-
-    @staticmethod
-    def add_meta_data(meta, sample, coors, interval, buffer):
+    def add_meta_data(meta, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
+
         if 'geocode' in meta.processes.keys():
             meta_info = meta.processes['geocode']
         else:
             meta_info = OrderedDict()
 
-        for dat, t in zip(['Lat' + sample, 'Lon' + sample, 'X' + sample, 'Y' + sample,
-                           'Z' + sample], ['real4', 'real4', 'real8', 'real8', 'real8']):
-            meta_info[dat + '_output_file'] = dat + '.raw'
-            meta_info[dat + '_output_format'] = t
-            meta_info[dat + '_lines'] = len(coors[0])
-            meta_info[dat + '_pixels'] = len(coors[1])
-            meta_info[dat + '_first_line'] = str(coors[0][0] + 1)
-            meta_info[dat + '_first_pixel'] = str(coors[1][0] + 1)
-            meta_info[dat + '_interval_range'] = str(interval[1])
-            meta_info[dat + '_interval_azimuth'] = str(interval[0])
-            meta_info[dat + '_buffer_range'] = str(buffer[1])
-            meta_info[dat + '_buffer_azimuth'] = str(buffer[0])
+        meta_info = coordinates.create_meta_data(['lat', 'lon', 'X', 'Y', 'Z'],
+                                                 ['real4', 'real4', 'real8', 'real8', 'real8'], meta_info)
 
         meta.image_add_processing_step('geocode', meta_info)
 
-    def processing_info(self):
+    @staticmethod
+    def processing_info(coordinates, meta_type='cmaster'):
 
-        # Information on this processing step
-        input_dat = dict()
-        input_dat['slave']['radar_dem'] = ['Data' + self.sample]
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
 
-        output_dat = dict()
-        output_dat['slave']['geocode'] = ['Lat' + self.sample, 'Lon' + self.sample, 'X' + self.sample,
-                                          'Y' + self.sample, 'Z' + self.sample]
+        # Three input files needed Dem, Dem_line and Dem_pixel
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
+        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['file'] = 'radar_DEM' + coordinates.sample + '.raw'
+        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['coordinates'] = coordinates
+        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['slice'] = coordinates.slice
 
-        # Number of times input data is used in ram. Bit difficult here but 15 times is ok guess.
+        # One output file created radar dem
+        output_dat = recursive_dict()
+        for t in ['lat', 'lon', 'X', 'Y', 'Z']:
+            output_dat[meta_type]['geocode'][t + coordinates.sample]['files'] = t + coordinates.sample + '.raw'
+            output_dat[meta_type]['geocode'][t + coordinates.sample]['coordinates'] = coordinates
+            output_dat[meta_type]['geocode'][t + coordinates.sample]['slice'] = coordinates.slice
+
+        # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
         mem_use = 20
 
         return input_dat, output_dat, mem_use
+
+    @staticmethod
+    def create_output_files(meta, file_type='', coordinates=''):
+        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
+        # done before the actual processing.
+        meta.images_create_disk('geocode', file_type, coordinates)
+
+    @staticmethod
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_memory_to_disk('geocode', file_type, coordinates)
+
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('geocode', file_type, coordinates)

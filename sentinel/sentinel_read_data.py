@@ -12,7 +12,7 @@ def sentinel_read_data(path_tiff, s_pix, s_lin, size):
     else:
         src_ds = gdal.Open(path_tiff, gdal.GA_ReadOnly)
     if src_ds is None:
-        print 'Unable to open ' + path_tiff
+        print('Unable to open ' + path_tiff)
         return
 
     band = src_ds.GetRasterBand(1)
@@ -37,10 +37,10 @@ def write_sentinel_burst(stack_folder, slice, number, pol, swath_no, date):
         os.makedirs(folder)
 
     # Find the pixels we are interested in from the .tiff file.
-    first_line = int(slice.processes['crop']['Data_first_line (w.r.t. tiff_image)'])
-    lines = int(slice.processes['crop']['Data_lines'])
-    first_pixel = int(slice.processes['crop']['Data_first_pixel'])
-    pixels = int(slice.processes['crop']['Data_pixels'])
+    first_line = int(slice.processes['crop']['crop_first_line (w.r.t. tiff_image)'])
+    lines = int(slice.processes['crop']['crop_lines'])
+    first_pixel = int(slice.processes['crop']['crop_first_pixel'])
+    pixels = int(slice.processes['crop']['crop_pixels'])
 
     data_path = slice.processes['readfiles']['Datafile']
     slice_file = os.path.join(folder, 'crop.raw')

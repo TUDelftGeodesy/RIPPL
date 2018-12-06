@@ -170,7 +170,7 @@ class SentinelDatabase(object):
 
         self.read_shapefile(shapefile, buffer=buffer)
 
-        for key in self.selected_images.keys():
+        for key in list(self.selected_images.keys()):
             if not self.shape.intersects(self.selected_images[key]['coverage']):
 
                 self.selected_images.pop(key)
@@ -181,7 +181,7 @@ class SentinelDatabase(object):
 
         try:
             # It should be a shape file. We always select the first shape.
-            sh = fiona.open(shapefile).next()
+            sh = next(fiona.open(shapefile))
             self.shape = shape(sh['geometry'])
 
             # Now we have the shape we add a buffer and simplify first to save computation time.

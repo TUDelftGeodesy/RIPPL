@@ -18,21 +18,22 @@ import shutil
 import zipfile
 import numpy as np
 import requests
-from fiona import collection
-from shapely.geometry import Polygon
 from scipy.interpolate import RectBivariateSpline
 from orbit_dem_functions.srtm_dir_listing import ParseHTMLDirectoryListing
+from coordinate_system import CoordinateSystem
 from joblib import Parallel, delayed
 from image_data import ImageData
+import fiona
+from shapely.geometry import Polygon
 
 
 class SrtmDownloadTile(object):
     # To enable parallel processing we create another class for the actual processing.
 
-    def __init__(self, srtm_folder, username, password, resolution):
+    def __init__(self, srtm_folder, username, password, srtm_type):
 
         self.srtm_folder = srtm_folder
-        self.resolution = resolution
+        self.srtm_type = srtm_type
         self.username = username
         self.password = password
 
@@ -47,9 +48,7 @@ class SrtmDownloadTile(object):
             return
 
         if success or os.path.exists(file_unzip):
-            if file_unzip.endswith('.hgt') and (not os.path.exists(file_unzip[:-3] + 'x') or
-                                                not os.path.exists(file_unzip[:-3] + 'y') or
-                                                not os.path.exists(file_unzip[:-3] + 'z')):
+            if file_unzip.endswith('.hgt'):
                 self.correct_egm96(file_unzip, lat, lon)
 
     @staticmethod
@@ -99,9 +98,9 @@ class SrtmDownloadTile(object):
         # This function converts srtm data to cartesian coordinates
 
         # Load data
-        if self.resolution == 'SRTM1':
+        if self.srtm_type == 'SRTM1':
             shape = (3601, 3601)
-        elif self.resolution == 'SRTM3':
+        elif self.srtm_type == 'SRTM3':
             shape = (1201, 1201)
         else:
             print('quality should be either SRTM1 or SRTM3!')
@@ -119,27 +118,22 @@ class SrtmDownloadTile(object):
         im[:, :] = image + egm96
         im.flush()
 
-        del egm96
+        egm96 = []
 
 
 class SrtmDownload(object):
 
-    def __init__(self, srtm_folder, username, password, resolution='SRTM3', n_processes=4):
+    def __init__(self, srtm_folder, username, password, srtm_type='SRTM3', quality=False, n_processes=4):
         # srtm_folder
         self.srtm_folder = srtm_folder
+        self.quality = quality
 
         # credentials
         self.username = username
         self.password = password
 
         # List of files to be downloaded
-        self.srtm_listing()
-        self.tiles_zip = []
-        self.tiles = []
-        self.download_tiles = []
-        self.tile_lats = []
-        self.tile_lons = []
-        self.url = []
+        self.filelist = self.srtm_listing(srtm_folder, username, password)
 
         # shapes and limits of these shapes
         self.shapes = []
@@ -152,7 +146,7 @@ class SrtmDownload(object):
         self.shapefile = ''
 
         # Resolution of files (either SRTM1, SRTM3 or STRM30)
-        self.resolution = resolution
+        self.srtm_type = srtm_type
 
         # EGM96
         self.egm96_interp = []
@@ -160,98 +154,114 @@ class SrtmDownload(object):
         # processes
         self.n_processes = n_processes
 
-    def __call__(self, meta='', shapefile='', polygon='', border=1, rounding=1):
+    def __call__(self, meta, buf=1.0, rounding=1.0):
 
-        if isinstance(meta, str):
-            if len(meta) != 0:
-                self.meta = ImageData(meta, 'single')
-        elif isinstance(meta, ImageData):
+        if isinstance(meta, ImageData):
             self.meta = meta
 
-        if self.meta:
-            self.polygon = self.meta.polygon
-        elif shapefile:
-            self.polygon = SrtmDownload.load_shp(shapefile)
-        elif polygon:
-            self.polygon = polygon
+        if self.srtm_type == 'SRTM3':
+            step = 1.0 / 3600 * 3
+        elif self.srtm_type == 'SRTM1':
+            step = 1.0 / 3600
         else:
-            print('No shape selected')
+            print('Unkown SRTM type' + self.srtm_type)
             return
 
-        self.lonlim, self.latlim = SrtmDownload.load_limits(self.polygon, border, rounding)
-        self.download_list(self.latlim, self.lonlim)
+        coordinates = CoordinateSystem()
+        coordinates.create_geographic(dlat=step, dlon=step)
+        coordinates.add_res_info(self.meta, buf=buf, round=rounding)
+        download_tiles, [tile_lats, tile_lons], urls, tiles_zip = \
+            self.select_tiles(self.filelist, coordinates, self.srtm_folder, self.srtm_type, self.quality)
 
         # First create a download class.
-        tile_download = SrtmDownloadTile(self.srtm_folder, self.username, self.password, self.resolution)
+        tile_download = SrtmDownloadTile(self.srtm_folder, self.username, self.password, self.srtm_type)
 
         # Loop over all images
-        if len(self.tiles) > 0:
+        if len(download_tiles) > 0:
             Parallel(n_jobs=self.n_processes)(delayed(tile_download)(url, file_zip, file_unzip, lat, lon) for
                      url, file_zip, file_unzip, lat, lon in
-                     zip(self.url, self.tiles_zip, self.download_tiles, self.tile_lats, self.tile_lons))
+                     zip(urls, tiles_zip, download_tiles, tile_lats, tile_lons))
 
-    def download_list(self, latlim, lonlim, quality=True):
+    @staticmethod
+    def select_tiles(filelist, coordinates, srtm_folder, srtm_type='SRTM3', quality=True, download=True):
         # Adds SRTM files to the list of files to be downloaded
 
-        lats = np.arange(np.floor(latlim[0]), np.ceil(latlim[1]))
-        lons = np.arange(np.floor(lonlim[0]), np.ceil(lonlim[1]))
+        # Check coordinates
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
+            return
+        elif coordinates.grid_type != 'geographic':
+            print('only geographic coordinate systems can be used to download SRTM data')
+            return
 
-        if self.resolution == 'SRTM1' or self.resolution == 'SRTM3':
-            for lat in lats:
-                for lon in lons:
+        tiles_zip = []
+        tiles = []
+        download_tiles = []
+        tile_lats = []
+        tile_lons = []
+        url = []
 
-                    lat = int(lat)
-                    lon = int(lon)
+        lats = np.arange(np.floor(coordinates.lat0), np.ceil(coordinates.lat0 + coordinates.shape[0] * coordinates.dlat)).astype(np.int32)
+        lons = np.arange(np.floor(coordinates.lon0), np.ceil(coordinates.lon0 + coordinates.shape[1] * coordinates.dlon)).astype(np.int32)
 
-                    if lat < 0:
-                        latstr = 'S' + str(abs(lat)).zfill(2)
-                    else:
-                        latstr = 'N' + str(lat).zfill(2)
-                    if lon < 0:
-                        lonstr = 'W' + str(abs(lon)).zfill(3)
-                    else:
-                        lonstr = 'E' + str(lon).zfill(3)
+        for lat in lats:
+            for lon in lons:
 
-                    # Check if file exists in filelist
-                    if str(lat) not in self.filelist[self.resolution]:
-                        continue
-                    elif str(lon) not in self.filelist[self.resolution][str(lat)]:
-                        continue
-                    
-                    if os.path.join(self.srtm_folder, latstr + lonstr + 'SRTMGL3.hgt.zip') not in self.tiles_zip:
-                        unzip = os.path.join(self.srtm_folder, self.resolution + '__' + latstr + lonstr + '.hgt')
-                        self.tiles.append(unzip)
+                lat = int(lat)
+                lon = int(lon)
 
-                        if not os.path.exists(unzip):
-                            self.tiles_zip.append(os.path.join(self.srtm_folder, latstr + lonstr + 'SRTMGL3.hgt.zip'))
+                if lat < 0:
+                    latstr = 'S' + str(abs(lat)).zfill(2)
+                else:
+                    latstr = 'N' + str(lat).zfill(2)
+                if lon < 0:
+                    lonstr = 'W' + str(abs(lon)).zfill(3)
+                else:
+                    lonstr = 'E' + str(lon).zfill(3)
 
-                            self.download_tiles.append(unzip)
-                            self.tile_lats.append(lat)
-                            self.tile_lons.append(lon)
-                            self.url.append(self.filelist[self.resolution][str(lat)][str(lon)])
+                # Check if file exists in filelist
+                if str(lat) not in filelist[srtm_type]:
+                    continue
+                elif str(lon) not in filelist[srtm_type][str(lat)]:
+                    continue
+                
+                if os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.hgt.zip') not in tiles_zip or not download:
+                    unzip = os.path.join(srtm_folder, srtm_type + '__' + latstr + lonstr + '.hgt')
+                    tiles.append(unzip)
 
-                        if quality:
-                            unzip = os.path.join(self.srtm_folder, self.resolution + '__' + latstr + lonstr + '.q')
-                            self.tiles.append(unzip)
+                    if not os.path.exists(unzip) or not download:
+                        tiles_zip.append(os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.hgt.zip'))
 
-                            if not os.path.exists(unzip):
-                                self.tiles_zip.append(os.path.join(self.srtm_folder, latstr + lonstr + 'SRTMGL3.q.zip'))
+                        download_tiles.append(unzip)
+                        tile_lats.append(lat)
+                        tile_lons.append(lon)
+                        url.append(filelist[srtm_type][str(lat)][str(lon)])
 
-                                self.download_tiles.append(unzip)
-                                self.tile_lats.append(lat)
-                                self.tile_lons.append(lon)
-                                self.url.append(self.filelist[self.resolution][str(lat)][str(lon)][:-7] + 'num.zip')
+                    if quality:
+                        unzip = os.path.join(srtm_folder, srtm_type + '__' + latstr + lonstr + '.q')
+                        tiles.append(unzip)
 
-    def srtm_listing(self):
+                        if not os.path.exists(unzip) or not download:
+                            tiles_zip.append(os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.q.zip'))
+
+                            download_tiles.append(unzip)
+                            tile_lats.append(lat)
+                            tile_lons.append(lon)
+                            url.append(filelist[srtm_type][str(lat)][str(lon)][:-7] + 'num.zip')
+
+        return tiles, [tile_lats, tile_lons], url, tiles_zip
+
+    @staticmethod
+    def srtm_listing(srtm_folder, username='', password=''):
         # This script makes a list of all the available 1,3 and 30 arc second datafiles.
         # This makes it easier to detect whether files do or don't exist.
 
-        data_file = os.path.join(self.srtm_folder, 'filelist')
+        data_file = os.path.join(srtm_folder, 'filelist')
         if os.path.exists(data_file):
-            dat = open(data_file, 'r')
-            self.filelist = pickle.load(dat)
+            dat = open(data_file, 'rb')
+            filelist = pickle.load(dat)
             dat.close()
-            return
+            return filelist
 
         server = "http://e4ftl01.cr.usgs.gov"
 
@@ -269,18 +279,23 @@ class SrtmDownload(object):
         folders.append(folder[2] + sub_folder[2] + str(1) + '.html')
         keys.append(key[2])
 
-        self.filelist = dict()
-        self.filelist['SRTM1'] = dict()
-        self.filelist['SRTM3'] = dict()
-        self.filelist['SRTM30'] = dict()
+        filelist = dict()
+        filelist['SRTM1'] = dict()
+        filelist['SRTM3'] = dict()
+        filelist['SRTM30'] = dict()
 
         for folder, key_value in zip(folders, keys):
 
-            conn = requests.get(server + '/' + folder, auth=(self.username, self.password))
+            if len(username) == 0 or len(password) == 0:
+                print('username and or password is missing for downloading. If you get this message when processing an '
+                      'InSAR stack, be sure you download the SRTM files first to solve this. (download_srtm function in '
+                      'stack class)')
+
+            conn = requests.get(server + '/' + folder, auth=(username, password))
             if conn.status_code == 200:
-                print "status200 received ok"
+                print("status200 received ok")
             else:
-                print "an error occurred during connection"
+                print("an error occurred during connection")
 
             data = conn.text
             parser = ParseHTMLDirectoryListing()
@@ -296,7 +311,7 @@ class SrtmDownload(object):
                 for i in [i for i, filename in enumerate(files) if filename[3] == 'W']:
                     east[i] *= -1
             else:
-                files = [str(os.path.basename(f)) for f in files if f.endswith('dem.zip')]
+                files = [str(os.path.basename(f)) for f in files if f.endswith('DEM.zip')]
                 north = [int(filename[5:7]) for filename in files]
                 east = [int(filename[1:4]) for filename in files]
                 for i in [i for i, filename in enumerate(files) if filename[4] == 's']:
@@ -305,47 +320,12 @@ class SrtmDownload(object):
                     east[i] *= -1
 
             for filename, n, e in zip(files, north, east):
-                if not str(n) in self.filelist[key_value]:
-                    self.filelist[key_value][str(n)] = dict()
-                self.filelist[key_value][str(n)][str(e)] = server + '/' + os.path.dirname(folder) + '/' + filename
+                if not str(n) in filelist[key_value]:
+                    filelist[key_value][str(n)] = dict()
+                filelist[key_value][str(n)][str(e)] = server + '/' + os.path.dirname(folder) + '/' + filename
 
-        file_list = open(os.path.join(self.srtm_folder, 'filelist'), 'w')
-        pickle.dump(self.filelist, file_list)
+        file_list = open(os.path.join(srtm_folder, 'filelist'), 'wb')
+        pickle.dump(filelist, file_list)
         file_list.close()
 
-    @staticmethod
-    def load_shp(filename):
-        # from kml and shape file to a bounding box. We will always use a bounding box to create the final product.
-
-        if filename.endswith('.shp'):
-            with collection(filename, "r") as inputshape:
-
-                shapes = [shape for shape in inputshape]
-                # only first shape
-                polygon = Polygon(shapes[0]['geometry']['coordinates'][0])
-        else:
-            print('Shape not recognized')
-            return []
-
-        return polygon
-
-    @staticmethod
-    def load_limits(polygon, buffer=1, rounding=1):
-
-        polygon = polygon.buffer(buffer)
-        coor = polygon.exterior.coords
-
-        lon = [l[0] for l in coor]
-        lat = [l[1] for l in coor]
-
-        latlim = [min(lat), max(lat)]
-        lonlim = [min(lon), max(lon)]
-
-        # Add the rounding and borders to add the sides of our image
-        # Please use rounding as a n/60 part of a degree (so 1/15 , 1/10 or 1/20 of a degree for example..)
-        latlim = [np.floor((latlim[0]) / rounding) * rounding,
-                       np.ceil((latlim[1]) / rounding) * rounding]
-        lonlim = [np.floor((lonlim[0]) / rounding) * rounding,
-                       np.ceil((lonlim[1]) / rounding) * rounding]
-
-        return latlim, lonlim
+        return filelist

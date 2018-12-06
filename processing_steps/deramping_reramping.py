@@ -3,6 +3,8 @@ import datetime
 import numpy as np
 from image_data import ImageData
 from orbit_dem_functions.orbit_interpolate import OrbitInterpolate
+from processing_steps.resample import Resample
+from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import logging
 import os
@@ -79,7 +81,7 @@ class GetDopplerRamp(OrbitInterpolate):
         df_az_ctr = self.c_dc[0] + self.c_dc[1] * (ra_time - self.t_dc) + self.c_dc[2] * (ra_time - self.t_dc) ** 2
         f_dc_ref_0 = (self.c_dc[0] + self.c_dc[1] * (self.t_rg_start - self.t_dc) + self.c_dc[2] * 
                       (self.t_rg_start - self.t_dc) ** 2)
-        del ra_time
+        ra_time = []
 
         # From S-1 steering rate and orbit information %
         # Computes sensor velocity from orbits
@@ -93,13 +95,15 @@ class GetDopplerRamp(OrbitInterpolate):
 
         # DC Azimuth rate [Hz/s]
         dr_est = ks_hz / alpha_nom
-        del ks_hz, alpha_nom
+        ks_hz = []
+        alpha_nom = []
 
         # Reference time
         az_dc = -(df_az_ctr / k_fm) + (f_dc_ref_0 / k_fm_0)
-        del k_fm, k_fm_0
+        k_fm = []
+        k_fm_0 = []
         t_az_vec = az_time - az_dc
-        del az_dc
+        az_dc = []
 
         # % Generate inverse chirp %
         if demodulation:
@@ -118,32 +122,38 @@ class Deramp(GetDopplerRamp):
     :type shape = list
     """
 
-    def __init__(self, meta='', s_lin=0, s_pix=0, lines=0):
-        # There are three options for processing:
-        # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
-        #       ImageData object.
-        # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
-        # 3. Give the first and last line plus the buffer of the input and output
+    def __init__(self, meta, coordinates, s_lin=0, s_pix=0, lines=0, buf=5):
+        # Most important for deramping is that we use the resampling grid as a basis. This is because this is the only
+        # script that uses the slave geometry, which would make it very difficult to add in a full processing chain.
+        # Therefore, we define the area that should be deramp based on the region defined by the resampling.
+        # Main consequence is that deramping can only be done after coregistration.
 
-        if isinstance(meta, str):
-            if len(meta) != 0:
-                self.slave = ImageData(meta, 'single')
-        elif isinstance(meta, ImageData):
+        if isinstance(meta, ImageData):
             self.slave = meta
+        else:
+            return
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        self.shape = self.slave.data_sizes['crop']['Data']
+        shape = coordinates.shape
         if lines != 0:
-            self.shape = [np.minimum(lines, self.shape[0] - s_lin), self.shape[1] - s_pix]
+            l = np.minimum(lines, shape[0] - s_lin)
+        else:
+            l = shape[0] - s_lin
+        shape = [l, shape[1] - s_pix]
 
-        self.s_lin = s_lin
-        self.s_pix = s_pix
-        self.e_lin = self.s_lin + self.shape[0]
-        self.e_pix = self.s_pix + self.shape[1]
+        new_line = self.slave.image_load_data_memory('geometrical_coreg', s_lin, s_pix, shape,
+                                                     'new_line' + coordinates.sample)
+        new_pixel = self.slave.image_load_data_memory('geometrical_coreg', s_lin, s_pix, shape,
+                                                      'new_pixel' + coordinates.sample)
+
+        # Load needed data from crop
+        self.s_lin, self.s_pix, self.shape, self.res_s_lin, self.res_s_pix = \
+            Resample.select_region_resampling(self.slave, new_line, new_pixel, buf)
+
+        self.crop_ramped = self.slave.image_load_data_memory('crop', self.s_lin, self.s_pix, self.shape)
 
         GetDopplerRamp.__init__(self, self.slave)
         self.crop = []
-        self.crop_ramped = self.slave.image_load_data_memory('crop', self.s_lin, self.s_pix, self.shape)
 
     def __call__(self):
         # Check if needed data is loaded
@@ -163,7 +173,7 @@ class Deramp(GetDopplerRamp):
 
             # And save the data
             self.add_meta_data(self.slave)
-            self.slave.image_new_data_memory(self.crop, 'deramp', self.s_lin, self.s_pix, file_type='Data')
+            self.slave.image_new_data_memory(self.crop, 'deramp', self.s_lin, self.s_pix)
 
             return True
 
@@ -177,8 +187,8 @@ class Deramp(GetDopplerRamp):
 
     def get_az_time(self):
 
-        first_pixel = int(self.slave.processes['crop']['Data_first_pixel']) - 1 + self.s_pix
-        first_line = int(self.slave.processes['crop']['Data_first_line']) - 1 + self.s_lin
+        first_pixel = int(self.slave.processes['crop']['crop_first_pixel']) + self.s_pix
+        first_line = int(self.slave.processes['crop']['crop_first_line']) + self.s_lin
 
         t_vectrg = self.t_rg_start + np.arange(first_pixel, first_pixel + self.shape[1]) * self.dt_rg
         t_vectaz = (np.arange(first_line, first_line + self.shape[0]) * self.dt_az - 
@@ -190,47 +200,65 @@ class Deramp(GetDopplerRamp):
         return az_time, ra_time
 
     @staticmethod
-    def create_output_files(self, to_disk=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-
-        if not to_disk:
-            to_disk = ['Height', 'Lat', 'Lon', 'X', 'Y', 'Z']
-
-        for s in to_disk:
-            self.slave.image_create_disk('geocode', s)
-
-    @staticmethod
     def add_meta_data(meta):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        meta_info = OrderedDict()
 
-        dat = 'Data_'
-        meta_info[dat + 'output_file'] = 'crop_deramped.raw'
-        meta_info[dat + 'output_format'] = 'complex_int'
-        meta_info[dat + 'lines'] = meta.processes['crop']['Data_lines']
-        meta_info[dat + 'pixels'] = meta.processes['crop']['Data_pixels']
-        meta_info[dat + 'first_line'] = meta.processes['crop']['Data_first_line']
-        meta_info[dat + 'first_pixel'] = meta.processes['crop']['Data_first_pixel']
+        if 'deramp' in meta.processes.keys():
+            meta_info = meta.processes['deramp']
+        else:
+            meta_info = OrderedDict()
+
+        coordinates = CoordinateSystem()
+        coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+        coordinates.add_res_info(meta, coreg_grid=False)
+        meta_info = coordinates.create_meta_data(['deramp'], ['complex_int'], meta_info)
 
         meta.image_add_processing_step('deramp', meta_info)
 
     @staticmethod
-    def processing_info():
+    def processing_info(coordinates, meta_type='slave'):
 
-        # Information on this processing step
-        input_dat = dict()
-        input_dat['crop'] = ['Data']
+        coordinates = CoordinateSystem()
+        coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
 
-        output_dat = dict()
-        output_dat['geocode'] = ['Height', 'Lat', 'Lon', 'X', 'Y', 'Z']
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
+        input_dat[meta_type]['crop']['crop' + coordinates.sample]['file'] = 'crop.raw'
+        input_dat[meta_type]['crop']['crop' + coordinates.sample]['coordinates'] = coordinates
+        input_dat[meta_type]['crop']['crop' + coordinates.sample]['slice'] = True
 
-        # Number of times input data is used in ram. Bit difficult here but 15 times is ok guess.
+        # For multiprocessing this information is needed to define the selected area to deramp.
+        for t in ['new_line', 'new_pixel']:
+            input_dat[meta_type]['geometrical_coreg'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
+            input_dat[meta_type]['geometrical_coreg'][t + coordinates.sample]['coordinates'] = coordinates
+            input_dat[meta_type]['geometrical_coreg'][t + coordinates.sample]['slice'] = True
+
+        output_dat = recursive_dict()
+        output_dat[meta_type]['deramp']['deramp' + coordinates.sample]['file'] = 'deramp.raw'
+        output_dat[meta_type]['deramp']['deramp' + coordinates.sample]['coordinates'] = coordinates
+        output_dat[meta_type]['deramp']['deramp' + coordinates.sample]['slice'] = coordinates.slice
+
+        # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5
-    
+
         return input_dat, output_dat, mem_use
 
+    @staticmethod
+    def create_output_files(meta, file_type='', coordinates=''):
+        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
+        # done before the actual processing.
+        meta.images_create_disk('deramp', file_type, coordinates)
+
+    @staticmethod
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_memory_to_disk('deramp', file_type, coordinates)
+
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('deramp', file_type, coordinates)
 
 class Reramp(GetDopplerRamp):
 
@@ -240,45 +268,41 @@ class Reramp(GetDopplerRamp):
     :type shape = list
     """
 
-    def __init__(self, master_meta='', slave_meta='', s_lin=0, s_pix=0, lines=0):
+    def __init__(self, meta, coordinates, s_lin=0, s_pix=0, lines=0):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
         # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
         # 3. Give the first and last line plus the buffer of the input and output
 
-        if isinstance(slave_meta, str):
-            if len(slave_meta) != 0:
-                self.slave = ImageData(slave_meta, 'single')
-        elif isinstance(slave_meta, ImageData):
-            self.slave = slave_meta
-        if isinstance(master_meta, str):
-            if len(master_meta) != 0:
-                self.master = ImageData(master_meta, 'single')
-        elif isinstance(master_meta, ImageData):
-            self.master = master_meta
+        if isinstance(meta, ImageData):
+            self.slave = meta
+        else:
+            return
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        self.shape = self.slave.data_sizes['resample']['Data']
+        shape = coordinates.shape
         if lines != 0:
-            self.shape = [np.minimum(lines, self.shape[0] - s_lin), self.shape[1] - s_pix]
+            l = np.minimum(lines, shape[0] - s_lin)
+        else:
+            l = shape[0] - s_lin
+        self.shape = [l, shape[1] - s_pix]
 
         self.s_lin = s_lin
         self.s_pix = s_pix
-        self.e_lin = self.s_lin + self.shape[0]
-        self.e_pix = self.s_pix + self.shape[1]
+        self.coordinates = coordinates
 
         GetDopplerRamp.__init__(self, self.slave)
-        self.resampled = []
+        self.resample = []
 
         # Load data
-        self.resampled_deramped = self.slave.image_load_data_memory('resample', self.s_lin, self.s_pix, self.shape)
-        self.new_pixel = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape, 'New_pixel')
-        self.new_line = self.slave.image_load_data_memory('combined_coreg', self.s_lin, self.s_pix, self.shape, 'New_line')
+        self.resample_deramp = self.slave.image_load_data_memory('resample', self.s_lin, self.s_pix, self.shape)
+        self.new_pixel = self.slave.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape, 'new_pixel' + coordinates.sample)
+        self.new_line = self.slave.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape, 'new_line' + coordinates.sample)
 
     def __call__(self):
         # Check if needed data is loaded
-        if len(self.resampled_deramped) == 0 or len(self.new_pixel) == 0 or len(self.new_pixel) == 0:
+        if len(self.resample_deramp) == 0 or len(self.new_pixel) == 0 or len(self.new_pixel) == 0:
             print('Missing input data for processing reramping for ' + self.slave.folder + '. Aborting..')
             return False
 
@@ -290,10 +314,10 @@ class Reramp(GetDopplerRamp):
             ramp = self.calc_ramp(az_time, ra_time)
 
             # Finally correct the data
-            self.reramped_resampled = (self.resampled_deramped * ramp.conj()).astype('complex64')
+            self.reramp_resample = (self.resample_deramp * ramp.conj()).astype('complex64')
 
-            self.add_meta_data(self.master, self.slave)
-            self.slave.image_new_data_memory(self.reramped_resampled, 'reramp', self.s_lin, self.s_pix, file_type='Data')
+            self.add_meta_data(self.slave, self.coordinates)
+            self.slave.image_new_data_memory(self.reramp_resample, 'reramp', self.s_lin, self.s_pix)
 
             return True
 
@@ -315,44 +339,58 @@ class Reramp(GetDopplerRamp):
         return az_time, ra_time
 
     @staticmethod
-    def create_output_files(meta, to_disk=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-
-        if not to_disk:
-            to_disk = ['Data']
-
-        for s in to_disk:
-            meta.image_create_disk('reramp', s)
-
-    @staticmethod
-    def add_meta_data(master, slave):
+    def add_meta_data(meta, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        meta_info = OrderedDict()
 
-        dat = 'Data_'
-        meta_info[dat + 'output_file'] = 'resampled_reramped.raw'
-        meta_info[dat + 'output_format'] = 'complex_int'
-        meta_info[dat + 'lines'] = master.processes['crop']['Data_lines']
-        meta_info[dat + 'pixels'] = master.processes['crop']['Data_pixels']
-        meta_info[dat + 'first_line'] = master.processes['crop']['Data_first_line']
-        meta_info[dat + 'first_pixel'] = master.processes['crop']['Data_first_pixel']
+        if 'reramp' in meta.processes.keys():
+            meta_info = meta.processes['reramp']
+        else:
+            meta_info = OrderedDict()
 
-        slave.image_add_processing_step('reramp', meta_info)
+        meta_info = coordinates.create_meta_data(['reramp'], ['complex_int'], meta_info)
+
+        meta.image_add_processing_step('reramp', meta_info)
 
     @staticmethod
-    def processing_info():
+    def processing_info(coordinates, meta_type='slave'):
 
-        # Information on this processing step
-        input_dat = defaultdict()
-        input_dat['slave']['coreg'] = ['New_line', 'New_pixel']
-        input_dat['slave']['resample'] = ['Data']
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
 
-        output_dat = dict()
-        output_dat['slave']['reramp'] = ['Data']
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
+        for t in ['new_line', 'new_pixel']:
+            input_dat[meta_type]['geometrical_coreg' + coordinates.sample][t]['file'] = t + coordinates.sample + '.raw'
+            input_dat[meta_type]['geometrical_coreg' + coordinates.sample][t]['coordinates'] = coordinates
+            input_dat[meta_type]['geometrical_coreg' + coordinates.sample][t]['slice'] = True
+
+        input_dat[meta_type]['resample']['resample' + coordinates.sample]['file'] = ['resample.raw']
+        input_dat[meta_type]['resample']['resample' + coordinates.sample]['coordinates'] = coordinates
+        input_dat[meta_type]['resample']['resample' + coordinates.sample]['slice'] = True
+
+        output_dat = recursive_dict()
+        output_dat[meta_type]['reramp']['reramp' + coordinates.sample]['file'] = 'reramp' + coordinates.sample + '.raw'
+        output_dat[meta_type]['reramp']['reramp' + coordinates.sample]['coordinates'] = coordinates
+        output_dat[meta_type]['reramp']['reramp' + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5
 
         return input_dat, output_dat, mem_use
+
+    @staticmethod
+    def create_output_files(meta, file_type='', coordinates=''):
+        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
+        # done before the actual processing.
+        meta.images_create_disk('reramp', file_type, coordinates)
+
+    @staticmethod
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_memory_to_disk('reramp', file_type, coordinates)
+
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('reramp', file_type, coordinates)

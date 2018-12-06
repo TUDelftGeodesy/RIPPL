@@ -4,13 +4,15 @@ import collections
 import locale
 from shapely import geometry
 import numpy as np
+from coordinate_system import CoordinateSystem
+from six import string_types
 
 
 class ImageMetadata(object):
     # This class hold metadata of a doris datafile and processing chain and is capable of reading from and writing to a
     # .res file used by the doris software.
 
-    def __init__(self, filename='', type='', warn=False):
+    def __init__(self, filename='', res_type='', warn=False):
         # Initialize variables
 
         # Check whether method to read months is set to us
@@ -44,11 +46,11 @@ class ImageMetadata(object):
         #####################################################
 
         # Create a ResData object (single/interferogram)
-        if type not in ['single','interferogram'] and not filename:
+        if res_type not in ['single','interferogram'] and not filename:
             warnings.warn('Define if results data is slave, master or interferogram')
             return
         else:
-            self.res_type = type
+            self.res_type = res_type
         if filename:
             if not os.path.exists(filename):
                 if warn:
@@ -57,27 +59,41 @@ class ImageMetadata(object):
                 self.res_path = filename
                 self.res_read()
         else:
-            if type == 'single':
-                self.process_control = collections.OrderedDict([('readfiles', '0'), ('orbits', '0'), ('crop', '0'),
-                                                                ('import_dem', '0'), ('inverse_geocode', '0'),
-                                                                ('radar_dem', '0'), ('geocode', '0'),
-                                                                ('azimuth_elevation_angle', '0'), ('deramp', '0'),
-                                                                ('sim_amplitude', '0'), ('coreg_readfiles', '0'),
-                                                                ('coreg_orbits', '0'), ('coreg_crop', '0'), ('geometrical_coreg', '0'),
-                                                                ('correl_coreg', '0'), ('combined_coreg', '0'),
-                                                                ('master_timing', '0'), ('oversample', '0'),
-                                                                ('resample', '0'), ('reramp', '0'),
-                                                                ('earth_topo_phase', '0'), ('filt_azi', '0'),
-                                                                ('filt_range', '0'), ('NWP_phase', '0'),
-                                                                ('structure_function', '0'), ('split_spectrum', '0')])
-            elif type == 'interferogram':
-                self.process_control = collections.OrderedDict([('coreg_readfiles', '0'), ('coreg_orbits', '0'),
-                                                                ('coreg_crop', '0'), ('image_stitch','0'), ('interferogram','0'),
-                                                                ('split_spectrum', '0'), ('ESD', '0'),
-                                                                ('correl_tracking', '0'), ('coherence','0'),
-                                                                ('filtphase','0'), ('unwrap','0'),
-                                                                ('combined_tracking', '0'), ('NWP_phase', '0'),
-                                                                ('structure_function', '0')])
+            self.process_control = ImageMetadata.get_process_control(res_type)
+
+    @staticmethod
+    def get_process_control(res_type='single'):
+
+        if res_type == 'single':
+            process_control = collections.OrderedDict([('readfiles', '0'), ('orbits', '0'), ('crop', '0'),
+                                                        ('import_DEM', '0'), ('inverse_geocode', '0'),
+                                                        ('radar_DEM', '0'), ('geocode', '0'),
+                                                        ('coor_conversion', '0'),
+                                                        ('azimuth_elevation_angle', '0'), ('deramp', '0'),
+                                                        ('sim_amplitude', '0'), ('coreg_readfiles', '0'),
+                                                        ('coreg_orbits', '0'), ('coreg_crop', '0'),
+                                                        ('geometrical_coreg', '0'), ('square_amplitude', '0'),
+                                                        ('amplitude', '0'),
+                                                        ('correl_coreg', '0'), ('combined_coreg', '0'),
+                                                        ('master_timing', '0'), ('oversample', '0'),
+                                                        ('resample', '0'), ('reramp', '0'), ('height_to_phase', '0'),
+                                                        ('earth_topo_phase', '0'), ('filt_azi', '0'), ('baseline', '0'),
+                                                        ('filt_range', '0'), ('harmonie_aps', '0'), ('ecmwf_aps', '0'),
+                                                        ('structure_function', '0'), ('split_spectrum', '0')])
+        elif res_type == 'interferogram':
+            process_control = collections.OrderedDict([('coreg_readfiles', '0'), ('coreg_orbits', '0'),
+                                                        ('coreg_crop', '0'), ('image_stitch', '0'),
+                                                        ('interferogram', '0'),
+                                                        ('split_spectrum', '0'), ('ESD', '0'),
+                                                        ('correl_tracking', '0'), ('coherence', '0'),
+                                                        ('filtphase', '0'), ('unwrap', '0'),
+                                                        ('combined_tracking', '0'), ('NWP_phase', '0'),
+                                                        ('structure_function', '0')])
+        else:
+            print('res_type should either be single or interferogram')
+            return
+
+        return process_control
 
     def res_read(self):
         self.meta_reader()
@@ -96,10 +112,10 @@ class ImageMetadata(object):
         if dat + 'readfiles' in self.process_control.keys():
             # Maybe in some files these data does not exist...
             try:
-                lines = int(self.processes[dat + 'crop']['Data_lines'])
-                pixels = int(self.processes[dat + 'crop']['Data_pixels'])
-                lin_min = int(self.processes[dat + 'crop']['Data_first_line'])
-                pix_min = int(self.processes[dat + 'crop']['Data_first_pixel'])
+                lines = int(self.processes[dat + 'crop']['crop_lines'])
+                pixels = int(self.processes[dat + 'crop']['crop_pixels'])
+                lin_min = int(self.processes[dat + 'crop']['crop_first_line'])
+                pix_min = int(self.processes[dat + 'crop']['crop_first_pixel'])
 
                 ul = (float(self.processes[dat + 'readfiles']['Scene_ul_corner_latitude']), float(self.processes[dat + 'readfiles']['Scene_ul_corner_longitude']))
                 ll = (float(self.processes[dat + 'readfiles']['Scene_ll_corner_latitude']), float(self.processes[dat + 'readfiles']['Scene_ll_corner_longitude']))
@@ -116,6 +132,79 @@ class ImageMetadata(object):
             except:
                 if self.warn:
                     print('Geometry cannot be loaded')
+
+    def read_res_coordinates(self, step, file_types=''):
+        # Read the coordinates from a .res file step. This can be used to detect existing input from for example a DEM
+
+        # First check the different file_types
+        step_dat = self.processes[step]
+        pos_file_types = [dat[:-12] for dat in step_dat.keys() if dat.endswith('_output_file')]
+
+        if not file_types:
+            file_types = pos_file_types
+        else:
+            for file_type in file_types:
+                if file_type not in pos_file_types:
+                    print('file type ' + file_type + ' does not exist!')
+                    file_types.remove(file_type)
+
+        coordinates_list = []
+
+        for file_type in file_types:
+
+            len_type = len(file_type)
+            type_info = dict()
+            for dat in step_dat.keys():
+                if dat.startswith(file_type):
+                    type_info[dat[len_type + 1:]] = step_dat[dat]
+
+            dat_coors = CoordinateSystem()
+
+            if 'multilook_azimuth' in type_info:
+                multilook = [int(type_info['multilook_azimuth']), int(type_info['multilook_range'])]
+                oversample = [int(type_info['oversample_azimuth']), int(type_info['oversample_range'])]
+                offset = [int(type_info['offset_azimuth']), int(type_info['offset_range'])]
+
+                dat_coors.create_radar_coordinates(multilook=multilook, oversample=oversample, offset=offset)
+
+            elif 'lat0' in type_info:
+                ellipse_type = type_info['ellipse_type']
+                lat0 = float(type_info['lat0'])
+                lon0 = float(type_info['lon0'])
+                dlat = float(type_info['dlat'])
+                dlon = float(type_info['dlon'])
+
+                dat_coors.create_geographic(dlat=dlat, dlon=dlon, ellipse_type=ellipse_type, lat0=lat0, lon0=lon0)
+
+            elif 'projection_type' in type_info:
+                projection_type = type_info['projection_type']
+                ellipse_type = type_info['ellipse_type']
+                proj4_str = type_info['proj4_str']
+                x0 = float(type_info['x0'])
+                y0 = float(type_info['y0'])
+                dx = float(type_info['dx'])
+                dy = float(type_info['dy'])
+
+                dat_coors.create_projection(dx=dx, dy=dy, x0=x0, y0=y0, proj4_str=proj4_str,
+                                            ellipse_type=ellipse_type, projection_type=projection_type)
+
+            dat_coors.shape = [int(type_info['lines']), int(type_info['pixels'])]
+            dat_coors.first_line = int(type_info['first_line'])
+            dat_coors.first_pixel = int(type_info['first_pixel'])
+            meta_name = os.path.basename(os.path.dirname(self.res_path))
+            dat_coors.res_path = self.res_path
+            if meta_name.startswith('slice'):
+                dat_coors.meta_name = meta_name
+            else:
+                dat_coors.meta_name = 'full'
+
+            if 'readfiles' in self.processes.keys():
+                dat_coors.slice = self.processes['readfiles']['slice'] == 'True'
+            else:
+                dat_coors.slice = self.processes['coreg_readfiles']['slice'] == 'True'
+            coordinates_list.append(dat_coors)
+
+        return coordinates_list
 
     def meta_reader(self):
         # This function
@@ -144,7 +233,7 @@ class ImageMetadata(object):
                         temp[name] = [line]
 
                 except:
-                    print 'Error occurred at line: ' + line
+                    print('Error occurred at line: ' + line)
 
     def process_reader(self,processes = ''):
         # This function reads random processes based on standard buildup of processes in res files.
@@ -152,7 +241,7 @@ class ImageMetadata(object):
         # If loc is true, it will only return the locations where different processes start.
 
         if not processes:
-            processes = self.process_control.keys()
+            processes = list(self.process_control.keys())
 
         processes.append('leader_datapoints')
         process = ''
@@ -235,11 +324,11 @@ class ImageMetadata(object):
                             # If the line does not contain a : it is likely a table.
                             l_split = line.replace('\t',' ').split()
                             row_name = 'row_' + str(row)
-                            temp[row_name] = [l_split[i].strip() for i in range(len(l_split))]
+                            temp[row_name] = [l_split[i].strip() for i in np.arange(len(l_split))]
                             row += 1
 
                 except:
-                    print 'Error occurred at line: ' + line
+                    print('Error occurred at line: ' + line)
 
     def process_spacing(self,process=''):
 
@@ -263,7 +352,7 @@ class ImageMetadata(object):
     def del_process(self,process=''):
         # function deletes one or multiple processes from the corresponding res file
 
-        if isinstance(process, basestring): # one process
+        if isinstance(process, string_types): # one process
             if not process in self.process_control.keys():
                 warnings.warn('The requested process does not exist! (or processes are not read jet, use self.process_reader): ' + str(process))
                 return
@@ -276,15 +365,15 @@ class ImageMetadata(object):
             warnings.warn('process should contain either a string of one process or a list of multiple processes: ' + str(process))
 
         # Now remove the process and write the file again.
-        if isinstance(process, basestring): # Only one process should be removed
+        if isinstance(process, string_types): # Only one process should be removed
             self.process_control[process] = '0'
-            del self.processes[process]
+            self.processes.pop(process)
         else:
             for proc in process:
                 self.process_control[proc] = '0'
-                del self.processes[proc]
+                self.processes.pop(proc)
 
-    def write(self, new_filename=''):
+    def write(self, new_filename='', warn=True):
         # Here all the available information acquired is written to a new resfile. Generally if information is manually
         # added or removed and the file should be created or created again. (For example the readfiles for Sentinel 1
         # which are not added yet..)
@@ -294,7 +383,7 @@ class ImageMetadata(object):
             return
         elif not new_filename:
             new_filename = self.res_path
-        if not self.process_control or not self.processes:
+        if not self.process_control or not self.processes and warn:
             warnings.warn('Every result file needs at least a process control and one process to make any sense: ' + str(new_filename))
 
         # Open file and write header, process control and processes
@@ -313,7 +402,7 @@ class ImageMetadata(object):
                     f.write((key + ':').ljust(spacing[0]) + self.header[key] + '\n')
 
         # Write the process control
-        for i in range(3):
+        for i in np.arange(3):
             f.write('\n')
         f.write('Start_process_control\n')
         for process in self.process_control.keys():
@@ -325,7 +414,7 @@ class ImageMetadata(object):
         for process in [p for p in self.processes.keys()]:
             # First check for a timestamp and add it if needed.
             if self.process_timestamp[process]:
-                for i in range(2):
+                for i in np.arange(2):
                     f.write('\n')
                 f.write('   *====================================================================* \n')
                 for key in self.process_timestamp[process].keys():
@@ -340,7 +429,7 @@ class ImageMetadata(object):
                 spacing, spacing_row = self.process_spacing(process)
             data = self.processes[process]
 
-            for i in range(3):
+            for i in np.arange(3):
                 f.write('\n')
             f.write('******************************************************************* \n')
             f.write('*_Start_' + process + ':\n')
@@ -348,15 +437,15 @@ class ImageMetadata(object):
 
             for line_key in self.processes[process].keys():
                 if 'row' in line_key:  # If it is a table of consists of several different parts
-                    line = ''.join([(' ' + data[line_key][i]).replace(' -','-').ljust(spacing_row[i]) for i in range(len(data[line_key]))])
+                    line = ''.join([(' ' + data[line_key][i]).replace(' -','-').ljust(spacing_row[i]) for i in np.arange(len(data[line_key]))])
                     f.write(line + '\n')
                 elif process == 'coarse_orbits':  # the coarse orbits output is different from the others.
                     if 'Control point' in line_key: # Special case coarse orbits...
                         f.write((line_key + ' =').ljust(spacing[0]) + str(self.processes[process][line_key]) + '\n')
-                    elif not isinstance(data[line_key], basestring): # Another special case
+                    elif not isinstance(data[line_key], string_types): # Another special case
                         f.write(line_key.ljust(spacing_row[0]) + (data[line_key][0]).ljust(spacing_row[1]) +
                                 data[line_key][1].ljust(spacing_row[2]) + ' '.join(data[line_key][2:]) + '\n')
-                    elif isinstance(data[line_key], basestring): # Handle as in normal cases
+                    elif isinstance(data[line_key], string_types): # Handle as in normal cases
                         f.write((line_key + ':').ljust(spacing[0]) + str(self.processes[process][line_key]) + '\n')
                 else: # If it consists out of two parts
                     f.write((line_key + ':').ljust(spacing[0]) + str(self.processes[process][line_key]) + '\n')
@@ -371,7 +460,7 @@ class ImageMetadata(object):
 
     def insert(self, data, process, variable=''):
         # This function inserts a variable or a process which does not exist at the moment
-        processes = self.process_control.keys()
+        processes = list(self.process_control.keys())
         processes.extend(['header', 'leader_datapoints'])
 
         if process not in processes:
@@ -382,7 +471,7 @@ class ImageMetadata(object):
         # If a full process is added
         if not variable:
             if self.process_control[process] == '1':
-                print('The ' + str(process) + ' process already exists. Data will be updated')
+                # print('The ' + str(process) + ' process already exists. Data will be updated')
                 self.processes[process] = data
             elif self.process_control[process] == '0':
                 self.process_control[process] = '1'
@@ -412,8 +501,8 @@ class ImageMetadata(object):
                 return
             elif self.process_control[process] == '1':
                 self.process_control[process] = '0'
-                del self.processes[process]
-                del self.process_timestamp[process]
+                self.processes.pop(process)
+                self.process_timestamp.pop(process)
 
         # A variable is deleted
         if variable:
@@ -421,4 +510,4 @@ class ImageMetadata(object):
                 warnings.warn('This variable does not exist: ' + str(variable))
                 return
             else:
-                del self.processes[process][variable]
+                self.processes[process].pop(variable)

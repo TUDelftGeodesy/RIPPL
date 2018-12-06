@@ -1,11 +1,11 @@
-from HTMLParser import HTMLParser
+from six.moves import html_parser
 
 # Following code is adapted from srtm-1.py > downloaded from
 # https://svn.openstreetmap.org/applications/utils/import/srtm2wayinfo/python/srtm.py
-class ParseHTMLDirectoryListing(HTMLParser):
+class ParseHTMLDirectoryListing(html_parser.HTMLParser):
     def __init__(self):
         # print "parseHTMLDirectoryListing.__init__"
-        HTMLParser.__init__(self)
+        html_parser.HTMLParser.__init__(self)
         self.title = "Undefined"
         self.isDirListing = False
         self.dirList = []
@@ -40,7 +40,7 @@ class ParseHTMLDirectoryListing(HTMLParser):
     def handle_data(self, data):
         if self.inTitle:
             self.title = data
-            print "title=%s" % data
+            print("title=%s" % data)
             if "Index of" in self.title:
                 # print "it is an index!!!!"
                 self.isDirListing = True

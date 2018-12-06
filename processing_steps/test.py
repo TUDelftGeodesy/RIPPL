@@ -31,7 +31,7 @@ slice_folders = next(os.walk('/media/gert/Data/radar_datastacks/new_stack/201611
 folders = [os.path.join(stack_folder, master_date, slice) for slice in slice_folders]
 masters = [ImageData(os.path.join(stack_folder, master_date, slice, 'info.res'), 'single') for slice in slice_folders]
 slaves = [ImageData(os.path.join(stack_folder, slave_date, slice, 'info.res'), 'single') for slice in slice_folders]
-srtm_folder = '/media/gert/Data/DEM/dem_processing'
+srtm_folder = '/media/gert/Data/DEM/DEM_processing'
 
 import numpy as np
 
@@ -73,7 +73,7 @@ for master in masters:
 master_mat = []
 slave_mat = []
 i_mat = []
-for n in range(n_jobs):
+for n in np.arange(n_jobs):
     master_mat.extend(copy.copy(masters))
     slave_mat.extend(copy.copy(slaves))
     i_mat.extend(list(np.ones(len(masters)).astype(np.int32) * n))
@@ -102,7 +102,7 @@ print("--- %s seconds for geocoding ---" % (time.time() - start_time))
 start_time = time.time()
 
 for slave, master in zip(slave_mat[0:len(slaves)], master_mat[0:len(masters)]):
-    # Preallocate the resampled data.
+    # Preallocate the resample data.
     EarthTopoPhase.add_meta_data(master, slave)
     EarthTopoPhase.create_output_files(slave)
     slave.clean_memory()
@@ -111,7 +111,7 @@ for slave, master in zip(slave_mat[0:len(slaves)], master_mat[0:len(masters)]):
 master_mat = []
 slave_mat = []
 i_mat = []
-for n in range(n_jobs):
+for n in np.arange(n_jobs):
     master_mat.extend(copy.copy(masters))
     slave_mat.extend(copy.copy(slaves))
     i_mat.extend(list(np.ones(len(masters)).astype(np.int32) * n))

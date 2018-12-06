@@ -269,7 +269,7 @@ class CreateSwathXmlRes():
         self.swath_orbit['NUMBER_OF_DATAPOINTS'] = str(len(t))
 
         # Save the rows
-        for n in range(len(t)):
+        for n in np.arange(len(t)):
             self.swath_orbit['row_' + str(n + 1)] = ["{:.6f}".format(t[n]),
                                                      "{:.7f}".format(float(x[n])),
                                                      "{:.7f}".format(float(y[n])),
@@ -284,7 +284,7 @@ class CreateSwathXmlRes():
 
         # Now calculate the centre pixels of individual bursts.
         line_nums = np.array([int(n) for n in self.burst_xml_dat['sceneCenLine_number']])
-        size = (len(np.unique(line_nums)), line_nums.size / len(np.unique(line_nums)))
+        size = (len(np.unique(line_nums)), line_nums.size // len(np.unique(line_nums)))
         line_nums = np.reshape(line_nums, size)
 
         lat = np.reshape([float(n) for n in self.burst_xml_dat['sceneCenLat']], size)
@@ -304,7 +304,7 @@ class CreateSwathXmlRes():
         self.burst_center_coors = []
 
         # Now calculate the polygons for the different bursts
-        for n in range(size[0] - 1):
+        for n in np.arange(size[0] - 1):
             self.burst_coors.append([[lon[n, 0], lat[n, 0]],          [lon[n, -1], lat[n, -1]],
                                      [lon[n+1, -1], lat[n+1, -1]],    [lon[n+1, 0], lat[n+1, 0]]])
             self.burst_coverage.append(geometry.Polygon(self.burst_coors[n]))
@@ -331,11 +331,12 @@ class CreateSwathXmlRes():
         burst_start_time = np.asarray([datetime.strptime(i, '%Y-%m-%dT%H:%M:%S.%f') for i in
                                        self.burst_xml_dat['azimuthTimeStart']])
 
-        for n in range(int(self.swath_readfiles['total_Burst'])):
+        for n in np.arange(int(self.swath_readfiles['total_Burst'])):
 
             readfiles = copy.deepcopy(self.swath_readfiles)
 
             readfiles['Burst_number_index'] = str(n + 1)
+            readfiles['slice'] = 'True'
 
             # First find coordinates of center and optionally the corners
             readfiles['Scene_centre_longitude'] = str(self.burst_center_coors[n][0])
@@ -386,7 +387,7 @@ class CreateSwathXmlRes():
 
         self.burst_crop = []
 
-        for n in range(int(self.swath_readfiles['total_Burst'])):
+        for n in np.arange(int(self.swath_readfiles['total_Burst'])):
             # Line and pixel coordinates in .tiff file (We do the crop directly here to prevent confusion)
             last_sample = np.array([int(x) for x in self.burst_xml_dat['lastValidSample'][n].split()])
             first_sample = np.array([int(x) for x in self.burst_xml_dat['firstValidSample'][n].split()])
@@ -397,16 +398,16 @@ class CreateSwathXmlRes():
             last_pixel = np.min(last_sample[first_sample != -1])
 
             crop = collections.OrderedDict()
-            crop['Data_output_file'] = 'crop.raw'
-            crop['Data_output_format'] = 'complex_int'
+            crop['crop_output_file'] = 'crop.raw'
+            crop['crop_output_format'] = 'complex_int'
 
             start_line = int(self.burst_readfiles[n]['First_line (w.r.t. tiff_image)'])
 
-            crop['Data_lines'] = str(last_line - first_line + 1)
-            crop['Data_pixels'] = str(last_pixel - first_pixel + 1)
-            crop['Data_first_pixel'] = str(first_pixel + 1)
-            crop['Data_first_line'] = str(first_line + 1)
-            crop['Data_first_line (w.r.t. tiff_image)'] = str(start_line + first_line)
-            crop['Data_last_line (w.r.t. tiff_image)'] = str(start_line + last_line)
+            crop['crop_lines'] = str(last_line - first_line + 1)
+            crop['crop_pixels'] = str(last_pixel - first_pixel + 1)
+            crop['crop_first_pixel'] = str(first_pixel + 1)
+            crop['crop_first_line'] = str(first_line + 1)
+            crop['crop_first_line (w.r.t. tiff_image)'] = str(start_line + first_line)
+            crop['crop_last_line (w.r.t. tiff_image)'] = str(start_line + last_line)
 
             self.burst_crop.append(crop)

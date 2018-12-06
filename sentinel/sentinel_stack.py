@@ -243,11 +243,11 @@ class SentinelStack(SentinelDatabase, Stack):
                                     np.asarray(self.slice_z)[None, None, :]))
         dist = np.sum((master_xyz - slave_xyz)**2, axis=0)
         min_nums = np.argmin(dist, axis=0)
-        min_dists = np.sqrt(dist[min_nums, range(dist.shape[1])])
+        min_dists = np.sqrt(dist[min_nums, np.arange(dist.shape[1])])
 
         # Assign slice values
         del_list = []
-        for min_dist, min_num, i, date in zip(min_dists, min_nums, range(len(min_dists)), self.slice_date):
+        for min_dist, min_num, i, date in zip(min_dists, min_nums, np.arange(len(min_dists)), self.slice_date):
 
             if min_dist > 1000:
                 del_list.append(i)

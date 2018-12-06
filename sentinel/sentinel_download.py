@@ -2,8 +2,7 @@
 # check for the files which are downloaded.
 
 import numpy as np
-import urllib
-import urllib2
+from six.moves import urllib
 import ssl
 import re
 import os, sys
@@ -83,15 +82,15 @@ class DownloadSentinel(object):
         self.string = self.string[5:]
         url = 'https://scihub.copernicus.eu/dhus/search?q=' + urllib.quote_plus(self.string)
     
-        request = urllib2.Request(url)
+        request = urllib.Request(url)
         base64string = base64.b64encode('%s:%s' % (self.user, self.password))
         request.add_header("Authorization", "Basic %s" % base64string)
     
         # connect to server. Hopefully this works at once
         try:
-            dat = urllib2.urlopen(request)
+            dat = urllib.urlopen(request)
         except:
-            print 'not possible to connect this time'
+            print('not possible to connect this time')
             return [], [], []
     
         html_dat = ''
@@ -108,7 +107,7 @@ class DownloadSentinel(object):
         # Download the files which are found by the sentinel_available script.
     
         if not self.products:
-            print 'No files to project_functions'
+            print('No files to project_functions')
             return
     
         wget_base = 'wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --continue --tries=20 ' \
@@ -186,7 +185,7 @@ class DownloadSentinel(object):
         # Check if the downloaded files are valid and remove if not
 
         if not self.products:
-            print 'Nothing to check'
+            print('Nothing to check')
             return
     
         for product in self.products:
@@ -257,7 +256,7 @@ class DownloadSentinel(object):
         
                         break
             elif self.shape.endswith('.kml'):
-                doc = file(self.shape).read()
+                doc = open(self.shape).read()
                 k = kml.KML()
                 k.from_string(doc)
                 shape = list(list(k.features())[0].features())[0].geometry[0].exterior.coords[:]
@@ -267,7 +266,7 @@ class DownloadSentinel(object):
                     self.shape_string = self.shape_string + str(p[0]) + ' ' + str(p[1]) + ','
                 self.shape_string = self.shape_string[:-1] + ')'
             else:
-                print 'format not recognized! Pleas creat either a .kml or .shp file.'
+                print('format not recognized! Pleas creat either a .kml or .shp file.')
                 return []
             if shape_len > 100:
                 print('The shapesize is larger than 100 points, this could cause problems with the download')
@@ -285,15 +284,15 @@ class DownloadSentinel(object):
         # Check whether the zip files can be unpacked or not. This is part of the project_functions procedure.
     
         checksum_url = "https://scihub.copernicus.eu/dhus/odata/v1/Products('" + uuid + "')/Checksum/Value/" + urllib.quote_plus('$value')
-        request = urllib2.Request(checksum_url)
+        request = urllib.Request(checksum_url)
         base64string = base64.b64encode('%s:%s' % (user, password))
         request.add_header("Authorization", "Basic %s" % base64string)
     
         # connect to server. Hopefully this works at once
         try:
-            dat = urllib2.urlopen(request)
+            dat = urllib.urlopen(request)
         except:
-            print 'not possible to connect this time'
+            print('not possible to connect this time')
             return False
     
         html_dat = ''
@@ -325,7 +324,7 @@ class DownloadSentinelOrbit(object):
         self.restituted_folder = restituted_folder
 
         last_precise = '' # Last precise orbit file. Used to remove unused restituted orbit files.
-        gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+        gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 
         # From now on the start date and end date should be given to find the right path.
         start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
@@ -344,7 +343,7 @@ class DownloadSentinelOrbit(object):
                 url = 'https://aux.sentinel1.eo.esa.int/POEORB/' + str(date.year) + '/' + str(date.month).zfill(2) + '/' + str(date.day).zfill(2) +  '/'
 
                 try:
-                    page = urllib2.urlopen(url, context=gcontext)
+                    page = urllib.urlopen(url, context=gcontext)
                     html = page.read().split('\n')
 
                     for line in html:
@@ -373,7 +372,7 @@ class DownloadSentinelOrbit(object):
                 url = 'https://aux.sentinel1.eo.esa.int/RESORB/' + str(date.year) + '/' + str(date.month).zfill(2) + '/' + str(date.day).zfill(2) + '/'
 
                 try:
-                    page = urllib2.urlopen(url, context=gcontext)
+                    page = urllib.urlopen(url, context=gcontext)
                     html = page.read().split('\n')
 
                     for line in html:
@@ -391,7 +390,7 @@ class DownloadSentinelOrbit(object):
     def download_orbits(self):
         # Do the actual download
 
-        gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+        gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 
         if self.precise_folder:
             for orb, url in zip(self.precise_files, self.precise_links):
@@ -399,7 +398,7 @@ class DownloadSentinelOrbit(object):
                 filename = os.path.join(self.precise_folder, orb)
                 if not os.path.exists(filename):
                     urllib.urlretrieve(url, filename, context=gcontext)
-                    print filename + ' downloaded'
+                    print(filename + ' downloaded')
 
         if self.restituted_folder:
             for orb, url in zip(self.restituted_files, self.restituted_links):
@@ -407,4 +406,4 @@ class DownloadSentinelOrbit(object):
                 filename = os.path.join(self.restituted_folder, orb)
                 if not os.path.exists(filename):
                     urllib.urlretrieve(url, filename, context=gcontext)
-                    print filename + ' downloaded'
+                    print(filename + ' downloaded')

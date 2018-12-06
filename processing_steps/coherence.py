@@ -3,7 +3,8 @@
 from image_data import ImageData
 from collections import OrderedDict, defaultdict
 import numpy as np
-from find_coordinates import FindCoordinates
+from processing_steps.interfero import Interfero
+from coordinate_system import CoordinateSystem
 import logging
 import os
 
@@ -15,141 +16,58 @@ class Coherence(object):
     :type s_lin = int
     """
 
-    def __init__(self, master_meta, slave_meta, ifg_meta, s_lin=0, s_pix=0, multilook='', oversampling='', offset='', lines=0):
+    def __init__(self, meta, master_meta, ifg_meta, coordinates, s_lin=0, s_pix=0, lines=0):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
-        if isinstance(slave_meta, str):
-            if len(slave_meta) != 0:
-                self.slave = ImageData(slave_meta, 'single')
-        elif isinstance(slave_meta, ImageData):
-            self.slave = slave_meta
-        if isinstance(master_meta, str):
-            if len(master_meta) != 0:
-                self.master = ImageData(master_meta, 'single')
-        elif isinstance(master_meta, ImageData):
+        if isinstance(meta, ImageData) and isinstance(master_meta, ImageData):
+            self.slave = meta
             self.master = master_meta
-        if isinstance(ifg_meta, str):
-            if len(ifg_meta) != 0:
-                self.ifg = ImageData(ifg_meta, 'interferogram')
-        elif isinstance(ifg_meta, ImageData):
+        else:
+            return
+
+        if isinstance(ifg_meta, ImageData):
             self.ifg = ifg_meta
+        else:
+            Interfero.create_meta_data(master_meta, meta)
+
+        if isinstance(coordinates, CoordinateSystem):
+            self.coordinates = coordinates
+        else:
+            print('coordinates variable should be an CoordinateSystem object')
 
         # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        self.multilook = []
-        self.oversampling = []
-        self.in_s_lin = []
-        self.in_s_pix = []
-        self.out_s_lin = []
-        self.out_s_pix = []
-        self.in_shapes = []
-        self.out_shape = []
-        self.offset = []
-        self.sample = []
+        self.s_lin = s_lin
+        self.s_pix = s_pix
+        self.shape = self.coordinates.shape
+        if lines != 0:
+            self.shape = [np.minimum(lines, self.shape[0] - s_lin), self.shape[1] - s_pix]
 
-        if multilook == '':
-            multilook = [[5, 20]]
-        elif isinstance(multilook[0], int):
-            multilook = [multilook]
-        if offset == '':
-            offset = [[20, 120]]
-        elif isinstance(offset[0], int):
-            offset = [offset]
-        if oversampling == '':
-            oversampling = [[1, 1]]
-        elif isinstance(oversampling[0], int):
-            oversampling = [oversampling]
+        # Load input data (squared amplitud of slave/master) and the interferogram.
+        self.master_squared = self.master.image_load_data_memory('square_amplitude', self.s_lin, self.s_pix, self.shape,
+                                                                 'square_amplitude' + coordinates.sample, warn=False)
+        self.slave_squared = self.slave.image_load_data_memory('square_amplitude', self.s_lin, self.s_pix, self.shape,
+                                                               'square_amplitude' + coordinates.sample, warn=False)
+        self.ifg_dat = self.ifg.image_load_data_memory('interferogram', self.s_lin, self.s_pix, self.shape,
+                                                         'interferogram' + coordinates.sample, warn=False)
 
-        for ml, ovr, off in zip(multilook, oversampling, offset):
-
-            sample_out, multilook_out, oversampling_out, offset_out, in_coor, out_coor = \
-                FindCoordinates.multilook_coors(master=self.master, slave=self.slave, s_lin=s_lin, s_pix=s_pix, lines=lines, multilook=ml, oversampling=ovr, offset=off)
-
-            self.offset.append(offset_out)
-            self.sample.append(sample_out)
-            self.multilook.append(multilook_out)
-            self.oversampling.append(oversampling_out)
-            self.in_s_lin.append(in_coor[0])
-            self.in_s_pix.append(in_coor[1])
-            self.in_shapes.append(in_coor[2])
-            self.out_s_lin.append(out_coor[0])
-            self.out_s_pix.append(out_coor[1])
-            self.out_shape.append(out_coor[2])
-            self.s_pix_min = np.min(np.array(self.in_s_pix))
-            self.s_lin_min = np.min(np.array(self.in_s_lin))
-
-        self.in_shape = [
-            np.max(np.array([i[0] for i in self.in_shapes]) + np.array(self.in_s_lin)) - self.s_lin_min,
-            np.max(np.array([i[1] for i in self.in_shapes]) + np.array(self.in_s_pix)) - self.s_pix_min]
-
-        # Check whether one image is originally referenced to the other.
-        self.master_dat = self.master.image_load_data_memory('earth_topo_phase', self.s_lin_min, self.s_pix_min, self.in_shape, 'Data', warn=False)
-
-        if len(self.master_dat) == 0:
-            # In case the master date is the same as the date for the referenced image.
-            ref_dat = self.slave.processes['combined_coreg']['Master reference date']
-
-            if self.master.processes['readfiles']['First_pixel_azimuth_time (UTC)'][:10] == ref_dat:
-                self.master_dat = self.master.image_load_data_memory('crop', self.s_lin_min, self.s_pix_min, self.in_shape, 'Data')
-
-        # Check whether one image is originally referenced to the other.
-        self.slave_dat = self.slave.image_load_data_memory('earth_topo_phase', self.s_lin_min, self.s_pix_min, self.in_shape, 'Data', warn=False)
-
-        if len(self.slave_dat) == 0:
-            # In case the slave date is the same as the date for the referenced image.
-            ref_dat = self.master.processes['combined_coreg']['Master reference date']
-
-            if self.slave.processes['readfiles']['First_pixel_azimuth_time (UTC)'][:10] == ref_dat:
-                self.slave_dat = self.slave.image_load_data_memory('crop', self.s_lin_min, self.s_pix_min, self.in_shape, 'Data')
-
-        self.coherence = dict()
+        self.coherence = []
 
     def __call__(self):
         # Check if needed data is loaded
-        if len(self.master_dat) == 0 or len(self.slave_dat) == 0:
+        if len(self.master_squared) == 0 or len(self.slave_squared) == 0 or len(self.ifg_dat) == 0:
             print('Missing input data for processing coherence for ' + self.ifg.folder + '. Aborting..')
             return False
 
         try:
-            # Calculate the new line and pixel coordinates based orbits / geometry
-            for sample, multilook, oversampling, min_pix, min_line, shape in \
-                    zip(self.sample, self.multilook, self.oversampling, self.in_s_pix, self.in_s_lin, self.in_shapes):
-                if multilook == [1, 1]:
-                    self.coherence[sample] = self.master_dat * self.slave_dat.conj()
-                elif oversampling == [1, 1]:
-                    ir = np.arange(0, shape[0], multilook[0])
-                    jr = np.arange(0, shape[1], multilook[1])
-
-                    ls = min_line - self.s_lin_min
-                    ps = min_pix - self.s_pix_min
-                    le = ls + shape[0]
-                    pe = ps + shape[1]
-
-                    self.coherence[sample] = np.abs(np.add.reduceat(np.add.reduceat(self.master_dat[ls:le, ps:pe] * self.slave_dat[ls:le, ps:pe].conj(), ir), jr, axis=1)) / \
-                             np.sqrt(np.add.reduceat(np.add.reduceat(np.abs(self.master_dat[ls:le, ps:pe])**2, ir), jr, axis=1) *
-                             np.add.reduceat(np.add.reduceat(np.abs(self.slave_dat[ls:le, ps:pe])**2, ir), jr, axis=1))
-                else:
-                    ir_h = np.arange(0, shape[0], multilook[0] / oversampling[0])[:-(oversampling[0] - 1)]
-                    ir = [[i, i + multilook[0]] for i in ir_h]
-                    ir = [item for sublist in ir for item in sublist][:-1]
-                    jr_h = np.arange(0, shape[1], multilook[1] / oversampling[1])[:-(oversampling[1] - 1)]
-                    jr = [[i, i + multilook[1]] for i in jr_h]
-                    jr = [item for sublist in jr for item in sublist][:-1]
-
-                    ls = min_line - self.s_lin_min
-                    ps = min_pix - self.s_pix_min
-                    le = ls + shape[0]
-                    pe = ps + shape[1]
-
-                    self.coherence[sample] = np.abs(np.add.reduceat(np.add.reduceat(self.master_dat[ls:le, ps:pe] * self.slave_dat[ls:le, ps:pe].conj(), ir)[::2, :], jr, axis=1)[:, ::2]) / \
-                             np.sqrt(np.add.reduceat(np.add.reduceat(np.abs(self.master_dat[ls:le, ps:pe])**2, ir)[::2, :], jr, axis=1)[:, ::2] *
-                             np.add.reduceat(np.add.reduceat(np.abs(self.slave_dat[ls:le, ps:pe])**2, ir)[::2, :], jr, axis=1)[:, ::2])
+            # Calculate new coherence from squared amplitudes and interferogram
+            self.coherence = np.zeros(self.ifg_dat.shape).astype(np.float32)
+            no0 = (self.slave_squared > 0) * (self.master_squared > 0)
+            self.coherence[no0] = np.abs(self.ifg_dat[no0]) / np.sqrt(self.slave_squared[no0] * self.master_squared[no0])
 
             # If needed do the multilooking step
-            self.add_meta_data(self.master, self.slave, self.ifg, self.sample, self.out_shape, self.multilook, self.oversampling, self.offset)
-
-            for out_s_lin, out_s_pix, sample in zip(self.out_s_lin, self.out_s_pix, self.sample):
-                self.ifg.image_new_data_memory(self.coherence[sample], 'coherence', out_s_lin, out_s_pix, 'Data' + sample)
+            self.add_meta_data(self.ifg, self.coordinates)
+            self.ifg.image_new_data_memory(self.coherence, 'coherence', self.s_lin, self.s_pix, 'coherence' + self.coordinates.sample)
 
             return True
 
@@ -164,62 +82,60 @@ class Coherence(object):
 
             return False
 
-    def create_output_files(self, to_disk=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-
-        if not to_disk:
-            to_disk = ['Data']
-
-        for s in to_disk:
-            self.ifg.image_create_disk('interferogram', s)
-
     @staticmethod
-    def add_meta_data(master, slave, ifg, sample_list, shape_list, multilook_list, oversampling_list, offset_list):
+    def add_meta_data(ifg_meta, coordinates):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
-        if 'coherence' in ifg.processes.keys():
-            meta_info = ifg.processes['interferogram']
+        if 'coherence' in ifg_meta.processes.keys():
+            meta_info = ifg_meta.processes['coherence']
         else:
             meta_info = OrderedDict()
 
-        if 'earth_topo_phase' in master.data_memory.keys():
-            meta_data = master
-        elif 'earth_topo_phase' in slave.data_memory.keys():
-            meta_data = slave
-        else:
-            print('Processing steps are missing in either master or slave image')
-            return
-
-        for sample, shape, multilook, oversample, offset in zip(sample_list, shape_list, multilook_list, oversampling_list, offset_list):
-            dat = 'Data' + sample
-            meta_info[dat + '_output_file'] = 'Coherence' + sample + '.raw'
-            meta_info[dat + '_output_format'] = 'real4'
-
-            meta_info[dat + '_lines'] = str(shape[0])
-            meta_info[dat + '_pixels'] = str(shape[1])
-            meta_info[dat + '_first_line'] = meta_data.processes['earth_topo_phase']['Data_first_line']
-            meta_info[dat + '_first_pixel'] = meta_data.processes['earth_topo_phase']['Data_first_pixel']
-            meta_info[dat + '_multilook_azimuth'] = str(multilook[0])
-            meta_info[dat + '_multilook_range'] = str(multilook[1])
-            meta_info[dat + '_oversampling_azimuth'] = str(oversample[0])
-            meta_info[dat + '_oversampling_range'] = str(oversample[1])
-            meta_info[dat + '_offset_azimuth'] = str(offset[0])
-            meta_info[dat + '_offset_range'] = str(offset[1])
-
-        ifg.image_add_processing_step('coherence', meta_info)
+        meta_info = coordinates.create_meta_data(['coherence'], ['real4'], meta_info)
+        ifg_meta.image_add_processing_step('coherence', meta_info)
 
     @staticmethod
-    def processing_info():
-        # Information on this processing step
-        input_dat = defaultdict()
-        input_dat['master']['crop', 'earth_topo_phase'] = ['Data']
-        input_dat['slave']['crop', 'earth_topo_phase'] = ['Data']
+    def processing_info(coordinates, meta_type=''):
 
-        output_dat = dict()
-        output_dat['ifgs']['interferogram'] = ['Data']
+        if not isinstance(coordinates, CoordinateSystem):
+            print('coordinates should be an CoordinateSystem object')
 
-        # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
-        mem_use = 3
+        # Three input files needed x, y, z coordinates
+        recursive_dict = lambda: defaultdict(recursive_dict)
+        input_dat = recursive_dict()
+        for res_type in ['slave', 'master']:
+            input_dat[res_type]['square_amplitude']['square_amplitude' + coordinates.sample]['file'] = 'square_amplitude' + coordinates.sample + '.raw'
+            input_dat[res_type]['square_amplitude']['square_amplitude' + coordinates.sample]['coordinates'] = coordinates
+            input_dat[res_type]['square_amplitude']['square_amplitude' + coordinates.sample]['slice'] = coordinates.slice
+
+        input_dat['ifg']['interferogram']['interferogram' + coordinates.sample]['file'] = 'interferogram' + coordinates.sample + '.raw'
+        input_dat['ifg']['interferogram']['interferogram' + coordinates.sample]['coordinates'] = coordinates
+        input_dat['ifg']['interferogram']['interferogram' + coordinates.sample]['slice'] = coordinates.slice
+
+        # line and pixel output files.
+        output_dat = recursive_dict()
+        output_dat['ifg']['coherence']['coherence' + coordinates.sample]['file'] = 'coherence' + coordinates.sample + '.raw'
+        output_dat['ifg']['coherence']['coherence' + coordinates.sample]['coordinates'] = coordinates
+        output_dat['ifg']['coherence']['coherence' + coordinates.sample]['slice'] = coordinates.slice
+
+        # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
+        mem_use = 20
 
         return input_dat, output_dat, mem_use
+
+    @staticmethod
+    def create_output_files(meta, file_type='', coordinates=''):
+        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
+        # done before the actual processing.
+        meta.images_create_disk('coherence', file_type, coordinates)
+
+    @staticmethod
+    def save_to_disk(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_memory_to_disk('coherence', file_type, coordinates)
+
+    @staticmethod
+    def clear_memory(meta, file_type='', coordinates=''):
+        # Save the function output in memory to disk
+        meta.images_clean_memory('coherence', file_type, coordinates)
+
