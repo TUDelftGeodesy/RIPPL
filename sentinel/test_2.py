@@ -31,7 +31,7 @@ if track_no == 37:
 # t 88
 elif track_no == 88:
     start_date = '2017-02-10'
-    end_date = '2017-02-23'
+    end_date = '2017-03-01'
     master_date = '2017-02-21'
 
     database_folder = data_disk + 'radar_database/sentinel-1/asc_t088'
@@ -91,7 +91,7 @@ for slice_name in slice_names:
     settings['radar_DEM'][slice_name]['coor_in'] = s1_stack.images[s1_stack.master_date].slices[slice_name].read_res_coordinates('import_DEM')[0]
 settings['radar_DEM']['full']['coor_in'] = s1_stack.images[s1_stack.master_date].res_data.read_res_coordinates('import_DEM')[0]
 
-parallel = False
+parallel = True
 # Run the geocoding for the slices.
 coordinates = CoordinateSystem()
 coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])

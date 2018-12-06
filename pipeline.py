@@ -528,6 +528,7 @@ class Pipeline():
         # Init the func_set variable
         func_set = dict([('proc_type', 'multilook'), ('step', []), ('file_type', []), ('meta', []), ('meta_type', []),
                          ('coor_in', []), ('coor_out', []), ('save_disk', []), ('settings', []), ('rem_mem', [])])
+        recursive_dict = lambda: defaultdict(recursive_dict)
 
         # If the direct step before concatenation is a multilooking step, these two can be combined.
         # An exception is the interferogram step, which is in most cases a multilooking step too.
@@ -571,6 +572,13 @@ class Pipeline():
                 func_set['coor_in'].append(in_coor)
                 func_set['coor_out'].append(out_coor)
                 func_set['settings'].append(settings)
+                func_set['rem_mem'].append(recursive_dict())
+
+                if step == 'interferogram':
+                    func_set['rem_mem'][-1]['master'][step_tps[0]] = [file_tps[0]]
+                    func_set['rem_mem'][-1]['slave'][step_tps[0]] = [file_tps[0]]
+                else:
+                    func_set['rem_mem'][-1][meta_type][step_tps[0]] = [file_tps[0]]
 
                 # Now add the original requested files to our to be processed list.
                 for meta_tp, step_tp, file_tp in zip(meta_tps, step_tps, file_tps):
@@ -830,7 +838,8 @@ class Pipeline():
 
                             # In both cases add the remove memory step
                             parent_id = np.where(np.array(pipeline['step']) == p_step)[0][0]
-                            pipeline['rem_mem'][id[0]][meta_type][step].remove(file_type)
+                            if isinstance(pipeline['rem_mem'][id[0]][meta_type][step], list):
+                                pipeline['rem_mem'][id[0]][meta_type][step].remove(file_type)
                             if meta_type in pipeline['rem_mem'][parent_id].keys():
                                 if step in pipeline['rem_mem'][parent_id][meta_type].keys():
                                     pipeline['rem_mem'][parent_id][meta_type][step].append(file_type)
@@ -1026,19 +1035,31 @@ class Pipeline():
                 elif pipeline['proc_type'] == 'multilook' or pipeline['proc_type'] == 'concatenate':
 
                     # Filter all multilook steps from both multilook and concatenate sets
-                    for func, file_type, settings, meta, meta_type, coordinates, coor_out in zip(pipeline['step'], pipeline['file_type'], pipeline['settings'],
-                            pipeline['meta'], pipeline['meta_type'], pipeline['coor_in'], pipeline['coor_out']):
+                    for func, file_type, settings, meta, meta_type, coordinates, coor_out, rem_mem in zip(pipeline['step'], pipeline['file_type'], pipeline['settings'],
+                            pipeline['meta'], pipeline['meta_type'], pipeline['coor_in'], pipeline['coor_out'], pipeline['rem_mem']):
 
                         # All multilook steps are independent so we give them independent steps here too.
                         pipeline_ml = copy.deepcopy(dummy_processing)
                         pipeline_ml['proc_type'] = 'multilook'
                         pipeline_ml['proc'] = True
                         res_dat = pipeline_ml['res_dat']
+                        pipeline_ml['clear_mem'] = True
 
-                        if pipeline['proc_type'] == 'multilook':
+                        if pipeline['proc_type'] == 'multilook' or coordinates.sample == coor_out.sample:
                             pipeline_ml['create'] = True
                             pipeline_ml['save'] = True
-                            pipeline_ml['clear_mem'] = True
+
+                        clear_mem_var = []
+                        clear_mem_var_name = []
+
+                        for m_type in rem_mem.keys():
+                            for fun in rem_mem[m_type].keys():
+                                for f_type in rem_mem[m_type][fun]:
+
+                                    clear_var = [self.res_dat[meta][m_type], fun, f_type + coordinates.sample]
+                                    clear_var_names = ['meta', 'step', 'file_type']
+                                    clear_mem_var.append(clear_var)
+                                    clear_mem_var_name.append(clear_var_names)
 
                         if func in ['multilook', 'interferogram']:
                             pipeline_ml['function'] = [self.processes[func]]
@@ -1058,15 +1079,17 @@ class Pipeline():
                                     func, meta, meta_type, coordinates, coor_out, file_type=file_type,
                                     res_dat=res_dat, package_type='disk_data')
 
-                            if pipeline['proc_type'] == 'multilook':
+                            if pipeline['proc_type'] == 'multilook' or coordinates.sample == coor_out.sample:
                                 pipeline_ml['create_var_name'] = [disk_var_names]
                                 pipeline_ml['create_var'] = [disk_var]
                                 pipeline_ml['save_var_name'] = [disk_var_names]
                                 pipeline_ml['save_var'] = [disk_var]
                                 disk_var.insert(0, self.processes[func])
-                                pipeline_ml['clear_mem_var'].append([disk_var])
-                                pipeline_ml['clear_mem_var_name'].append([disk_var_names])
+                                clear_mem_var.append(disk_var)
+                                clear_mem_var_name.append(disk_var_names)
 
+                            pipeline_ml['clear_mem_var'] = [clear_mem_var]
+                            pipeline_ml['clear_mem_var_name'] = [clear_mem_var_name]
                             pipeline_ml['proc_var_name'] = [proc_var_names]
                             pipeline_ml['proc_var'] = [proc_var]
 
