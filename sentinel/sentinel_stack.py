@@ -15,7 +15,7 @@ import os
 import zipfile
 
 import numpy as np
-from joblib import Parallel, delayed
+from multiprocessing import Pool
 from lxml import etree
 
 from orbit_dem_functions.orbit_interpolate import OrbitInterpolate
@@ -311,17 +311,15 @@ class SentinelStack(SentinelDatabase, Stack):
 
         # Create the crops in parallel
 
-        with Parallel(n_jobs=num_cores) as parallel:
-            # Loop over all master slices
-            parallel(delayed(write_sentinel_burst)(self.datastack_folder, slice, number, pol, swath_no, date)
-                     for slice, number, pol, swath_no, date in zip(self.master_slices, self.master_slice_number,
-                                                                   self.master_slice_pol, self.master_slice_swath_no,
-                                                                   self.master_slice_date)
-                     )
-        with Parallel(n_jobs=num_cores) as parallel:
-            # Loop over all slave slices
-            parallel(delayed(write_sentinel_burst)(self.datastack_folder, slice, number, pol, swath_no, date)
-                     for slice, number, pol, swath_no, date in zip(self.slices, self.slice_number,
-                                                                   self.slice_pol, self.slice_swath_no,
-                                                                   self.slice_date)
-                     )
+        pool = Pool(num_cores)
+
+        master_dat = [[self.datastack_folder, slice, number, pol, swath_no, date]
+                     for slice, number, pol, swath_no, date
+                      in zip(self.master_slices, self.master_slice_number, self.master_slice_pol, self.master_slice_swath_no,
+                      self.master_slice_date)]
+        res = pool.map(write_sentinel_burst, master_dat)
+
+        slave_dat = [[self.datastack_folder, slice, number, pol, swath_no, date]
+                     for slice, number, pol, swath_no, date
+                     in zip(self.slices, self.slice_number, self.slice_pol, self.slice_swath_no, self.slice_date)]
+        res = pool.map(write_sentinel_burst, slave_dat)

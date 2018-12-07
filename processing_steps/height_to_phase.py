@@ -66,7 +66,7 @@ class HeightToPhase(object):
         try:
             no0 = (self.baseline != 0) * (self.incidence != 0)
             lines, pixels = np.where(no0)
-            del lines
+            lines = []
 
             self.h2ph = np.zeros(self.baseline.shape).astype(np.float32)
 

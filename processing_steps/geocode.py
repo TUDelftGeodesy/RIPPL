@@ -36,8 +36,7 @@ class Geocode(object):
         self.height = self.meta.image_load_data_memory('radar_DEM', self.s_lin, self.s_pix, self.shape, dat_key)
         self.orbits = OrbitCoordinates(self.meta)
 
-        self.no0 = (self.height != 0)
-        self.orbits.height = self.height[self.no0]
+        self.orbits.height = self.height
 
         # And the output data
         self.lat = np.zeros(self.height.shape).astype(np.float32)
@@ -54,20 +53,18 @@ class Geocode(object):
             return False
 
         try:
-            if np.sum(self.no0) > 0:
-                l_id, p_id = np.where(self.no0)
-                self.orbits.lp_time(lines=self.lines[l_id], pixels=self.pixels[p_id], regular=False)
+            self.orbits.lp_time(lines=self.lines, pixels=self.pixels, regular=True)
 
-                # Then calculate the x,y,z coordinates
-                self.orbits.lph2xyz()
-                self.x_coordinate[self.no0] = self.orbits.x
-                self.y_coordinate[self.no0] = self.orbits.y
-                self.z_coordinate[self.no0] = self.orbits.z
+            # Then calculate the x,y,z coordinates
+            self.orbits.lph2xyz()
+            self.x_coordinate = self.orbits.x
+            self.y_coordinate = self.orbits.y
+            self.z_coordinate = self.orbits.z
 
-                # Finally calculate the lat/lon coordinates
-                self.orbits.xyz2ell()
-                self.lat[self.no0] = self.orbits.lat
-                self.lon[self.no0] = self.orbits.lon
+            # Finally calculate the lat/lon coordinates
+            self.orbits.xyz2ell()
+            self.lat = self.orbits.lat
+            self.lon = self.orbits.lon
 
             # Data can be saved using the create output files and add meta data function.
             self.add_meta_data(self.meta, self.coordinates)

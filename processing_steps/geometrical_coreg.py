@@ -16,6 +16,7 @@ from processing_steps.radar_dem import RadarDem
 import copy
 import os
 import logging
+import numpy as np
 
 
 class GeometricalCoreg(object):
@@ -47,6 +48,8 @@ class GeometricalCoreg(object):
         self.Y = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'Y')
         self.Z = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'Z')
 
+        self.no0 = ((self.X != 0) * (self.Y != 0) * (self.Z != 0))
+
         # Initialize output
         self.new_line = []
         self.new_pixel = []
@@ -60,7 +63,11 @@ class GeometricalCoreg(object):
             return False
 
         try:
-            self.new_line, self.new_pixel = self.orbits.xyz2lp(self.X, self.Y, self.Z)
+            self.new_line = np.zeros(self.X.shape)
+            self.new_pixel = np.zeros(self.X.shape)
+
+            if np.sum(self.no0) > 0:
+                self.new_line[self.no0], self.new_pixel[self.no0] = self.orbits.xyz2lp(self.X[self.no0], self.Y[self.no0], self.Z[self.no0])
 
             self.add_meta_data(self.slave, self.cmaster, self.coordinates)
             self.slave.image_new_data_memory(self.new_line, 'geometrical_coreg', self.s_lin, self.s_pix, 'new_line')

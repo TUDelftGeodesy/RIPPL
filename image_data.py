@@ -573,7 +573,7 @@ class ImageData(ImageMetadata):
     def check_step_exist(self, step):
         # Check if this step even exists.
         if step not in list(self.processes.keys()):
-            warnings.warn('Step does not exist')
+            # warnings.warn('Step does not exist')
             return False
 
         return True

@@ -44,7 +44,7 @@ class AzimuthElevationAngle(object):
         self.z = self.meta.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, z_key)
         self.height = self.meta.image_load_data_memory('radar_DEM', self.s_lin, self.s_pix, self.shape, dem_key)
 
-        self.no0 = ((self.x == 0) * (self.y == 0) * (self.z == 0) * (self.height == 0) != True)
+        self.no0 = ((self.x != 0) * (self.y != 0) * (self.z != 0))
 
         self.orbits = OrbitCoordinates(self.meta)
         self.orbits.x = self.x[self.no0]

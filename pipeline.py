@@ -43,7 +43,7 @@ class Pipeline():
         self.memory = memory
 
         # For now we just assume that every pixel can be run with 10000 pixels met MB (Likely to be higher...)
-        self.pixels = self.memory * 5000
+        self.pixels = self.memory * 15000
 
         # Cores. The number of cores we use to run our processing.
         self.cores = cores
@@ -1376,9 +1376,11 @@ class Pipeline():
                         self.res_dat[key][meta_type] = res_dat[key][meta_type]
 
         elif self.parallel:
-            self.pool = Pool(self.cores)
+            self.pool = Pool(self.cores, maxtasksperchild=1)
 
-            for res_dat in self.pool.imap_unordered(run_parallel, parallel_package):
+            res_dats = self.pool.map(run_parallel, parallel_package)
+
+            for res_dat in res_dats:
                 # Update the .res files of this image
                 if res_dat == False:
                     print('Encountered error in processing. Aborting..')

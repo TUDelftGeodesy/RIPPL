@@ -60,7 +60,7 @@ srtm_folder = data_disk + 'DEM/DEM_new'
 #download_orbit.download_orbits()
 
 # Number of cores
-cores = 8
+cores = 4
 
 # Prepare processing
 if not os.listdir(stack_folder):
@@ -129,7 +129,7 @@ for multilook in [[5, 20], [10, 40], [20, 80]]:
     s1_stack('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
 
     # Get the harmonie (h38) and ECMWF (ERA5) data
-    s1_stack('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_h38_aps'], parallel=parallel)
+    #s1_stack('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_h38_aps'], parallel=parallel)
     #s1_stack('ecmwf_aps', settings, coordinates, 'slave', file_type=['ecmwf_ERA5_aps'], parallel=parallel)
 
 

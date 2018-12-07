@@ -21,10 +21,8 @@ import requests
 from scipy.interpolate import RectBivariateSpline
 from orbit_dem_functions.srtm_dir_listing import ParseHTMLDirectoryListing
 from coordinate_system import CoordinateSystem
-from joblib import Parallel, delayed
+from multiprocessing import Pool
 from image_data import ImageData
-import fiona
-from shapely.geometry import Polygon
 
 
 class SrtmDownloadTile(object):
@@ -40,7 +38,13 @@ class SrtmDownloadTile(object):
         filename = os.path.join(self.srtm_folder, 'EGM96_15min.dat')
         self.egm96_interp = self.load_egm96(filename)
 
-    def __call__(self, url, file_zip, file_unzip, lat, lon):
+    def __call__(self, input):
+
+        url = input[0]
+        file_zip = input[1]
+        file_unzip = input[2]
+        lat = input[3]
+        lon = input[4]
 
         if not os.path.exists(file_unzip):
             success = self.download_dem_file(url, file_zip, file_unzip)
@@ -177,10 +181,11 @@ class SrtmDownload(object):
         tile_download = SrtmDownloadTile(self.srtm_folder, self.username, self.password, self.srtm_type)
 
         # Loop over all images
-        if len(download_tiles) > 0:
-            Parallel(n_jobs=self.n_processes)(delayed(tile_download)(url, file_zip, file_unzip, lat, lon) for
+        download_dat = [[url, file_zip, file_unzip, lat, lon] for
                      url, file_zip, file_unzip, lat, lon in
-                     zip(urls, tiles_zip, download_tiles, tile_lats, tile_lons))
+                     zip(urls, tiles_zip, download_tiles, tile_lats, tile_lons)]
+        pool = Pool(self.n_processes)
+        pool.map(tile_download, download_dat)
 
     @staticmethod
     def select_tiles(filelist, coordinates, srtm_folder, srtm_type='SRTM3', quality=True, download=True):

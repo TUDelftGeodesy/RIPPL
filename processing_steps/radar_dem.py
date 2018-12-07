@@ -40,12 +40,6 @@ class RadarDem(object):
         self.multilook = coordinates.multilook
         self.shape, self.lines, self.pixels = RadarDem.find_coordinates(meta, s_lin, s_pix, lines, coordinates)
 
-        self.used_grids = []
-        self.dem_max_line = []
-        self.dem_min_line = []
-        self.dem_max_pixel = []
-        self.dem_min_pixel = []
-
         # Load input data and check whether extend of input data is large enough.
         if isinstance(coor_in, CoordinateSystem):
             dem_type = coor_in.sample
@@ -63,13 +57,8 @@ class RadarDem(object):
                 return
 
         self.dem, self.dem_line, self.dem_pixel = RadarDem.source_dem_extend(self.meta, self.lines, self.pixels, dem_type)
+        self.radar_dem = []
 
-        # Initialize intermediate steps.
-        self.dem_id = np.array([])
-        self.first_triangle = np.array([])
-
-        # Initialize the results
-        self.radar_dem = np.zeros(self.shape)
 
     def __call__(self):
         if len(self.dem) == 0 or len(self.dem_line) == 0 or len(self.dem_pixel) == 0:
@@ -79,13 +68,15 @@ class RadarDem(object):
         try:
             # Here the actual geocoding is done.
             # First calculate the heights using an external DEM. This generates the self.height grid..
-            self.dem_pixel2grid()
+            used_grids, grid_extends = self.dem_pixel2grid(self.dem, self.dem_line, self.dem_pixel, self.lines, self.pixels, self.multilook)
 
             # Find coordinates and matching interpolation areas
-            self.radar_in_dem_grid()
+            dem_id, first_triangle = self.radar_in_dem_grid(used_grids, grid_extends, self.lines, self.pixels, self.multilook, self.shape, self.dem_line, self.dem_pixel)
+            del used_grids, grid_extends
 
             # Then do the interpolation
-            self.dem_barycentric_interpolation()
+            self.radar_dem = self.dem_barycentric_interpolation(self.dem, self.dem_line, self.dem_pixel, self.shape, first_triangle, dem_id)
+            del self.dem, self.dem_line, self.dem_pixel
 
             # Data can be saved using the create output files and add meta data function.
             self.add_meta_data(self.meta, self.coordinates)
@@ -263,17 +254,8 @@ class RadarDem(object):
     # Following functions are used to do the actual computations.
 
     # The next function is used to run all interpolation steps at once.
-    def interp_dem(self):
-        # Find the different pixels within the dem grid
-        self.dem_pixel2grid()
-
-        # Find coordinates and matching interpolation areas
-        self.radar_in_dem_grid()
-
-        # Then do the interpolation
-        self.dem_barycentric_interpolation()
-
-    def dem_pixel2grid(self):
+    @staticmethod
+    def dem_pixel2grid(dem, dem_line, dem_pixel, lines, pixels, multilook):
         # This function is used to define a grid with minimum/maximum per DEM pixel.
         # This function converts a regular grid of lines and pixels of the dem to a system of grid boxes.
 
@@ -282,60 +264,61 @@ class RadarDem(object):
 
         # First step is to remove all the grid cells that do not contain points (Case where DEM grid is finer than the
 
-        p_num = (self.dem.shape[0] - 1) * (self.dem.shape[1] - 1)
-
         # Find the max and min grid values
-        self.used_grids = np.ones(self.dem.shape - np.array([1, 1])).astype(np.bool)
-        for s_line, e_line in zip([0, 1], [-1, self.dem.shape[0]]):
-            for s_pix, e_pix in zip([0, 1], [-1, self.dem.shape[1]]):
-                self.used_grids *= (self.dem_line[s_line:e_line, s_pix:e_pix] != 0) * (self.dem_pixel[s_line:e_line, s_pix:e_pix] != 0)
-        self.used_grids = np.ravel(self.used_grids)
+        used_grids = np.ones(dem.shape - np.array([1, 1])).astype(np.bool)
+        for s_line, e_line in zip([0, 1], [-1, dem.shape[0]]):
+            for s_pix, e_pix in zip([0, 1], [-1, dem.shape[1]]):
+                used_grids *= (dem_line[s_line:e_line, s_pix:e_pix] != 0) * (dem_pixel[s_line:e_line, s_pix:e_pix] != 0)
+        used_grids = np.ravel(used_grids)
 
-        dem_max_line = - np.ones(np.sum(self.used_grids)) * 10**10
-        dem_min_line = np.ones(np.sum(self.used_grids)) * 10**10
+        dem_max_line = - np.ones(np.sum(used_grids)) * 10**10
+        dem_min_line = np.ones(np.sum(used_grids)) * 10**10
 
         # Now find the bounding boxes
-        for s_line, e_line in zip([0, 1], [-1, self.dem.shape[0]]):
-            for s_pix, e_pix in zip([0, 1], [-1, self.dem.shape[1]]):
-                dem_max_line = np.maximum(dem_max_line, np.ravel(self.dem_line[s_line:e_line, s_pix:e_pix])[self.used_grids])
-                dem_min_line = np.minimum(dem_min_line, np.ravel(self.dem_line[s_line:e_line, s_pix:e_pix])[self.used_grids])
+        for s_line, e_line in zip([0, 1], [-1, dem.shape[0]]):
+            for s_pix, e_pix in zip([0, 1], [-1, dem.shape[1]]):
+                dem_max_line = np.maximum(dem_max_line, np.ravel(dem_line[s_line:e_line, s_pix:e_pix])[used_grids])
+                dem_min_line = np.minimum(dem_min_line, np.ravel(dem_line[s_line:e_line, s_pix:e_pix])[used_grids])
 
-        self.used_grids[self.used_grids] = (np.floor((dem_max_line - self.lines[0]) / self.multilook[0]) - np.floor((dem_min_line - self.lines[0]) / self.multilook[0])).astype(np.int16) > 0
-        dem_max_pixel = - np.ones(np.sum(self.used_grids)) * 10**10
-        dem_min_pixel = np.ones(np.sum(self.used_grids)) * 10**10
+        used_grids[used_grids] = (np.floor((dem_max_line - lines[0]) / multilook[0]) - np.floor((dem_min_line - lines[0]) / multilook[0])).astype(np.int16) > 0
+        dem_max_pixel = - np.ones(np.sum(used_grids)) * 10**10
+        dem_min_pixel = np.ones(np.sum(used_grids)) * 10**10
 
-        for s_line, e_line in zip([0, 1], [-1, self.dem.shape[0]]):
-            for s_pix, e_pix in zip([0, 1], [-1, self.dem.shape[1]]):
-                dem_max_pixel = np.maximum(dem_max_pixel, np.ravel(self.dem_pixel[s_line:e_line, s_pix:e_pix])[self.used_grids])
-                dem_min_pixel = np.minimum(dem_min_pixel, np.ravel(self.dem_pixel[s_line:e_line, s_pix:e_pix])[self.used_grids])
+        for s_line, e_line in zip([0, 1], [-1, dem.shape[0]]):
+            for s_pix, e_pix in zip([0, 1], [-1, dem.shape[1]]):
+                dem_max_pixel = np.maximum(dem_max_pixel, np.ravel(dem_pixel[s_line:e_line, s_pix:e_pix])[used_grids])
+                dem_min_pixel = np.minimum(dem_min_pixel, np.ravel(dem_pixel[s_line:e_line, s_pix:e_pix])[used_grids])
 
-        self.used_grids[self.used_grids] = (np.floor((dem_max_pixel - self.pixels[0]) / self.multilook[1]) - np.floor((dem_min_pixel - self.pixels[0]) / self.multilook[1])).astype(np.int16) > 0
-        no_grid_cells = np.sum(self.used_grids)
+        used_grids[used_grids] = (np.floor((dem_max_pixel - pixels[0]) / multilook[1]) - np.floor((dem_min_pixel - pixels[0]) / multilook[1])).astype(np.int16) > 0
+        no_grid_cells = np.sum(used_grids)
 
-        self.dem_max_line = - np.ones(no_grid_cells) * 10**10
-        self.dem_min_line = np.ones(no_grid_cells) * 10**10
-        self.dem_max_pixel = - np.ones(no_grid_cells) * 10**10
-        self.dem_min_pixel = np.ones(no_grid_cells) * 10**10
+        dem_max_line = - np.ones(no_grid_cells) * 10**10
+        dem_min_line = np.ones(no_grid_cells) * 10**10
+        dem_max_pixel = - np.ones(no_grid_cells) * 10**10
+        dem_min_pixel = np.ones(no_grid_cells) * 10**10
 
-        for s_line, e_line in zip([0, 1], [-1, self.dem.shape[0]]):
-            for s_pix, e_pix in zip([0, 1], [-1, self.dem.shape[1]]):
-                self.dem_max_line = np.maximum(self.dem_max_line, np.ravel(self.dem_line[s_line:e_line, s_pix:e_pix])[self.used_grids])
-                self.dem_min_line = np.minimum(self.dem_min_line, np.ravel(self.dem_line[s_line:e_line, s_pix:e_pix])[self.used_grids])
-                self.dem_max_pixel = np.maximum(self.dem_max_pixel, np.ravel(self.dem_pixel[s_line:e_line, s_pix:e_pix])[self.used_grids])
-                self.dem_min_pixel = np.minimum(self.dem_min_pixel, np.ravel(self.dem_pixel[s_line:e_line, s_pix:e_pix])[self.used_grids])
+        for s_line, e_line in zip([0, 1], [-1, dem.shape[0]]):
+            for s_pix, e_pix in zip([0, 1], [-1, dem.shape[1]]):
+                dem_max_line = np.maximum(dem_max_line, np.ravel(dem_line[s_line:e_line, s_pix:e_pix])[used_grids])
+                dem_min_line = np.minimum(dem_min_line, np.ravel(dem_line[s_line:e_line, s_pix:e_pix])[used_grids])
+                dem_max_pixel = np.maximum(dem_max_pixel, np.ravel(dem_pixel[s_line:e_line, s_pix:e_pix])[used_grids])
+                dem_min_pixel = np.minimum(dem_min_pixel, np.ravel(dem_pixel[s_line:e_line, s_pix:e_pix])[used_grids])
 
         # Finally remove grid boxes which are not used for interpolation.
-        self.used_dem_grids = ((self.dem_max_line > self.lines[0] - self.multilook[0]) * (self.dem_min_line < self.lines[-1] + self.multilook[0]) *
-                      (self.dem_max_pixel > self.pixels[0] - self.multilook[1]) * (self.dem_min_pixel < self.pixels[-1] + self.multilook[1]))
+        used_dem_grids = ((dem_max_line > lines[0] - multilook[0]) * (dem_min_line < lines[-1] + multilook[0]) *
+                      (dem_max_pixel > pixels[0] - multilook[1]) * (dem_min_pixel < pixels[-1] + multilook[1]))
 
-        self.used_grids[self.used_grids] = self.used_dem_grids
-        self.used_grids = np.where(self.used_grids)[0]
-        self.dem_max_line = self.dem_max_line[self.used_dem_grids]
-        self.dem_min_line = self.dem_min_line[self.used_dem_grids]
-        self.dem_max_pixel = self.dem_max_pixel[self.used_dem_grids]
-        self.dem_min_pixel = self.dem_min_pixel[self.used_dem_grids]
+        used_grids[used_grids] = used_dem_grids
+        used_grids = np.where(used_grids)[0]
+        dem_max_line = dem_max_line[used_dem_grids]
+        dem_min_line = dem_min_line[used_dem_grids]
+        dem_max_pixel = dem_max_pixel[used_dem_grids]
+        dem_min_pixel = dem_min_pixel[used_dem_grids]
 
-    def radar_in_dem_grid(self):
+        return used_grids, [dem_min_line, dem_max_line, dem_min_pixel, dem_max_pixel]
+
+    @staticmethod
+    def radar_in_dem_grid(used_grids, grid_extends, lines, pixels, multilook, size, dem_line, dem_pixel):
         # This processing_steps links the dem grid boxes to line and pixel coordinates. It returns a sparse matrix with all the
         # pixels and lines inside the grid boxes.
 
@@ -349,17 +332,22 @@ class RadarDem(object):
         # step is a grid with the same shape as the radar grid indicating the corresponding DEM grid box and triangle
         # inside the grid box.
 
+        dem_min_line = grid_extends[0]
+        dem_max_line = grid_extends[1]
+        dem_min_pixel = grid_extends[2]
+        dem_max_pixel = grid_extends[3]
+
         # This is done in batches with the same maximum number of pixels inside, to prevent massive memory usage.
-        max_lines = (np.ceil((self.dem_max_line - self.dem_min_line) / self.multilook[0])).astype(np.int16) + 1
+        max_lines = (np.ceil((dem_max_line - dem_min_line) / multilook[0])).astype(np.int16) + 1
         m_lin = np.unique(max_lines)
 
-        self.dem_id = np.zeros(self.shape).astype(np.int32)
-        self.first_triangle = np.zeros(self.shape).astype(np.bool)
+        grid_dem_id = np.zeros(size).astype(np.int32)
+        grid_first_triangle = np.zeros(size).astype(np.bool)
 
         for l in m_lin:
 
             l_ids = np.where(max_lines == l)[0]
-            max_pixels = (np.ceil((self.dem_max_pixel[l_ids] - self.dem_min_pixel[l_ids]) / self.multilook[1])).astype(np.int16) + 1
+            max_pixels = (np.ceil((dem_max_pixel[l_ids] - dem_min_pixel[l_ids]) / multilook[1])).astype(np.int16) + 1
             m_pix = np.unique(max_pixels)
 
             for p in m_pix:
@@ -369,12 +357,12 @@ class RadarDem(object):
 
                 p_mesh, l_mesh = np.meshgrid(np.arange(int(np.floor(dem_max_num[1]))),
                                              np.arange(int(np.floor(dem_max_num[0]))))
-                dem_p = (np.ravel(np.ravel(p_mesh)[None, :] * self.multilook[1] +
-                                  np.ceil((self.dem_min_pixel[ids] - self.pixels[0]) / self.multilook[1])[:, None]
-                                  * self.multilook[1] + self.pixels[0])).astype('int32')
-                dem_l = (np.ravel((np.ravel(l_mesh)[None, :] * self.multilook[0]) +
-                                  np.ceil((self.dem_min_line[ids] - self.lines[0]) / self.multilook[0])[:, None]
-                                  * self.multilook[0] + self.lines[0])).astype('int32')
+                dem_p = (np.ravel(np.ravel(p_mesh)[None, :] * multilook[1] +
+                                  np.ceil((dem_min_pixel[ids] - pixels[0]) / multilook[1])[:, None]
+                                  * multilook[1] + pixels[0])).astype('int32')
+                dem_l = (np.ravel((np.ravel(l_mesh)[None, :] * multilook[0]) +
+                                  np.ceil((dem_min_line[ids] - lines[0]) / multilook[0])[:, None]
+                                  * multilook[0] + lines[0])).astype('int32')
 
                 # get the corresponding dem ids
                 dem_id = np.ravel(ids[:, None] * np.ones(shape=(1, len(np.ravel(p_mesh))), dtype='int32')[None, :]
@@ -382,10 +370,10 @@ class RadarDem(object):
 
                 # From here we filter all created points using a rectangular bounding box followed by a step
                 # get rid of all the points outside the bounding box
-                dem_valid = ((dem_p <= self.dem_max_pixel[dem_id]) * (dem_p >= self.dem_min_pixel[dem_id]) * # within bounding box
-                             (dem_l <= self.dem_max_line[dem_id]) * (dem_l >= self.dem_min_line[dem_id]) *   # within bounding box
-                             (self.lines[0] <= dem_l) * (dem_l <= self.lines[-1]) *            # Within image
-                             (self.pixels[0] <= dem_p) * (dem_p <= self.pixels[-1]))
+                dem_valid = ((dem_p <= dem_max_pixel[dem_id]) * (dem_p >= dem_min_pixel[dem_id]) * # within bounding box
+                             (dem_l <= dem_max_line[dem_id]) * (dem_l >= dem_min_line[dem_id]) *   # within bounding box
+                             (lines[0] <= dem_l) * (dem_l <= lines[-1]) *            # Within image
+                             (pixels[0] <= dem_p) * (dem_p <= pixels[-1]))
 
                 dem_p = dem_p[dem_valid]
                 dem_l = dem_l[dem_valid]
@@ -394,8 +382,8 @@ class RadarDem(object):
                 # Now check whether the remaining points are inside our quadrilateral
                 # This is done using a double barycentric approach.
                 # The result also gives us a weighting based on the distance of pixel in range and azimuth
-                grid_id = self.used_grids[dem_id].astype(np.int32)
-                in_gridbox, first_triangle = self.barycentric_check(self.dem_line, self.dem_pixel, grid_id, dem_l, dem_p)
+                grid_id = used_grids[dem_id].astype(np.int32)
+                in_gridbox, first_triangle = RadarDem.barycentric_check(dem_line, dem_pixel, grid_id, dem_l, dem_p)
                 dem_p = dem_p[in_gridbox]
                 dem_l = dem_l[in_gridbox]
 
@@ -404,70 +392,63 @@ class RadarDem(object):
                 # 1. In which dem grid cell does it fall
                 # 2. Is it included in the upper left of lower right part of this gridbox.
                 if len(in_gridbox) > 0:
-                    self.dem_id[((dem_l - self.lines[0]) / self.multilook[0]).astype(np.int32),
-                                ((dem_p - self.pixels[0]) / self.multilook[1]).astype(np.int32)] = grid_id[in_gridbox]
-                    self.first_triangle[((dem_l - self.lines[0]) / self.multilook[0]).astype(np.int32),
-                                        ((dem_p - self.pixels[0]) / self.multilook[1]).astype(np.int32)] = first_triangle[in_gridbox]
+                    grid_dem_id[((dem_l - lines[0]) / multilook[0]).astype(np.int32),
+                                ((dem_p - pixels[0]) / multilook[1]).astype(np.int32)] = grid_id[in_gridbox]
+                    grid_first_triangle[((dem_l - lines[0]) / multilook[0]).astype(np.int32),
+                                        ((dem_p - pixels[0]) / multilook[1]).astype(np.int32)] = first_triangle[in_gridbox]
 
-        # Finally remove the data needed to find the corresponding points in our grid.
-        self.dem_max_line = []
-        self.dem_min_line = []
-        self.dem_min_pixel = []
-        self.dem_max_pixel = []
-        self.used_grids = []
+        return grid_dem_id, grid_first_triangle
 
-    def dem_barycentric_interpolation(self):
+    @staticmethod
+    def dem_barycentric_interpolation(dem, dem_line, dem_pixel, size, first_triangle, dem_id):
         # This function interpolates all grid points based on the four surrounding points. We will use a barycentric
         # weighting technique. This method interpolates from an irregular to a regular grid.
 
-        h = np.zeros(shape=self.radar_dem.shape, dtype='float32')
-        area = np.zeros(shape=self.radar_dem.shape, dtype='float32')
+        h = np.zeros(shape=size, dtype='float32')
+        area = np.zeros(shape=size, dtype='float32')
 
         # lower triangle
-        dem_l, dem_p = np.where(self.first_triangle)
-        l_id = self.dem_id[self.first_triangle] // (self.dem_line.shape[1] - 1)
-        p_id = self.dem_id[self.first_triangle] - (l_id * (self.dem_line.shape[1] - 1))
+        dem_l, dem_p = np.where(first_triangle)
+        l_id = dem_id[first_triangle] // (dem_line.shape[1] - 1)
+        p_id = dem_id[first_triangle] - (l_id * (dem_line.shape[1] - 1))
 
         s_p = [0, 1, 1, 0]
         s_l = [0, 0, 1, 1]
 
         for c in [[3, 0, 1], [0, 1, 3], [1, 3, 0]]:  # coordinate values (ul, ur, lr, ll)
             # Calculate area of triangle
-            ax = (dem_l * (self.dem_pixel[l_id + s_l[c[0]], p_id + s_p[c[0]]] -
-                           self.dem_pixel[l_id + s_l[c[1]], p_id + s_p[c[1]]]) +
-                  (self.dem_line[l_id + s_l[c[0]], p_id + s_p[c[0]]] *
-                  (self.dem_pixel[l_id + s_l[c[1]], p_id + s_p[c[1]]] - dem_p)) +
-                  (self.dem_line[l_id + s_l[c[1]], p_id + s_p[c[1]]] *
-                  (dem_p - self.dem_pixel[l_id + s_l[c[0]], p_id + s_p[c[0]]])))
+            ax = (dem_l * (dem_pixel[l_id + s_l[c[0]], p_id + s_p[c[0]]] -
+                           dem_pixel[l_id + s_l[c[1]], p_id + s_p[c[1]]]) +
+                  (dem_line[l_id + s_l[c[0]], p_id + s_p[c[0]]] *
+                  (dem_pixel[l_id + s_l[c[1]], p_id + s_p[c[1]]] - dem_p)) +
+                  (dem_line[l_id + s_l[c[1]], p_id + s_p[c[1]]] *
+                  (dem_p - dem_pixel[l_id + s_l[c[0]], p_id + s_p[c[0]]])))
 
             # dem values are shifted to find ul,ur,lr,ll values
             area[dem_l, dem_p] += np.abs(ax)
-            h[dem_l, dem_p] += np.abs(ax) * self.dem[l_id + s_l[c[2]], p_id + s_p[c[2]]]
+            h[dem_l, dem_p] += np.abs(ax) * dem[l_id + s_l[c[2]], p_id + s_p[c[2]]]
 
         # upper triangle
-        dem_l, dem_p = np.where(~self.first_triangle)
-        l_id = self.dem_id[~self.first_triangle] // (self.dem_line.shape[1] - 1)
-        p_id = self.dem_id[~self.first_triangle] - (l_id * (self.dem_line.shape[1] - 1))
+        dem_l, dem_p = np.where(~first_triangle)
+        l_id = dem_id[~first_triangle] // (dem_line.shape[1] - 1)
+        p_id = dem_id[~first_triangle] - (l_id * (dem_line.shape[1] - 1))
 
         for c in [[1, 3, 2], [3, 2, 1], [2, 1, 3]]:  # coordinate values (ul, ur, lr, ll)
             # Calculate area of triangle
-            ax = (dem_l * (self.dem_pixel[l_id + s_l[c[0]], p_id + s_p[c[0]]] -
-                           self.dem_pixel[l_id + s_l[c[1]], p_id + s_p[c[1]]]) +
-                  (self.dem_line[l_id + s_l[c[0]], p_id + s_p[c[0]]] *
-                  (self.dem_pixel[l_id + s_l[c[1]], p_id + s_p[c[1]]] - dem_p)) +
-                  (self.dem_line[l_id + s_l[c[1]], p_id + s_p[c[1]]] *
-                  (dem_p - self.dem_pixel[l_id + s_l[c[0]], p_id + s_p[c[0]]])))
+            ax = (dem_l * (dem_pixel[l_id + s_l[c[0]], p_id + s_p[c[0]]] -
+                           dem_pixel[l_id + s_l[c[1]], p_id + s_p[c[1]]]) +
+                  (dem_line[l_id + s_l[c[0]], p_id + s_p[c[0]]] *
+                  (dem_pixel[l_id + s_l[c[1]], p_id + s_p[c[1]]] - dem_p)) +
+                  (dem_line[l_id + s_l[c[1]], p_id + s_p[c[1]]] *
+                  (dem_p - dem_pixel[l_id + s_l[c[0]], p_id + s_p[c[0]]])))
 
             # dem values are shifted to find ul,ur,lr,ll values
             area[dem_l, dem_p] += np.abs(ax)
-            h[dem_l, dem_p] += np.abs(ax) * self.dem[l_id + s_l[c[2]], p_id + s_p[c[2]]]
+            h[dem_l, dem_p] += np.abs(ax) * dem[l_id + s_l[c[2]], p_id + s_p[c[2]]]
 
-        dem_l = []
-        dem_p = []
-        l_id = []
-        p_id = []
+        radar_dem = h / area
 
-        self.radar_dem = h / area
+        return radar_dem
 
     @staticmethod
     def barycentric_check(dem_lines, dem_pixels, dem_id, dem_l, dem_p):

@@ -20,7 +20,15 @@ def sentinel_read_data(path_tiff, s_pix, s_lin, size):
 
     return dat
 
-def write_sentinel_burst(stack_folder, slice, number, pol, swath_no, date):
+def write_sentinel_burst(input):
+
+    stack_folder = input[0]
+    slice = input[1]
+    number = input[2]
+    pol = input[3]
+    swath_no = input[4]
+    date = input[5]
+
     slice_code = 'slice_' + str(number) + '_swath_' + str(swath_no) + '_' + pol
     folder_date = date[:4] + date[5:7] + date[8:]
 

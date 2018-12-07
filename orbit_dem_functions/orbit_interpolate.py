@@ -212,7 +212,7 @@ class OrbitInterpolate(ImageData):
         step_size = tot_interval / (len(self.orbit_time) - 1)
         interval_id = np.int16(np.floor((az_times - self.orbit_time[0]) / step_size))
 
-        interval_id[interval_id >= len(self.orbit_time)] = len(self.orbit_time) - 1
+        interval_id[interval_id >= len(self.orbit_time)] = len(self.orbit_time) - 2
         interval_id[interval_id < 0] = 0
 
         eq_times = az_times - self.orbit_time[interval_id]
