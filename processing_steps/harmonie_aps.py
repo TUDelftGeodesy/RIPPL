@@ -201,11 +201,11 @@ class HarmonieAps(object):
 
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat['cmaster']['radar_DEM']['radar_DEM' + coordinates.sample]['file'] = 'radar_dem' + coordinates.sample
+        input_dat['cmaster']['radar_DEM']['radar_DEM' + coordinates.sample]['file'] = 'radar_dem' + coordinates.sample + '.raw'
         input_dat['cmaster']['radar_DEM']['radar_DEM' + coordinates.sample]['coordinates'] = coordinates
         input_dat['cmaster']['radar_DEM']['radar_DEM' + coordinates.sample]['slice'] = coordinates.slice
 
-        input_dat['cmaster']['radar_DEM']['radar_DEM' + coor_in.sample]['file'] = 'radar_dem' + coor_in.sample
+        input_dat['cmaster']['radar_DEM']['radar_DEM' + coor_in.sample]['file'] = 'radar_dem' + coor_in.sample + '.raw'
         input_dat['cmaster']['radar_DEM']['radar_DEM' + coor_in.sample]['coordinates'] = coor_in
         input_dat['cmaster']['radar_DEM']['radar_DEM' + coor_in.sample]['slice'] = coor_in.slice
         input_dat['cmaster']['radar_DEM']['radar_DEM' + coor_in.sample]['coor_change'] = 'resample'

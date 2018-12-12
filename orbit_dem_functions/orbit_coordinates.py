@@ -23,25 +23,32 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         OrbitInterpolate.__init__(self, meta)
         self.fit_orbit_spline(vel=True, acc=True)
 
+        if 'readfiles' in self.processes:
+            meta_dat = 'readfiles'
+            meta_crop = 'crop'
+        elif 'coreg_readfiles' in self.processes:
+            meta_dat = 'coreg_readfiles'
+            meta_crop = 'coreg_crop'
+
         # Get main variables from the .res file
-        self.az_time = self.processes['readfiles']['First_pixel_azimuth_time (UTC)']
+        self.az_time = self.processes[meta_dat]['First_pixel_azimuth_time (UTC)']
         az_seconds = (datetime.datetime.strptime(self.az_time, '%Y-%m-%dT%H:%M:%S.%f') -
                            datetime.datetime.strptime(self.az_time[:10], '%Y-%m-%d'))
         self.az_seconds = az_seconds.seconds + az_seconds.microseconds / 1000000.0
-        self.ra_time = float(self.processes['readfiles']['Range_time_to_first_pixel (2way) (ms)']) / 1000
-        self.az_step = 1 / float(self.processes['readfiles']['Pulse_Repetition_Frequency (computed, Hz)'])
-        self.ra_step = 1 / float(self.processes['readfiles']['Range_sampling_rate (computed, MHz)']) / 1000000
+        self.ra_time = float(self.processes[meta_dat]['Range_time_to_first_pixel (2way) (ms)']) / 1000
+        self.az_step = 1 / float(self.processes[meta_dat]['Pulse_Repetition_Frequency (computed, Hz)'])
+        self.ra_step = 1 / float(self.processes[meta_dat]['Range_sampling_rate (computed, MHz)']) / 1000000
 
         self.degree2rad = np.asarray([np.pi / 180])
         self.rad2degree = np.asarray([180 / np.pi])
-        self.center_phi = float(self.processes['readfiles']['Scene_centre_latitude']) * self.degree2rad
-        self.center_lambda = float(self.processes['readfiles']['Scene_centre_longitude']) * self.degree2rad
+        self.center_phi = float(self.processes[meta_dat]['Scene_centre_latitude']) * self.degree2rad
+        self.center_lambda = float(self.processes[meta_dat]['Scene_centre_longitude']) * self.degree2rad
 
         # Read pixel coordinate information
-        self.first_line = int(self.processes['crop']['crop_first_line'])
-        self.first_pixel = int(self.processes['crop']['crop_first_pixel'])
-        lines = int(self.processes['crop']['crop_lines'])
-        pixels = int(self.processes['crop']['crop_pixels'])
+        self.first_line = int(self.processes[meta_crop]['crop_first_line'])
+        self.first_pixel = int(self.processes[meta_crop]['crop_first_pixel'])
+        lines = int(self.processes[meta_crop]['crop_lines'])
+        pixels = int(self.processes[meta_crop]['crop_pixels'])
         self.size = (lines, pixels)
 
         # Define the main variables for this function

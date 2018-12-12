@@ -10,6 +10,7 @@
 from image_data import ImageData
 from find_coordinates import FindCoordinates
 from coordinate_system import CoordinateSystem
+from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
 from collections import OrderedDict, defaultdict
 import datetime
 import numpy as np
@@ -201,6 +202,23 @@ class Concatenate(object):
         meta.images_clean_memory(step, file_type, coordinates)
 
     @staticmethod
+    def get_concat_bounding_box(min_az, min_ra, shape, slice):
+        # To get a good approximation of the final size of our image we rotate the coordinates to an approximate
+        # azimuth/range system.
+
+        orbit = OrbitCoordinates(slice)
+        orbit.ra_time = min_ra
+        orbit.az_seconds = min_az
+
+        orbit.lp_time(lines=[0, 0, shape[0], shape[0]], pixels=[0, shape[1], shape[1], 0], regular=False)
+        orbit.height = np.array([0, 0, 0, 0])
+
+        orbit.lph2xyz()
+        orbit.xyz2ell()
+
+        return orbit.lon, orbit.lat
+
+    @staticmethod
     def create_concat_meta(meta_slices):
         # This code create a new concatenated slice.
 
@@ -213,16 +231,9 @@ class Concatenate(object):
         meta.res_path = filename
         meta.folder = os.path.dirname(meta_slices[0].folder)
 
-        if len(meta_slices[0].lat_lim) == 0:
-            for slice in meta_slices:
-                slice.geometry()
-
-        lat_lim = [np.min(np.array([slice.lat_lim[0] for slice in meta_slices])),
-                   np.max(np.array([slice.lat_lim[1] for slice in meta_slices]))]
-        lon_lim = [np.min(np.array([slice.lon_lim[0] for slice in meta_slices])),
-                   np.max(np.array([slice.lon_lim[1] for slice in meta_slices]))]
-
         min_az, min_ra, shape = Concatenate.find_radar_max_extend(meta_slices)
+
+        lon_corners, lat_corners = Concatenate.get_concat_bounding_box(min_az, min_ra, shape, meta_slices[0])
 
         # Add the readfiles and orbit information
         if meta_slices[0].process_control['coreg_readfiles'] == '1':
@@ -273,14 +284,14 @@ class Concatenate(object):
             meta.processes[step_meta + 'readfiles'].pop('Burst_number_index')
 
             # Add the new coordinates. This is only an approximation using a combination of the burst lat/lon coordinates
-            meta.processes[step_meta + 'readfiles']['Scene_ul_corner_latitude'] = str(lat_lim[1])
-            meta.processes[step_meta + 'readfiles']['Scene_ur_corner_latitude'] = str(lat_lim[1])
-            meta.processes[step_meta + 'readfiles']['Scene_lr_corner_latitude'] = str(lat_lim[0])
-            meta.processes[step_meta + 'readfiles']['Scene_ll_corner_latitude'] = str(lat_lim[0])
-            meta.processes[step_meta + 'readfiles']['Scene_ul_corner_longitude'] = str(lon_lim[0])
-            meta.processes[step_meta + 'readfiles']['Scene_ur_corner_longitude'] = str(lon_lim[1])
-            meta.processes[step_meta + 'readfiles']['Scene_lr_corner_longitude'] = str(lon_lim[1])
-            meta.processes[step_meta + 'readfiles']['Scene_ll_corner_longitude'] = str(lon_lim[0])
+            meta.processes[step_meta + 'readfiles']['Scene_ul_corner_latitude'] = str(lat_corners[0])
+            meta.processes[step_meta + 'readfiles']['Scene_ur_corner_latitude'] = str(lat_corners[1])
+            meta.processes[step_meta + 'readfiles']['Scene_lr_corner_latitude'] = str(lat_corners[2])
+            meta.processes[step_meta + 'readfiles']['Scene_ll_corner_latitude'] = str(lat_corners[3])
+            meta.processes[step_meta + 'readfiles']['Scene_ul_corner_longitude'] = str(lon_corners[0])
+            meta.processes[step_meta + 'readfiles']['Scene_ur_corner_longitude'] = str(lon_corners[1])
+            meta.processes[step_meta + 'readfiles']['Scene_lr_corner_longitude'] = str(lon_corners[2])
+            meta.processes[step_meta + 'readfiles']['Scene_ll_corner_longitude'] = str(lon_corners[3])
 
             meta.processes[step_meta + 'readfiles'].pop('First_pixel (w.r.t. tiff_image)')
             meta.processes[step_meta + 'readfiles'].pop('First_line (w.r.t. tiff_image)')

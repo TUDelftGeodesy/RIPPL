@@ -84,6 +84,7 @@ class ImageMetadata(object):
             process_control = collections.OrderedDict([('coreg_readfiles', '0'), ('coreg_orbits', '0'),
                                                         ('coreg_crop', '0'), ('image_stitch', '0'),
                                                         ('interferogram', '0'),
+                                                        ('harmonie_interferogram', '0'), ('ecmwf_interferogram', '0'),
                                                         ('split_spectrum', '0'), ('ESD', '0'),
                                                         ('correl_tracking', '0'), ('coherence', '0'),
                                                         ('filtphase', '0'), ('unwrap', '0'),
@@ -102,36 +103,36 @@ class ImageMetadata(object):
 
     def geometry(self):
 
-        if self.res_type == 'single':
+        if 'readfiles' in self.process_control.keys():
             dat = ''
-        elif self.res_type == 'interferogram':
+        elif 'coreg_readfiles' in self.process_control.keys():
             dat = 'coreg_'
         else:
             return
 
-        if dat + 'readfiles' in self.process_control.keys():
-            # Maybe in some files these data does not exist...
-            try:
-                lines = int(self.processes[dat + 'crop']['crop_lines'])
-                pixels = int(self.processes[dat + 'crop']['crop_pixels'])
-                lin_min = int(self.processes[dat + 'crop']['crop_first_line'])
-                pix_min = int(self.processes[dat + 'crop']['crop_first_pixel'])
+        # Maybe in some files these data does not exist...
+        try:
+            lines = int(self.processes[dat + 'crop']['crop_lines'])
+            pixels = int(self.processes[dat + 'crop']['crop_pixels'])
+            lin_min = int(self.processes[dat + 'crop']['crop_first_line'])
+            pix_min = int(self.processes[dat + 'crop']['crop_first_pixel'])
 
-                ul = (float(self.processes[dat + 'readfiles']['Scene_ul_corner_latitude']), float(self.processes[dat + 'readfiles']['Scene_ul_corner_longitude']))
-                ll = (float(self.processes[dat + 'readfiles']['Scene_ll_corner_latitude']), float(self.processes[dat + 'readfiles']['Scene_ll_corner_longitude']))
-                lr = (float(self.processes[dat + 'readfiles']['Scene_lr_corner_latitude']), float(self.processes[dat + 'readfiles']['Scene_lr_corner_longitude']))
-                ur = (float(self.processes[dat + 'readfiles']['Scene_ur_corner_latitude']), float(self.processes[dat + 'readfiles']['Scene_ur_corner_longitude']))
+            ul = (float(self.processes[dat + 'readfiles']['Scene_ul_corner_latitude']), float(self.processes[dat + 'readfiles']['Scene_ul_corner_longitude']))
+            ll = (float(self.processes[dat + 'readfiles']['Scene_ll_corner_latitude']), float(self.processes[dat + 'readfiles']['Scene_ll_corner_longitude']))
+            lr = (float(self.processes[dat + 'readfiles']['Scene_lr_corner_latitude']), float(self.processes[dat + 'readfiles']['Scene_lr_corner_longitude']))
+            ur = (float(self.processes[dat + 'readfiles']['Scene_ur_corner_latitude']), float(self.processes[dat + 'readfiles']['Scene_ur_corner_longitude']))
 
-                self.polygon = geometry.Polygon([ul, ur, lr, ll])
-                self.point = geometry.Point(((ul[0] + ur[0] + lr[0] + ll[0]) / 4, (ul[1] + ur[1] + lr[1] + ll[1]) / 4))
-                self.lat_lim = [np.min([ul[0], ur[0], lr[0], ll[0]]), np.max([ul[0], ur[0], lr[0], ll[0]])]
-                self.lon_lim = [np.min([ul[1], ur[1], lr[1], ll[1]]), np.max([ul[1], ur[1], lr[1], ll[1]])]
-                self.size = (lines, pixels)
-                self.first_pixel = pix_min
-                self.first_line = lin_min
-            except:
-                if self.warn:
-                    print('Geometry cannot be loaded')
+            self.polygon = geometry.Polygon([ul, ur, lr, ll])
+            self.point = geometry.Point(((ul[0] + ur[0] + lr[0] + ll[0]) / 4, (ul[1] + ur[1] + lr[1] + ll[1]) / 4))
+            self.lat_lim = [np.min([ul[0], ur[0], lr[0], ll[0]]), np.max([ul[0], ur[0], lr[0], ll[0]])]
+            self.lon_lim = [np.min([ul[1], ur[1], lr[1], ll[1]]), np.max([ul[1], ur[1], lr[1], ll[1]])]
+            self.corner_coordinates = [ul, ur, lr, ll]
+            self.size = (lines, pixels)
+            self.first_pixel = pix_min
+            self.first_line = lin_min
+        except:
+            if self.warn:
+                print('Geometry cannot be loaded')
 
     def read_res_coordinates(self, step, file_types=''):
         # Read the coordinates from a .res file step. This can be used to detect existing input from for example a DEM

@@ -10,7 +10,6 @@ import datetime
 import base64
 import subprocess
 from fiona import collection
-from fastkml import kml
 from lxml import etree
 from shapely.geometry import Polygon
 
@@ -255,16 +254,6 @@ class DownloadSentinel(object):
                         self.shape_string = self.shape_string[:-1] + ')'
         
                         break
-            elif self.shape.endswith('.kml'):
-                doc = open(self.shape).read()
-                k = kml.KML()
-                k.from_string(doc)
-                shape = list(list(k.features())[0].features())[0].geometry[0].exterior.coords[:]
-                self.shape_string='('
-                shape_len = len(shape)
-                for p in shape:
-                    self.shape_string = self.shape_string + str(p[0]) + ' ' + str(p[1]) + ','
-                self.shape_string = self.shape_string[:-1] + ')'
             else:
                 print('format not recognized! Pleas creat either a .kml or .shp file.')
                 return []
@@ -343,8 +332,8 @@ class DownloadSentinelOrbit(object):
                 url = 'https://aux.sentinel1.eo.esa.int/POEORB/' + str(date.year) + '/' + str(date.month).zfill(2) + '/' + str(date.day).zfill(2) +  '/'
 
                 try:
-                    page = urllib.urlopen(url, context=gcontext)
-                    html = page.read().split('\n')
+                    page = urllib.request.urlopen(url, context=gcontext)
+                    html = page.read().decode("utf8").split('\n')
 
                     for line in html:
                         if re.search('<a .*href=.*>', line):
@@ -372,8 +361,8 @@ class DownloadSentinelOrbit(object):
                 url = 'https://aux.sentinel1.eo.esa.int/RESORB/' + str(date.year) + '/' + str(date.month).zfill(2) + '/' + str(date.day).zfill(2) + '/'
 
                 try:
-                    page = urllib.urlopen(url, context=gcontext)
-                    html = page.read().split('\n')
+                    page = urllib.request.urlopen(url, context=gcontext)
+                    html = page.read().decode("utf8").split('\n')
 
                     for line in html:
                         if re.search('<a .*href=.*>', line):
@@ -397,7 +386,10 @@ class DownloadSentinelOrbit(object):
                 # Download the orbit files
                 filename = os.path.join(self.precise_folder, orb)
                 if not os.path.exists(filename):
-                    urllib.urlretrieve(url, filename, context=gcontext)
+                    url_dat = urllib.request.urlopen(url, context=gcontext).read().decode("utf8")
+                    f = open(filename, 'w')
+                    f.write(url_dat)
+                    f.close()
                     print(filename + ' downloaded')
 
         if self.restituted_folder:
@@ -405,5 +397,8 @@ class DownloadSentinelOrbit(object):
                 # Download the orbit files
                 filename = os.path.join(self.restituted_folder, orb)
                 if not os.path.exists(filename):
-                    urllib.urlretrieve(url, filename, context=gcontext)
+                    url_dat = urllib.request.urlopen(url, context=gcontext).read().decode("utf8")
+                    f = open(filename, 'w')
+                    f.write(url_dat)
+                    f.close()
                     print(filename + ' downloaded')

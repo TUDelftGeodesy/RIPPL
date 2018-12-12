@@ -44,7 +44,19 @@ class OrbitInterpolate(ImageData):
         #   Created:    14 March 2014 by Hans van der Marel
         #   Modified:   5 Juli 2017 rewritten to python by Gert Mulder
 
-        orbits = self.processes['orbits']
+        processes = self.processes.keys()
+        if 'orbits' in processes:
+            orbits = self.processes['orbits']
+        elif 'precise_orbits' in processes:
+            orbits = self.processes['precise_orbits']
+        elif 'data_points' in processes:
+            orbits = self.processes['data_points']
+        elif 'coreg_orbits' in processes:
+            orbits = self.processes['coreg_orbits']
+        elif 'coreg_precise_orbits' in processes:
+            orbits = self.processes['coreg_precise_orbits']
+        elif 'coreg_data_points' in processes:
+            orbits = self.processes['coreg_data_points']
         t = []
         x = []
         y = []
@@ -142,6 +154,12 @@ class OrbitInterpolate(ImageData):
             orbits = self.processes['precise_orbits']
         elif 'data_points' in processes:
             orbits = self.processes['data_points']
+        elif 'coreg_orbits' in processes:
+            orbits = self.processes['coreg_orbits']
+        elif 'coreg_precise_orbits' in processes:
+            orbits = self.processes['coreg_precise_orbits']
+        elif 'coreg_data_points' in processes:
+            orbits = self.processes['coreg_data_points']
 
         t = []
         x = []

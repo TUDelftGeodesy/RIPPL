@@ -57,34 +57,55 @@ class Image(object):
         if slice_list:
             self.slice_names = list(set(self.slice_names) & set(slice_list))
         self.slice_folders = [os.path.join(folder, x) for x in self.slice_names]
-        self.slice_res_file = []
 
+        if not os.path.exists(self.res_file) or update_full_image:
+            self.load_slice_info()
+            concat = Concatenate.create_concat_meta([self.slices[key] for key in self.slices.keys()])
+            concat.write(self.res_file)
+            self.slices = dict()
+        self.res_data = ImageData(self.res_file, res_type='single')
+        self.res_data.read_data_memmap()
+
+    def load_full_info(self):
+        # Read the result file again.
+        self.res_data = ImageData(self.res_file, res_type='single')
+        self.res_data.read_data_memmap()
+
+    def load_slice_info(self):
+        # Read the information for individual slices
+        self.slice_res_file = []
         for slice_folder, slice_name in zip(self.slice_folders, self.slice_names):
             self.slice_res_file.append(os.path.join(slice_folder, 'info.res'))
             self.slices[slice_name] = ImageData(os.path.join(slice_folder, 'info.res'), 'single')
+            self.slices[slice_name].read_data_memmap()
 
         self.check_valid_burst_res()
 
-        if not os.path.exists(self.res_file) or update_full_image:
-            concat = Concatenate.create_concat_meta([self.slices[key] for key in self.slices.keys()])
-            concat.write(self.res_file)
-        self.res_data = ImageData(self.res_file, res_type='single')
-
-    def read_res(self):
-        # Read the result files again.
-
-        self.res_data = ImageData(self.res_file, res_type='single')
-        for slice_name, slice_res in zip(self.slice_names, self.slice_res_file):
-            self.slices[slice_name] = ImageData(slice_res, 'single')
+    def rem_memmap(self):
+        # Remove memmap information
+        for slice_name in self.slice_names:
+            self.slices[slice_name].clean_memmap_files()
+        self.res_data.clean_memmap_files()
 
     def __call__(self, step, settings, coors, file_type='', cmaster='', memory=500, cores=6, parallel=True):
         # This calls the pipeline function for this step
+
+        # Load all information from slices
+        self.load_slice_info()
+        self.rem_memmap()
+        if isinstance(cmaster, Image):
+            cmaster.load_slice_info()
+            cmaster.rem_memmap()
 
         # The main image is always seen as the slave image. Further ifg processing is not possible here.
         pipeline = Pipeline(memory=memory, cores=cores, slave=self, cmaster=cmaster, parallel=parallel)
         pipeline(step, settings, coors, 'slave', file_type=file_type)
 
-        self.read_res()
+        # Remove information from slices and load full image info again
+        self.slices = dict()
+        self.load_full_info()
+        if isinstance(cmaster, Image):
+            cmaster.load_full_info()
 
     def check_valid_burst_res(self):
         # This function does some basic checks whether all bursts in this image are correct.
@@ -96,7 +117,6 @@ class Image(object):
                              ('geometrical_coreg', 0),('correl_coreg', 0), ('combined_coreg', 0),('master_timing', 0),
                              ('oversample', 0),('resample', 0), ('reramp', 0),('earth_topo_phase', 0), ('filt_azi', 0),
                              ('filt_range', 0), ('harmonie_aps', 0), ('ecmwf_aps', 0), ('structure_function', 0), ('split_spectrum', 0)])
-
 
         # Check process control and expected length.
         for slice, slice_folder in zip(self.slice_names, self.slice_folders):

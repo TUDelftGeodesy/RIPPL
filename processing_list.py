@@ -31,6 +31,7 @@ from processing_steps.height_to_phase import HeightToPhase
 
 from processing_steps.ecmwf_aps import EcmwfAps
 from processing_steps.harmonie_aps import HarmonieAps
+from processing_steps.harmonie_interferogram import HarmonieInterferogram
 
 # Interferograms > interferogram creation, coherence, filters, corrections.
 from processing_steps.interfero import Interfero
@@ -82,6 +83,7 @@ class ProcessingList():
         processing['unwrap'] = Unwrap
 
         processing['harmonie_aps'] = HarmonieAps
+        processing['harmonie_interferogram'] = HarmonieInterferogram
         processing['ecmwf_aps'] = EcmwfAps
 
         processing['concatenate'] = Concatenate

@@ -43,7 +43,7 @@ class Pipeline():
         self.memory = memory
 
         # For now we just assume that every pixel can be run with 10000 pixels met MB (Likely to be higher...)
-        self.pixels = self.memory * 15000
+        self.pixels = self.memory * 6000
 
         # Cores. The number of cores we use to run our processing.
         self.cores = cores
@@ -96,6 +96,10 @@ class Pipeline():
             for slice_id in self.slice_ids:
                 self.res_dat[slice_id]['cmaster'] = self.res_dat[slice_id]['slave']
             self.res_dat['full']['cmaster'] = self.res_dat['full']['slave']
+        elif self.cmaster == self.master:
+            for slice_id in self.slice_ids:
+                self.res_dat[slice_id]['cmaster'] = self.res_dat[slice_id]['master']
+            self.res_dat['full']['cmaster'] = self.res_dat['full']['master']
 
         self.clean_memmaps()
         self.clean_memory()
@@ -839,7 +843,8 @@ class Pipeline():
                             # In both cases add the remove memory step
                             parent_id = np.where(np.array(pipeline['step']) == p_step)[0][0]
                             if isinstance(pipeline['rem_mem'][id[0]][meta_type][step], list):
-                                pipeline['rem_mem'][id[0]][meta_type][step].remove(file_type)
+                                if file_type in pipeline['rem_mem'][id[0]][meta_type][step]:
+                                    pipeline['rem_mem'][id[0]][meta_type][step].remove(file_type)
                             if meta_type in pipeline['rem_mem'][parent_id].keys():
                                 if step in pipeline['rem_mem'][parent_id][meta_type].keys():
                                     pipeline['rem_mem'][parent_id][meta_type][step].append(file_type)

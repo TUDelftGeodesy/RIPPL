@@ -4,7 +4,7 @@ import pyproj
 import datetime
 import numpy as np
 import os
-
+import osr
 
 class CoordinateSystem():
 
@@ -231,6 +231,73 @@ class CoordinateSystem():
             self.slice = res_info.processes['readfiles']['slice'] == 'True'
         else:
             self.slice = res_info.processes['coreg_readfiles']['slice'] == 'True'
+
+    def create_gdal_projection(self, res_info):
+
+        # Check if res_info is an ImageData dataset
+        if not res_info:
+            print('res_info should be an ImageData object')
+            return
+
+        # If geometry is not calculated yet.
+        if len(res_info.lat_lim) == 0:
+            res_info.geometry()
+
+        geo_transform = np.zeros(6)
+        projection = osr.SpatialReference()
+
+        if self.grid_type == 'radar_coordinates':
+            # Get the coordinates from the .res file
+            total_n_s = ((res_info.corner_coordinates[0][0] - res_info.corner_coordinates[3][0]) * 0.5 +
+                        (res_info.corner_coordinates[1][0] - res_info.corner_coordinates[2][0]) * 0.5)
+            total_w_e = ((res_info.corner_coordinates[0][1] - res_info.corner_coordinates[1][1]) * 0.5 +
+                        (res_info.corner_coordinates[3][1] - res_info.corner_coordinates[2][1]) * 0.5)
+            skew_n_s = ((res_info.corner_coordinates[0][1] - res_info.corner_coordinates[3][1]) * 0.5 +
+                        (res_info.corner_coordinates[1][1] - res_info.corner_coordinates[2][1]) * 0.5)
+            skew_w_e = ((res_info.corner_coordinates[0][0] - res_info.corner_coordinates[1][0]) * 0.5 +
+                        (res_info.corner_coordinates[3][0] - res_info.corner_coordinates[2][0]) * 0.5)
+
+            geo_transform[0] = res_info.corner_coordinates[0][1]
+            geo_transform[1] = - total_w_e / self.shape[1]
+            geo_transform[2] = - skew_n_s / self.shape[0]
+            geo_transform[3] = res_info.corner_coordinates[0][0]
+            geo_transform[4] = - skew_w_e / self.shape[1]
+            geo_transform[5] = - total_n_s / self.shape[0]
+
+            # Assume that the projection is WGS84
+            projection = osr.SpatialReference()
+            projection.ImportFromEPSG(4326)
+
+        elif self.grid_type == 'geographic':
+            # Create geo transform based on lat/lon
+            geo_transform[0] = self.lon0 + self.first_pixel * self.dlon
+            geo_transform[1] = self.dlon
+            geo_transform[2] = 0
+            geo_transform[3] = self.lat0 + self.first_line * self.dlat
+            geo_transform[4] = 0
+            geo_transform[5] = self.dlat
+
+            # Import projection from pyproj
+            projection = osr.SpatialReference()
+            projection.ImportFromProj4(self.proj)
+
+        elif self.grid_type == 'projection':
+            # Create geo transform based on projection steps
+            geo_transform[0] = self.x0 + self.first_pixel * self.dx
+            geo_transform[1] = self.dx
+            geo_transform[2] = 0
+            geo_transform[3] = self.y0 + self.first_line * self.dy
+            geo_transform[4] = 0
+            geo_transform[5] = self.dy
+
+            # Import projection from pyproj
+            projection = osr.SpatialReference()
+            projection.ImportFromProj4(self.proj)
+
+        else:
+            print('Grid type ' + self.grid_type + ' is ')
+
+        return projection, geo_transform
 
     @staticmethod
     def res_pixel_spacing(res_info, az_time=0.0, ra_time=0.0, coreg_grid=True):

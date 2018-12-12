@@ -3,6 +3,7 @@
 
 from stack import Stack
 from sentinel.sentinel_stack import SentinelStack
+from sentinel.sentinel_download import DownloadSentinelOrbit, DownloadSentinel
 from coordinate_system import CoordinateSystem
 import os
 
@@ -18,7 +19,7 @@ ecmwf_data = data_disk + 'weather_models/ecmwf_data'
 if track_no == 37:
     start_date = '2017-11-01'
     end_date = '2017-11-25'
-    master_date = '2017-11-09'
+    master_date = '2017-11-15'
 
     database_folder = data_disk + 'radar_database/sentinel-1/dsc_t037'
     shapefile = data_disk + 'GIS/shapes/netherlands/zuid_holland.shp'
@@ -30,8 +31,8 @@ if track_no == 37:
 
 # t 88
 elif track_no == 88:
-    start_date = '2017-02-10'
-    end_date = '2017-03-01'
+    start_date = '2016-01-31'
+    end_date = '2018-10-19'
     master_date = '2017-02-21'
 
     database_folder = data_disk + 'radar_database/sentinel-1/asc_t088'
@@ -55,9 +56,9 @@ srtm_folder = data_disk + 'DEM/DEM_new'
 #download_data.sentinel_check_validity(destination_folder=os.path.dirname(database_folder))
 
 # Orbits
-#precise_folder = os.path.join(orbit_folder, 'precise')
-#download_orbit = DownloadSentinelOrbit(start_date, end_date, precise_folder)
-#download_orbit.download_orbits()
+# precise_folder = os.path.join(orbit_folder, 'precise')
+# download_orbit = DownloadSentinelOrbit(start_date, end_date, precise_folder)
+# download_orbit.download_orbits()
 
 # Number of cores
 cores = 4
@@ -130,6 +131,7 @@ for multilook in [[5, 20], [10, 40], [20, 80]]:
 
     # Get the harmonie (h38) and ECMWF (ERA5) data
     #s1_stack('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_h38_aps'], parallel=parallel)
+    #s1_stack('harmonie_interferogram', settings, coordinates, 'ifg', file_type=['harmonie_interferogram'], parallel=parallel)
     #s1_stack('ecmwf_aps', settings, coordinates, 'slave', file_type=['ecmwf_ERA5_aps'], parallel=parallel)
 
 
@@ -141,3 +143,11 @@ for multilook in [[5, 20], [10, 40], [20, 80]]:
     coordinates.slice = False
 
     s1_stack('unwrap', settings, coordinates, 'ifg', file_type='unwrap', parallel=parallel)
+
+# Export outputs as geotiff
+s1_stack.export_to_geotiff('interferogram', 'interferogram_ml_10_40')
+s1_stack.export_to_geotiff('coherence', 'coherence_ml_10_40')
+s1_stack.export_to_geotiff('harmonie_interferogram', 'harmonie_interferogram_ml_10_40')
+s1_stack.export_to_geotiff('unwrap', 'unwrap_ml_10_40')
+
+

@@ -4,6 +4,9 @@ import warnings
 from collections import defaultdict
 import sys
 import inspect
+import osr
+import gdal
+from gdalconst import *
 
 from image_metadata import ImageMetadata
 from coordinate_system import CoordinateSystem
@@ -124,6 +127,64 @@ class ImageData(ImageMetadata):
         self.data_disk[step][file_type] = np.memmap(path, mode='w+',
                                                dtype=self.dtype_disk[self.data_types[step][file_type]],
                                                shape=self.data_sizes[step][file_type])
+
+    def image_create_geotiff(self, step, file_type):
+        # Save the file as an geotiff file. In case of a complex file a seperate amplitude and phase file are generated
+        # as geotiff does not support complex data.
+
+        # First check if file is available and read from disk if needed
+        if not self.check_loaded(step, loc='disk', file_type=file_type, warn=False):
+            if not self.read_data_memmap(step, file_type):
+                return []
+
+        # Get the coordinate system for this step and file type
+        coordinates = self.read_res_coordinates(step, [file_type])[0]
+
+        # Get geo transform and projection
+        projection, geo_transform = coordinates.create_gdal_projection(self)
+
+        # Create an empty geotiff with the right coordinate system
+        gtiff_type = gdal.GDT_Float32
+        driver = gdal.GetDriverByName('GTiff')
+
+        # Save data to geotiff (if complex to two geotiff files)
+        dat_type = self.data_types[step][file_type]
+        file_name = os.path.join(os.path.dirname(self.res_path), self.processes[step][file_type + '_output_file'])
+
+        if dat_type in ['complex_int', 'complex_short', 'complex_real4']:
+            print('File converted to amplitude and phase image')
+
+            if dat_type == 'complex_int':
+                complex_data = self.data_disk[step][file_type].view(np.int16).astype('float32').view(np.complex64)
+            elif dat_type == 'complex_short':
+                complex_data = self.data_disk[step][file_type].view(np.float16).astype('float32').view(np.complex64)
+            else:
+                complex_data = self.data_disk[step][file_type]
+
+            amp_data = driver.Create(file_name + '_amp.tiff', coordinates.shape[1], coordinates.shape[0], 1, gtiff_type,)
+            amp_data.SetGeoTransform(tuple(geo_transform))
+            amp_data.SetProjection(projection.ExportToWkt())
+            amp_data.GetRasterBand(1).WriteArray(np.abs(complex_data).astype(np.float32))
+            amp_data.FlushCache()  # Write to disk.
+            del amp_data
+
+            phase_data = driver.Create(file_name + '_phase.tiff', coordinates.shape[1], coordinates.shape[0], 1, gtiff_type)
+            phase_data.SetGeoTransform((tuple(geo_transform)))
+            phase_data.SetProjection(projection.ExportToWkt())
+            phase_data.GetRasterBand(1).WriteArray(np.angle(complex_data).astype(np.float32))
+            phase_data.FlushCache()  # Write to disk.
+
+        else:   # All other cases.
+            in_data = self.data_disk[step][file_type]
+
+            phase_data = driver.Create(file_name + '.tiff', coordinates.shape[1], coordinates.shape[2], 1, gtiff_type)
+            phase_data.SetGeoTransform((tuple(geo_transform)))
+            phase_data.SetProjection(projection.ExportToWkt())
+            phase_data.GetRasterBand(1).WriteArray(np.angle(in_data).astype(np.float32))
+            phase_data.FlushCache()  # Write to disk.
+
+        print('Saved ' + file_type + ' from ' + step + ' step of ' + os.path.dirname(self.res_path))
+
 
     def images_memory_to_disk(self, step, file_types='', coordinates='', coor_out=''):
 
@@ -409,8 +470,7 @@ class ImageData(ImageMetadata):
         for step, file_type in zip(steps, file_types):
             if self.check_datafile(step, file_type, exist=True, warn=False):
                 # Finally read in as a memmap file
-                dat = open(self.data_files[step][file_type], 'r+')
-                self.data_disk[step][file_type] = np.memmap(dat,
+                self.data_disk[step][file_type] = np.memmap(self.data_files[step][file_type], mode='r+',
                                                        dtype=self.dtype_disk[self.data_types[step][file_type]],
                                                        shape=self.data_sizes[step][file_type])
                 succes = True

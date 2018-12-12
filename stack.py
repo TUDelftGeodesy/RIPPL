@@ -106,8 +106,8 @@ class Stack(object):
         end = int(last_date[:4] + last_date[5:7] + last_date[8:10])
 
         dirs = next(os.walk(self.datastack_folder))[1]
-        images = sorted([os.path.join(self.datastack_folder, x) for x in dirs if len(x) == 8 and
-                         start <= int(x) <= end])
+        images = sorted([os.path.join(self.datastack_folder, x) for x in dirs if (len(x) == 8 and
+                         start <= int(x) <= end) or x == self.master_date])
         ifgs = sorted([os.path.join(self.datastack_folder, x) for x in dirs if len(x) == 17 and
                        start <= int(x[:8]) <= end and start <= int(x[9:]) <= end])
 
@@ -119,6 +119,8 @@ class Stack(object):
                 self.image_dates.append(im_dir[-8:])
 
         cmaster_image = self.images[self.master_date]
+        cmaster_image.load_full_info()
+        cmaster_image.load_slice_info()
 
         for ifgs_dir in ifgs:
             ifg_dir = os.path.join(self.datastack_folder, ifgs_dir)
@@ -178,6 +180,26 @@ class Stack(object):
 
                 self.interferograms[key](step, settings, coor, file_type, slave=slave, master=master,
                                          cmaster=self.images[self.master_date], memory=memory, cores=cores, parallel=parallel)
+
+    def export_to_geotiff(self, step, file_type, interferogram=True, slice=False):
+        # Export files as geotiff for full stack.
+
+        if interferogram:
+            for im_key in list(self.interferograms.keys()):
+
+                if slice:
+                    for slice_key in list(self.interferograms[im_key].slices.keys()):
+                        self.interferograms[im_key].slices[slice_key].image_create_geotiff(step, file_type)
+                else:
+                    self.interferograms[im_key].res_data.image_create_geotiff(step, file_type)
+        else:
+            for im_key in list(self.images.keys()):
+
+                if slice:
+                    for slice_key in list(self.images[im_key].slices.keys()):
+                        self.images[im_key].slices[slice_key].image_create_geotiff(step, file_type)
+                else:
+                    self.images[im_key].res_data.image_create_geotiff(step, file_type)
 
     def add_master_res_info(self):
         # This function adds the .res information specific for the master image. For this image both resampline and the

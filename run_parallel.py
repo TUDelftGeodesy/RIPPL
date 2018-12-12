@@ -3,6 +3,7 @@ import os
 import six
 import numpy as np
 from image_data import ImageData
+import gc
 
 
 def run_parallel(dat):
@@ -80,9 +81,12 @@ def run_parallel(dat):
             dat['proc_var'].pop(0)
             dat['proc_var_name'].pop(0)
 
+            gc.collect()
+
             # If
             if not succes:
                 break
+
 
         if dat['save']:
             var = dat['save_var'][0]
@@ -119,6 +123,7 @@ def run_parallel(dat):
             for im_type in list(dat['res_dat'][im].keys()):
                 if isinstance(dat['res_dat'][im][im_type], ImageData):
                     dat['res_dat'][im][im_type].clean_memmap_files()
+
 
     if succes:
         return dat['res_dat']

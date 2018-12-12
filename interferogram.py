@@ -3,10 +3,8 @@ This function is used to create interferograms
 '''
 
 import os
-from image_metadata import ImageMetadata
 from image_data import ImageData
 from image import Image
-from processing_steps.unwrap import Unwrap
 from pipeline import Pipeline
 import copy
 
@@ -50,6 +48,7 @@ class Interferogram(object):
             print('resfile of interferogram cannot be found and either slave/master/coreg master data is missing.')
 
         self.res_data = ImageData(self.res_file, res_type='interferogram')
+        self.res_data.read_data_memmap()
 
         slice_folders = next(os.walk(self.folder))[1]
         self.slice_names = sorted([x for x in slice_folders if len(x) == 20])
@@ -70,12 +69,25 @@ class Interferogram(object):
         # Add the master and slave image. We use this image to reference other images to. If these images are missing
         # making interferograms is not possible.
         self.master = master
+        self.cmaster = cmaster
         self.slave = slave
 
         # Create the list of burst of this image and corresponding ifgs.
         self.slices = dict()
         self.slice_folders = [os.path.join(folder, x) for x in self.slice_names]
         self.slice_res_file = []
+
+    def load_full_info(self):
+        # Read the result file again.
+        self.res_data = ImageData(self.res_file, res_type='single')
+        self.res_data.read_data_memmap()
+
+    def load_slice_info(self):
+        # Load the information about the bursts (We do not load that information by default as it causes to much data in
+        # memory for large stacks.
+
+        if isinstance(self.cmaster, Image):
+            self.cmaster.load_slice_info()
 
         for slice_folder, slice_name in zip(self.slice_folders, self.slice_names):
             res_path = os.path.join(slice_folder, 'info.res')
@@ -85,20 +97,22 @@ class Interferogram(object):
             else:
                 self.slices[slice_name] = ImageData('', 'interferogram')
                 self.slices[slice_name].image_add_processing_step('coreg_readfiles', copy.copy(
-                    cmaster.slices[slice_name].processes['readfiles']))
+                    self.cmaster.slices[slice_name].processes['readfiles']))
                 self.slices[slice_name].image_add_processing_step('coreg_orbits', copy.copy(
-                    cmaster.slices[slice_name].processes['orbits']))
+                    self.cmaster.slices[slice_name].processes['orbits']))
                 self.slices[slice_name].image_add_processing_step('coreg_crop', copy.copy(
-                    cmaster.slices[slice_name].processes['crop']))
+                    self.cmaster.slices[slice_name].processes['crop']))
                 self.slices[slice_name].geometry()
                 self.slices[slice_name].res_path = res_path
                 self.slices[slice_name].write(res_path)
 
-    def read_res(self):
-        # Read the result files again.
-        self.res_data = ImageData(self.res_file, res_type='interferogram')
-        for slice_name, slice_res in zip(self.slice_names, self.slice_res_file):
-            self.slices[slice_name] = ImageData(slice_res, 'interferogram')
+            self.slices[slice_name].read_data_memmap()
+
+    def rem_memmap(self):
+        # Remove memmap information
+        for slice_name in self.slice_names:
+            self.slices[slice_name].clean_memmap_files()
+        self.res_data.clean_memmap_files()
 
     def __call__(self, step, settings, coors, file_type='', slave='', cmaster='', master='', memory=500, cores=6,
                  parallel=True):
@@ -108,17 +122,34 @@ class Interferogram(object):
         if slave == '':
             slave = self.slave
         if master == '':
-            slave = self.master
+            master = self.master
+
+        # Load all information from slices
+        self.load_slice_info()
+        self.rem_memmap()
+        if isinstance(master, Image):
+            master.load_slice_info()
+            master.rem_memmap()
+        if isinstance(slave, Image):
+            slave.load_slice_info()
+            slave.rem_memmap()
+        if isinstance(cmaster, Image):
+            cmaster.load_slice_info()
+            cmaster.rem_memmap()
 
         # The main image is always seen as the slave image. Further ifg processing is not possible here.
         pipeline = Pipeline(memory=memory, cores=cores, slave=slave, master=master, cmaster=cmaster, ifg=self, parallel=parallel)
         pipeline(step, settings, coors, 'ifg', file_type=file_type)
 
-        self.read_res()
-
-    def unwrap(self, multilook='', offset=''):
-        # Applies the unwrapping for the full interferogram.
-        # Load the master and slave image
-
-        unwrap = Unwrap(self, step='interferogram', offset=offset, multilook=multilook)
-        unwrap()
+        # Remove information from slices and load full image info again
+        self.slices = dict()
+        self.load_full_info()
+        if isinstance(cmaster, Image):
+            cmaster.load_slice_info()
+            cmaster.load_full_info()
+        if isinstance(master, Image):
+            master.slices = dict()
+            master.load_full_info()
+        if isinstance(slave, Image):
+            slave.slices = dict()
+            slave.load_full_info()

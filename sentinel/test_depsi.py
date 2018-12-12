@@ -17,14 +17,14 @@ harmonie_data = data_disk + 'weather_models/harmonie_data'
 ecmwf_data = data_disk + 'weather_models/ecmwf_data'
 
 # t 37
-start_date = '2016-01-01'
-end_date = '2018-10-30'
+start_date = '2017-11-01'
+end_date = '2017-11-20'
 master_date = '2017-11-09'
 
 database_folder = data_disk + 'radar_database/sentinel-1/dsc_t037'
 shapefile = data_disk + 'GIS/shapes/groningen/nam_stochastics_project/nam_stochastics_project.shp'
 orbit_folder = data_disk + 'orbits/sentinel-1'
-stack_folder = datastack_disk + 'radar_datastacks/sentinel-1/dsc_t037_depsi_groningen'
+stack_folder = datastack_disk + 'radar_datastacks/sentinel-1/depsi_groningen_t037'
 polarisation = 'VV'
 mode = 'IW'
 product_type = 'SLC'
@@ -87,6 +87,8 @@ self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['el
 coordinates = CoordinateSystem()
 coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
 coordinates.slice = False
+
+self('radar_DEM', settings, coordinates, 'cmaster', file_type='radar_DEM', parallel=parallel)
 # Run till the earth_topo_phase step.
 self(['earth_topo_phase', 'height_to_phase'], settings, coordinates, 'slave', file_type=[['earth_topo_phase'], ['height_to_phase']], parallel=parallel)
 # Get the image orientation
