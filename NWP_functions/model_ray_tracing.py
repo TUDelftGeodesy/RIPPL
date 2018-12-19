@@ -3,6 +3,7 @@ import numpy as np
 
 from NWP_functions.massive_spline import MassiveSpline
 from NWP_functions.resample import Resample
+import copy
 
 class ModelRayTracing(object):
 
@@ -13,6 +14,7 @@ class ModelRayTracing(object):
         self.lev = []
         self.dist_steps = ''
         self.step_size = ''
+        self.pix_coor = []
 
         # Initialize utilized variables
         self.R = 6371000.0
@@ -105,31 +107,52 @@ class ModelRayTracing(object):
 
         # Calc steps assuming swath with of 250 km and 150 km atmosphere thickness
         self.step_size = d_lat / 4.0 / self.degree2rad * 111100       # split every cell in 4 steps (can be changed if needed...)
-        atmo_thickness = 100000
-        swath_width = 250000
-        self.dist_steps = int(np.ceil((atmo_thickness + swath_width) / self.step_size))
+        atmo_thickness = 120000
+        self.dist_steps = int(np.ceil((atmo_thickness) / self.step_size))
 
         # For calculations of cross sections we only use the first rows of all coordinates. Other points are part
         # of the generated slices.
-        slice_lat = self.lat[:, -1]
-        slice_lon = self.lon[:, -1]
-        slice_heading = self.azimuth_angle[:, -1]
+        slice_heading = self.azimuth_angle[:, 0]
 
         # Calculate the new coordinate using heading and distance
-        distances = np.arange(-1, self.dist_steps) * self.step_size / self.R
+        distances = np.arange(0, self.dist_steps) * self.step_size / self.R
 
-        self.slice_lat = np.arcsin(np.sin(slice_lat)[:, None] * np.cos(distances)[None, :] + np.cos(slice_lat)[:, None]
-                                   * np.sin(distances)[None, :] * np.cos(slice_heading)[:, None])
-        self.slice_lon = slice_lon[:, None] + np.arctan2(
-            np.sin(slice_heading)[:, None] * np.sin(distances)[None, :] * np.cos(slice_lat)[:, None],
-            np.cos(distances)[None, :] - np.sin(slice_lat)[:, None] * np.sin(self.slice_lat))
+        slice_lat = np.zeros([self.lat.shape[0], self.lat.shape[1] + self.dist_steps])
+        slice_lon = np.zeros([self.lat.shape[0], self.lat.shape[1] + self.dist_steps])
+        slice_lat[:, :self.lat.shape[1]] = np.flip(self.lat, axis=1)
+        slice_lon[:, :self.lon.shape[1]] = np.flip(self.lon, axis=1)
+
+        slice_lat[:, self.lat.shape[1]:] = np.arcsin(np.sin(self.lat[:, 0])[:, None] * np.cos(distances)[None, :] +
+                                                           np.cos(self.lat[:, 0])[:, None] * np.sin(distances)[None, :] *
+                                                           np.cos(slice_heading)[:, None])
+        slice_lon[:, self.lat.shape[1]:] = self.lon[:, 0][:, None] + np.arctan2(
+            np.sin(slice_heading)[:, None] * np.sin(distances)[None, :] * np.cos(self.lat[:, 0])[:, None],
+            np.cos(distances)[None, :] - np.sin(self.lat[:, 0])[:, None] * np.sin(slice_lat[:, :-self.lat.shape[1]]))
+
+        R = np.asarray([6371000])
+        a = (np.sin((slice_lat - slice_lat[:, 0][:, None]) / 2) ** 2 + np.cos(slice_lat[:, 0][:, None])
+             * np.cos(slice_lat) * np.sin((slice_lon - slice_lon[:, 0][:, None]) / 2) ** 2)
+        c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+        d = np.asarray(R * c)
+
+        max_coor = int(np.min(d[:, -1]) / self.step_size)
+        step_dist = range(max_coor + 1) * self.step_size
+
+        self.pix_coor = np.flip(d[:, :self.lat.shape[1]] / self.step_size, axis=1)
+
+        self.slice_lat = np.zeros([self.lat.shape[0], max_coor + 1])
+        self.slice_lon = np.zeros([self.lat.shape[0], max_coor + 1])
+
+        for i in range(self.slice_lat.shape[0]):
+            self.slice_lat[i, :] = np.interp(step_dist, d[i, :], slice_lat[i, :])
+            self.slice_lon[i, :] = np.interp(step_dist, d[i, :], slice_lon[i, :])
 
         # Get the ids in the old grid.
-        lat_id = (model_lat[-1] - self.slice_lat) // d_lat
-        lon_id = (self.slice_lon - model_lon[0]) // d_lon
+        lat_id = (self.slice_lat - model_lat[0]) / d_lat
+        lon_id = (self.slice_lon - model_lon[0]) / d_lon
 
-        mat_size = (self.lev, no, self.dist_steps + 1)
-        h_size = (self.lev + 1, no, self.dist_steps + 1)
+        mat_size = (self.lev, no, self.slice_lat.shape[1])
+        h_size = (self.lev + 1, no, self.slice_lat.shape[1])
 
         for t in self.t:
             self.slice_heights[t] = np.zeros(h_size)
@@ -183,7 +206,7 @@ class ModelRayTracing(object):
             print('Calculate delay for time ' + t)
 
             # Convert heights and distances to resolution of pixels on the ground
-            iter_coor = d / self.step_size
+            iter_coor = copy.copy(self.pix_coor)
             heights = self.slice_heights[t] / self.step_size
             coor_rem = np.ravel(iter_coor - np.floor(iter_coor))
             h_layer = heights[-1, :, :]

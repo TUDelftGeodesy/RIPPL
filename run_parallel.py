@@ -87,7 +87,6 @@ def run_parallel(dat):
             if not succes:
                 break
 
-
         if dat['save']:
             var = dat['save_var'][0]
             var_names = dat['save_var_name'][0]
@@ -123,7 +122,6 @@ def run_parallel(dat):
             for im_type in list(dat['res_dat'][im].keys()):
                 if isinstance(dat['res_dat'][im][im_type], ImageData):
                     dat['res_dat'][im][im_type].clean_memmap_files()
-
 
     if succes:
         return dat['res_dat']

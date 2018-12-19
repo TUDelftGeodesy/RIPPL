@@ -184,6 +184,11 @@ class Stack(object):
     def export_to_geotiff(self, step, file_type, interferogram=True, slice=False):
         # Export files as geotiff for full stack.
 
+        if isinstance(step, str):
+            step = [step]
+        if isinstance(file_type, str):
+            file_type = [file_type]
+
         if interferogram:
             for im_key in list(self.interferograms.keys()):
 

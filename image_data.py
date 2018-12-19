@@ -7,6 +7,7 @@ import inspect
 import osr
 import gdal
 from gdalconst import *
+import copy
 
 from image_metadata import ImageMetadata
 from coordinate_system import CoordinateSystem
@@ -128,17 +129,26 @@ class ImageData(ImageMetadata):
                                                dtype=self.dtype_disk[self.data_types[step][file_type]],
                                                shape=self.data_sizes[step][file_type])
 
-    def image_create_geotiff(self, step, file_type):
+    def image_create_geotiff(self, steps, file_types, combined=True):
         # Save the file as an geotiff file. In case of a complex file a seperate amplitude and phase file are generated
         # as geotiff does not support complex data.
 
-        # First check if file is available and read from disk if needed
-        if not self.check_loaded(step, loc='disk', file_type=file_type, warn=False):
-            if not self.read_data_memmap(step, file_type):
-                return []
+        coordinates = []
 
-        # Get the coordinate system for this step and file type
-        coordinates = self.read_res_coordinates(step, [file_type])[0]
+        # First check if file is available and read from disk if needed
+        for file_type, step in zip(file_types, steps):
+            if not self.check_loaded(step, loc='disk', file_type=file_type, warn=False):
+                if not self.read_data_memmap(step, file_type):
+                    return []
+
+            # Get the coordinate system for this step and file type
+            coor = self.read_res_coordinates(step, [file_type])[0]
+
+            if not coordinates:
+                coordinates = copy.deepcopy(coor)
+
+            if coor.sample != coordinates.sample:
+                print('Coordinate system of different images should be the same.')
 
         # Get geo transform and projection
         projection, geo_transform = coordinates.create_gdal_projection(self)
@@ -148,42 +158,73 @@ class ImageData(ImageMetadata):
         driver = gdal.GetDriverByName('GTiff')
 
         # Save data to geotiff (if complex to two geotiff files)
-        dat_type = self.data_types[step][file_type]
-        file_name = os.path.join(os.path.dirname(self.res_path), self.processes[step][file_type + '_output_file'])
 
-        if dat_type in ['complex_int', 'complex_short', 'complex_real4']:
-            print('File converted to amplitude and phase image')
+        file_name = os.path.join(os.path.dirname(self.res_path), self.processes[steps[0]][file_types[0] + '_output_file'])
 
-            if dat_type == 'complex_int':
-                complex_data = self.data_disk[step][file_type].view(np.int16).astype('float32').view(np.complex64)
-            elif dat_type == 'complex_short':
-                complex_data = self.data_disk[step][file_type].view(np.float16).astype('float32').view(np.complex64)
-            else:
-                complex_data = self.data_disk[step][file_type]
+        if combined:
+            n_layer = len(steps)
+            for file_type, step in zip(file_types, steps):
+                if self.data_types[step][file_type] in ['complex_int', 'complex_short', 'complex_real4']:
+                    n_layer += 1
 
-            amp_data = driver.Create(file_name + '_amp.tiff', coordinates.shape[1], coordinates.shape[0], 1, gtiff_type,)
+            amp_data = driver.Create(file_name + '.tiff', coordinates.shape[1], coordinates.shape[0], n_layer,
+                                     gtiff_type, )
             amp_data.SetGeoTransform(tuple(geo_transform))
             amp_data.SetProjection(projection.ExportToWkt())
-            amp_data.GetRasterBand(1).WriteArray(np.abs(complex_data).astype(np.float32))
-            amp_data.FlushCache()  # Write to disk.
-            del amp_data
+            n = 1
 
-            phase_data = driver.Create(file_name + '_phase.tiff', coordinates.shape[1], coordinates.shape[0], 1, gtiff_type)
-            phase_data.SetGeoTransform((tuple(geo_transform)))
-            phase_data.SetProjection(projection.ExportToWkt())
-            phase_data.GetRasterBand(1).WriteArray(np.angle(complex_data).astype(np.float32))
-            phase_data.FlushCache()  # Write to disk.
+        for file_type, step in zip(file_types, steps):
+            dat_type = self.data_types[step][file_type]
 
-        else:   # All other cases.
-            in_data = self.data_disk[step][file_type]
+            if dat_type in ['complex_int', 'complex_short', 'complex_real4']:
+                print('File converted to amplitude and phase image')
 
-            phase_data = driver.Create(file_name + '.tiff', coordinates.shape[1], coordinates.shape[2], 1, gtiff_type)
-            phase_data.SetGeoTransform((tuple(geo_transform)))
-            phase_data.SetProjection(projection.ExportToWkt())
-            phase_data.GetRasterBand(1).WriteArray(np.angle(in_data).astype(np.float32))
-            phase_data.FlushCache()  # Write to disk.
+                if dat_type == 'complex_int':
+                    complex_data = self.data_disk[step][file_type].view(np.int16).astype('float32').view(np.complex64)
+                elif dat_type == 'complex_short':
+                    complex_data = self.data_disk[step][file_type].view(np.float16).astype('float32').view(np.complex64)
+                else:
+                    complex_data = self.data_disk[step][file_type]
 
-        print('Saved ' + file_type + ' from ' + step + ' step of ' + os.path.dirname(self.res_path))
+                if not combined:
+                    amp_data = driver.Create(file_name + '_amp.tiff', coordinates.shape[1], coordinates.shape[0], 1, gtiff_type,)
+                    amp_data.SetGeoTransform(tuple(geo_transform))
+                    amp_data.SetProjection(projection.ExportToWkt())
+                    amp_data.GetRasterBand(1).WriteArray(np.abs(complex_data).astype(np.float32))
+                    amp_data.FlushCache()  # Write to disk.
+                    del amp_data
+                else:
+                    amp_data.GetRasterBand(n).WriteArray(np.abs(complex_data).astype(np.float32))
+                    amp_data.FlushCache()  # Write to disk.
+                    n += 1
+
+                if not combined:
+                    amp_data = driver.Create(file_name + '_phase.tiff', coordinates.shape[1], coordinates.shape[0], 1, gtiff_type,)
+                    amp_data.SetGeoTransform(tuple(geo_transform))
+                    amp_data.SetProjection(projection.ExportToWkt())
+                    amp_data.GetRasterBand(1).WriteArray(np.angle(complex_data).astype(np.float32))
+                    amp_data.FlushCache()  # Write to disk.
+                    del amp_data
+                else:
+                    amp_data.GetRasterBand(n).WriteArray(np.angle(complex_data).astype(np.float32))
+                    amp_data.FlushCache()  # Write to disk.
+                    n += 1
+
+            else:   # All other cases.
+                in_data = self.data_disk[step][file_type]
+
+                if not combined:
+                    phase_data = driver.Create(file_name + '.tiff', coordinates.shape[1], coordinates.shape[0], 1, gtiff_type)
+                    phase_data.SetGeoTransform((tuple(geo_transform)))
+                    phase_data.SetProjection(projection.ExportToWkt())
+                    phase_data.GetRasterBand(1).WriteArray(in_data.astype(np.float32))
+                    phase_data.FlushCache()  # Write to disk.
+                else:
+                    amp_data.GetRasterBand(n).WriteArray(np.abs(in_data).astype(np.float32))
+                    amp_data.FlushCache()  # Write to disk.
+                    n += 1
+
+        print('Saved ' + file_types[0] + ' from ' + steps[0] + ' step of ' + os.path.dirname(self.res_path))
 
 
     def images_memory_to_disk(self, step, file_types='', coordinates='', coor_out=''):

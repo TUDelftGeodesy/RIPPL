@@ -1373,19 +1373,17 @@ class Pipeline():
 
                 # Update the .res files of this image
                 if res_dat == False:
-                    print('Encountered error in processing. Aborting..')
-                    sys.exit()
-
-                for key in res_dat.keys():
-                    for meta_type in res_dat[key].keys():
-                        self.res_dat[key][meta_type] = res_dat[key][meta_type]
+                    print('Encountered error in processing. Skipping this .res file.')
+                    # sys.exit()
+                else:
+                    for key in res_dat.keys():
+                        for meta_type in res_dat[key].keys():
+                            self.res_dat[key][meta_type] = res_dat[key][meta_type]
 
         elif self.parallel:
             self.pool = Pool(self.cores, maxtasksperchild=1)
 
-            res_dats = self.pool.map(run_parallel, parallel_package)
-
-            for res_dat in res_dats:
+            for res_dat in self.pool.imap_unordered(run_parallel, parallel_package):
                 # Update the .res files of this image
                 if res_dat == False:
                     print('Encountered error in processing. Aborting..')

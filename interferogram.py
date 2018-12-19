@@ -47,8 +47,7 @@ class Interferogram(object):
         elif not os.path.exists(self.res_file):
             print('resfile of interferogram cannot be found and either slave/master/coreg master data is missing.')
 
-        self.res_data = ImageData(self.res_file, res_type='interferogram')
-        self.res_data.read_data_memmap()
+        self.load_full_memmap()
 
         slice_folders = next(os.walk(self.folder))[1]
         self.slice_names = sorted([x for x in slice_folders if len(x) == 20])
@@ -80,6 +79,10 @@ class Interferogram(object):
     def load_full_info(self):
         # Read the result file again.
         self.res_data = ImageData(self.res_file, res_type='single')
+
+    def load_full_memmap(self):
+        # Read the result file again.
+        self.res_data = ImageData(self.res_file, res_type='single')
         self.res_data.read_data_memmap()
 
     def load_slice_info(self):
@@ -106,6 +109,12 @@ class Interferogram(object):
                 self.slices[slice_name].res_path = res_path
                 self.slices[slice_name].write(res_path)
 
+    def load_slice_memmap(self):
+        # Load the information about the bursts (We do not load that information by default as it causes to much data in
+        # memory for large stacks.
+
+        self.load_slice_info()
+        for slice_name in self.slice_names:
             self.slices[slice_name].read_data_memmap()
 
     def rem_memmap(self):
@@ -146,10 +155,10 @@ class Interferogram(object):
         self.load_full_info()
         if isinstance(cmaster, Image):
             cmaster.load_slice_info()
-            cmaster.load_full_info()
+            cmaster.load_full_memmap()
         if isinstance(master, Image):
             master.slices = dict()
-            master.load_full_info()
+            master.load_full_memmap()
         if isinstance(slave, Image):
             slave.slices = dict()
-            slave.load_full_info()
+            slave.load_full_memmap()

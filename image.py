@@ -63,10 +63,13 @@ class Image(object):
             concat = Concatenate.create_concat_meta([self.slices[key] for key in self.slices.keys()])
             concat.write(self.res_file)
             self.slices = dict()
-        self.res_data = ImageData(self.res_file, res_type='single')
-        self.res_data.read_data_memmap()
+        self.load_full_memmap()
 
     def load_full_info(self):
+        # Read the result file again.
+        self.res_data = ImageData(self.res_file, res_type='single')
+
+    def load_full_memmap(self):
         # Read the result file again.
         self.res_data = ImageData(self.res_file, res_type='single')
         self.res_data.read_data_memmap()
@@ -77,9 +80,15 @@ class Image(object):
         for slice_folder, slice_name in zip(self.slice_folders, self.slice_names):
             self.slice_res_file.append(os.path.join(slice_folder, 'info.res'))
             self.slices[slice_name] = ImageData(os.path.join(slice_folder, 'info.res'), 'single')
-            self.slices[slice_name].read_data_memmap()
+        # self.check_valid_burst_res()
 
-        self.check_valid_burst_res()
+    def load_slice_memmap(self):
+        # Read slices including memmap files
+        self.slice_res_file = []
+        for slice_folder, slice_name in zip(self.slice_folders, self.slice_names):
+            self.slice_res_file.append(os.path.join(slice_folder, 'info.res'))
+            self.slices[slice_name] = ImageData(os.path.join(slice_folder, 'info.res'), 'single')
+            self.slices[slice_name].read_data_memmap()
 
     def rem_memmap(self):
         # Remove memmap information
@@ -103,9 +112,9 @@ class Image(object):
 
         # Remove information from slices and load full image info again
         self.slices = dict()
-        self.load_full_info()
+        self.load_full_memmap()
         if isinstance(cmaster, Image):
-            cmaster.load_full_info()
+            cmaster.load_full_memmap()
 
     def check_valid_burst_res(self):
         # This function does some basic checks whether all bursts in this image are correct.
