@@ -6,13 +6,14 @@ from shapely import geometry
 import numpy as np
 from coordinate_system import CoordinateSystem
 from six import string_types
+import shutil
 
 
 class ImageMetadata(object):
     # This class hold metadata of a doris datafile and processing chain and is capable of reading from and writing to a
     # .res file used by the doris software.
 
-    def __init__(self, filename='', res_type='', warn=False):
+    def __init__(self, filename, res_type='single', warn=False, overwrite=False):
         # Initialize variables
 
         # Check whether method to read months is set to us
@@ -20,8 +21,6 @@ class ImageMetadata(object):
             locale.setlocale(locale.LC_ALL, 'en_US.utf8')
 
         # Filename of resfile and type (single, interferogram)
-        self.res_path = []
-        self.res_type = ''
         self.warn = warn
 
         # Processes, process_control and header of resfile
@@ -46,19 +45,22 @@ class ImageMetadata(object):
         #####################################################
 
         # Create a ResData object (single/interferogram)
-        if res_type not in ['single','interferogram'] and not filename:
+        if res_type not in ['single', 'interferogram'] and not filename:
             warnings.warn('Define if results data is slave, master or interferogram')
             return
         else:
             self.res_type = res_type
-        if filename:
-            if not os.path.exists(filename):
+
+        self.overwrite = overwrite
+        self.res_path = filename
+        self.folder = os.path.dirname(filename)
+        if self.res_path and not overwrite:
+            if not os.path.exists(self.res_path):
                 if warn:
                     warnings.warn('This filename does not exist: ' + filename)
             else:
-                self.res_path = filename
                 self.res_read()
-        else:
+        if len(list(self.process_control.keys())) == 0:
             self.process_control = ImageMetadata.get_process_control(res_type)
 
     @staticmethod
@@ -385,13 +387,19 @@ class ImageMetadata(object):
         elif not new_filename:
             new_filename = self.res_path
         if not self.process_control or not self.processes and warn:
-            warnings.warn('Every result file needs at least a process control and one process to make any sense: ' + str(new_filename))
+            print('Every result file needs at least a process control and one process to make any sense: ' + str(new_filename))
 
         # Open file and write header, process control and processes
         self.res_path = new_filename
         if not os.path.exists(os.path.dirname(new_filename)):
             os.makedirs(os.path.dirname(new_filename))
-        f = open(new_filename,"w")
+
+        if os.path.exists(new_filename):
+            overwrite = True
+            f = open(new_filename + '_new', "w")
+        else:
+            overwrite = False
+            f = open(new_filename,"w")
 
         # Write the header:
         if self.header:
@@ -414,13 +422,13 @@ class ImageMetadata(object):
         # Then loop through all the processes
         for process in [p for p in self.processes.keys()]:
             # First check for a timestamp and add it if needed.
-            if self.process_timestamp[process]:
-                for i in np.arange(2):
-                    f.write('\n')
-                f.write('   *====================================================================* \n')
-                for key in self.process_timestamp[process].keys():
-                    f.write(self.process_timestamp[process][key])
-                f.write('   *--------------------------------------------------------------------* \n')
+            # if self.process_timestamp[process]:
+            #    for i in np.arange(2):
+            #    f.write('\n')
+            #    f.write('   *====================================================================* \n')
+            #    for key in self.process_timestamp[process].keys():
+            #        f.write(self.process_timestamp[process][key])
+            #    f.write('   *--------------------------------------------------------------------* \n')
 
             # Then write the process itself
             if process == 'coarse_orbits':
@@ -455,6 +463,11 @@ class ImageMetadata(object):
             f.write('* End_' + process + ':_NORMAL\n')
             f.write('******************************************************************* \n')
         f.close()
+
+        # To prevent issues when aborting process during writing away of .res file.
+        if overwrite:
+            os.remove(new_filename)
+            shutil.move(new_filename + '_new', new_filename)
 
         # Read the locations in the new file
         self.process_reader()

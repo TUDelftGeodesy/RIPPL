@@ -216,7 +216,7 @@ class SentinelStack(SentinelDatabase, Stack):
             if known_ids == 0:
                 id = np.argmin(np.array(self.master_slice_seconds))
                 ref_time = self.master_slice_seconds[id]
-                ref_swath = self.slice_swath_no[id]
+                ref_swath = self.master_slice_swath_no[id]
                 ref_num = 500
             else:
                 ref_swath = self.master_slice_swath_no[0]

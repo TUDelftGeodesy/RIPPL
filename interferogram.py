@@ -38,11 +38,11 @@ class Interferogram(object):
 
             # Create main .res file
             self.res_file = os.path.join(self.folder, 'info.res')
-            new_res = ImageData('', 'interferogram')
+            new_res = ImageData(self.res_file, 'interferogram')
             new_res.image_add_processing_step('coreg_readfiles', copy.copy(cmaster.res_data.processes['readfiles']))
             new_res.image_add_processing_step('coreg_orbits', copy.copy(cmaster.res_data.processes['orbits']))
-            new_res.image_add_processing_step('coreg_crop',copy.copy(cmaster.res_data.processes['crop']))
-            new_res.write(self.res_file, warn=False)
+            new_res.image_add_processing_step('coreg_crop', copy.copy(cmaster.res_data.processes['crop']))
+            new_res.write(warn=False)
             new_res = []
         elif not os.path.exists(self.res_file):
             print('resfile of interferogram cannot be found and either slave/master/coreg master data is missing.')
@@ -78,11 +78,11 @@ class Interferogram(object):
 
     def load_full_info(self):
         # Read the result file again.
-        self.res_data = ImageData(self.res_file, res_type='single')
+        self.res_data = ImageData(self.res_file, res_type='interferogram')
 
     def load_full_memmap(self):
         # Read the result file again.
-        self.res_data = ImageData(self.res_file, res_type='single')
+        self.res_data = ImageData(self.res_file, res_type='interferogram')
         self.res_data.read_data_memmap()
 
     def load_slice_info(self):
@@ -98,7 +98,7 @@ class Interferogram(object):
             if os.path.exists(res_path):
                 self.slices[slice_name] = ImageData(res_path, 'interferogram')
             else:
-                self.slices[slice_name] = ImageData('', 'interferogram')
+                self.slices[slice_name] = ImageData(res_path, 'interferogram')
                 self.slices[slice_name].image_add_processing_step('coreg_readfiles', copy.copy(
                     self.cmaster.slices[slice_name].processes['readfiles']))
                 self.slices[slice_name].image_add_processing_step('coreg_orbits', copy.copy(

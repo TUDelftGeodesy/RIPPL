@@ -12,7 +12,7 @@ class HarmonieDatabase():
     def __init__(self, database_folder='/media/gert/Data/weather_models/harmonie_data'):
 
         # Init the database for different Harmonie versions.
-        self.h37_folder = os.path.join(database_folder, 'h37')
+        self.h37_folder = os.path.join(database_folder, 'h36')
         self.h38_folder = os.path.join(database_folder, 'h38')
         self.h40_folder = os.path.join(database_folder, 'h40')
 
@@ -23,7 +23,7 @@ class HarmonieDatabase():
         self.analysis_times = []
         self.forecast_times = []
 
-        for folder, h_type in zip([self.h37_folder, self.h38_folder, self.h40_folder], ['h37', 'h38', 'h40']):
+        for folder, h_type in zip([self.h37_folder, self.h38_folder, self.h40_folder], ['h36', 'h38', 'h40']):
 
             h_files = next(os.walk(folder))[2]
             for h_file in h_files:
@@ -71,7 +71,7 @@ class HarmonieDatabase():
             before_diff = time_diff[type_list[before_id]]
         else:
             before = ''
-            before_diff = datetime.timedelta(days=9999)
+            before_diff = -99999999
             before_time = datetime.datetime(year=1900, month=1, day=1)
 
         if np.sum(time_diff >= 0) > 0:
@@ -82,7 +82,7 @@ class HarmonieDatabase():
             after_diff = time_diff[type_list[after_id]]
         else:
             after = ''
-            after_diff = datetime.timedelta(days=9999)
+            after_diff = 999999999
             after_time = datetime.datetime(year=2100, month=1, day=1)
 
         if np.abs(closest_diff) > diff_max:

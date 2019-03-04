@@ -160,9 +160,8 @@ class Interfero(object):
                                        os.path.basename(os.path.dirname(master_path)))
 
         if not ifg_meta:
-            ifg_meta = ImageData(filename='', res_type='interferogram')
-            ifg_meta.res_path = os.path.join(ifgs_folder, 'info.res')
-            ifg_meta.folder = ifgs_folder
+            res_path = os.path.join(ifgs_folder, 'info.res')
+            ifg_meta = ImageData(filename=res_path, res_type='interferogram')
 
             if 'coreg_readfiles' in master_meta.processes.keys():
                 ifg_meta.image_add_processing_step('coreg_readfiles', copy.deepcopy(master_meta.processes['coreg_readfiles']))

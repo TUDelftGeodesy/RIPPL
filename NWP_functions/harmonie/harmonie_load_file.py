@@ -36,10 +36,10 @@ class HarmonieData(object):
         # For now we assume that we need the whole dataset TODO select only part of ECMWF data
 
         # Load .grib file model levels
-        print('Calculate delays from Harmonie data for time ' + time)
+        # print('Calculate delays from Harmonie data for time ' + time)
 
         if not filename in self.grib_files:
-            print('Loading data file ' + filename + '_atmosphere.grb')
+            # print('Loading data file ' + filename + '_atmosphere.grb')
 
             self.grib_data[filename] = pygrib.index(filename, 'name', 'level')
             type = 'Name'

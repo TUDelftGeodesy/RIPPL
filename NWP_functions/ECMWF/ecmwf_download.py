@@ -116,7 +116,7 @@ class ECMWFdownload(ECMWFType):
         level_list = level_list[:-1]
 
         t_list = ''
-        for t in range(0, 24, self.t_step.seconds / 3600):
+        for t in range(0, 24, int(self.t_step.seconds // 3600)):
             t_list += str(t).zfill(2) + ':00:00' + '/'
 
         t_list = t_list[:-1]

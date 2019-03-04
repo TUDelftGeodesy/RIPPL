@@ -100,7 +100,7 @@ class SentinelOrbitsDatabase(object):
                 print('No precise or restituted orbit file available')
                 return False
 
-        print('Loading orbits for ' + ref_time)
+        # print('Loading orbits for ' + ref_time)
 
         if type == 'precise':
             if os.path.basename(orb_file) in self.precise_files[satellite].keys():

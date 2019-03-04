@@ -607,21 +607,15 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             self.off_nadir_angle = np.arccos(np.einsum('ji,ij->i', ray, N[self.lines, :])).astype(np.float32) / np.pi * 180
 
         # Calc vector on tangent plant to satellite and to north
-        xy_dist = np.sqrt(self.xyz_orbit[0, :]**2 + self.xyz_orbit[1, :]**2)
-        north_plane = np.transpose(np.vstack((self.xyz_orbit[1, :], self.xyz_orbit[0, :],
-                                 np.zeros(self.xyz_orbit.shape[1])))) / xy_dist[:, None]
-        north_vector = np.cross(north_plane, -N, axis=1)
+        north_plane = np.stack((-self.xyz_orbit[0, :], -self.xyz_orbit[1, :], np.zeros((N.shape[0]))), axis=0)
+        north_vector = OrbitCoordinates.project_on_plane(np.transpose(N), north_plane, regular=False)
 
         # Next part is only used for the heading, which is the same for every line.
-        v = np.swapaxes(self.vel_orbit, 0, 1)
-        v = v / np.sqrt(np.sum(v**2, axis=1))[:, None]
-        v_plane = v - np.einsum('ij,ij->i', v, N)[:, None] * N
-        v_plane = v_plane / np.sqrt(np.sum(v_plane ** 2, axis=1))[:, None]
-        v = []
+        v_plane = OrbitCoordinates.project_on_plane(np.transpose(N), self.vel_orbit, regular=False)
 
         # Based on https://math.stackexchange.com/questions/878785/how-to-find-an-angle-in-range0-360-between-2-vectors
-        dot = np.einsum('ij,ij->i', v_plane, north_vector)
-        det = np.einsum('ij,ij->i', N, np.cross(v_plane, north_vector, axis=1))
+        dot = np.einsum('ki,ki->i', v_plane, north_vector)
+        det = np.einsum('ki,ki->i', np.transpose(N), np.cross(v_plane, north_vector, axis=0))
         v_plane = []
         north_vector = []
 
@@ -675,29 +669,33 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             self.elevation_angle = np.arccos(np.einsum('ij,ij->j', ray, -N)).astype(np.float32) / np.pi * 180 - 90
 
         # Calc vector on tangent plant to satellite and to north
-        xy_dist = np.sqrt(self.x**2 + self.y**2)
         if self.regular:
-            north_plane = -np.stack((self.y, self.x, np.zeros((self.x.shape[0], self.x.shape[1]))), axis=0) / xy_dist
+            north_plane = np.stack((-self.x, -self.y, np.zeros((self.x.shape[0], self.x.shape[1]))), axis=0)
         else:
-            north_plane = -np.stack((self.y, self.x, np.zeros((self.x.shape[0]))), axis=0) / xy_dist
-        north_vector = np.cross(north_plane, N, axis=0)
-        xy_dist = []
-        north_plane = []
+            north_plane = np.stack((-self.x, -self.y, np.zeros((self.x.shape[0]))), axis=0)
 
-        # Calc heading using the knowledge that the normal vector is always directed north
-        if self.regular:
-            ray_plane = ray - np.einsum('kij,kij->ij', ray, N) * N
-        else:
-            ray_plane = ray - np.einsum('ki,ki->i', ray, N) * N
-        ray_plane = ray_plane / np.sqrt(np.sum(ray_plane ** 2, axis=0))
+        north_vector = OrbitCoordinates.project_on_plane(N, north_plane, regular=self.regular)
+        ray_vector = OrbitCoordinates.project_on_plane(N, ray, regular=self.regular)
 
         # Based on https://math.stackexchange.com/questions/878785/how-to-find-an-angle-in-range0-360-between-2-vectors
         if self.regular:
-            dot = np.einsum('kij,kij->ij', -ray_plane, north_vector)
-            det = np.einsum('kij,kij->ij', N, np.cross(-ray_plane, north_vector, axis=0))
+            dot = np.einsum('kij,kij->ij', ray_vector, north_vector)
+            det = np.einsum('kij,kij->ij', N, np.cross(ray_vector, north_vector, axis=0))
         else:
-            dot = np.einsum('ki,ki->i', -ray_plane, north_vector)
-            det = np.einsum('ki,ki->i', N, np.cross(-ray_plane, north_vector, axis=0))
+            dot = np.einsum('ki,ki->i', ray_vector, north_vector)
+            det = np.einsum('ki,ki->i', N, np.cross(ray_vector, north_vector, axis=0))
         ray_plane = []
         north_vector = []
         self.azimuth_angle = np.arctan2(det, dot).astype(np.float32) / np.pi * 180
+
+    @staticmethod
+    def project_on_plane(N, vector, regular=False):
+
+        N = N / np.sqrt(np.sum(N ** 2, axis=0))
+
+        if regular:
+            out_vector = vector - np.einsum('kij,kij->ij', vector, N) * N
+        else:
+            out_vector = vector - np.einsum('ki,ki->i', vector, N) * N
+
+        return out_vector

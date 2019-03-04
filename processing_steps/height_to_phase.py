@@ -75,6 +75,8 @@ class HeightToPhase(object):
                 R = self.ra2m * (self.pixels[pixels] - 1) + self.dist_first_pix
                 self.h2ph[no0] = self.baseline[no0] / (R * np.sin(self.incidence[no0]))
 
+                # print('Average height to phase is ' + str(np.mean(self.h2ph[no0])))
+
             # Save meta data
             self.add_meta_data(self.slave, self.coordinates)
             self.slave.image_new_data_memory(self.h2ph, 'height_to_phase', self.s_lin, self.s_pix,

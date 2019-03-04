@@ -80,7 +80,7 @@ class ModelToDelay(object):
 
             # Calculate radius based on
             r_lat = a_wgs * (1 - f_wgs * sin_lat)
-            # Calculate gravity based on the formula of Somigliana
+            # Calculate gravity based on the formula of Somigliana https://en.wikipedia.org/wiki/Normal_gravity_formula#cite_note-1
             g_lat = g_equ * (1 + ks_som * sin_lat) / np.sqrt(1 - e_wgs ** 2 * sin_lat)
 
             # Calculate geometric height and gravity at surface.
@@ -135,7 +135,7 @@ class ModelToDelay(object):
 
                 self.delay_data[time]['liquid_delay'][l, :, :] = klw * plw
 
-                # approach 1 (Not used, because causes error in heighest layer)
+                # approach 1 (Not used, because causes error in highest layer)
                 if method == 'heights':
                     self.delay_data[time]['wet_delay'][l, :, :] = dh * mean_p * frac_ew * (k2b / T + k3 / T ** 2)
                     self.delay_data[time]['hydrostatic_delay'][l, :, :] = dh * mean_p * k1 / T

@@ -61,14 +61,14 @@ class ModelInterpolateDelays(object):
 
         self.h_steps = []
         # Divide in dh bins:
-        print('Divide heights of points in bins')
+        # print('Divide heights of points in bins')
         for h_step in h_steps:
             id = str(h_step)
 
             points = np.where((self.out_heights > h_step) * (self.out_heights <= (h_step + self.dh)))[0].astype(np.int32)
             if len(points) > 0:
                 self.dh_bins[id] = points
-                print('Bin between ' + id + ' and ' + str(h_step + self.dh) + ' has ' + str(len(self.dh_bins[id])) + ' pixels')
+                # print('Bin between ' + id + ' and ' + str(h_step + self.dh) + ' has ' + str(len(self.dh_bins[id])) + ' pixels')
                 self.dh_line_coor[id] = (self.out_lines[self.dh_bins[id]] - self.lines[0]).astype(np.float32) / d_lin
                 self.dh_pixel_coor[id] = (self.out_pixels[self.dh_bins[id]] - self.pixels[0]).astype(np.float32)  / d_pix
                 self.h_steps.append(h_step)
@@ -97,7 +97,7 @@ class ModelInterpolateDelays(object):
         # This function interpolates from low coverage points calculated in find_point_delays to high coverage.
         # Interpolation is done by a 2d linear interpolation after selection based on heights.
 
-        print('Start interpolation from coarse to specific points in radar grid')
+        # print('Start interpolation from coarse to specific points in radar grid')
         times = self.splines['total'].keys()
         res_dummy = Resample()
         size = (len(self.lines), len(self.pixels))
@@ -112,13 +112,13 @@ class ModelInterpolateDelays(object):
                 # Create ouput grid
                 self.interp_delays[run_type][t] = np.zeros(len(self.out_heights))
 
-                print('Interpolate for points of interest for ' + run_type + ' delay for time ' + t)
+                # print('Interpolate for points of interest for ' + run_type + ' delay for time ' + t)
                 # Then divide all points over different height bins. (dh of 5 or 10 meter should be good enough when compared to
                 # SRTM accuracy.
 
                 # Now do the actual interpolation for different height bins seperately.
                 for i in self.h_steps:
-                    print('Evaluating height between ' + str(i) + ' and ' + str(i + self.dh))
+                    # print('Evaluating height between ' + str(i) + ' and ' + str(i + self.dh))
 
                     # Find ids and coordinates of points within certain height bin
                     coor_l = self.dh_line_coor[str(i)]

@@ -5,6 +5,7 @@ from coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import os
 import logging
+import numpy as np
 
 
 class HarmonieInterferogram(object):
@@ -31,6 +32,15 @@ class HarmonieInterferogram(object):
         if isinstance(coordinates, CoordinateSystem):
             self.coordinates = coordinates
 
+        shape = coordinates.shape
+        if lines != 0:
+            l = np.minimum(lines, shape[0] - s_lin)
+        else:
+            l = shape[0] - s_lin
+        self.shape = [l, shape[1] - s_pix]
+        self.s_lin = s_lin
+        self.s_pix = s_pix
+
         # Input data
         self.step = step
         if file_type == '':
@@ -40,8 +50,8 @@ class HarmonieInterferogram(object):
 
         # Currently not possible to perform this step in slices because it includes multilooking. Maybe this will be
         # able later on. (Convert to different grids and slicing can cause problems at the sides of the slices.)
-        self.master_dat = self.master.image_load_data_memory(self.step, 0, 0, self.coordinates.shape, self.file_type + self.coordinates.sample, warn=False)
-        self.slave_dat = self.slave.image_load_data_memory(self.step, 0, 0, self.coordinates.shape, self.file_type + self.coordinates.sample, warn=False)
+        self.master_dat = self.master.image_load_data_memory(self.step,  self.s_lin, self.s_pix, self.shape, self.file_type + self.coordinates.sample, warn=False)
+        self.slave_dat = self.slave.image_load_data_memory(self.step, self.s_lin, self.s_pix, self.shape, self.file_type + self.coordinates.sample, warn=False)
 
         self.interferogram = []
 
@@ -101,6 +111,8 @@ class HarmonieInterferogram(object):
 
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
+
+        file_type = file_type
 
         # Three input files needed x, y, z coordinates
         recursive_dict = lambda: defaultdict(recursive_dict)

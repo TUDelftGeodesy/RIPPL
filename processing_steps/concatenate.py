@@ -227,9 +227,7 @@ class Concatenate(object):
 
         # Then create a single or interferogram file
         meta_type = meta_slices[0].res_type
-        meta = ImageData('', meta_type)
-        meta.res_path = filename
-        meta.folder = os.path.dirname(meta_slices[0].folder)
+        meta = ImageData(filename, meta_type)
 
         min_az, min_ra, shape = Concatenate.find_radar_max_extend(meta_slices)
 
@@ -440,8 +438,8 @@ class Concatenate(object):
                     old_coor = slice.read_res_coordinates(step)[-1]
 
                     coordinates_slice.add_res_info(slice, change_ref=False, old_coor=old_coor)
-                coordinates_slice.first_pixel = (slice_start[1] - slice_offset[1]) // out_coor.multilook[1]
-                coordinates_slice.first_line = (slice_start[0] - slice_offset[0]) // out_coor.multilook[0]
+                coordinates_slice.first_pixel = (slice_start[1] + slice_offset[1]) // out_coor.multilook[1] + 1
+                coordinates_slice.first_line = (slice_start[0] + slice_offset[0]) // out_coor.multilook[0] + 1
                 sample = FindCoordinates.multilook_str(coordinates_slice.multilook, coordinates_slice.oversample, coordinates_slice.offset)[0]
                 coordinates_slice.sample = sample
                 out_coordinates_slices.append(coordinates_slice)
@@ -455,8 +453,8 @@ class Concatenate(object):
                     old_coor = slice.read_res_coordinates(step)[-1]
                     coordinates_slice.add_res_info(slice, change_ref=False, old_coor=old_coor)
 
-                coordinates_slice.first_pixel = int(slice_start[1])
-                coordinates_slice.first_line = int(slice_start[0])
+                coordinates_slice.first_pixel = int(slice_start[1]) + 1
+                coordinates_slice.first_line = int(slice_start[0]) + 1
                 coordinates_slice.sample = out_coor.sample
                 out_coordinates_slices.append(coordinates_slice)
 

@@ -17,6 +17,7 @@ import numpy as np
 import os
 import logging
 import datetime
+import copy
 
 
 class Baseline(object):
@@ -115,20 +116,16 @@ class Baseline(object):
             if np.sum(self.no0) > 0:
                 # First get the master and slave positions.
                 lines, pixels = np.where(self.no0)
-                pixels = []
+                del pixels
 
                 master_az_times = self.master_az_time + self.master_az_step * (self.lines - 1)
                 [m_x, m_y, m_z], v, a = self.master_orbit.evaluate_orbit_spline(master_az_times)
                 m_xyz = np.concatenate((m_x[lines][None, :], m_y[lines][None, :], m_z[lines][None, :]))
-                m_x = []
-                m_y = []
-                m_z = []
+                del m_x, m_y, m_z
 
                 [s_x, s_y, s_z], v, a = self.slave_orbit.evaluate_orbit_spline((self.az[self.no0] - 1) * self.slave_az_step + self.slave_az_time)
                 s_xyz = np.concatenate((s_x[None, :], s_y[None, :], s_z[None, :]))
-                s_x = []
-                s_y = []
-                s_z = []
+                del s_x, s_y, s_z
 
                 # Then calculate the parallel and perpendicular baseline.
                 self.baseline_2 = np.zeros(self.ra_shift.shape)
@@ -144,16 +141,23 @@ class Baseline(object):
                 p_xyz = p_xyz / np.sqrt(np.sum(p_xyz ** 2, axis=0))
 
                 angle_m = np.arccos(np.einsum('ij,ij->j', m_xyz, p_xyz)).astype(np.float32)
-                m_xyz = []
+                del m_xyz
                 angle_s = np.arccos(np.einsum('ij,ij->j', s_xyz, p_xyz)).astype(np.float32)
-                s_xyz = []
-                p_xyz = []
-                pos_neg = np.array(angle_m > angle_s).astype(np.int8)
-                angle_m = []
-                angle_s = []
+                del s_xyz, p_xyz
 
                 self.perpendicular_b = np.zeros(self.ra_shift.shape).astype(np.float32)
-                self.perpendicular_b[self.no0] = np.sqrt(self.baseline_2[self.no0] - self.parallel_b[self.no0]**2) * pos_neg
+                self.perpendicular_b[self.no0] = np.sqrt(self.baseline_2[self.no0] - self.parallel_b[self.no0]**2)
+
+                # Define direction of baseline.
+                pos_neg = copy.copy(self.no0)
+                pos_neg[pos_neg] *= (angle_m < angle_s)
+
+                self.perpendicular_b[pos_neg] *= -1
+                self.baseline_2[pos_neg] *= -1
+
+                # print('Average baseline is ' + str(np.mean(self.perpendicular_b)))
+
+                del angle_m, angle_s
 
             # Save meta data
             self.add_meta_data(self.slave, self.coordinates, self.perpendicular,

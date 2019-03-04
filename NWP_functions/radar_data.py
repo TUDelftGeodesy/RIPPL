@@ -46,8 +46,8 @@ class RadarData(OrbitCoordinates, ImageData):
         key_date = date.strftime('%Y%m%d')
         self.dates.append(key_date)
         date_day = datetime.datetime(year=date.year, month=date.month, day=date.day)
-        step_time = (((date - date_day).seconds / self.t_step.seconds) * self.t_step.seconds)
-        step_date = datetime.datetime(year=date.year, month=date.month, day=date.day, hour=step_time/3600, minute=(step_time-(step_time/3600 * 3600))/60)
+        step_time = (((date - date_day).seconds // self.t_step.seconds) * self.t_step.seconds)
+        step_date = datetime.datetime(year=date.year, month=date.month, day=date.day, hour=int(step_time//3600), minute=int((step_time-(step_time//3600 * 3600))//60))
         time_diffs = [date - step_date, (step_date + self.t_step) - date]
 
         if self.time_interp not in ['linear', 'nearest']:

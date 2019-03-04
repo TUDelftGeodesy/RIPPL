@@ -43,7 +43,7 @@ class Pipeline():
         self.memory = memory
 
         # For now we just assume that every pixel can be run with 10000 pixels met MB (Likely to be higher...)
-        self.pixels = self.memory * 6000
+        self.pixels = self.memory * 10000
 
         # Cores. The number of cores we use to run our processing.
         self.cores = cores
@@ -1052,6 +1052,7 @@ class Pipeline():
 
                         if pipeline['proc_type'] == 'multilook' or coordinates.sample == coor_out.sample:
                             pipeline_ml['create'] = True
+                            pipeline_ml['meta'] = True
                             pipeline_ml['save'] = True
 
                         clear_mem_var = []
@@ -1076,6 +1077,9 @@ class Pipeline():
                                 disk_var, disk_var_names, res_dat = self.create_var_package(
                                     func, meta, meta_type, coordinates, coor_out, file_type=settings['file_type'],
                                     res_dat=res_dat, step=settings['step'], package_type='disk_data')
+                                meta_var, meta_var_names, res_dat = self.create_var_package(
+                                    func, meta, meta_type, coordinates, coor_out, file_type=settings['file_type'],
+                                    res_dat=res_dat, step=settings['step'], package_type='metadata')
                             else:  # If it is interferogram
                                 proc_var, proc_var_names, res_dat = self.create_var_package(
                                     func, meta, meta_type, coordinates, coor_out, file_type=file_type,
@@ -1083,15 +1087,30 @@ class Pipeline():
                                 disk_var, disk_var_names, res_dat = self.create_var_package(
                                     func, meta, meta_type, coordinates, coor_out, file_type=file_type,
                                     res_dat=res_dat, package_type='disk_data')
+                                meta_var, meta_var_names, res_dat = self.create_var_package(
+                                    func, meta, meta_type, coordinates, coor_out, file_type=file_type,
+                                    res_dat=res_dat, package_type='metadata')
 
                             if pipeline['proc_type'] == 'multilook' or coordinates.sample == coor_out.sample:
                                 pipeline_ml['create_var_name'] = [disk_var_names]
-                                pipeline_ml['create_var'] = [disk_var]
+                                pipeline_ml['create_var'] = [copy.copy(disk_var)]
                                 pipeline_ml['save_var_name'] = [disk_var_names]
-                                pipeline_ml['save_var'] = [disk_var]
-                                disk_var.insert(0, self.processes[func])
-                                clear_mem_var.append(disk_var)
-                                clear_mem_var_name.append(disk_var_names)
+                                pipeline_ml['save_var'] = [copy.copy(disk_var)]
+                                pipeline_ml['meta_var_name'].append(meta_var_names)
+                                pipeline_ml['meta_var'].append(meta_var)
+
+                                if pipeline['proc_type'] == 'multilook':
+                                    clear_var = [self.res_dat[meta][meta_type], settings['step'], settings['file_type'] + coor_out.sample]
+                                    clear_var_names = ['meta', 'step', 'file_type']
+                                else:
+                                    clear_var = [self.res_dat[meta][meta_type], 'interferogram', 'interferogram' + coor_out.sample]
+                                    clear_var_names = ['meta', 'step', 'file_type']
+
+                                clear_mem_var.append(clear_var)
+                                clear_mem_var_name.append(clear_var_names)
+
+                                pipeline_ml['clear_mem_var_name'].append(clear_mem_var_name)
+                                pipeline_ml['clear_mem_var'].append(clear_mem_var)
 
                             pipeline_ml['clear_mem_var'] = [clear_mem_var]
                             pipeline_ml['clear_mem_var_name'] = [clear_mem_var_name]
@@ -1386,12 +1405,12 @@ class Pipeline():
             for res_dat in self.pool.imap_unordered(run_parallel, parallel_package):
                 # Update the .res files of this image
                 if res_dat == False:
-                    print('Encountered error in processing. Aborting..')
-                    sys.exit()
-
-                for key in res_dat.keys():
-                    for meta_type in res_dat[key].keys():
-                        self.res_dat[key][meta_type] = res_dat[key][meta_type]
+                    print('Encountered error in processing. Skipping this .res file.')
+                    # sys.exit()
+                else:
+                    for key in res_dat.keys():
+                        for meta_type in res_dat[key].keys():
+                            self.res_dat[key][meta_type] = res_dat[key][meta_type]
 
             self.pool.close()
             self.pool = []

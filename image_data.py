@@ -266,6 +266,11 @@ class ImageData(ImageMetadata):
         if not self.check_loaded(step, file_type=file_type, warn=False):
             self.read_data()
 
+        if step not in list(self.data_memory_limits.keys()):
+            return
+        elif file_type not in list(self.data_memory_limits[step].keys()):
+            return
+
         s_pix = self.data_memory_limits[step][file_type][1]
         e_pix = s_pix + self.data_memory_sizes[step][file_type][1]
         s_lin = self.data_memory_limits[step][file_type][0]
@@ -615,7 +620,7 @@ class ImageData(ImageMetadata):
             self.data_memory_offset[step] = defaultdict()
 
         self.data_disk[step][file_type] = ''
-        self.data_files[step][file_type] = os.path.join(self.folder, self.processes[step][file_type + '_output_file'])
+        self.data_files[step][file_type] = os.path.join(os.path.dirname(self.res_path), self.processes[step][file_type + '_output_file'])
         self.data_multilook[step][file_type] = (lin_ml, pix_ml)
         self.data_oversample[step][file_type] = (lin_ovr, pix_ovr)
         self.data_offset[step][file_type] = (lin_off, pix_off)

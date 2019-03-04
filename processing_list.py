@@ -29,7 +29,9 @@ from processing_steps.earth_topo_phase import EarthTopoPhase
 from processing_steps.baseline import Baseline
 from processing_steps.height_to_phase import HeightToPhase
 
-from processing_steps.ecmwf_aps import EcmwfAps
+from processing_steps.ecmwf_era5_aps import EcmwfEra5Aps
+from processing_steps.ecmwf_oper_aps import EcmwfOperAps
+from processing_steps.ecmwf_interim_aps import EcmwfInterimAps
 from processing_steps.harmonie_aps import HarmonieAps
 from processing_steps.harmonie_interferogram import HarmonieInterferogram
 
@@ -84,7 +86,9 @@ class ProcessingList():
 
         processing['harmonie_aps'] = HarmonieAps
         processing['harmonie_interferogram'] = HarmonieInterferogram
-        processing['ecmwf_aps'] = EcmwfAps
+        processing['ecmwf_era5_aps'] = EcmwfEra5Aps
+        processing['ecmwf_oper_aps'] = EcmwfOperAps
+        processing['ecmwf_interim_aps'] = EcmwfInterimAps
 
         processing['concatenate'] = Concatenate
 

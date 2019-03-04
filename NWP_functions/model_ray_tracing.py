@@ -95,8 +95,8 @@ class ModelRayTracing(object):
         self.t = [t for t in self.delay_data.keys() if t not in ['latitudes', 'longitudes']]
         self.lev = self.delay_data[self.t[0]]['total_delay'].shape[0]
 
-        print('Interpolate delays for slices along radar lines')
-        print('')
+        # print('Interpolate delays for slices along radar lines')
+        # print('')
 
         # Convert to pixel and line values
         model_lat = self.delay_data['latitudes'] * self.degree2rad
@@ -191,8 +191,8 @@ class ModelRayTracing(object):
         # The function will return:
         # - The delay at specified height and up and down as defined in diff_h. (intervals of 10m defined by dh)
 
-        print('Calculate total delay along ray using radar geometry and weather model delay values')
-        print('')
+        # print('Calculate total delay along ray using radar geometry and weather model delay values')
+        # print('')
 
         # Apply the haversine formula to find the starting point of every pixel. (Accurate within 0.3% or around 750m in
         # our case. More precise implementation is possible using the vincenty formula)
@@ -203,7 +203,7 @@ class ModelRayTracing(object):
         d = np.asarray(R * c)
 
         for t in self.t:
-            print('Calculate delay for time ' + t)
+            # print('Calculate delay for time ' + t)
 
             # Convert heights and distances to resolution of pixels on the ground
             iter_coor = copy.copy(self.pix_coor)
@@ -301,7 +301,7 @@ class ModelRayTracing(object):
                     self.ray_delays[run_type][t][l, :, :][np.isnan(self.ray_delays[run_type][t][l, :, :])] = 0.001
 
             # Finally calculate the splines of the corresponding rays.
-            print('Calculate splines of slant delays vs height for time ' + t)
+            # print('Calculate splines of slant delays vs height for time ' + t)
 
             for run_type in self.run_data:
                 # Calculate the cumulative sum

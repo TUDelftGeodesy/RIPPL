@@ -40,14 +40,14 @@ class ECMWFData(object):
         # For now we assume that we need the whole dataset TODO select only part of ECMWF data
 
         # Load .grib file model levels
-        print('Calculate delays from ECMWF data for time ' + time)
+        # print('Calculate delays from ECMWF data for time ' + time)
 
         if not filename + '_atmosphere.grb' in self.atmosphere_model_files:
-            print('Loading data file ' + filename + '_atmosphere.grb')
+            # print('Loading data file ' + filename + '_atmosphere.grb')
             self.atmosphere_model_data[filename] = pygrib.index(filename + '_atmosphere.grb', 'name', 'level', 'hour', 'dataDate')
             self.atmosphere_model_files.append(filename + '_atmosphere.grb')
         if not filename + '_surface.grb' in self.surface_model_files:
-            print('Loading data file ' + filename + '_surface.grb')
+            # print('Loading data file ' + filename + '_surface.grb')
             self.surface_model_files.append(filename + '_surface.grb')
             self.surface_model_data[filename] = pygrib.index(filename + '_surface.grb', 'name', 'hour', 'dataDate')
 
