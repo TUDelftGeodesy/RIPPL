@@ -11,7 +11,7 @@ from rippl.processing_steps.radar_dem import RadarDem
 from rippl.coordinate_system import CoordinateSystem
 
 from rippl.NWP_functions.harmonie.harmonie_database import HarmonieDatabase
-from rippl.NWP_functions.harmonie.harmonie_load_file import HarmonieDatabase
+from rippl.NWP_functions.harmonie.harmonie_load_file import HarmonieData
 from rippl.NWP_functions.model_ray_tracing import ModelRayTracing
 from rippl.NWP_functions.model_to_delay import ModelToDelay
 from rippl.NWP_functions.model_interpolate_delays import ModelInterpolateDelays

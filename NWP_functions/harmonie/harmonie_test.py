@@ -18,7 +18,7 @@ from rippl.NWP_functions.radar_data import RadarData
 from rippl.NWP_functions.model_to_delay import ModelToDelay
 from rippl.NWP_functions.model_interpolate_delays import ModelInterpolateDelays
 from rippl.NWP_functions.harmonie.harmonie_database import HarmonieDatabase
-from rippl.NWP_functions.harmonie.harmonie_load_file import HarmonieDatabase
+from rippl.NWP_functions.harmonie.harmonie_load_file import HarmonieData
 
 # path to your test data folder
 track = '110'
