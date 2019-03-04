@@ -19,10 +19,10 @@ import zipfile
 import numpy as np
 import requests
 from scipy.interpolate import RectBivariateSpline
-from orbit_dem_functions.srtm_dir_listing import ParseHTMLDirectoryListing
-from coordinate_system import CoordinateSystem
+from rippl.orbit_dem_functions.srtm_dir_listing import ParseHTMLDirectoryListing
+from rippl.coordinate_system import CoordinateSystem
 from multiprocessing import Pool
-from image_data import ImageData
+from rippl.image_data import ImageData
 
 
 class SrtmDownloadTile(object):

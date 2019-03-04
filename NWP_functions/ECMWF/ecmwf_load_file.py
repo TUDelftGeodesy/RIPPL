@@ -2,7 +2,7 @@
 import pygrib
 import numpy as np
 
-from NWP_functions.model_reference import ModelReference
+from rippl.NWP_functions.model_reference import ModelReference
 
 
 class ECMWFData(object):

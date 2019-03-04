@@ -1,8 +1,8 @@
 # This is the main script to calculate delays
 import numpy as np
 
-from NWP_functions.massive_spline import MassiveSpline
-from NWP_functions.resample import Resample
+from rippl.NWP_functions.massive_spline import MassiveSpline
+from rippl.NWP_functions.resample import Resample
 import copy
 
 class ModelRayTracing(object):

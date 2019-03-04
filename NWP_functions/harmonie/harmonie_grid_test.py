@@ -13,13 +13,13 @@ import csv
 import json
 import datetime
 
-from image_data import ImageData
-from NWP_functions.model_ray_tracing import ModelRayTracing
-from NWP_functions.radar_data import RadarData
-from NWP_functions.model_to_delay import ModelToDelay
-from NWP_functions.model_interpolate_delays import ModelInterpolateDelays
-from NWP_functions.harmonie.harmonie_database import HarmonieDatabase
-from NWP_functions.harmonie.harmonie_load_file import HarmonieData
+from i import ImageData
+from rippl.NWP_functions.model_ray_tracing import ModelRayTracing
+from rippl.NWP_functions.radar_data import RadarData
+from rippl.NWP_functions.model_to_delay import ModelToDelay
+from rippl.NWP_functions.model_interpolate_delays import ModelInterpolateDelays
+from rippl.NWP_functions.harmonie.harmonie_database import HarmonieDatabase
+from rippl.NWP_functions.harmonie.harmonie_load_file import HarmonieDatabase
 
 # path to your test data folder
 archive_folder = '/media/gert/Data/weather_models/harmonie_data'
@@ -95,7 +95,7 @@ point_delays = ModelInterpolateDelays(radar_data.lines, radar_data.pixels, split
 point_delays.add_interp_points(ps_line, ps_pixel, np.array(ps_height) + 45.00)
 
 # Initialize load harmonie data
-data = HarmonieData()
+data = HarmonieDatabase()
 
 for date, filename in zip(dates, filenames):
 

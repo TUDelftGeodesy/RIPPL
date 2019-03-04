@@ -1,5 +1,5 @@
 import numpy as np
-from NWP_functions.resample import Resample
+from rippl.NWP_functions.resample import Resample
 
 
 class ModelInterpolateDelays(object):

@@ -6,18 +6,18 @@ import datetime
 import logging
 from collections import OrderedDict, defaultdict
 
-from image_data import ImageData
-from coordinate_system import CoordinateSystem
+from rippl.image_data import ImageData
+from rippl.coordinate_system import CoordinateSystem
 
-from processing_steps.radar_dem import RadarDem
+from rippl.processing_steps.radar_dem import RadarDem
 
-from NWP_functions.ECMWF.ecmwf_type import ECMWFType
-from NWP_functions.ECMWF.ecmwf_download import ECMWFdownload
-from NWP_functions.ECMWF.ecmwf_load_file import ECMWFData
-from NWP_functions.model_ray_tracing import ModelRayTracing
-from NWP_functions.radar_data import RadarData
-from NWP_functions.model_to_delay import ModelToDelay
-from NWP_functions.model_interpolate_delays import ModelInterpolateDelays
+from rippl.NWP_functions.ECMWF.ecmwf_type import ECMWFType
+from rippl.NWP_functions.ECMWF.ecmwf_download import ECMWFdownload
+from rippl.NWP_functions.ECMWF.ecmwf_load_file import ECMWFData
+from rippl.NWP_functions.model_ray_tracing import ModelRayTracing
+from rippl.NWP_functions.radar_data import RadarData
+from rippl.NWP_functions.model_to_delay import ModelToDelay
+from rippl.NWP_functions.model_interpolate_delays import ModelInterpolateDelays
 
 
 class EcmwfAps(object):

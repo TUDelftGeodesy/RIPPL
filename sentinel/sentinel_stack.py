@@ -18,12 +18,12 @@ import numpy as np
 from multiprocessing import Pool
 from lxml import etree
 
-from orbit_dem_functions.orbit_interpolate import OrbitInterpolate
-from sentinel.sentinel_database import SentinelDatabase
-from sentinel.sentinel_precise_orbit import SentinelOrbitsDatabase
-from sentinel.sentinel_read_data import write_sentinel_burst
-from sentinel.sentinel_swath_metadata import CreateSwathXmlRes
-from stack import Stack
+from rippl.orbit_dem_functions.orbit_interpolate import OrbitInterpolate
+from rippl.sentinel.sentinel_database import SentinelDatabase
+from rippl.sentinel.sentinel_precise_orbit import SentinelOrbitsDatabase
+from rippl.sentinel.sentinel_read_data import write_sentinel_burst
+from rippl.sentinel.sentinel_swath_metadata import CreateSwathXmlRes
+from rippl.stack import Stack
 
 
 class SentinelStack(SentinelDatabase, Stack):
@@ -154,7 +154,7 @@ class SentinelStack(SentinelDatabase, Stack):
                             # Check if this time already exists
                             if len(self.master_slice_seconds) > 0 and np.min(np.abs(
                                             b_time - np.asarray(self.master_slice_seconds))) < time_lim:
-                                print('Duplicate slice found. New slice removed from stack')
+                                print('Duplicate slice found. New slice removed from rippl.stack')
                                 continue
 
                             xyz = interp_orbit.evaluate_orbit_spline([b_time])[0]
@@ -179,7 +179,7 @@ class SentinelStack(SentinelDatabase, Stack):
                         if len(dat_id) >= 1:
                             if len(self.slice_seconds) > 0 and np.min(np.abs(
                                             b_time - np.asarray(self.slice_seconds)[dat_id])) < time_lim:
-                                print('Duplicate slice found. New slice removed from stack')
+                                print('Duplicate slice found. New slice removed from rippl.stack')
                                 continue
 
                         xyz = interp_orbit.evaluate_orbit_spline([b_time])[0]

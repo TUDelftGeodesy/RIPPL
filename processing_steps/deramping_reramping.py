@@ -1,10 +1,10 @@
 # Function to do deramping and reramping on individual bursts.
 import datetime
 import numpy as np
-from image_data import ImageData
-from orbit_dem_functions.orbit_interpolate import OrbitInterpolate
-from processing_steps.resample import Resample
-from coordinate_system import CoordinateSystem
+from rippl.image_data import ImageData
+from rippl.orbit_dem_functions.orbit_interpolate import OrbitInterpolate
+from rippl.processing_steps.resample import Resample
+from rippl.coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import logging
 import os

@@ -3,9 +3,9 @@ This function is used to create interferograms
 '''
 
 import os
-from image_data import ImageData
-from image import Image
-from pipeline import Pipeline
+from rippl.image import ImageData
+from rippl.image import ImageData
+from rippl.pipeline import Pipeline
 import copy
 
 
@@ -89,7 +89,7 @@ class Interferogram(object):
         # Load the information about the bursts (We do not load that information by default as it causes to much data in
         # memory for large stacks.
 
-        if isinstance(self.cmaster, Image):
+        if isinstance(self.cmaster, ImageData):
             self.cmaster.load_slice_info()
 
         for slice_folder, slice_name in zip(self.slice_folders, self.slice_names):
@@ -136,13 +136,13 @@ class Interferogram(object):
         # Load all information from slices
         self.load_slice_info()
         self.rem_memmap()
-        if isinstance(master, Image):
+        if isinstance(master, ImageData):
             master.load_slice_info()
             master.rem_memmap()
-        if isinstance(slave, Image):
+        if isinstance(slave, ImageData):
             slave.load_slice_info()
             slave.rem_memmap()
-        if isinstance(cmaster, Image):
+        if isinstance(cmaster, ImageData):
             cmaster.load_slice_info()
             cmaster.rem_memmap()
 
@@ -153,12 +153,12 @@ class Interferogram(object):
         # Remove information from slices and load full image info again
         self.slices = dict()
         self.load_full_info()
-        if isinstance(cmaster, Image):
+        if isinstance(cmaster, ImageData):
             cmaster.load_slice_info()
             cmaster.load_full_memmap()
-        if isinstance(master, Image):
+        if isinstance(master, ImageData):
             master.slices = dict()
             master.load_full_memmap()
-        if isinstance(slave, Image):
+        if isinstance(slave, ImageData):
             slave.slices = dict()
             slave.load_full_memmap()

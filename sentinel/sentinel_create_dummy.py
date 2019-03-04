@@ -17,8 +17,8 @@ import os
 import collections
 import datetime
 
-from image_data import ImageData
-from sentinel.sentinel_precise_orbit import SentinelOrbitsDatabase
+from rippl.image_data import ImageData
+from rippl.sentinel.sentinel_precise_orbit import SentinelOrbitsDatabase
 
 
 class DummyRes(object):

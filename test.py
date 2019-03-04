@@ -1,16 +1,16 @@
 # This test file generates a simple interferogram based on the developed functions.
 
-from image_metadata import ImageMetadata
-from image_data import ImageData
-from stack import Stack
+from rippl.image_metadata import ImageMetadata
+from rippl.image_data import ImageData
+from rippl.stack import Stack
 
 # Load processing steps
-from processing_steps.geocode import Geocode
-from processing_steps.deramping_reramping import Deramp, Reramp
-from processing_steps.geometrical_coreg import GeometricalCoreg
-from processing_steps.resample import Resample
-from processing_steps.earth_topo_phase import EarthTopoPhase
-from processing_steps.interfero import Interfero
+from rippl.processing_steps.geocode import Geocode
+from rippl.processing_steps.deramping_reramping import Deramp, Reramp
+from rippl.processing_steps.geometrical_coreg import GeometricalCoreg
+from rippl.processing_steps.resample import Resample
+from rippl.processing_steps.earth_topo_phase import EarthTopoPhase
+from rippl.processing_steps.interfero import Interfero
 
 # First check whether the data and metadata function.
 filename = '/media/gert/Data/radar_datastacks/delft_asc_t088/stack/20170221/swath_2/burst_2/ifgs.res'

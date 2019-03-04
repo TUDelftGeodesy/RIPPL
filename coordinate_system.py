@@ -1,4 +1,4 @@
-from find_coordinates import FindCoordinates
+from rippl.find_coordinates import FindCoordinates
 from collections import OrderedDict
 import pyproj
 import datetime

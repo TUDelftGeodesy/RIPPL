@@ -3,7 +3,7 @@
 
 import numpy as np
 from scipy.interpolate import CubicSpline
-from image_data import ImageData
+from rippl.image_data import ImageData
 
 
 class OrbitInterpolate(ImageData):

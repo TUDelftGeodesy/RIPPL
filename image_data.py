@@ -9,8 +9,8 @@ import gdal
 from gdalconst import *
 import copy
 
-from image_metadata import ImageMetadata
-from coordinate_system import CoordinateSystem
+from rippl.image_metadata import ImageMetadata
+from rippl.coordinate_system import CoordinateSystem
 
 
 class ImageData(ImageMetadata):

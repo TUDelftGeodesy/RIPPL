@@ -1,10 +1,10 @@
 # The following class creates an interferogram from a master and slave image.
 
-from image_data import ImageData
+from rippl.image_data import ImageData
 from collections import OrderedDict, defaultdict
 import numpy as np
-from processing_steps.interfero import Interfero
-from coordinate_system import CoordinateSystem
+from rippl.processing_steps.interfero import Interfero
+from rippl.coordinate_system import CoordinateSystem
 import logging
 import os
 

@@ -2,8 +2,8 @@
 # In principle this has the same functionality as some other
 
 import numpy as np
-from image_data import ImageData
-from coordinate_system import CoordinateSystem
+from rippl.image_data import ImageData
+from rippl.coordinate_system import CoordinateSystem
 from collections import defaultdict, OrderedDict
 import logging
 import os

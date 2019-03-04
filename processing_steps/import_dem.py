@@ -17,10 +17,10 @@ import numpy as np
 import gdal
 
 from collections import OrderedDict, defaultdict
-from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
-from orbit_dem_functions.srtm_download import SrtmDownload
-from image_data import ImageData
-from coordinate_system import CoordinateSystem
+from rippl.orbit_dem_functions.orbit_coordinates import OrbitCoordinates
+from rippl.orbit_dem_functions.srtm_download import SrtmDownload
+from rippl.image_data import ImageData
+from rippl.coordinate_system import CoordinateSystem
 
 class CreateSrtmDem(OrbitCoordinates):
     # This class stitches the different files together. If no data is available values will be zero. Which is

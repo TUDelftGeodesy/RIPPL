@@ -3,7 +3,7 @@ import pygrib
 import numpy as np
 import datetime
 
-from NWP_functions.model_reference import ModelReference
+from rippl.NWP_functions.model_reference import ModelReference
 
 
 class HarmonieData(object):

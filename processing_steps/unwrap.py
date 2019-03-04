@@ -1,8 +1,8 @@
 
-from image_data import ImageData
+from rippl.image_data import ImageData
 import os
 from collections import OrderedDict, defaultdict
-from coordinate_system import CoordinateSystem
+from rippl.coordinate_system import CoordinateSystem
 
 
 class Unwrap(object):

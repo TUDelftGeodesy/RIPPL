@@ -1,8 +1,8 @@
 # The following class creates an interferogram from a master and slave image.
 
-from image_data import ImageData
-from processing_steps.multilook import Multilook
-from coordinate_system import CoordinateSystem
+from rippl.image_data import ImageData
+from rippl.processing_steps.multilook import Multilook
+from rippl.coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import os
 import numpy as np

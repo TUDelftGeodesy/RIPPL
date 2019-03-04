@@ -15,13 +15,13 @@
 
 # image meta data
 import copy
-from run_parallel import run_parallel
+from rippl.run_parallel import run_parallel
 from collections import defaultdict
-from processing_list import ProcessingList
-from image_data import ImageData
+from rippl.processing_list import ProcessingList
+from rippl.image_data import ImageData
 import numpy as np
-from processing_steps.concatenate import Concatenate
-from coordinate_system import CoordinateSystem
+from rippl.processing_steps.concatenate import Concatenate
+from rippl.coordinate_system import CoordinateSystem
 from multiprocessing import Pool
 import sys
 

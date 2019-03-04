@@ -10,15 +10,15 @@ import numpy as np
 import csv
 import datetime
 
-from NWP_functions.ECMWF.ecmwf_type import ECMWFType
-from NWP_functions.ECMWF.ecmwf_download import ECMWFdownload
-from NWP_functions.ECMWF.ecmwf_load_file import ECMWFData
+from rippl.NWP_functions.ECMWF.ecmwf_type import ECMWFType
+from rippl.NWP_functions.ECMWF.ecmwf_download import ECMWFdownload
+from rippl.NWP_functions.ECMWF.ecmwf_load_file import ECMWFData
 
-from image_data import ImageData
-from NWP_functions.model_ray_tracing import ModelRayTracing
-from NWP_functions.radar_data import RadarData
-from NWP_functions.model_to_delay import ModelToDelay
-from NWP_functions.model_interpolate_delays import ModelInterpolateDelays
+from rippl.image_data import ImageData
+from rippl.NWP_functions.model_ray_tracing import ModelRayTracing
+from rippl.NWP_functions.radar_data import RadarData
+from rippl.NWP_functions.model_to_delay import ModelToDelay
+from rippl.NWP_functions.model_interpolate_delays import ModelInterpolateDelays
 
 def ecmwf_run_ps(download_folder, dem_folder, reference_orbit, ps_points, dates, interval='', data_type='era5',
                  time_interp='nearest', latlim='', lonlim='', split_signal=False):
@@ -91,7 +91,7 @@ def ecmwf_run_ps(download_folder, dem_folder, reference_orbit, ps_points, dates,
     keys = sorted(point_delays.interp_delays['total'].keys())
 
     for key in keys:
-        out_dat[key] = point_delays.interp_delays['total'][key][i]
+        out_dat[key] = point_delays.interp_delays['total'][key][int_str]
 
     return out_dat
 

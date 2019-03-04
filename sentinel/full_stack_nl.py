@@ -1,9 +1,9 @@
 #!/usr/bin/python
 # Create a datastack
 
-from stack import Stack
-from sentinel.sentinel_stack import SentinelStack
-from coordinate_system import CoordinateSystem
+from rippl.stack import Stack
+from rippl.sentinel.sentinel_stack import SentinelStack
+from rippl.coordinate_system import CoordinateSystem
 
 track_no = 37
 parallel = False

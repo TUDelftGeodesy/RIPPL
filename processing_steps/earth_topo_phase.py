@@ -3,10 +3,10 @@
 
 import numpy as np
 from collections import OrderedDict, defaultdict
-from image_data import ImageData
+from rippl.image_data import ImageData
 import os
 import logging
-from coordinate_system import CoordinateSystem
+from rippl.coordinate_system import CoordinateSystem
 
 
 class EarthTopoPhase(object):

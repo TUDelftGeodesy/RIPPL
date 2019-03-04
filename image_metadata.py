@@ -4,7 +4,7 @@ import collections
 import locale
 from shapely import geometry
 import numpy as np
-from coordinate_system import CoordinateSystem
+from rippl.coordinate_system import CoordinateSystem
 from six import string_types
 import shutil
 

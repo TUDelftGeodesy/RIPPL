@@ -1,6 +1,6 @@
 # Class to create a radar dem.
-from image_data import ImageData
-from find_coordinates import FindCoordinates
+from rippl.image_data import ImageData
+from rippl.find_coordinates import FindCoordinates
 import numpy as np
 
 

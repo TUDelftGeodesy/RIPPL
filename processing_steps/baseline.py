@@ -8,10 +8,10 @@
 #   - Resample the slave grid to master coordinates
 #   - (optional) Calculate the baselines between the two images
 
-from image_data import ImageData
-from orbit_dem_functions.orbit_interpolate import OrbitInterpolate
-from processing_steps.radar_dem import RadarDem
-from coordinate_system import CoordinateSystem
+from rippl.image_data import ImageData
+from rippl.orbit_dem_functions.orbit_interpolate import OrbitInterpolate
+from rippl.processing_steps.radar_dem import RadarDem
+from rippl.coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import numpy as np
 import os

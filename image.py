@@ -20,9 +20,9 @@
 
 # This test is used to test a number of processing steps on one slave and slice burst from Sentinel-1 data.
 import os
-from image_data import ImageData
-from processing_steps.concatenate import Concatenate
-from pipeline import Pipeline
+from rippl.image_data import ImageData
+from rippl.processing_steps.concatenate import Concatenate
+from rippl.pipeline import Pipeline
 
 class Image(object):
 
@@ -167,7 +167,7 @@ class Image(object):
                             break
 
             if err:
-                print('Slice ' + res_dat.folder + ' removed from image.')
+                print('Slice ' + res_dat.folder + ' removed from rippl.image.')
                 self.slice_folders.remove(slice_folder)
                 self.slice_names.remove(slice)
                 self.slices.pop(slice)

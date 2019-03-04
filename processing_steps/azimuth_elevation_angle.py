@@ -1,11 +1,11 @@
 # This function does the resampling of a radar grid based on different kernels.
 # In principle this has the same functionality as some other
-from image_data import ImageData
-from orbit_dem_functions.orbit_coordinates import OrbitCoordinates
+from rippl.image_data import ImageData
+from rippl.orbit_dem_functions.orbit_coordinates import OrbitCoordinates
 from collections import OrderedDict, defaultdict
-from find_coordinates import FindCoordinates
-from coordinate_system import CoordinateSystem
-from processing_steps.radar_dem import RadarDem
+from rippl.find_coordinates import FindCoordinates
+from rippl.coordinate_system import CoordinateSystem
+from rippl.processing_steps.radar_dem import RadarDem
 import numpy as np
 import logging
 import os

@@ -6,15 +6,15 @@ import datetime
 import logging
 from collections import OrderedDict, defaultdict
 
-from image_data import ImageData
-from processing_steps.radar_dem import RadarDem
-from coordinate_system import CoordinateSystem
+from rippl.image_data import ImageData
+from rippl.processing_steps.radar_dem import RadarDem
+from rippl.coordinate_system import CoordinateSystem
 
-from NWP_functions.harmonie.harmonie_database import HarmonieDatabase
-from NWP_functions.harmonie.harmonie_load_file import HarmonieData
-from NWP_functions.model_ray_tracing import ModelRayTracing
-from NWP_functions.model_to_delay import ModelToDelay
-from NWP_functions.model_interpolate_delays import ModelInterpolateDelays
+from rippl.NWP_functions.harmonie.harmonie_database import HarmonieDatabase
+from rippl.NWP_functions.harmonie.harmonie_load_file import HarmonieDatabase
+from rippl.NWP_functions.model_ray_tracing import ModelRayTracing
+from rippl.NWP_functions.model_to_delay import ModelToDelay
+from rippl.NWP_functions.model_interpolate_delays import ModelInterpolateDelays
 
 
 class HarmonieAps(object):
@@ -100,7 +100,7 @@ class HarmonieAps(object):
 
             # Load the Harmonie data if available
             if filename[0]:
-                data = HarmonieData()
+                data = HarmonieDatabase()
                 data.load_harmonie(date[0], filename[0])
             else:
                 print('No harmonie data available for ' + date[0].strftime('%Y-%m-%dT%H:%M:%S.%f'))

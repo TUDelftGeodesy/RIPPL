@@ -1,8 +1,8 @@
 # The following class creates an interferogram from a master and slave image.
 
-from image_data import ImageData
-from find_coordinates import FindCoordinates
-from coordinate_system import CoordinateSystem
+from rippl.image_data import ImageData
+from rippl.find_coordinates import FindCoordinates
+from rippl.coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import numpy as np
 import logging

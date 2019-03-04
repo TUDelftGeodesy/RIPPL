@@ -2,7 +2,7 @@
 import numpy as np
 from collections import defaultdict
 
-from NWP_functions.model_reference import ModelReference
+from rippl.NWP_functions.model_reference import ModelReference
 
 
 class ModelToDelay(object):

@@ -12,11 +12,11 @@ Examples of functions are:
 """
 
 import os
-from image import Image
-from interferogram import Interferogram
-from orbit_dem_functions.srtm_download import SrtmDownload
-from coordinate_system import CoordinateSystem
-from processing_steps.import_dem import CreateSrtmDem
+from rippl.image import Image
+from rippl.interferogram import Interferogram
+from rippl.orbit_dem_functions.srtm_download import SrtmDownload
+from rippl.coordinate_system import CoordinateSystem
+from rippl.processing_steps.import_dem import CreateSrtmDem
 import datetime
 import numpy as np
 

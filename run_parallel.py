@@ -2,7 +2,7 @@
 import os
 import six
 import numpy as np
-from image_data import ImageData
+from rippl.image_data import ImageData
 import gc
 
 
@@ -47,6 +47,24 @@ def run_parallel(dat):
             var = dat['proc_var'][0]
             var_names = dat['proc_var_name'][0]
 
+            if 'ifg_meta' in var_names:
+                meta_name = os.path.dirname(var[var_names.index('ifg_meta')].res_path)
+            else:
+                meta_name = os.path.dirname(var[var_names.index('meta')].res_path)
+
+            if len(os.path.basename(meta_name)) == 8 or len(os.path.basename(meta_name)) == 17:
+                meta_name = 'image ' + os.path.basename(meta_name)
+            else:
+                meta_name = os.path.basename(meta_name) + ' from rippl.image ' + os.path.basename(os.path.dirname(meta_name))
+
+            if 's_lin' in var_names and 'lines' in var_names:
+                s_lin = var[var_names.index('s_lin')]
+                lines = var[var_names.index('lines')]
+                print('Started processing ' + func.__name__ + ' for ' + meta_name + ' from line ' + str(s_lin) +
+                      ' till ' + str(s_lin + lines -1))
+            else:
+                print('Started processing ' + func.__name__ + ' for ' + meta_name)
+
             if len(var_names) > 0:
                 # Because the number of variables can vary we use the eval functions.
                 func_str = [var_names[i] + '=var[' + str(i) + ']' for i in np.arange(len(var))]
@@ -56,26 +74,12 @@ def run_parallel(dat):
                 # Run the function created by the eval() string
                 succes = proc_func()
 
-            if 's_lin' in var_names and 'lines' in var_names and 'meta' in var_names:
-
-                meta_name = os.path.dirname(var[var_names.index('meta')].res_path)
-                if len(os.path.basename(meta_name)) == 8:
-                    meta_name = 'image ' + os.path.basename(meta_name)
-                else:
-                    meta_name = os.path.basename(meta_name) + ' from image ' + os.path.basename(os.path.dirname(meta_name))
+            if 's_lin' in var_names and 'lines' in var_names:
                 s_lin = var[var_names.index('s_lin')]
                 lines = var[var_names.index('lines')]
                 print('Finished processing ' + func.__name__ + ' for ' + meta_name + ' from line ' + str(s_lin) +
                       ' till ' + str(s_lin + lines -1))
-
-            elif 'meta' in var_names:
-
-                meta_name = os.path.dirname(var[var_names.index('meta')].res_path)
-                if len(os.path.basename(meta_name)) == 8:
-                    meta_name = 'image ' + os.path.basename(meta_name)
-                else:
-                    meta_name = os.path.basename(meta_name) + ' from image ' + os.path.basename(
-                        os.path.dirname(meta_name))
+            else:
                 print('Finished processing ' + func.__name__ + ' for ' + meta_name)
 
             dat['proc_var'].pop(0)

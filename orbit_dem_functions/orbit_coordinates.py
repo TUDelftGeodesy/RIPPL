@@ -2,8 +2,8 @@
 import datetime
 import os
 import numpy as np
-from orbit_dem_functions.orbit_interpolate import OrbitInterpolate
-from image_data import ImageData
+from rippl.orbit_dem_functions.orbit_interpolate import OrbitInterpolate
+from rippl.image_data import ImageData
 
 
 class OrbitCoordinates(OrbitInterpolate, ImageData):

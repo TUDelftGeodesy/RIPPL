@@ -1,11 +1,11 @@
 #!/usr/bin/python
 # Create a datastack
 
-from stack import Stack
-from sentinel.sentinel_stack import SentinelStack
+from rippl.stack import Stack
+from rippl.sentinel.sentinel_stack import SentinelStack
 import os
-from sentinel.sentinel_download import DownloadSentinelOrbit
-from coordinate_system import CoordinateSystem
+from rippl.sentinel.sentinel_download import DownloadSentinelOrbit
+from rippl.coordinate_system import CoordinateSystem
 
 track_no = 37
 parallel = False
@@ -17,8 +17,8 @@ harmonie_data = data_disk + 'weather_models/harmonie_data'
 ecmwf_data = data_disk + 'weather_models/ecmwf_data'
 
 # t 37
-start_date = '2017-11-01'
-end_date = '2017-11-20'
+start_date = '2016-01-01'
+end_date = '2018-10-20'
 master_date = '2017-11-09'
 
 database_folder = data_disk + 'radar_database/sentinel-1/dsc_t037'
@@ -44,11 +44,11 @@ srtm_folder = data_disk + 'DEM/DEM_new'
 # download_orbit.download_orbits()
 
 # Number of cores
-cores = 8
+cores = 3
 
 # Prepare processing
-#self = SentinelStack(stack_folder)
-#self.read_from_database(database_folder, shapefile, track_no, orbit_folder, start_date, end_date, master_date,
+# self = SentinelStack(stack_folder)
+# self.read_from_database(database_folder, shapefile, track_no, orbit_folder, start_date, end_date, master_date,
 #                         mode, product_type, polarisation, cores=6)
 
 self = Stack(stack_folder)
@@ -77,24 +77,26 @@ parallel = True
 coordinates = CoordinateSystem()
 coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
 coordinates.slice = True
-self('radar_DEM', settings, coordinates, 'cmaster', file_type='radar_DEM', parallel=parallel)
+# self('radar_DEM', settings, coordinates, 'cmaster', file_type='radar_DEM', parallel=parallel)
 # Run the geocoding for the slices.
-self('geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat', 'lon'], parallel=parallel)
+# self('geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat', 'lon'], parallel=parallel)
 # Get the image orientation
-self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
+# self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
 
 # Run azimuth elevation angles for the full image
 coordinates = CoordinateSystem()
 coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
 coordinates.slice = False
 
-self('radar_DEM', settings, coordinates, 'cmaster', file_type='radar_DEM', parallel=parallel)
+# self('radar_DEM', settings, coordinates, 'cmaster', file_type='radar_DEM', parallel=parallel)
 # Run till the earth_topo_phase step.
-self(['earth_topo_phase', 'height_to_phase'], settings, coordinates, 'slave', file_type=[['earth_topo_phase'], ['height_to_phase']], parallel=parallel)
-# Get the image orientation
-self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
-# Create ifgs for single master.
 
+#self(['height_to_phase'], settings, coordinates, 'slave', file_type=['height_to_phase'], parallel=parallel)
+#
+#self(['earth_topo_phase'], settings, coordinates, 'slave', file_type=['earth_topo_phase'], parallel=parallel)
+# Get the image orientation
+#self('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
+# Create ifgs for single master.
 
 # Run azimuth elevation angles for the full image
 coordinates = CoordinateSystem()
@@ -104,14 +106,14 @@ self('interferogram', settings, coordinates, 'ifg', file_type='interferogram', p
 
 coordinates.slice = True
 # Create amplitude images
-self(['amplitude'], settings, coordinates, 'slave', file_type=['amplitude'], parallel=parallel)
+#self(['amplitude'], settings, coordinates, 'slave', file_type=['amplitude'], parallel=parallel)
 
 coordinates.slice = False
-self(['amplitude'], settings, coordinates, 'slave', file_type=['amplitude'], parallel=parallel)
+# self(['amplitude'], settings, coordinates, 'slave', file_type=['amplitude'], parallel=parallel)
 
 # Get the harmonie (h38) and ECMWF (ERA5) data
-self('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_h38_aps'])
-self('ecmwf_aps', settings, coordinates, 'slave', file_type=['ecmwf_ERA5_aps'])
+self('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_aps'], parallel=parallel)
+# self('ecmwf_aps', settings, coordinates, 'slave', file_type=['ecmwf_ERA5_aps'])
 
 ##############################
 # Next steps are not needed but merely used as an additional check..
@@ -121,7 +123,33 @@ self('ecmwf_aps', settings, coordinates, 'slave', file_type=['ecmwf_ERA5_aps'])
 coordinates = CoordinateSystem()
 coordinates.create_radar_coordinates(multilook=[20, 80], offset=[0, 0], oversample=[1, 1])
 coordinates.slice = False
-self('square_amplitude', settings, coordinates, 'slave', file_type='square_amplitude', parallel=parallel)
+#self('square_amplitude', settings, coordinates, 'slave', file_type='square_amplitude', parallel=parallel)
 # Create ifgs / coherence for daisy chain.
-self('interferogram', settings, coordinates, 'ifg', file_type='interferogram', parallel=parallel)
-self('coherence', settings, coordinates, 'ifg', file_type='coherence', parallel=parallel)
+#self('interferogram', settings, coordinates, 'ifg', file_type='interferogram', parallel=parallel)
+#self('coherence', settings, coordinates, 'ifg', file_type='coherence', parallel=parallel)
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+images = sorted(self.images.keys())
+
+# Check harmonie
+for im in images:
+    plt.figure()
+    dat = self.images[im].res_data.data_disk['harmonie_aps']['harmonie_aps'][::10, ::10]
+    plt.imshow(dat)
+    plt.title('Harmonie data ' + im)
+    print('mean image ' + im + ' is ' + str(np.mean(dat)))
+    plt.show()
+
+print('Images with Harmonie data')
+for im in images:
+    mean = np.mean(self.images[im].res_data.data_disk['harmonie_aps']['harmonie_aps_ml_20_80'])
+    if mean > 2:
+        print(im)
+
+print('Images without Harmonie data')
+for im in images:
+    mean = np.mean(self.images[im].res_data.data_disk['harmonie_aps']['harmonie_aps_ml_20_80'])
+    if mean < 2:
+        print(im)

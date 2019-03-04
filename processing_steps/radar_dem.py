@@ -1,9 +1,9 @@
 # This function does the resampling of a radar grid based on different kernels.
 # In principle this has the same functionality as some other
-from image_data import ImageData
-from find_coordinates import FindCoordinates
+from rippl.image_data import ImageData
+from rippl.find_coordinates import FindCoordinates
 from collections import OrderedDict, defaultdict
-from coordinate_system import CoordinateSystem
+from rippl.coordinate_system import CoordinateSystem
 import numpy as np
 import logging
 import os

@@ -1,7 +1,7 @@
 import numpy as np
 import os
 
-from orbit_dem_functions.srtm_download import SrtmDownloadTile
+from rippl.orbit_dem_functions.srtm_download import SrtmDownloadTile
 
 
 class ModelReference(object):
