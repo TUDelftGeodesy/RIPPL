@@ -81,7 +81,7 @@ class Pipeline():
                     if slice_id in im.slices.keys():
                         slice[im_str] = im.slices[slice_id]
 
-            self.res_dat[slice_id] = copy.deepcopy(slice)
+                self.res_dat[slice_id] = copy.deepcopy(slice)
 
         image = dict()
         for im, im_str in zip([self.cmaster, self.master, self.slave, self.ifg], ['cmaster', 'master', 'slave', 'ifg']):
@@ -244,7 +244,7 @@ class Pipeline():
                 start_meta_type = [self.meta_type for n in np.arange(len(self.function))]
                 start_coor = copy.deepcopy(self.coor)
 
-                if start_coor.meta_name != start_meta_name:
+                if start_coor.meta_name != start_meta_name and start_coor.grid_type == 'radar_coordinates':
                     if 'cmaster' in self.res_dat['full'].keys():
                         start_coor.add_res_info(self.res_dat['full']['cmaster'])
                     else:
@@ -270,7 +270,7 @@ class Pipeline():
                     start_file_type = np.array(new_pipeline['file_type'])[step_ids]
                     start_coor = new_pipeline['coor_out'][-1]
 
-                    if start_coor.meta_name != start_meta_name:
+                    if start_coor.meta_name != start_meta_name and start_coor.grid_type == 'radar_coordinates':
                         if 'cmaster' in self.res_dat['full'].keys():
                             start_coor.add_res_info(self.res_dat['full']['cmaster'])
                         else:
@@ -332,7 +332,7 @@ class Pipeline():
                     start_meta_type = [self.meta_type for n in np.arange(len(self.function))]
                     start_coor = copy.deepcopy(self.coor)
 
-                    if start_coor.meta_name != start_meta:
+                    if start_coor.meta_name != start_meta and start_coor.grid_type == 'radar_coordinates':
                         if 'cmaster' in self.res_dat[start_meta].keys():
                             start_coor.add_res_info(self.res_dat[start_meta]['cmaster'])
                         else:
@@ -360,7 +360,7 @@ class Pipeline():
                 start_meta_name = new_pipeline['meta'][-1]
                 start_coor = new_pipeline['coor_out'][-1]
 
-                if start_coor.meta_name != start_meta_name:
+                if start_coor.meta_name != start_meta_name and start_coor.grid_type == 'radar_coordinates':
                     if 'cmaster' in self.res_dat[start_meta_name].keys():
                         start_coor.add_res_info(self.res_dat[start_meta_name]['cmaster'])
                     else:
@@ -557,16 +557,27 @@ class Pipeline():
 
                     input_data, output_data, mem_use = self.processing_info(step, out_coor, meta_type)
                     meta_tps, step_tps, file_tps = Pipeline.order_input_data(input_data)
+
+                    settings['step'] = 'earth_topo_phase'
+                    settings['file_type'] = 'earth_topo_phase'
                 else:
                     m_step = 'multilook'
                     m_file_type = ['']
 
-                    meta_tps = [meta_type]
-                    step_tps = [step]
-                    file_tps = [file_type]
+                    input_data, output_data, mem_use = self.processing_info('multilook', out_coor, meta_type)
+                    meta_tps, step_tps, file_tps = Pipeline.order_input_data(input_data)
 
-                settings['step'] = step
-                settings['file_type'] = file_type
+                    ids = np.where(np.array(meta_tps) == 'slave')[0]
+                    for id in ids[::-1]:
+                        meta_tps.pop(id)
+                        step_tps.pop(id)
+                        file_tps.pop(id)
+                    meta_tps.append(meta_type)
+                    step_tps.append(step)
+                    file_tps.append(file_type)
+
+                    settings['step'] = step
+                    settings['file_type'] = file_type
 
                 func_set['main_proc_depth'] = copy.copy(depth)
                 func_set['step'].append(m_step)
@@ -578,14 +589,13 @@ class Pipeline():
                 func_set['settings'].append(settings)
                 func_set['rem_mem'].append(recursive_dict())
 
-                if step == 'interferogram':
-                    func_set['rem_mem'][-1]['master'][step_tps[0]] = [file_tps[0]]
-                    func_set['rem_mem'][-1]['slave'][step_tps[0]] = [file_tps[0]]
-                else:
-                    func_set['rem_mem'][-1][meta_type][step_tps[0]] = [file_tps[0]]
-
                 # Now add the original requested files to our to be processed list.
                 for meta_tp, step_tp, file_tp in zip(meta_tps, step_tps, file_tps):
+
+                    if len(func_set['rem_mem'][-1][meta_tp][step_tp]) == 0:
+                        func_set['rem_mem'][-1][meta_tp][step_tp] = [file_tp]
+                    else:
+                        func_set['rem_mem'][-1][meta_tp][step_tp].append(file_tp)
 
                     f_type = file_tp + in_coor.sample
                     if not self.res_dat[meta_name][meta_type].check_datafile(self.function, file_type=f_type, warn=False):
@@ -694,7 +704,16 @@ class Pipeline():
                     if p_step in ['inverse_geocode', 'geometrical_coreg']:
                         use_slices = False
 
-                    coor_in = input_dat[meta_types[0]][step_types[0]][file_types[0]]['coordinates']
+                    if 'slave' in meta_types:
+                        id = meta_types.index('slave')
+                    elif 'ifg' in meta_types:
+                        id = meta_types.index('ifg')
+                    elif 'master' in meta_types:
+                        id = meta_types.index('master')
+                    else:
+                        id = 0
+
+                    coor_in = input_dat[meta_types[id]][step_types[id]][file_types[id]]['coordinates']
                     if use_slices:
 
                         for p_type in p_file_type:
@@ -728,11 +747,13 @@ class Pipeline():
                     # In case of resampling or multilooking information of the master process should be added
                     if start_coor.sample != coor_in.sample:
                         # Find info of original step
+                        apply_ml = True
                         if 'coor_change' in input_dat[meta_type][step][file_type].keys():
                             if input_dat[meta_type][step][file_type]['coor_change'] == 'resample':
                                 # Add coordinate information to original step
                                 pipeline['coor_in'][parent_id] = coor_in
-                        else:
+                                apply_ml = False
+                        if apply_ml:
                             ml_count += 1
 
                             for p_type in p_file_type:
@@ -1070,26 +1091,21 @@ class Pipeline():
                         if func in ['multilook', 'interferogram']:
                             pipeline_ml['function'] = [self.processes[func]]
 
+                            proc_var, proc_var_names, res_dat = self.create_var_package(
+                                func, meta, meta_type, coordinates, coor_out, file_type=settings['file_type'],
+                                res_dat=res_dat, step=settings['step'], package_type='processing')
+                            meta_var, meta_var_names, res_dat = self.create_var_package(
+                                func, meta, meta_type, coordinates, coor_out, file_type=settings['file_type'],
+                                res_dat=res_dat, step=settings['step'], package_type='metadata')
+
                             if func == 'multilook':
-                                proc_var, proc_var_names, res_dat = self.create_var_package(
-                                    func, meta, meta_type, coordinates, coor_out, file_type=settings['file_type'],
-                                    res_dat=res_dat, step=settings['step'], package_type='processing')
                                 disk_var, disk_var_names, res_dat = self.create_var_package(
                                     func, meta, meta_type, coordinates, coor_out, file_type=settings['file_type'],
                                     res_dat=res_dat, step=settings['step'], package_type='disk_data')
-                                meta_var, meta_var_names, res_dat = self.create_var_package(
-                                    func, meta, meta_type, coordinates, coor_out, file_type=settings['file_type'],
-                                    res_dat=res_dat, step=settings['step'], package_type='metadata')
                             else:  # If it is interferogram
-                                proc_var, proc_var_names, res_dat = self.create_var_package(
-                                    func, meta, meta_type, coordinates, coor_out, file_type=file_type,
-                                    res_dat=res_dat, package_type='processing')
                                 disk_var, disk_var_names, res_dat = self.create_var_package(
-                                    func, meta, meta_type, coordinates, coor_out, file_type=file_type,
+                                    func, meta, meta_type, coordinates, coor_out, file_type='interferogram',
                                     res_dat=res_dat, package_type='disk_data')
-                                meta_var, meta_var_names, res_dat = self.create_var_package(
-                                    func, meta, meta_type, coordinates, coor_out, file_type=file_type,
-                                    res_dat=res_dat, package_type='metadata')
 
                             if pipeline['proc_type'] == 'multilook' or coordinates.sample == coor_out.sample:
                                 pipeline_ml['create_var_name'] = [disk_var_names]
@@ -1099,7 +1115,7 @@ class Pipeline():
                                 pipeline_ml['meta_var_name'].append(meta_var_names)
                                 pipeline_ml['meta_var'].append(meta_var)
 
-                                if pipeline['proc_type'] == 'multilook':
+                                if func == 'multilook':
                                     clear_var = [self.res_dat[meta][meta_type], settings['step'], settings['file_type'] + coor_out.sample]
                                     clear_var_names = ['meta', 'step', 'file_type']
                                 else:
@@ -1180,7 +1196,7 @@ class Pipeline():
                             for fun in rem_mem[m_type].keys():
                                 for f_type in rem_mem[m_type][fun]:
 
-                                    clear_var = [self.res_dat[meta][m_type], fun, f_type + coor_out.sample]
+                                    clear_var = [self.res_dat[meta][m_type], fun, f_type ] # + coor_out.sample
                                     clear_var_names = ['meta', 'step', 'file_type']
                                     clear_mem_var.append(clear_var)
                                     clear_mem_var_name.append(clear_var_names)
@@ -1211,13 +1227,16 @@ class Pipeline():
                             processing_package.insert(0, block_pipeline)
 
                 elif pipeline['proc_type'] == 'concatenate':
+                    # Processing is on disk
+                    con_proc = 'disk'
 
                     # All multilook steps are independent so we give them independent steps here too.
                     pipeline_ml = copy.deepcopy(dummy_processing)
                     pipeline_ml['proc_type'] = 'concatenate'
                     pipeline_ml['proc'] = True
                     pipeline_ml['clear_mem'] = True
-                    pipeline_ml['save_disk'] = True
+                    if con_proc != 'disk':
+                        pipeline_ml['save_disk'] = True
                     res_dat = pipeline_ml['res_dat']
 
                     clear_mem_var = []
@@ -1242,10 +1261,11 @@ class Pipeline():
 
                             pipeline_ml['proc_var_name'].append(proc_var_names)
                             pipeline_ml['proc_var'].append(proc_var)
-                            pipeline_ml['save_var_name'].append(disk_var_names)
-                            pipeline_ml['save_var'].append(disk_var)
+                            if con_proc != 'disk':
+                                pipeline_ml['save_var_name'].append(disk_var_names)
+                                pipeline_ml['save_var'].append(disk_var)
 
-                            clear_var = [self.res_dat['full'][meta_type], settings['step'], settings['file_type'] + coor_out.sample]
+                            clear_var = [self.res_dat['full'][meta_type], settings['step'], settings['file_type']] # + coor_out.sample
                             clear_var_name = ['meta', 'step', 'file_type']
                             clear_mem_var.append(clear_var)
                             clear_mem_var_name.append(clear_var_name)

@@ -3,10 +3,11 @@ This function is used to create interferograms
 '''
 
 import os
-from rippl.image import ImageData
+import time
 from rippl.image import ImageData
 from rippl.pipeline import Pipeline
 import copy
+from rippl.image import Image
 
 
 class Interferogram(object):
@@ -89,7 +90,7 @@ class Interferogram(object):
         # Load the information about the bursts (We do not load that information by default as it causes to much data in
         # memory for large stacks.
 
-        if isinstance(self.cmaster, ImageData):
+        if isinstance(self.cmaster, Image):
             self.cmaster.load_slice_info()
 
         for slice_folder, slice_name in zip(self.slice_folders, self.slice_names):
@@ -136,29 +137,42 @@ class Interferogram(object):
         # Load all information from slices
         self.load_slice_info()
         self.rem_memmap()
-        if isinstance(master, ImageData):
+        if isinstance(master, Image):
             master.load_slice_info()
             master.rem_memmap()
-        if isinstance(slave, ImageData):
+        if isinstance(slave, Image):
             slave.load_slice_info()
             slave.rem_memmap()
-        if isinstance(cmaster, ImageData):
+        if isinstance(cmaster, Image):
             cmaster.load_slice_info()
             cmaster.rem_memmap()
 
         # The main image is always seen as the slave image. Further ifg processing is not possible here.
+        if isinstance(step, list):
+            print('Running ' + step[0] + ' for ' + self.res_data.res_path)
+        else:
+            print('Running ' + step + ' for ' + self.res_data.res_path)
+
+        then = time.time()  # Time before the operations start
         pipeline = Pipeline(memory=memory, cores=cores, slave=slave, master=master, cmaster=cmaster, ifg=self, parallel=parallel)
         pipeline(step, settings, coors, 'ifg', file_type=file_type)
+        now = time.time()  # Time after it finished
+
+        if isinstance(step, list):
+            print('Finished ' + step[0] + ' for ' + self.res_data.res_path)
+        else:
+            print('Finished ' + step + ' for ' + self.res_data.res_path)
+        print('Processing took ' + str(int(now - then)) + ' seconds')
 
         # Remove information from slices and load full image info again
         self.slices = dict()
         self.load_full_info()
-        if isinstance(cmaster, ImageData):
+        if isinstance(cmaster, Image):
             cmaster.load_slice_info()
             cmaster.load_full_memmap()
-        if isinstance(master, ImageData):
+        if isinstance(master, Image):
             master.slices = dict()
             master.load_full_memmap()
-        if isinstance(slave, ImageData):
+        if isinstance(slave, Image):
             slave.slices = dict()
             slave.load_full_memmap()

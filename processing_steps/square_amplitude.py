@@ -43,8 +43,14 @@ class SquareAmplitude(object):
         self.step = step
         self.slc_dat = self.meta.image_load_data_memory(self.step, self.s_lin, self.s_pix, self.shape, self.file_type + coordinates.sample, warn=False)
 
+        self.no0 = (self.slc_dat != 0)
+        if self.coordinates.mask_grid:
+            mask = self.meta.image_load_data_memory('create_sparse_grid', s_lin, 0, self.shape,
+                                                       'mask' + self.coordinates.sample)
+            self.no0 *= mask
+
         # Initialize output
-        self.squared = []
+        self.squared = np.zeros(self.shape).astype(np.float32)
 
     def __call__(self):
         # Check if needed data is loaded
@@ -54,7 +60,8 @@ class SquareAmplitude(object):
 
         try:
             # Square image
-            self.squared = np.abs(self.slc_dat)**2
+            if np.sum(self.no0) > 0:
+                self.squared[self.no0] = np.abs(self.slc_dat[self.no0])**2
 
             # If needed do the multilooking step
             self.add_meta_data(self.meta, self.coordinates, self.step, self.file_type)

@@ -14,7 +14,7 @@ Examples of functions are:
 import os
 from rippl.image import Image
 from rippl.interferogram import Interferogram
-from rippl.orbit_dem_functions.srtm_download import SrtmDownload
+from rippl.external_DEMs.srtm.srtm_download import SrtmDownload
 from rippl.coordinate_system import CoordinateSystem
 from rippl.processing_steps.import_dem import CreateSrtmDem
 import datetime
@@ -160,12 +160,16 @@ class Stack(object):
             self.images[self.master_date](step, settings, coor, file_type, cmaster='',
                                           memory=memory, cores=cores, parallel=parallel)
         elif meta_type == 'slave':
-            for key in self.images.keys():
+            keys = np.sort(list(self.images.keys()))[::-1]
+
+            for key in keys:
                 self.images[key](step, settings, coor, file_type, cmaster=self.images[self.master_date],
                                  memory=memory, cores=cores, parallel=parallel)
 
         elif meta_type == 'ifg':
-            for key in self.interferograms.keys():
+            keys = np.sort(list(self.interferograms.keys()))[::-1]
+
+            for key in keys:
                 master_key = key[:8]
                 slave_key = key[9:]
 
@@ -293,10 +297,10 @@ class Stack(object):
                 ifg = Interferogram(slave=self.images[slave_key], master=self.images[master_key], cmaster=self.images[cmaster_key])
                 self.interferograms[ifg_key_1] = ifg
 
-    def create_SRTM_input_data(self, srtm_folder, username, password, buf=0.2, rounding=0.2,  srtm_type='SRTM3'):
+    def create_SRTM_input_data(self, srtm_folder, username, password, buf=0.2, rounding=0.2,  srtm_type='SRTM3', parallel=True):
         # This creates the input DEM for the different slices of the master image.
 
-        self.download_SRTM_dem(srtm_folder, username, password, buf, rounding, srtm_type)
+        self.download_SRTM_dem(srtm_folder, username, password, buf, rounding, srtm_type, parallel=parallel)
 
         # First full image
         image = self.images[self.master_date].res_data
@@ -315,11 +319,11 @@ class Stack(object):
 
             if not self.images[self.master_date].slices[key].process_control['import_DEM'] == '1' or not \
                     os.path.exists(dem_path):
-                SRTM_dat = CreateSrtmDem(slice, srtm_folder, buf=buf, rounding=rounding, srtm_type=srtm_type)
+                SRTM_dat = CreateSrtmDem(slice, srtm_folder, buf=0.2, rounding=rounding, srtm_type=srtm_type)
                 SRTM_dat()
                 slice.write()
 
-    def download_SRTM_dem(self, srtm_folder, username, password, buf=0.5, rounding=0.5, srtm_type='SRTM3'):
+    def download_SRTM_dem(self, srtm_folder, username, password, buf=0.5, rounding=0.5, srtm_type='SRTM3', parallel=True):
         # Downloads the needed srtm data for this datastack. srtm_folder is the folder the downloaded srtm tiles are
         # stored.
         # Username and password can be obtained at https://lpdaac.usgs.gov
@@ -329,6 +333,6 @@ class Stack(object):
         # Description srtm q data: https://lpdaac.usgs.gov/node/505
 
         download = SrtmDownload(srtm_folder, username, password, srtm_type)
-        download(self.images[self.master_date].res_data, buf=buf, rounding=rounding)
+        download(self.images[self.master_date].res_data, buf=buf, rounding=rounding, parallel=parallel)
 
     # Possibly an extension to use of free tandem-x data?

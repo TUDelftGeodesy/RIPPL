@@ -16,13 +16,17 @@ class CoordinateSystem():
 
         # Characteristics for all images
         self.shape = [0, 0]
-        self.first_line = 0
-        self.first_pixel = 0
+        self.first_line = 1
+        self.first_pixel = 1
         self.oversample = [1, 1]
         self.sample = ''
         self.meta_name = ''
         self.res_path = ''
         self.over_size = over_size
+        self.sparse_grid = False
+        self.sparse_name = ''
+        self.mask_grid = False
+        self.mask_name = ''
 
         # Characteristics for radar type
         self.multilook = [1, 1]
@@ -62,7 +66,7 @@ class CoordinateSystem():
         self.geo = ''
         self.proj = ''
 
-    def create_radar_coordinates(self, res_info='', multilook='', oversample='', offset=''):
+    def create_radar_coordinates(self, res_info='', multilook='', oversample='', offset='', sparse_name=''):
 
         if self.over_size:
             offset = [self.offset[0] - multilook[0] * 2, self.offset[1] - multilook[1] * 2]
@@ -72,11 +76,16 @@ class CoordinateSystem():
         self.grid_type = 'radar_coordinates'
 
         self.sample = FindCoordinates.multilook_str(self.multilook, self.oversample, self.offset)[0]
+        if sparse_name:
+            self.sparse_grid = True
+            self.sparse_name = sparse_name
+            self.sample = self.sample + '_' + self.sparse_name
 
         if res_info:
             self.add_res_info(res_info)
 
-    def create_geographic(self, dlat, dlon, res_info='', ellipse_type='WGS84', shape='', lat0='', lon0='', oversample=''):
+    def create_geographic(self, dlat, dlon, res_info='', ellipse_type='WGS84', shape='', lat0='', lon0='',
+                          oversample='', sparse_name=''):
 
         self.ellipse_type = ellipse_type
         self.shape = shape
@@ -94,6 +103,10 @@ class CoordinateSystem():
         self.sample = '_' + ellipse_type + '_stp_' + str(int(np.round(dlat * 3600))) + '_' + str(int(np.round(dlon * 3600)))
         if not self.oversample == [1, 1]:
             self.sample = self.sample + '_ovr_' + str(self.oversample[0]) + '_' + str(self.oversample[1])
+        if sparse_name:
+            self.sparse_grid = True
+            self.sparse_name = sparse_name
+            self.sample = self.sample + '_' + self.sparse_name
 
         self.geo = pyproj.Geod(ellps=ellipse_type)
 
@@ -101,7 +114,7 @@ class CoordinateSystem():
             self.add_res_info(res_info)
 
     def create_projection(self, dx, dy, res_info='', projection_type='', ellipse_type='WGS84', proj4_str='',
-                          shape='', x0='', y0='', oversample=''):
+                          shape='', x0='', y0='', oversample='', sparse_name=''):
         # Define projection. For specific projections visit https://proj4.org
 
         self.ellipse_type = ellipse_type
@@ -120,8 +133,13 @@ class CoordinateSystem():
             self.oversample = oversample
 
         self.sample = '_' + projection_type + '_stp_' + str(dx).zfill(0) + '_' + str(dy).zfill(0)
+
         if not self.oversample == [1, 1]:
             self.sample = self.sample + '_ovr_' + str(self.oversample[0]) + '_' + str(self.oversample[1])
+        if sparse_name:
+            self.sparse_grid = True
+            self.sparse_name = sparse_name
+            self.sample = self.sample + '_' + self.sparse_name
 
         self.geo = pyproj.Geod(ellps=ellipse_type)
         if proj4_str:
@@ -169,14 +187,14 @@ class CoordinateSystem():
                                                                                   oversample=self.oversample,
                                                                                   offset=self.offset, interval=self.over_size)
                 self.shape = [len(self.ml_lines_out), len(self.ml_pixels_out)]
-
+                if self.sparse_grid and len(self.sparse_name) > 0:
+                    self.sample = self.sample + '_' + self.sparse_name
             else:
                 self.sample = old_coor.sample
                 self.shape = old_coor.shape
                 self.multilook = old_coor.multilook
                 self.oversample = old_coor.oversample
                 self.offset = old_coor.offset
-
 
         elif self.grid_type == 'geographic':
 
@@ -203,8 +221,8 @@ class CoordinateSystem():
         elif self.grid_type == 'projection':
 
             if old_coor == '':
-                lat = [l[0] for l in res_info.polygon.coords]
-                lon = [l[1] for l in res_info.polygon.coords]
+                lat = [l[0] for l in res_info.polygon.exterior.coords]
+                lon = [l[1] for l in res_info.polygon.exterior.coords]
                 x, y = self.ell2proj(lat, lon)
 
                 x_lim = [np.min(x), np.max(x)] + np.array([-buf, buf])
@@ -270,29 +288,29 @@ class CoordinateSystem():
 
         elif self.grid_type == 'geographic':
             # Create geo transform based on lat/lon
-            geo_transform[0] = self.lon0 + self.first_pixel * self.dlon
+            geo_transform[0] = self.lon0
             geo_transform[1] = self.dlon
             geo_transform[2] = 0
-            geo_transform[3] = self.lat0 + self.first_line * self.dlat
+            geo_transform[3] = self.lat0
             geo_transform[4] = 0
             geo_transform[5] = self.dlat
 
             # Import projection from pyproj
             projection = osr.SpatialReference()
-            projection.ImportFromProj4(self.proj)
+            projection.ImportFromEPSG(4326)
 
         elif self.grid_type == 'projection':
             # Create geo transform based on projection steps
-            geo_transform[0] = self.x0 + self.first_pixel * self.dx
+            geo_transform[0] = self.x0
             geo_transform[1] = self.dx
             geo_transform[2] = 0
-            geo_transform[3] = self.y0 + self.first_line * self.dy
+            geo_transform[3] = self.y0
             geo_transform[4] = 0
             geo_transform[5] = self.dy
 
             # Import projection from pyproj
             projection = osr.SpatialReference()
-            projection.ImportFromProj4(self.proj)
+            projection.ImportFromProj4(self.proj.srs)
 
         else:
             print('Grid type ' + self.grid_type + ' is ')
@@ -349,6 +367,8 @@ class CoordinateSystem():
             meta_info[data_name + '_pixels'] = str(self.shape[1])
             meta_info[data_name + '_first_line'] = str(self.first_line)
             meta_info[data_name + '_first_pixel'] = str(self.first_pixel)
+            meta_info[data_name + '_sparse_grid'] = str(self.sparse_grid)
+            meta_info[data_name + '_sparse_name'] = str(self.sparse_name)
 
             if self.grid_type == 'radar_coordinates':
                 meta_info[data_name + '_multilook_azimuth'] = str(self.multilook[0])
@@ -376,6 +396,61 @@ class CoordinateSystem():
 
         return meta_info
 
+    def get_offset(self, offset_coor, ml_off=True):
+        # This function gets the offset in lines and pixels with another coordinate system.
+
+        if not self.grid_type == offset_coor.grid_type:
+            print('The offset grid should be the same grid type.')
+            return
+
+        first_line_off = offset_coor.first_line - self.first_line
+        first_pixel_off = offset_coor.first_pixel - self.first_pixel
+
+        if self.grid_type == 'radar_coordinates':
+
+            if offset_coor.ra_step != self.ra_step or offset_coor.az_step != self.az_step \
+                 or offset_coor.multilook != self.multilook:
+                print('Pixel spacing should be the same')
+                return
+
+            ra_time_offset = np.int(np.round((offset_coor.ra_time - self.ra_time) / self.ra_step))
+            az_time_offset = np.int(np.round((offset_coor.az_time - self.az_time) / self.az_step))
+
+            if ml_off:
+                line_offset = az_time_offset + first_line_off + (offset_coor.offset[0] - self.offset[0])
+                pixel_offset = ra_time_offset + first_pixel_off + (offset_coor.offset[1] - self.offset[1])
+            else:
+                line_offset = az_time_offset + first_line_off
+                pixel_offset = ra_time_offset + first_pixel_off
+
+        elif self.grid_type == 'geographic':
+
+            if offset_coor.dlat != self.dlat or offset_coor.dlon != self.dlon:
+                print('Pixel spacing should be the same')
+                return
+
+            lat_offset = np.int(np.round((offset_coor.lat0 - self.lat0) / self.dlat))
+            lon_offset = np.int(np.round((offset_coor.lon0 - self.lon0) / self.dlon))
+
+            line_offset = first_line_off + lat_offset
+            pixel_offset = first_pixel_off + lon_offset
+
+        elif self.grid_type == 'projection':
+
+            if offset_coor.dy != self.dy or offset_coor.dx != self.dx:
+                print('Pixel spacing should be the same')
+                return
+
+            y_offset = np.int(np.round((offset_coor.y0 - self.y0) / self.dy))
+            x_offset = np.int(np.round((offset_coor.x0 - self.x0) / self.dx))
+
+            line_offset = first_line_off + y_offset
+            pixel_offset = first_pixel_off + x_offset
+        else:
+            return
+
+        return [line_offset, pixel_offset]
+
     # Create a single identifier for every coordinate system
     def coor_str(self, coor):
         # Compare other metadata to check whether they are similar.
@@ -386,7 +461,7 @@ class CoordinateSystem():
     def ell2proj(self, lat, lon):
 
         if isinstance(self.proj, pyproj.Proj) and isinstance(self.geo, pyproj.Geod):
-            x, y = self.proj(lat, lon, inverse=False)
+            x, y = self.proj(lon, lat, inverse=False)
         else:
             print('Either the projection or geographic coordinate system is not loaded as pyproj class')
             return
@@ -396,7 +471,7 @@ class CoordinateSystem():
     def proj2ell(self, x, y):
 
         if isinstance(self.proj, pyproj.Proj) and isinstance(self.geo, pyproj.Geod):
-            lat, lon = self.proj(x, y, inverse=True)
+            lon, lat = self.proj(x, y, inverse=True)
         else:
             print('Either the projection or geographic coordinate system is not loaded as pyproj class')
             return

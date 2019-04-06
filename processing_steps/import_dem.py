@@ -17,8 +17,8 @@ import numpy as np
 import gdal
 
 from collections import OrderedDict, defaultdict
-from rippl.orbit_dem_functions.orbit_coordinates import OrbitCoordinates
-from rippl.orbit_dem_functions.srtm_download import SrtmDownload
+from rippl.orbit_resample_functions.orbit_coordinates import OrbitCoordinates
+from rippl.external_DEMs.srtm.srtm_download import SrtmDownload
 from rippl.image_data import ImageData
 from rippl.coordinate_system import CoordinateSystem
 
@@ -79,7 +79,7 @@ class CreateSrtmDem(OrbitCoordinates):
 
         # Find the needed tiles.
         filelist = SrtmDownload.srtm_listing(self.srtm_folder)
-        tiles, n, v, t = SrtmDownload.select_tiles(filelist, self.coordinates, self.srtm_folder, self.srtm_type, self.quality, download=False)
+        tiles = SrtmDownload.select_tiles(filelist, self.coordinates, self.srtm_folder, self.srtm_type, self.quality, download=False)[0]
         tiles = [tile[:-4] for tile in tiles if tile.endswith('.hgt')]
 
         # Finally add metadata if it is directly linked to a SAR image

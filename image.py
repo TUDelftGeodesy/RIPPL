@@ -20,9 +20,11 @@
 
 # This test is used to test a number of processing steps on one slave and slice burst from Sentinel-1 data.
 import os
+import time
 from rippl.image_data import ImageData
 from rippl.processing_steps.concatenate import Concatenate
 from rippl.pipeline import Pipeline
+
 
 class Image(object):
 
@@ -107,8 +109,21 @@ class Image(object):
             cmaster.rem_memmap()
 
         # The main image is always seen as the slave image. Further ifg processing is not possible here.
+        if isinstance(step, list):
+            print('Running ' + step[0] + ' for ' + self.res_data.res_path)
+        else:
+            print('Running ' + step + ' for ' + self.res_data.res_path)
+
+        then = time.time()  # Time before the operations start
         pipeline = Pipeline(memory=memory, cores=cores, slave=self, cmaster=cmaster, parallel=parallel)
         pipeline(step, settings, coors, 'slave', file_type=file_type)
+        now = time.time()  # Time after it finished
+
+        if isinstance(step, list):
+            print('Finished ' + step[0] + ' for ' + self.res_data.res_path)
+        else:
+            print('Finished ' + step + ' for ' + self.res_data.res_path)
+        print('Processing took ' + str(int(now - then)) + ' seconds')
 
         # Remove information from slices and load full image info again
         self.slices = dict()

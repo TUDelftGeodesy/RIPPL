@@ -45,9 +45,15 @@ class Unwrap(object):
         c.write('INFILE ' + in_file + '\n')
         c.write('LINELENGTH ' + str(lines) + '\n')
 
+        # Add coherence file
         if 'coherence' in self.ifg_meta.data_files.keys():
             if 'coherence' + self.sample in self.ifg_meta.data_files['coherence'].keys():
                 c.write('CORRFILE ' + self.ifg_meta.data_files['coherence']['coherence' + self.sample] + '\n')
+                c.write('CORRFILEFORMAT		FLOAT_DATA\n')
+        # Add mask file
+        if 'sparse_grid' in self.ifg_meta.data_files.keys():
+            if 'mask' + self.sample in self.ifg_meta.data_files['sparse_grid'].keys():
+                c.write('CORRFILE ' + self.ifg_meta.data_files['sparse_grid']['mask' + self.sample] + '\n')
                 c.write('CORRFILEFORMAT		FLOAT_DATA\n')
 
         c.write('OUTFILE ' + os.path.join(os.path.dirname(in_file), 'unwrap' + self.sample + '.raw') + '\n')

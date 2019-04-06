@@ -17,7 +17,7 @@ class Resample(object):
     :type shape = list
     """
 
-    def __init__(self, meta, coordinates, s_lin=0, s_pix=0, lines=0, buf=5, warning=False, input_dat='',
+    def __init__(self, cmaster_meta, meta, coordinates, s_lin=0, s_pix=0, lines=0, buf=5, warning=False, input_dat='',
                  w_type='4p_cubic', table_size='', window=''):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
@@ -27,6 +27,7 @@ class Resample(object):
 
         if isinstance(meta, ImageData):
             self.slave = meta
+            self.cmaster = cmaster_meta
         else:
             return
 
@@ -70,6 +71,12 @@ class Resample(object):
             Resample.select_region_resampling(self.slave, self.new_line, self.new_pixel, buf)
         self.crop = self.slave.image_load_data_memory(input_step, in_s_lin, in_s_pix, in_shape)
 
+        self.no0 = (self.new_line != 0) * (self.new_pixel != 0)
+        if self.coordinates.mask_grid:
+            mask = self.cmaster.image_load_data_memory('create_sparse_grid', s_lin, 0, self.shape,
+                                                       'mask' + self.coordinates.sample)
+            self.no0 *= mask
+
         # Initialize output
         self.resample = []
 
@@ -105,7 +112,8 @@ class Resample(object):
             half_w_line = window_size[0] // 2
             half_w_pixel = window_size[1] // 2
             valid_vals = (((line_id - half_w_line + 1) >= 0) * ((line_id + half_w_line) < self.crop.shape[0]) *
-                          ((pixel_id - half_w_pixel + 1) >= 0) * ((pixel_id + half_w_pixel) < self.crop.shape[1]))
+                          ((pixel_id - half_w_pixel + 1) >= 0) * ((pixel_id + half_w_pixel) < self.crop.shape[1])) * \
+                         self.no0
 
             # Pre assign the final values of this step.
             self.resample = np.zeros(l_window_id.shape).astype(self.crop.dtype)

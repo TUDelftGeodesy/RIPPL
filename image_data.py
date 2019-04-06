@@ -88,7 +88,7 @@ class ImageData(ImageMetadata):
                                                dtype=self.dtype_disk[self.data_types[step][file_type]],
                                                shape=self.data_sizes[step][file_type])
 
-    def images_create_disk(self, step, file_types='', coordinates='', coor_out=''):
+    def images_create_disk(self, step, file_types='', coordinates='', coor_in=''):
 
         if len(file_types) == 0:
             meta_info = self.processes[step]
@@ -98,12 +98,12 @@ class ImageData(ImageMetadata):
         if isinstance(file_types, str):
             file_types = [file_types]
 
-        elif isinstance(coordinates, CoordinateSystem):
-            file_types = [file_type + coordinates.sample for file_type in file_types]
-
+        if isinstance(coordinates, CoordinateSystem):
             # Only used for the conversion grid
-            if isinstance(coor_out, CoordinateSystem):
-                file_types = [file_type + coor_out.sample for file_type in file_types]
+            if isinstance(coor_in, CoordinateSystem):
+                file_types = [file_type + coor_in.sample for file_type in file_types]
+
+            file_types = [file_type + coordinates.sample for file_type in file_types]
 
         for file_type in file_types:
             self.image_create_disk(step, file_type)
@@ -227,7 +227,7 @@ class ImageData(ImageMetadata):
         print('Saved ' + file_types[0] + ' from ' + steps[0] + ' step of ' + os.path.dirname(self.res_path))
 
 
-    def images_memory_to_disk(self, step, file_types='', coordinates='', coor_out=''):
+    def images_memory_to_disk(self, step, file_types='', coordinates='', coor_in=''):
 
         if len(file_types) == 0:
             meta_info = self.processes[step]
@@ -237,12 +237,12 @@ class ImageData(ImageMetadata):
         if isinstance(file_types, str):
             file_types = [file_types]
 
-        elif isinstance(coordinates, CoordinateSystem):
-            file_types = [file_type + coordinates.sample for file_type in file_types]
-
+        if isinstance(coordinates, CoordinateSystem):
             # Only used for the conversion grid
-            if isinstance(coor_out, CoordinateSystem):
-                file_types = [file_type + coor_out.sample for file_type in file_types]
+            if isinstance(coor_in, CoordinateSystem):
+                file_types = [file_type + coor_in.sample for file_type in file_types]
+
+            file_types = [file_type + coordinates.sample for file_type in file_types]
 
         for file_type in file_types:
             self.image_memory_to_disk(step, file_type)
@@ -260,8 +260,6 @@ class ImageData(ImageMetadata):
             # If the file exists but is not read as a memmap, read it in as a memmap.
             if len(self.data_disk[step][file_type]) == 0:
                 self.read_data_memmap(step, file_type)
-            else:
-                return
 
         if not self.check_loaded(step, file_type=file_type, warn=False):
             self.read_data()
@@ -416,7 +414,8 @@ class ImageData(ImageMetadata):
             self.data_memory[step][file_type] = self.data_disk[step][file_type]\
                 .view(np.float16).astype('float32', subok=False).view(np.complex64)[s_lin:e_lin, s_pix:e_pix]
         else:
-            self.data_memory[step][file_type] = self.data_disk[step][file_type][s_lin:e_lin, s_pix:e_pix]
+            self.data_memory[step][file_type] = \
+                self.data_disk[step][file_type].astype(self.data_disk[step][file_type].dtype, subok=False)[s_lin:e_lin, s_pix:e_pix]
 
         return True
 

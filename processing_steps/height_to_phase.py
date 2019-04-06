@@ -11,6 +11,7 @@
 from rippl.image_data import ImageData
 from rippl.processing_steps.radar_dem import RadarDem
 from rippl.coordinate_system import CoordinateSystem
+from rippl.processing_steps.coor_geocode import CoorGeocode
 from collections import OrderedDict, defaultdict
 import numpy as np
 import os
@@ -54,6 +55,12 @@ class HeightToPhase(object):
         self.incidence = (90 - self.cmaster.image_load_data_memory('azimuth_elevation_angle', self.s_lin, self.s_pix,
                                                                        self.shape, 'elevation_angle')) / 180.0 * np.pi
 
+        self.no0 = (self.baseline != 0) * (self.incidence != 0)
+        if self.coordinates.mask_grid:
+            mask = self.cmaster.image_load_data_memory('create_sparse_grid', s_lin, 0, self.shape,
+                                                       'mask' + self.coordinates.sample)
+            self.no0 *= mask
+
         # Initialize output
         self.h2ph = []
 
@@ -64,16 +71,12 @@ class HeightToPhase(object):
             return False
 
         try:
-            no0 = (self.baseline != 0) * (self.incidence != 0)
-            lines, pixels = np.where(no0)
-            lines = []
-
             self.h2ph = np.zeros(self.baseline.shape).astype(np.float32)
 
-            if np.sum(no0) > 0:
+            if np.sum(self.no0) > 0:
                 # First get the master and slave positions.
-                R = self.ra2m * (self.pixels[pixels] - 1) + self.dist_first_pix
-                self.h2ph[no0] = self.baseline[no0] / (R * np.sin(self.incidence[no0]))
+                R = self.ra2m * (self.pixels[self.no0] - 1) + self.dist_first_pix
+                self.h2ph[self.no0] = self.baseline[self.no0] / (R * np.sin(self.incidence[self.no0]))
 
                 # print('Average height to phase is ' + str(np.mean(self.h2ph[no0])))
 
@@ -119,6 +122,8 @@ class HeightToPhase(object):
         # Three input files needed x, y, z coordinates
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
+        input_dat = CoorGeocode.line_pixel_processing_info(input_dat, coordinates, 'cmaster', False)
+
         input_dat['slave']['baseline']['perpendicular_baseline' + coordinates.sample]['file'] = 'perpendicular_baseline' + coordinates.sample + '.raw'
         input_dat['slave']['baseline']['perpendicular_baseline' + coordinates.sample]['coordinates'] = coordinates
         input_dat['slave']['baseline']['perpendicular_baseline' + coordinates.sample]['slice'] = True

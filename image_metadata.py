@@ -162,13 +162,22 @@ class ImageMetadata(object):
                     type_info[dat[len_type + 1:]] = step_dat[dat]
 
             dat_coors = CoordinateSystem()
+            if 'sparse_grid' in type_info:
+                if type_info['sparse_grid'] == True:
+                    sparse = type_info['sparse_name']
+                else:
+                    sparse = ''
+            else:
+                sparse = ''
+
 
             if 'multilook_azimuth' in type_info:
                 multilook = [int(type_info['multilook_azimuth']), int(type_info['multilook_range'])]
                 oversample = [int(type_info['oversample_azimuth']), int(type_info['oversample_range'])]
                 offset = [int(type_info['offset_azimuth']), int(type_info['offset_range'])]
 
-                dat_coors.create_radar_coordinates(multilook=multilook, oversample=oversample, offset=offset)
+                dat_coors.create_radar_coordinates(multilook=multilook, oversample=oversample, offset=offset,
+                                                   sparse_name=sparse)
 
             elif 'lat0' in type_info:
                 ellipse_type = type_info['ellipse_type']
@@ -177,7 +186,8 @@ class ImageMetadata(object):
                 dlat = float(type_info['dlat'])
                 dlon = float(type_info['dlon'])
 
-                dat_coors.create_geographic(dlat=dlat, dlon=dlon, ellipse_type=ellipse_type, lat0=lat0, lon0=lon0)
+                dat_coors.create_geographic(dlat=dlat, dlon=dlon, ellipse_type=ellipse_type, lat0=lat0, lon0=lon0,
+                                            sparse_name=sparse)
 
             elif 'projection_type' in type_info:
                 projection_type = type_info['projection_type']
@@ -188,8 +198,8 @@ class ImageMetadata(object):
                 dx = float(type_info['dx'])
                 dy = float(type_info['dy'])
 
-                dat_coors.create_projection(dx=dx, dy=dy, x0=x0, y0=y0, proj4_str=proj4_str,
-                                            ellipse_type=ellipse_type, projection_type=projection_type)
+                dat_coors.create_projection(dx=dx, dy=dy, x0=x0, y0=y0, proj4_str=proj4_str, ellipse_type=ellipse_type,
+                                            projection_type=projection_type, sparse_name=sparse)
 
             dat_coors.shape = [int(type_info['lines']), int(type_info['pixels'])]
             dat_coors.first_line = int(type_info['first_line'])

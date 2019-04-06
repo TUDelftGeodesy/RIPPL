@@ -9,10 +9,11 @@
 #   - (optional) Calculate the baselines between the two images
 
 from rippl.image_data import ImageData
-from rippl.orbit_dem_functions.orbit_coordinates import OrbitCoordinates
+from rippl.orbit_resample_functions.orbit_coordinates import OrbitCoordinates
 from rippl.coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 from rippl.processing_steps.radar_dem import RadarDem
+from rippl.processing_steps.coor_geocode import CoorGeocode
 import copy
 import os
 import logging
@@ -44,11 +45,13 @@ class GeometricalCoreg(object):
         self.shape, self.lines, self.pixels = RadarDem.find_coordinates(self.cmaster, s_lin, s_pix, lines, coordinates)
 
         # Load data
-        self.X = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'X')
-        self.Y = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'Y')
-        self.Z = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'Z')
+        self.X, self.Y, self.Z = CoorGeocode.load_xyz(self.coordinates, self.cmaster, self.s_lin, self.s_pix, self.shape)
 
         self.no0 = ((self.X != 0) * (self.Y != 0) * (self.Z != 0))
+        if self.coordinates.mask_grid:
+            mask = self.cmaster.image_load_data_memory('create_sparse_grid', s_lin, 0, self.shape,
+                                                       'mask' + self.coordinates.sample)
+            self.no0 *= mask
 
         # Initialize output
         self.new_line = []
@@ -114,10 +117,8 @@ class GeometricalCoreg(object):
         # Three input files needed x, y, z coordinates
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        for t in ['X', 'Y', 'Z']:
-            input_dat['cmaster']['geocode'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
-            input_dat['cmaster']['geocode'][t + coordinates.sample]['coordinates'] = coordinates
-            input_dat['cmaster']['geocode'][t + coordinates.sample]['slice'] = True
+        input_dat = CoorGeocode.line_pixel_processing_info(input_dat, coordinates, 'cmaster', False, True)
+        input_dat = CoorGeocode.xyz_processing_info(input_dat, coordinates, 'cmaster', False, True)
 
         # line and pixel output files.
         output_dat = recursive_dict()

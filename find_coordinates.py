@@ -79,6 +79,7 @@ class FindCoordinates():
             ovr_pix = int(np.round(ovr_pix))
 
         # Check if offset is large enough
+        """
         if not interval:
             if offset[0] < ovr_lin or offset[1] < ovr_pix:
                 if offset[0] < ovr_lin:
@@ -90,6 +91,7 @@ class FindCoordinates():
 
                 # We will have to find a new sample string to!
                 sample, multilook, oversample, offset = FindCoordinates.multilook_str(multilook, oversample, offset)
+        """
 
         # Adjust the first line/pixel based on first_line / first_pixel
         if first_line != 0:
