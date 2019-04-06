@@ -1,13 +1,13 @@
 # This function does the resampling of a radar grid based on different kernels.
 # In principle this has the same functionality as some other
 from rippl.image_data import ImageData
-from rippl.find_coordinates import FindCoordinates
 from collections import OrderedDict, defaultdict
 from rippl.coordinate_system import CoordinateSystem
 import numpy as np
 import logging
 import os
 from shapely.geometry import Polygon
+import copy
 
 
 class RadarDem(object):
@@ -56,9 +56,18 @@ class RadarDem(object):
                 print('Import a DEM first using the import_DEM function!')
                 return
 
-        self.dem, self.dem_line, self.dem_pixel = RadarDem.source_dem_extend(self.meta, self.lines, self.pixels, dem_type)
-        self.radar_dem = []
+        self.lines = self.lines[:, 0]
+        self.pixels = self.pixels[0, :]
+        self.dem, self.dem_line, self.dem_pixel = RadarDem.source_dem_extend(self.meta, self.lines,
+                                                                             self.pixels, dem_type)
+        self.no0 = (self.dem_line != 0) * (self.dem_pixel != 0)
+        if self.coordinates.mask_grid:
+            mask = self.meta.image_load_data_memory('create_sparse_grid', s_lin, 0, self.shape,
+                                                       'mask' + self.coordinates.sample)
+            self.no0 *= mask
+            # TODO Implement masking for calculating radar DEM.
 
+        self.radar_dem = []
 
     def __call__(self):
         if len(self.dem) == 0 or len(self.dem_line) == 0 or len(self.dem_pixel) == 0:
@@ -80,7 +89,7 @@ class RadarDem(object):
 
             # Data can be saved using the create output files and add meta data function.
             self.add_meta_data(self.meta, self.coordinates)
-            self.meta.image_new_data_memory(self.radar_dem, 'radar_DEM', self.s_lin, self.s_pix, file_type='radar_DEM' + self.sample)
+            self.meta.image_new_data_memory(self.radar_dem, 'radar_DEM', self.s_lin, self.s_pix, file_type='DEM' + self.sample)
             return True
 
         except Exception:
@@ -111,9 +120,13 @@ class RadarDem(object):
             outer_pix = np.concatenate([pix[0, :], pix[:, -1], np.flip(pix[-1, :], 0), np.flip(pix[:, 0], 0)])
             outer_lin = np.concatenate([lin[0, :], lin[:, -1], np.flip(lin[-1, :], 0), np.flip(lin[:, 0], 0)])
 
+            max_lin = np.max(lines)
+            min_lin = np.min(lines)
+            max_pix = np.max(pixels)
+            min_pix = np.min(pixels)
             convex_hull_in_dem = Polygon([[y, x] for y, x in zip(outer_lin, outer_pix)])
-            convex_hull_out_dem = Polygon([[lines[0] - buf, pixels[0] - buf,   [lines[0] - buf, pixels[-1] + buf],
-                                          [lines[-1] - buf, pixels[-1] + buf], [lines[-1] + buf, pixels[0] - buf]]])
+            convex_hull_out_dem = Polygon([[min_lin - buf, min_pix - buf,   [min_lin - buf, max_pix + buf],
+                                          [max_lin - buf, max_pix + buf], [max_lin + buf, min_pix - buf]]])
 
             # If the input dem fully covers the output dem we do not need to load the data again
             if convex_hull_in_dem.contains(convex_hull_out_dem):
@@ -159,33 +172,33 @@ class RadarDem(object):
     @staticmethod
     def find_coordinates(meta, s_lin, s_pix, n_lines, coordinates, ml_coors=False):
 
-        if isinstance(coordinates, CoordinateSystem):
-            if not coordinates.grid_type == 'radar_coordinates':
-                print('Other grid types than radar coordinates not supported yet.')
-                return
-        else:
+        if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
+            return
 
-        if len(coordinates.interval_lines) == 0:
+        if len(coordinates.interval_lines) == 0 and coordinates.grid_type == 'radar_coordinates':
             coordinates.add_res_info(meta)
-
-        shape = coordinates.shape
+        shape = copy.copy(coordinates.shape)
         if n_lines != 0:
             l = np.minimum(n_lines, shape[0] - s_lin)
         else:
             l = shape[0] - s_lin
         shape = [l, shape[1] - s_pix]
 
-        lines = coordinates.interval_lines[s_lin: s_lin + shape[0]] + coordinates.first_line
-        pixels = coordinates.interval_pixels[s_pix: s_pix + shape[1]] + coordinates.first_pixel
+        if coordinates.grid_type == 'radar_coordinates':
+            if coordinates.sparse_grid:
+                pixels = meta.image_load_data_memory('create_sparse_grid', s_lin, s_pix, shape, 'pixel' + coordinates.sample)
+                lines = meta.image_load_data_memory('create_sparse_grid', s_lin, s_pix, shape, 'line' + coordinates.sample)
+            else:
+                line = coordinates.interval_lines[s_lin: s_lin + shape[0]] + coordinates.first_line
+                pixel = coordinates.interval_pixels[s_pix: s_pix + shape[1]] + coordinates.first_pixel
+                pixels, lines = np.meshgrid(pixel, line)
 
-        if ml_coors:
-            ml_lines = coordinates.ml_lines[s_lin: s_lin + shape[0]] + coordinates.first_line
-            ml_pixels = coordinates.ml_pixels[s_pix: s_pix + shape[1]] + coordinates.first_pixel
-
-            return shape, lines, pixels, ml_lines, ml_pixels
         else:
-            return shape, lines, pixels
+            lines = meta.image_load_data_memory('coor_geocode', s_lin, s_pix, shape, 'line' + coordinates.sample)
+            pixels = meta.image_load_data_memory('coor_geocode', s_lin, s_pix, shape, 'pixel' + coordinates.sample)
+
+        return shape, lines, pixels
 
     @staticmethod
     def add_meta_data(meta, coordinates):
@@ -199,7 +212,7 @@ class RadarDem(object):
         else:
             meta_info = OrderedDict()
 
-        meta_info = coordinates.create_meta_data(['radar_DEM'], ['real4'], meta_info)
+        meta_info = coordinates.create_meta_data(['DEM'], ['real4'], meta_info)
 
         meta.image_add_processing_step('radar_DEM', meta_info)
 
@@ -223,9 +236,9 @@ class RadarDem(object):
 
         # One output file created radar dem
         output_dat = recursive_dict()
-        output_dat[meta_type]['radar_DEM']['radar_DEM' + coor_out.sample]['files'] = 'radar_DEM' + coor_out.sample + '.raw'
-        output_dat[meta_type]['radar_DEM']['radar_DEM' + coor_out.sample]['coordinate'] = coor_out
-        output_dat[meta_type]['radar_DEM']['radar_DEM' + coor_out.sample]['slice'] = coor_out.slice
+        output_dat[meta_type]['radar_DEM']['DEM' + coor_out.sample]['files'] = 'DEM' + coor_out.sample + '.raw'
+        output_dat[meta_type]['radar_DEM']['DEM' + coor_out.sample]['coordinate'] = coor_out
+        output_dat[meta_type]['radar_DEM']['DEM' + coor_out.sample]['slice'] = coor_out.slice
 
         # Number of times input data is used in ram. Bit difficult here but 15 times is ok guess.
         mem_use = 15

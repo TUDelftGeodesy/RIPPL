@@ -50,7 +50,7 @@ class HarmonieInterferogram(object):
 
         # Currently not possible to perform this step in slices because it includes multilooking. Maybe this will be
         # able later on. (Convert to different grids and slicing can cause problems at the sides of the slices.)
-        self.master_dat = self.master.image_load_data_memory(self.step,  self.s_lin, self.s_pix, self.shape, self.file_type + self.coordinates.sample, warn=False)
+        self.master_dat = self.master.image_load_data_memory(self.step,  self.s_lin, self.s_pix, self.shape, self.file_type + self.coordinates.sample)
         self.slave_dat = self.slave.image_load_data_memory(self.step, self.s_lin, self.s_pix, self.shape, self.file_type + self.coordinates.sample, warn=False)
 
         self.interferogram = []

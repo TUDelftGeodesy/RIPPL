@@ -17,7 +17,7 @@ The results of this step is a grid of line and pixel coordinates
 
 """
 
-from rippl.orbit_dem_functions.orbit_coordinates import OrbitCoordinates
+from rippl.orbit_resample_functions.orbit_coordinates import OrbitCoordinates
 from rippl.coordinate_system import CoordinateSystem
 from rippl.image_data import ImageData
 from collections import OrderedDict, defaultdict

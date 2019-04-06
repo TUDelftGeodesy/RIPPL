@@ -9,9 +9,10 @@
 #   - (optional) Calculate the baselines between the two images
 
 from rippl.image_data import ImageData
-from rippl.orbit_dem_functions.orbit_interpolate import OrbitInterpolate
+from rippl.orbit_resample_functions.orbit_interpolate import OrbitInterpolate
 from rippl.processing_steps.radar_dem import RadarDem
 from rippl.coordinate_system import CoordinateSystem
+from rippl.processing_steps.coor_geocode import CoorGeocode
 from collections import OrderedDict, defaultdict
 import numpy as np
 import os
@@ -44,7 +45,7 @@ class Baseline(object):
         self.s_pix = s_pix
         self.coordinates = coordinates
         self.sample = self.coordinates.sample
-        self.shape, self.lines, self.pixels = RadarDem.find_coordinates(self.cmaster, s_lin, s_pix, lines, coordinates)
+        self.shape, self.lines, pixels = RadarDem.find_coordinates(self.cmaster, s_lin, s_pix, lines, coordinates)
 
         # Information on conversion from range/azimuth to distances.
         sol = 299792458  # speed of light [m/s]
@@ -63,13 +64,17 @@ class Baseline(object):
         self.slave_az_step = 1 / float(self.slave.processes['readfiles']['Pulse_Repetition_Frequency (computed, Hz)'])
 
         # Load data
-        self.X = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'X')
-        self.Y = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'Y')
-        self.Z = self.cmaster.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, 'Z')
+        self.X, self.Y, self.Z = CoorGeocode.load_xyz(self.coordinates, self.cmaster, self.s_lin, self.s_pix, self.shape)
+
         ra = self.slave.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape, 'new_pixel' + self.sample)
         self.az = self.slave.image_load_data_memory('geometrical_coreg', self.s_lin, self.s_pix, self.shape, 'new_line' + self.sample)
 
         self.no0 = (ra != 0) * (self.az != 0)
+        if self.coordinates.mask_grid:
+            mask = self.cmaster.image_load_data_memory('create_sparse_grid', s_lin, 0, self.shape,
+                                                    'mask' + self.coordinates.sample)
+            self.no0 *= mask
+
         first_pix = int(self.slave.processes['crop']['crop_first_pixel'])
         self.ra_shift = ra - np.arange(first_pix, first_pix + ra.shape[1])[None, :]
 
@@ -115,12 +120,11 @@ class Baseline(object):
 
             if np.sum(self.no0) > 0:
                 # First get the master and slave positions.
-                lines, pixels = np.where(self.no0)
-                del pixels
-
                 master_az_times = self.master_az_time + self.master_az_step * (self.lines - 1)
                 [m_x, m_y, m_z], v, a = self.master_orbit.evaluate_orbit_spline(master_az_times)
-                m_xyz = np.concatenate((m_x[lines][None, :], m_y[lines][None, :], m_z[lines][None, :]))
+                m_xyz = np.concatenate((m_x[self.lines[self.no0]][None, :],
+                                        m_y[self.lines[self.no0]][None, :],
+                                        m_z[self.lines[self.no0]][None, :]))
                 del m_x, m_y, m_z
 
                 [s_x, s_y, s_z], v, a = self.slave_orbit.evaluate_orbit_spline((self.az[self.no0] - 1) * self.slave_az_step + self.slave_az_time)
@@ -256,15 +260,13 @@ class Baseline(object):
         # Three input files needed x, y, z coordinates
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
+        input_dat = CoorGeocode.line_pixel_processing_info(input_dat, coordinates, 'cmaster', False)
+        input_dat = CoorGeocode.xyz_processing_info(input_dat, coordinates, 'cmaster', False)
+
         for t in ['new_line', 'new_pixel']:
             input_dat['slave']['geometrical_coreg' + coordinates.sample][t]['file'] = t + coordinates.sample + '.raw'
             input_dat['slave']['geometrical_coreg' + coordinates.sample][t]['coordinates'] = coordinates
             input_dat['slave']['geometrical_coreg' + coordinates.sample][t]['slice'] = True
-
-        for t in ['X', 'Y', 'Z']:
-            input_dat['cmaster']['geocode'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
-            input_dat['cmaster']['geocode'][t + coordinates.sample]['coordinates'] = coordinates
-            input_dat['cmaster']['geocode'][t + coordinates.sample]['slice'] = coordinates.slice
 
         if horizontal or vertical or angle:
             input_dat['cmaster']['azimuth_elevation_angle']['elevation_angle' + coordinates.sample]['file'] = 'elevation_angle' + coordinates.sample + '.raw'

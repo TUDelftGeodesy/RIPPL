@@ -10,7 +10,7 @@
 from rippl.image_data import ImageData
 from rippl.find_coordinates import FindCoordinates
 from rippl.coordinate_system import CoordinateSystem
-from rippl.orbit_dem_functions.orbit_coordinates import OrbitCoordinates
+from rippl.orbit_resample_functions.orbit_coordinates import OrbitCoordinates
 from collections import OrderedDict, defaultdict
 import datetime
 import numpy as np
@@ -413,11 +413,13 @@ class Concatenate(object):
         for slice, in_coor_slice, out_coor_slice in zip(meta_slices, in_coor_slices, out_coor_slices):
             if step == '' or file_type == '':
                 in_coor_slice.add_res_info(slice, change_ref=False)
-                out_coor_slice.add_res_info(slice, change_ref=False)
+                if out_coor_slice.grid_type == 'radar_coordinates':
+                    out_coor_slice.add_res_info(slice, change_ref=False)
             else:
                 old_coor = slice.read_res_coordinates(step)[-1]
                 in_coor_slice.add_res_info(slice, change_ref=False, old_coor=old_coor)
-                out_coor_slice.add_res_info(slice, change_ref=False, old_coor=old_coor)
+                if out_coor_slice.grid_type == 'radar_coordinates':
+                    out_coor_slice.add_res_info(slice, change_ref=False, old_coor=old_coor)
 
             in_coordinates_slices.append(in_coor_slice)
             coordinates_slices.append(out_coor_slice)
@@ -447,6 +449,7 @@ class Concatenate(object):
             for slice, slice_start, coordinates_slice in zip(meta_slices, slices_start, coordinates_slices):
                 coordinates_slice.offset = slice_offset
 
+                """
                 if step == '' or file_type == '':
                     coordinates_slice.add_res_info(slice, change_ref=False)
                 else:
@@ -456,6 +459,8 @@ class Concatenate(object):
                 coordinates_slice.first_pixel = int(slice_start[1]) + 1
                 coordinates_slice.first_line = int(slice_start[0]) + 1
                 coordinates_slice.sample = out_coor.sample
+                """
+
                 out_coordinates_slices.append(coordinates_slice)
 
         return meta, in_coordinates_slices, out_coordinates_slices

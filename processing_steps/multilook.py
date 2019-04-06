@@ -36,7 +36,12 @@ class Multilook(object):
             self.coor_out = coordinates
 
         # Load input data.
-        self.data = self.meta.image_load_data_memory(step, 0, 0, self.coor_in.shape, file_type)
+        self.data = self.meta.image_load_data_memory(step, 0, 0, self.coor_in.shape, file_type + self.coor_in.sample)
+        """
+        self.meta.read_data_memmap(step, file_type + self.coor_in.sample)
+        self.data = self.meta.data_disk[step][file_type + self.coor_in.sample]        
+        """
+
         self.step = step
         if len(file_type) == 0:
             self.file_type = step
@@ -53,15 +58,21 @@ class Multilook(object):
             self.use_ids = True
 
             # Check additional information on geographical multilooking
-            convert_sample = self.coor_in.sample + '_' + self.coor_out.sample
-            
-            sort_ids_shape = self.cmaster.image_get_data_size(step, 'sort_ids' + convert_sample)
-            sum_ids_shape = self.cmaster.image_get_data_size(step, 'sum_ids' + convert_sample)
-            output_ids_shape = self.cmaster.image_get_data_size(step, 'output_ids' + convert_sample)
+            convert_sample = self.coor_in.sample + self.coor_out.sample
 
-            self.sort_ids = self.cmaster.image_load_data_memory('geocode', 0, 0, sort_ids_shape, file_type='sort_ids' + convert_sample)
-            self.sum_ids = self.cmaster.image_load_data_memory('geocode', 0, 0, sum_ids_shape, file_type='sum_ids' + convert_sample)
-            self.output_ids = self.cmaster.image_load_data_memory('geocode', 0, 0, output_ids_shape, file_type='output_ids' + convert_sample)
+            self.sort_ids = self.cmaster.image_load_data_memory('conversion_grid', 0, 0, self.cmaster.data_sizes
+                ['conversion_grid']['sort_ids' + convert_sample], 'sort_ids' + convert_sample)
+            self.sum_ids = self.cmaster.image_load_data_memory('conversion_grid', 0, 0, self.cmaster.data_sizes
+                ['conversion_grid']['sum_ids' + convert_sample], 'sum_ids' + convert_sample)
+            self.output_ids = self.cmaster.image_load_data_memory('conversion_grid', 0, 0, self.cmaster.data_sizes
+                ['conversion_grid']['output_ids' + convert_sample], 'output_ids' + convert_sample)
+
+            """
+            self.cmaster.read_data_memmap()
+            self.sort_ids = self.cmaster.data_disk['conversion_grid']['sort_ids' + convert_sample]
+            self.sum_ids = self.cmaster.data_disk['conversion_grid']['sum_ids' + convert_sample]
+            self.output_ids = self.cmaster.data_disk['conversion_grid']['output_ids' + convert_sample]
+            """
 
         elif self.coor_out.grid_type != self.coor_in.grid_type:
             print('Conversion from geographic or projection grid type to other grid type not supported. Aborting')
@@ -101,7 +112,7 @@ class Multilook(object):
 
             # Save meta data and results
             self.add_meta_data(self.meta, self.coor_out, self.coor_in, self.step, self.file_type)
-            self.meta.image_new_data_memory(self.multilooked, self.step, 0, 0, file_type= self.file_type + self.coor_out.sample)
+            self.meta.image_new_data_memory(self.multilooked, self.step, 0, 0, file_type=self.file_type + self.coor_out.sample)
 
             return True
 
@@ -212,10 +223,10 @@ class Multilook(object):
             dlon = coordinates.dlon * 0.5
 
         # Preallocate the output grid
-        values_out = np.zeros(shape=coordinates.shape)
+        values_out = np.zeros(shape=coordinates.shape).astype(values.dtype)
 
         # Add to output grids.
-        values_out[output_ids] = np.diff(np.concatenate([0], np.cumsum(values[sort_ids])[sum_ids]))
+        values_out[np.unravel_index(output_ids, values_out.shape)] = np.add.reduceat(np.ravel(values)[np.ravel(sort_ids)], np.ravel(sum_ids))
 
         # To create the oversampling we do a second multilooking step on the regular grid created.
         if coordinates.oversample != [1, 1]:
@@ -254,10 +265,10 @@ class Multilook(object):
             dx = coordinates.dx * 0.5
 
         # Preallocate the output grid
-        values_out = np.zeros(shape=coordinates.shape)
+        values_out = np.zeros(shape=coordinates.shape).astype(values.dtype)
 
         # Add to output grids.
-        values_out[output_ids] = np.diff(np.concatenate([0], np.cumsum(values[sort_ids])[sum_ids]))
+        values_out[np.unravel_index(output_ids, values_out.shape)] = np.add.reduceat(np.ravel(values)[np.ravel(sort_ids)], np.ravel(sum_ids))
 
         # To create the oversampling we do a second multilooking step on the regular grid created.
         if coordinates.oversample != [1, 1]:
@@ -368,13 +379,11 @@ class Multilook(object):
         input_dat['slave'][step][file_type + coor_in.sample]['slice'] = coor_in.slice
 
         if coor_in.grid_type == 'radar_coordinates' and coor_out.grid_type in ['geographic', 'projection']:
-
-            conv_sample = coor_in.sample + '_' + coor_out.sample
-
+            conv_sample = coor_in.sample + coor_out.sample
             for t in ['sort_ids', 'sum_ids', 'output_ids']:
-                input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle' + coor_out.sample]['file'] = t + conv_sample + '.raw'
-                input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle' + coor_out.sample]['coordinates'] = coor_out
-                input_dat['cmaster']['azimuth_elevation_angle']['Elevation_angle' + coor_out.sample]['slice'] = coor_out.slice
+                input_dat['cmaster']['conversion_grid'][t + conv_sample]['file'] = t + conv_sample + '.raw'
+                input_dat['cmaster']['conversion_grid'][t + conv_sample]['coordinates'] = coor_out
+                input_dat['cmaster']['conversion_grid'][t + conv_sample]['slice'] = coor_out.slice
 
         # line and pixel output files.
         output_dat = recursive_dict()

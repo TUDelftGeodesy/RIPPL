@@ -5,7 +5,6 @@ from rippl.processing_steps.multilook import Multilook
 from rippl.coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import os
-import numpy as np
 import copy
 import logging
 
@@ -28,6 +27,13 @@ class Interfero(object):
         else:
             return
 
+        # Input data
+        self.step = step
+        if file_type == '':
+            self.file_type = step
+        else:
+            self.file_type = file_type
+
         if isinstance(cmaster_meta, ImageData):
             self.cmaster = cmaster_meta
 
@@ -39,11 +45,12 @@ class Interfero(object):
         if isinstance(coordinates, CoordinateSystem):
             self.coor_out = coordinates
 
-
-        if isinstance(coor_in, CoordinateSystem):
-            self.coor_in = coor_in
+        if not isinstance(coor_in, CoordinateSystem):
+            self.coor_in = self.slave.read_res_coordinates(self.step, [self.file_type])[0]
+        elif coor_in.grid_type != 'radar_coordinates':
+            self.coor_in = self.slave.read_res_coordinates(self.step, [self.file_type])[0]
         else:
-            self.coor_in = self.coor_out
+            self.coor_in = coor_in
 
         # Load data (somewhat complicated for the geographical multilooking.
         if self.coor_in.grid_type == 'radar_coordinates' and self.coor_out.grid_type in ['geographic', 'projection']:
@@ -51,18 +58,21 @@ class Interfero(object):
             self.use_ids = True
 
             # Check additional information on geographical multilooking
-            convert_sample = self.coor_in.sample + '_' + self.coor_out.sample
+            convert_sample = self.coor_in.sample + self.coor_out.sample
 
-            sort_ids_shape = self.cmaster.image_get_data_size(step, 'sort_ids' + convert_sample)
-            sum_ids_shape = self.cmaster.image_get_data_size(step, 'sum_ids' + convert_sample)
-            output_ids_shape = self.cmaster.image_get_data_size(step, 'output_ids' + convert_sample)
+            self.sort_ids = self.cmaster.image_load_data_memory('conversion_grid', 0, 0, self.cmaster.data_sizes
+                ['conversion_grid']['sort_ids' + convert_sample], 'sort_ids' + convert_sample)
+            self.sum_ids = self.cmaster.image_load_data_memory('conversion_grid', 0, 0, self.cmaster.data_sizes
+                ['conversion_grid']['sum_ids' + convert_sample], 'sum_ids' + convert_sample)
+            self.output_ids = self.cmaster.image_load_data_memory('conversion_grid', 0, 0, self.cmaster.data_sizes
+                ['conversion_grid']['output_ids' + convert_sample], 'output_ids' + convert_sample)
 
-            self.sort_ids = self.cmaster.image_load_data_memory('geocode', 0, 0, sort_ids_shape,
-                                                                file_type='sort_ids' + convert_sample)
-            self.sum_ids = self.cmaster.image_load_data_memory('geocode', 0, 0, sum_ids_shape,
-                                                               file_type='sum_ids' + convert_sample)
-            self.output_ids = self.cmaster.image_load_data_memory('geocode', 0, 0, output_ids_shape,
-                                                                  file_type='output_ids' + convert_sample)
+            """
+            self.cmaster.read_data_memmap()
+            self.sort_ids = self.cmaster.data_disk['conversion_grid']['sort_ids' + convert_sample]
+            self.sum_ids = self.cmaster.data_disk['conversion_grid']['sum_ids' + convert_sample]
+            self.output_ids = self.cmaster.data_disk['conversion_grid']['output_ids' + convert_sample]
+            """
 
         elif self.coor_out.grid_type != self.coor_in.grid_type:
             print('Conversion from geographic or projection grid type to other grid type not supported. Aborting')
@@ -70,17 +80,10 @@ class Interfero(object):
         else:
             self.use_ids = False
 
-        # Input data
-        self.step = step
-        if file_type == '':
-            self.file_type = step
-        else:
-            self.file_type = file_type
-
         # Currently not possible to perform this step in slices because it includes multilooking. Maybe this will be
         # able later on. (Convert to different grids and slicing can cause problems at the sides of the slices.)
-        self.master_dat = self.master.image_load_data_memory(self.step, 0, 0, self.coor_in.shape, self.step, warn=False)
-        self.slave_dat = self.slave.image_load_data_memory('earth_topo_phase', 0, 0, self.coor_in.shape, 'earth_topo_phase', warn=False)
+        self.master_dat = self.master.image_load_data_memory(self.step, 0, 0, self.coor_in.shape, self.file_type, warn=False)
+        self.slave_dat = self.slave.image_load_data_memory(self.step, 0, 0, self.coor_in.shape, self.file_type, warn=False)
 
         self.interferogram = []
 
@@ -100,18 +103,17 @@ class Interfero(object):
 
             self.interferogram = self.master_dat * self.slave_dat.conj()
 
-            if self.coor_out.multilook != [1,1]:
+            if self.coor_in.grid_type == 'radar_coordinates' and self.coor_out.grid_type in ['geographic', 'projection']:
+                if self.coor_out.grid_type == 'geographic':
+                    self.multilooked = Multilook.radar2geographical(self.interferogram, self.coor_out, self.sort_ids,
+                                                                    self.sum_ids, self.output_ids)
+                elif self.coor_out.grid_type == 'projection':
+                    self.multilooked = Multilook.radar2projection(self.interferogram, self.coor_out, self.sort_ids,
+                                                                  self.sum_ids, self.output_ids)
+            elif self.coor_out.multilook != [1,1]:
                 # Calculate the multilooked image.
-                if self.coor_in.grid_type == 'radar_coordinates' and self.coor_out.grid_type in ['geographic','projection']:
-                    if self.coor_out.grid_type == 'geographic':
-                        self.multilooked = Multilook.radar2geographical(self.interferogram, self.coor_out, self.sort_ids,
-                                                                        self.sum_ids, self.output_ids)
-                    elif self.coor_out.grid_type == 'projection':
-                        self.multilooked = Multilook.radar2projection(self.interferogram, self.coor_out, self.sort_ids,
-                                                                        self.sum_ids, self.output_ids)
                 # If we use the same coordinate system for input and output.
-                elif self.coor_in.grid_type == self.coor_out.grid_type:
-
+                if self.coor_in.grid_type == self.coor_out.grid_type:
                     if self.coor_in.grid_type == 'radar_coordinates':
                         self.multilooked = Multilook.radar2radar(self.interferogram, self.coor_in, self.coor_out)
                     elif self.coor_in.grid_type == 'projection':
@@ -178,7 +180,7 @@ class Interfero(object):
         return ifg_meta
 
     @staticmethod
-    def add_meta_data(ifg_meta, coordinates, step='', type=''):
+    def add_meta_data(ifg_meta, coordinates, step='', file_type=''):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
         if 'interferogram' in ifg_meta.processes.keys():
@@ -198,13 +200,13 @@ class Interfero(object):
     @staticmethod
     def processing_info(coor_out, coor_in='', step='earth_topo_phase', file_type='earth_topo_phase'):
 
-        if not isinstance(coor_in, CoordinateSystem):
-            coor_in = CoordinateSystem()
-            coor_in.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
+        # We force to use the full resolution image for ifgs in any case. (That's how an ifg should be generated anyway)
+        coor_in = CoordinateSystem()
+        coor_in.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
         if not isinstance(coor_out, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
 
-        # Three input files needed x, y, z coordinates
+        # Slave and master information
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
         input_dat['slave'][step][file_type + coor_in.sample]['file'] = file_type + '.raw'
@@ -216,6 +218,13 @@ class Interfero(object):
         input_dat['master'][step][file_type + coor_in.sample]['coordinates'] = coor_in
         input_dat['master'][step][file_type + coor_in.sample]['slice'] = True
         input_dat['master'][step][file_type + coor_in.sample]['coor_change'] = 'multilook'
+
+        if coor_in.grid_type == 'radar_coordinates' and coor_out.grid_type in ['geographic', 'projection']:
+            conv_sample = coor_in.sample + coor_out.sample
+            for t in ['sort_ids', 'sum_ids', 'output_ids']:
+                input_dat['cmaster']['conversion_grid'][t + conv_sample]['file'] = t + conv_sample + '.raw'
+                input_dat['cmaster']['conversion_grid'][t + conv_sample]['coordinates'] = coor_out
+                input_dat['cmaster']['conversion_grid'][t + conv_sample]['slice'] = coor_out.slice
 
         # line and pixel output files.
         output_dat = recursive_dict()

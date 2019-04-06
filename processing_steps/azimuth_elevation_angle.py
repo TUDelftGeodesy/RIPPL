@@ -1,9 +1,10 @@
 # This function does the resampling of a radar grid based on different kernels.
 # In principle this has the same functionality as some other
 from rippl.image_data import ImageData
-from rippl.orbit_dem_functions.orbit_coordinates import OrbitCoordinates
+from rippl.orbit_resample_functions.orbit_coordinates import OrbitCoordinates
 from collections import OrderedDict, defaultdict
-from rippl.find_coordinates import FindCoordinates
+from rippl.processing_steps.coor_geocode import CoorGeocode
+from rippl.processing_steps.coor_dem import CoorDem
 from rippl.coordinate_system import CoordinateSystem
 from rippl.processing_steps.radar_dem import RadarDem
 import numpy as np
@@ -38,13 +39,14 @@ class AzimuthElevationAngle(object):
         x_key = 'X' + self.sample
         y_key = 'Y' + self.sample
         z_key = 'Z' + self.sample
-        dem_key = 'radar_DEM' + self.sample
-        self.x = self.meta.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, x_key)
-        self.y = self.meta.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, y_key)
-        self.z = self.meta.image_load_data_memory('geocode', self.s_lin, self.s_pix, self.shape, z_key)
-        self.height = self.meta.image_load_data_memory('radar_DEM', self.s_lin, self.s_pix, self.shape, dem_key)
+        dem_key = 'DEM' + self.sample
+        self.x, self.y, self.z = CoorGeocode.load_xyz(self.coordinates, self.meta, self.s_lin, self.s_pix, self.shape)
+        self.height = CoorDem.load_dem(self.coordinates, self.meta, self.s_lin, self.s_pix, self.shape)
 
         self.no0 = ((self.x != 0) * (self.y != 0) * (self.z != 0))
+        if self.coordinates.mask_grid:
+            mask = self.meta.image_load_data_memory('create_sparse_grid', s_lin, 0, self.shape, 'mask' + self.coordinates.sample)
+            self.no0 *= mask
 
         self.orbits = OrbitCoordinates(self.meta)
         self.orbits.x = self.x[self.no0]
@@ -73,18 +75,18 @@ class AzimuthElevationAngle(object):
             self.add_meta_data(self.meta, self.coordinates, self.orbit, self.scatterer)
 
             if np.sum(self.no0) > 0:
-                l_id, p_id = np.where(self.no0)
-                self.orbits.lp_time(lines=self.lines[l_id], pixels=self.pixels[p_id], regular=False)
+                self.orbits.lp_time(lines=self.lines[self.no0], pixels=self.pixels[self.no0], regular=False,
+                                    grid_type=self.coordinates.grid_type)
 
                 # Then calculate the x,y,z coordinates
                 if self.scatterer:
-                    self.orbits.xyz2scatterer_azimuth_elevation()
+                    self.orbits.xyz2scatterer_azimuth_elevation(self.coordinates.grid_type)
                     self.az_angle[self.no0] = self.orbits.azimuth_angle
                     self.elev_angle[self.no0] = self.orbits.elevation_angle
 
                 if self.orbit:
                     self.orbits.xyz2ell(orbit=True, pixel=False)
-                    self.orbits.xyz2orbit_heading_off_nadir()
+                    self.orbits.xyz2orbit_heading_off_nadir(self.coordinates.grid_type)
                     self.heading[self.no0] = self.orbits.heading
                     self.off_nadir_angle[self.no0] = self.orbits.off_nadir_angle
 
@@ -137,14 +139,9 @@ class AzimuthElevationAngle(object):
         # Three input files needed x, y, z coordinates
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        for t in ['X', 'Y', 'Z']:
-            input_dat[meta_type]['geocode'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
-            input_dat[meta_type]['geocode'][t + coordinates.sample]['coordinates'] = coordinates
-            input_dat[meta_type]['geocode'][t + coordinates.sample]['slice'] = coordinates.slice
-
-        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['file'] = 'radar_DEM' + coordinates.sample + '.raw'
-        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['coordinates'] = coordinates
-        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['slice'] = coordinates.slice
+        input_dat = CoorDem.dem_processing_info(input_dat, coordinates, meta_type, False)
+        input_dat = CoorGeocode.line_pixel_processing_info(input_dat, coordinates, meta_type, False)
+        input_dat = CoorGeocode.xyz_processing_info(input_dat, coordinates, meta_type, False)
 
         file_type = []
         if scatterer:

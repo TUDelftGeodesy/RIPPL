@@ -1,7 +1,7 @@
 # This function does the resampling of a radar grid based on different kernels.
 # In principle this has the same functionality as some other
 from rippl.image_data import ImageData
-from rippl.orbit_dem_functions.orbit_coordinates import OrbitCoordinates
+from rippl.orbit_resample_functions.orbit_coordinates import OrbitCoordinates
 from rippl.processing_steps.radar_dem import RadarDem
 from rippl.coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
@@ -32,15 +32,20 @@ class Geocode(object):
         self.shape, self.lines, self.pixels = RadarDem.find_coordinates(meta, s_lin, s_pix, lines, coordinates)
         self.sample = coordinates.sample
 
-        dat_key = 'radar_DEM' + self.sample
+        dat_key = 'DEM' + self.sample
         self.height = self.meta.image_load_data_memory('radar_DEM', self.s_lin, self.s_pix, self.shape, dat_key)
         self.orbits = OrbitCoordinates(self.meta)
 
-        self.orbits.height = self.height
+        self.no0 = (self.height != 0)
+        if self.coordinates.mask_grid:
+            mask = self.meta.image_load_data_memory('create_sparse_grid', s_lin, 0, self.shape,
+                                                    'mask' + self.coordinates.sample)
+            self.no0 *= mask
+        self.orbits.height = self.height[self.no0]
 
         # And the output data
-        self.lat = np.zeros(self.height.shape).astype(np.float32)
-        self.lon = np.zeros(self.height.shape).astype(np.float32)
+        self.lat = np.zeros(self.height.shape).astype(np.float64)
+        self.lon = np.zeros(self.height.shape).astype(np.float64)
         self.x_coordinate = np.zeros(self.height.shape).astype(np.float64)
         self.y_coordinate = np.zeros(self.height.shape).astype(np.float64)
         self.z_coordinate = np.zeros(self.height.shape).astype(np.float64)
@@ -53,18 +58,18 @@ class Geocode(object):
             return False
 
         try:
-            self.orbits.lp_time(lines=self.lines, pixels=self.pixels, regular=True)
+            self.orbits.lp_time(lines=self.lines[self.no0], pixels=self.pixels[self.no0], regular=False)
 
             # Then calculate the x,y,z coordinates
             self.orbits.lph2xyz()
-            self.x_coordinate = self.orbits.x
-            self.y_coordinate = self.orbits.y
-            self.z_coordinate = self.orbits.z
+            self.x_coordinate[self.no0] = self.orbits.x
+            self.y_coordinate[self.no0] = self.orbits.y
+            self.z_coordinate[self.no0] = self.orbits.z
 
             # Finally calculate the lat/lon coordinates
             self.orbits.xyz2ell()
-            self.lat = self.orbits.lat
-            self.lon = self.orbits.lon
+            self.lat[self.no0] = self.orbits.lat.astype(np.float64)
+            self.lon[self.no0] = self.orbits.lon.astype(np.float64)
 
             # Data can be saved using the create output files and add meta data function.
             self.add_meta_data(self.meta, self.coordinates)
@@ -99,7 +104,7 @@ class Geocode(object):
             meta_info = OrderedDict()
 
         meta_info = coordinates.create_meta_data(['lat', 'lon', 'X', 'Y', 'Z'],
-                                                 ['real4', 'real4', 'real8', 'real8', 'real8'], meta_info)
+                                                 ['real8', 'real8', 'real8', 'real8', 'real8'], meta_info)
 
         meta.image_add_processing_step('geocode', meta_info)
 
@@ -112,9 +117,9 @@ class Geocode(object):
         # Three input files needed Dem, Dem_line and Dem_pixel
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['file'] = 'radar_DEM' + coordinates.sample + '.raw'
-        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['coordinates'] = coordinates
-        input_dat[meta_type]['radar_DEM']['radar_DEM' + coordinates.sample]['slice'] = coordinates.slice
+        input_dat[meta_type]['radar_DEM']['DEM' + coordinates.sample]['file'] = 'DEM' + coordinates.sample + '.raw'
+        input_dat[meta_type]['radar_DEM']['DEM' + coordinates.sample]['coordinates'] = coordinates
+        input_dat[meta_type]['radar_DEM']['DEM' + coordinates.sample]['slice'] = coordinates.slice
 
         # One output file created radar dem
         output_dat = recursive_dict()

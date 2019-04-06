@@ -12,7 +12,7 @@ import inspect
 # Import the different steps:
 
 # Individual images > coregistering / geocoding / resampling
-from rippl.orbit_dem_functions.srtm_download import SrtmDownload
+from rippl.external_DEMs.srtm.srtm_download import SrtmDownload
 from rippl.processing_steps.import_dem import CreateSrtmDem, CreateExternalDem
 from rippl.processing_steps.radar_dem import RadarDem
 from rippl.processing_steps.geocode import Geocode
@@ -31,9 +31,19 @@ from rippl.processing_steps.height_to_phase import HeightToPhase
 
 from rippl.processing_steps.ecmwf_era5_aps import EcmwfEra5Aps
 from rippl.processing_steps.ecmwf_oper_aps import EcmwfOperAps
-from rippl.processing_steps.ecmwf_interim_aps import EcmwfInterimAps
 from rippl.processing_steps.harmonie_aps import HarmonieAps
 from rippl.processing_steps.harmonie_interferogram import HarmonieInterferogram
+
+# Geocoding, DEM generation of geographic/projected grids
+from rippl.processing_steps.coor_geocode import CoorGeocode
+from rippl.processing_steps.coor_dem import CoorDem
+from rippl.processing_steps.projection_coor import ProjectionCoor
+
+# Sparsing and masking
+from rippl.processing_steps.create_point_data import CreatePointData
+from rippl.processing_steps.create_mask import CreateMask
+from rippl.processing_steps.sparse_grid import SparseGrid
+from rippl.processing_steps.mask_grid import MaskGrid
 
 # Interferograms > interferogram creation, coherence, filters, corrections.
 from rippl.processing_steps.interfero import Interfero
@@ -79,6 +89,15 @@ class ProcessingList():
         processing['square_amplitude'] = SquareAmplitude
         processing['amplitude'] = Amplitude
 
+        processing['projection_coor'] = ProjectionCoor
+        processing['coor_DEM'] = CoorDem
+        processing['coor_geocode'] = CoorGeocode
+
+        processing['sparse_grid'] = SparseGrid
+        processing['mask_grid'] = MaskGrid
+        processing['create_point_data'] = CreatePointData
+        processing['create_mask'] = CreateMask
+
         processing['interferogram'] = Interfero
         processing['coherence'] = Coherence
         processing['multilook'] = Multilook
@@ -88,7 +107,6 @@ class ProcessingList():
         processing['harmonie_interferogram'] = HarmonieInterferogram
         processing['ecmwf_era5_aps'] = EcmwfEra5Aps
         processing['ecmwf_oper_aps'] = EcmwfOperAps
-        processing['ecmwf_interim_aps'] = EcmwfInterimAps
 
         processing['concatenate'] = Concatenate
 

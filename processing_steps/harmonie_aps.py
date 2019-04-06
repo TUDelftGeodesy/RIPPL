@@ -10,11 +10,14 @@ from rippl.image_data import ImageData
 from rippl.processing_steps.radar_dem import RadarDem
 from rippl.coordinate_system import CoordinateSystem
 
-from rippl.NWP_functions.harmonie.harmonie_database import HarmonieDatabase
-from rippl.NWP_functions.harmonie.harmonie_load_file import HarmonieData
-from rippl.NWP_functions.model_ray_tracing import ModelRayTracing
-from rippl.NWP_functions.model_to_delay import ModelToDelay
-from rippl.NWP_functions.model_interpolate_delays import ModelInterpolateDelays
+from rippl.NWP_simulations.harmonie.harmonie_database import HarmonieDatabase
+from rippl.NWP_simulations.harmonie.harmonie_load_file import HarmonieData
+from rippl.NWP_simulations.model_ray_tracing import ModelRayTracing
+from rippl.NWP_simulations.model_to_delay import ModelToDelay
+from rippl.NWP_simulations.model_interpolate_delays import ModelInterpolateDelays
+from rippl.processing_steps.projection_coor import ProjectionCoor
+from rippl.processing_steps.coor_dem import CoorDem
+from rippl.processing_steps.coor_geocode import CoorGeocode
 
 
 class HarmonieAps(object):
@@ -53,30 +56,30 @@ class HarmonieAps(object):
         self.s_pix = s_pix
         self.coor_out = coordinates
         self.coor_in = coor_in
+        shape = coordinates.shape
+        if lines != 0:
+            self.line = np.minimum(lines, shape[0] - s_lin)
+        else:
+            self.line = shape[0] - s_lin
+        self.shape = [self.line, shape[1] - s_pix]
 
         # The coor_in grid is a course grid to find the height delay dependence of our Harmonie data.
         # The coor_out grid is the final interpolation grid that is generated as an output.
         # Normally the coor_in grid can be of more or less the same resolution as the Harmonie data, which is 2 km.
         # For Sentinel-1 data this means a multilooking of about [50, 200]
-        self.shape_in, self.coarse_lines, self.coarse_pixels = RadarDem.find_coordinates(cmaster_meta, 0, 0, 0, coor_in)
-        self.shape_out, self.lines, self.pixels = RadarDem.find_coordinates(cmaster_meta, s_lin, s_pix, lines, self.coor_out)
+        self.shape_in, self.coarse_lines, self.coarse_pixels = RadarDem.find_coordinates(self.cmaster, 0, 0, 0, coor_in)
+        self.shape_out, self.lines, self.pixels = RadarDem.find_coordinates(self.cmaster, self.s_lin, self.s_pix, self.line, self.coor_out)
 
         # Load data input grid
-        self.lat = self.cmaster.image_load_data_memory('geocode', 0, 0, self.shape_in, 'lat' + coor_in.sample)
-        self.lon = self.cmaster.image_load_data_memory('geocode', 0, 0, self.shape_in, 'lon' + coor_in.sample)
-        self.height = self.cmaster.image_load_data_memory('radar_DEM', 0, 0, self.shape_in, 'radar_DEM' + coor_in.sample)
-        self.azimuth_angle = self.cmaster.image_load_data_memory('azimuth_elevation_angle', 0, 0, self.shape_in,
-                                                                 'azimuth_angle' + coor_in.sample)
-        self.elevation_angle = self.cmaster.image_load_data_memory('azimuth_elevation_angle', 0, 0, self.shape_in,
-                                                                   'elevation_angle' + coor_in.sample)
+        self.lat, self.lon, self.height, self.azimuth_angle, self.elevation_angle, self.mask, self.out_height = \
+            self.load_aps_data(self.coor_in, self.coor_out, self.cmaster, self.shape_in, self.shape_out, self.s_lin, self.s_pix)
+        self.mask *= ~((self.lines == 0) * (self.pixels == 0))
 
-        # Load height of multilook grid (from an interval, buffer grid, which makes it a bit complicated...)
-        self.out_height = self.cmaster.image_load_data_memory('radar_DEM', s_lin, 0, self.shape_out, 'radar_DEM' + self.coor_out.sample)
-        self.simulated_delay = []
+        self.simulated_delay = np.zeros(self.shape_out)
         self.split = split
         if self.split:
-            self.hydrostatic_delay = []
-            self.wet_delay = []
+            self.hydrostatic_delay = np.zeros(self.shape_out)
+            self.wet_delay = np.zeros(self.shape_out)
 
     def __call__(self):
         # Check if needed data is loaded
@@ -87,12 +90,6 @@ class HarmonieAps(object):
             return False
 
         try:
-            # Load the geometry
-            ray_delays = ModelRayTracing(split_signal=self.split)
-            ray_delays.load_geometry(self.coarse_lines, self.coarse_pixels,
-                                     self.azimuth_angle, self.elevation_angle,
-                                     self.lat, self.lon, self.height)
-
             # Define date we need weather data.
             overpass = datetime.datetime.strptime(self.slave.processes['readfiles']['First_pixel_azimuth_time (UTC)'], '%Y-%m-%dT%H:%M:%S.%f')
             harmonie_archive = HarmonieDatabase(database_folder=self.weather_data_folder)
@@ -100,56 +97,29 @@ class HarmonieAps(object):
 
             # Load the Harmonie data if available
             if filename[0]:
-                data = HarmonieDatabase()
+                data = HarmonieData()
                 data.load_harmonie(date[0], filename[0])
             else:
                 print('No harmonie data available for ' + date[0].strftime('%Y-%m-%dT%H:%M:%S.%f'))
                 return True
 
+            proc_date = date[0].strftime('%Y%m%dT%H%M')
+            # Run the ray tracing
+            self.ray_tracing(data, proc_date)
+
             # TODO Add a loop to run this method for different time steps. So the wind vectors will be used to create
             # new delay images on different time scales.
-
-            # And convert the data to delays
-            proc_date = date[0].strftime('%Y%m%dT%H%M')
-            geoid_file = os.path.join(self.weather_data_archive, 'egm96.raw')
-
-            model_delays = ModelToDelay(65, geoid_file)
-            model_delays.load_model_delay(data.model_data)
-            model_delays.model_to_delay()
-            data.remove_harmonie(proc_date)
-
-            # Convert model delays to delays over specific rays
-            ray_delays.load_delay(model_delays.delay_data)
-            ray_delays.calc_cross_sections()
-            ray_delays.find_point_delays()
-            model_delays.remove_delay(proc_date)
-
-            # Finally resample to the full grid
-            pixel_points, lines_points = np.meshgrid(self.pixels, self.lines)
-            point_delays = ModelInterpolateDelays(self.coarse_lines, self.coarse_pixels, split=self.split)
-            point_delays.add_interp_points(np.ravel(lines_points), np.ravel(pixel_points), np.ravel(self.out_height))
-
-            point_delays.add_delays(ray_delays.spline_delays)
-            point_delays.interpolate_points()
-
-            # Save the file
-            shp = (len(self.lines), len(self.pixels))
-            self.simulated_delay = point_delays.interp_delays['total'][proc_date].reshape(shp).astype(np.float32)
-            if self.split:
-                self.hydrostatic_delay = point_delays.interp_delays['hydrostatic'][proc_date].reshape(shp).astype(np.float32)
-                self.wet_delay = point_delays.interp_delays['wet'][proc_date].reshape(shp).astype(np.float32)
-            ray_delays.remove_delay(proc_date)
 
             # Save meta data
             self.add_meta_data(self.slave, self.coor_out, self.split)
 
             # Save the data itself
-            self.slave.image_new_data_memory(self.simulated_delay, 'harmonie_aps', self.s_lin, self.s_pix,
+            self.slave.image_new_data_memory(self.simulated_delay.astype(np.float32), 'harmonie_aps', self.s_lin, self.s_pix,
                                              'harmonie_aps' + self.coor_out.sample)
             if self.split:
-                self.slave.image_new_data_memory(self.hydrostatic_delay, 'harmonie_aps', self.s_lin, self.s_pix,
+                self.slave.image_new_data_memory(self.hydrostatic_delay.astype(np.float32), 'harmonie_aps', self.s_lin, self.s_pix,
                                                 'harmonie_hydrostatic' + self.coor_out.sample)
-                self.slave.image_new_data_memory(self.wet_delay, 'harmonie_aps', self.s_lin, self.s_pix,
+                self.slave.image_new_data_memory(self.wet_delay.astype(np.float32), 'harmonie_aps', self.s_lin, self.s_pix,
                                                 'harmonie_wet' + self.coor_out.sample)
 
             return True
@@ -163,6 +133,68 @@ class HarmonieAps(object):
                   self.slave.folder + '. Check ' + log_file + ' for details.')
 
             return False
+
+    def ray_tracing(self, data, proc_date):
+        # The ray tracing methods which are independent of the input source.
+
+        # Load the geometry
+        ray_delays = ModelRayTracing(split_signal=self.split)
+        ray_delays.load_geometry(self.coarse_lines[:, 0], self.coarse_pixels[0, :],
+                                 self.azimuth_angle, self.elevation_angle,
+                                 self.lat, self.lon, self.height)
+
+        # And convert the data to delays
+
+        geoid_file = os.path.join(self.weather_data_archive, 'egm96.raw')
+
+        model_delays = ModelToDelay(65, geoid_file)
+        model_delays.load_model_delay(data.model_data)
+        model_delays.model_to_delay()
+        data.remove_harmonie(proc_date)
+
+        # Convert model delays to delays over specific rays
+        ray_delays.load_delay(model_delays.delay_data)
+        ray_delays.calc_cross_sections()
+        ray_delays.find_point_delays()
+        model_delays.remove_delay(proc_date)
+
+        # Finally resample to the full grid
+        point_delays = ModelInterpolateDelays(self.coarse_lines[:, 0], self.coarse_pixels[0, :], split=self.split)
+        point_delays.add_interp_points(np.ravel(self.lines[self.mask]), np.ravel(self.pixels[self.mask]),
+                                       np.ravel(self.out_height[self.mask]))
+
+        point_delays.add_delays(ray_delays.spline_delays)
+        point_delays.interpolate_points()
+
+        # Save the file
+        shp = self.mask.shape
+        self.simulated_delay[self.mask] = point_delays.interp_delays['total'][proc_date].astype(np.float32)
+        if self.split:
+            self.hydrostatic_delay[self.mask] = point_delays.interp_delays['hydrostatic'][proc_date].astype(np.float32)
+            self.wet_delay[self.mask] = point_delays.interp_delays['wet'][proc_date].astype(np.float32)
+        ray_delays.remove_delay(proc_date)
+
+    @staticmethod
+    def load_aps_data(coor_in, coor_out, cmaster, shape_in, shape_out, s_lin, s_pix):
+
+        lat, lon = ProjectionCoor.load_lat_lon(coor_in, cmaster, 0, 0, shape_in)
+        height = CoorDem.load_dem(coor_in, cmaster, 0, 0, shape_in)
+
+        azimuth_angle = cmaster.image_load_data_memory('azimuth_elevation_angle', 0, 0, shape_in,
+                                                                 'azimuth_angle' + coor_in.sample)
+        elevation_angle = cmaster.image_load_data_memory('azimuth_elevation_angle', 0, 0, shape_in,
+                                                                   'elevation_angle' + coor_in.sample)
+
+        # Load height of multilook grid (from an interval, buffer grid, which makes it a bit complicated...)
+        out_height = CoorDem.load_dem(coor_out, cmaster, s_lin, 0, shape_out)
+
+        if coor_out.mask_grid:
+            mask = cmaster.image_load_data_memory('create_sparse_grid', s_lin, 0, shape_out,
+                                                            'mask' + coor_out.sample)
+        else:
+            mask = np.ones(out_height.shape).astype(np.bool)
+
+        return lat, lon, height, azimuth_angle, elevation_angle, mask, out_height
 
     @staticmethod
     def add_meta_data(meta, coordinates, split=False):
@@ -195,14 +227,10 @@ class HarmonieAps(object):
 
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
-        input_dat['cmaster']['radar_DEM']['radar_DEM' + coordinates.sample]['file'] = 'radar_dem' + coordinates.sample + '.raw'
-        input_dat['cmaster']['radar_DEM']['radar_DEM' + coordinates.sample]['coordinates'] = coordinates
-        input_dat['cmaster']['radar_DEM']['radar_DEM' + coordinates.sample]['slice'] = coordinates.slice
-
-        input_dat['cmaster']['radar_DEM']['radar_DEM' + coor_in.sample]['file'] = 'radar_dem' + coor_in.sample + '.raw'
-        input_dat['cmaster']['radar_DEM']['radar_DEM' + coor_in.sample]['coordinates'] = coor_in
-        input_dat['cmaster']['radar_DEM']['radar_DEM' + coor_in.sample]['slice'] = coor_in.slice
-        input_dat['cmaster']['radar_DEM']['radar_DEM' + coor_in.sample]['coor_change'] = 'resample'
+        input_dat = CoorDem.dem_processing_info(input_dat, coordinates, 'cmaster', False)
+        input_dat = CoorDem.dem_processing_info(input_dat, coor_in, 'cmaster', True)
+        input_dat = ProjectionCoor.lat_lon_processing_info(input_dat, coor_in, 'cmaster', True)
+        input_dat = CoorGeocode.line_pixel_processing_info(input_dat, coordinates, 'cmaster', False)
 
         # For multiprocessing this information is needed to define the selected area to deramp.
         for t in ['azimuth_angle', 'elevation_angle']:
@@ -210,13 +238,6 @@ class HarmonieAps(object):
             input_dat['cmaster']['azimuth_elevation_angle'][t + coor_in.sample]['coordinates'] = coor_in
             input_dat['cmaster']['azimuth_elevation_angle'][t + coor_in.sample]['slice'] = coor_in.slice
             input_dat['cmaster']['azimuth_elevation_angle'][t + coor_in.sample]['coor_change'] = 'resample'
-
-        # For multiprocessing this information is needed to define the selected area to deramp.
-        for t in ['lat', 'lon']:
-            input_dat['cmaster']['geocode'][t + coor_in.sample]['file'] = t + coor_in.sample + '.raw'
-            input_dat['cmaster']['geocode'][t + coor_in.sample]['coordinates'] = coor_in
-            input_dat['cmaster']['geocode'][t + coor_in.sample]['slice'] = coor_in.slice
-            input_dat['cmaster']['geocode'][t + coor_in.sample]['coor_change'] = 'resample'
 
         if split:
             aps_types = ['harmonie_aps', 'harmonie_wet', 'harmonie_hydrostatic']

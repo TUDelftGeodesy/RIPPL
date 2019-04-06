@@ -2,7 +2,7 @@
 import datetime
 import numpy as np
 from rippl.image_data import ImageData
-from rippl.orbit_dem_functions.orbit_interpolate import OrbitInterpolate
+from rippl.orbit_resample_functions.orbit_interpolate import OrbitInterpolate
 from rippl.processing_steps.resample import Resample
 from rippl.coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
