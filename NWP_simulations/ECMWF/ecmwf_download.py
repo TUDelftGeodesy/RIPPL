@@ -3,10 +3,11 @@ import calendar
 import datetime
 import os
 import numpy as np
-from ecmwfapi import ECMWFDataServer, ECMWFService
 from rippl.NWP_simulations.ECMWF.ecmwf_type import ECMWFType
-from joblib import Parallel, delayed
-from rippl.NWP_simulations.ECMWF.ecmwf_mars_request import MarsRequest
+from rippl.NWP_simulations.ECMWF.ecmwf_parallel_download import parallel_download
+import pygrib
+import multiprocessing
+import copy
 
 
 class ECMWFdownload(ECMWFType):
@@ -136,14 +137,92 @@ class ECMWFdownload(ECMWFType):
                 atmosphere_files.append(self.requests[key]['atmosphere'])
                 atmosphere_dates.append(self.requests[key]['request'])
 
+        print('Surface files to be downloaded')
+        for surface_file in surface_files:
+            print(surface_file)
+
         # Surface files
-        mars_request = MarsRequest(self.data_type, self.dataset_class, t_list, bb_str, grid, level_list, 'surface')
-        Parallel(n_jobs=self.n_processes)(delayed(mars_request)(date, target) for
-                                          date, target in
-                                          zip(surface_dates, surface_files))
+        input = dict()
+        input['data_type'] = self.data_type
+        input['dataset_class'] = self.dataset_class
+        input['t_list'] = t_list
+        input['bb_str'] = bb_str
+        input['grid'] = grid
+        input['level_list'] = level_list
+        input['dataset'] = 'surface'
+
+        inputs = []
+        for date, target in zip(surface_dates, surface_files):
+            input['date'] = date
+            input['target'] = target
+            inputs.append(copy.copy(input))
+
+        self.pool = multiprocessing.Pool(self.n_processes, maxtasksperchild=1)
+        self.pool.map(parallel_download, inputs)
+        self.pool.close()
+
+        print('Atmosphere files to be downloaded')
+        for atmosphere_file in atmosphere_files:
+            print(atmosphere_file)
+
+        input['dataset'] = 'atmosphere'
+        inputs = []
+        for date, target in zip(atmosphere_dates, atmosphere_files):
+            input['date'] = date
+            input['target'] = target
+            inputs.append(copy.copy(input))
 
         # Atmosphere files
-        mars_request = MarsRequest(self.data_type, self.dataset_class, t_list, bb_str, grid, level_list, 'atmosphere')
-        Parallel(n_jobs=self.n_processes)(delayed(mars_request)(date, target) for
-                                          date, target in
-                                          zip(atmosphere_dates, atmosphere_files))
+        self.pool = multiprocessing.Pool(self.n_processes, maxtasksperchild=1)
+        self.pool.map(parallel_download, inputs)
+        self.pool.close()
+        self.pool = []
+
+        # Finally split the monthly values to daily values
+        self.split_monthly_to_daily(surface_files)
+        self.split_monthly_to_daily(atmosphere_files)
+
+    def split_monthly_to_daily(self, file_paths):
+
+        """
+        Test data....
+        dir = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/radar_datastacks/weather_models/ecmwf_data/era5/'
+        file_paths = os.listdir(dir)
+        file_paths = [os.path.join(dir, f) for f in file_paths]
+        file_path = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/radar_datastacks/weather_models/ecmwf_data/era5/ecmwf_era5_201804_n56w002_n45e012_atmosphere.grb'
+        """
+
+        for file_path in file_paths:
+            folder = os.path.dirname(file_path)
+            grib_file = os.path.basename(file_path)
+
+            if grib_file[6:10] in ['era5', 'erai'] and grib_file[17] == '_':
+
+                date = datetime.datetime.strptime(grib_file[11:17], '%Y%m')
+                day = datetime.timedelta(days=1)
+                month = date.month
+
+                daily_dates = []
+                daily_files = []
+
+                while date.month == month:
+                    grb_file = os.path.join(folder, grib_file[:11] + date.strftime('%Y%m%d') + grib_file[17:])
+
+                    if not os.path.exists(grb_file):
+                        daily_dates.append(date)
+                        daily_files.append(grb_file)
+                    date += day
+
+                if len(daily_files) > 0:
+                    grib_data = pygrib.index(file_path, 'month', 'day', 'year')
+
+                    for date, file in zip(daily_dates, daily_files):
+                        msgs = grib_data.select(year=date.year, month=date.month, day=date.day)
+
+                        grbout = open(file, 'wb')
+                        for msg in msgs:
+                            grbout.write(msg.tostring())
+                        grbout.close()
+
+                    grib_data.close()
+

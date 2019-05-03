@@ -8,7 +8,7 @@ from rippl.NWP_simulations.model_reference import ModelReference
 
 class HarmonieData(object):
 
-    def __init__(self):
+    def __init__(self, cycle_nr=38):
 
         # Initialize the model data
         self.model_data = dict()
@@ -16,7 +16,10 @@ class HarmonieData(object):
         self.grib_data = dict()
 
         # Load the level information
-        self.levels = 65
+        if cycle_nr < 38:
+            self.levels = 60
+        else:
+            self.levels = 65
         self.times = []
 
     def load_harmonie(self, date, filename):
@@ -102,8 +105,8 @@ class HarmonieData(object):
         elif type == 'Num':
             log_p = self.grib_data[filename](parameterName='1', level=0)[0]
         geo_p = log_p.values
-        self.a = log_p.pv[:66]
-        self.b = log_p.pv[66:]
+        self.a = log_p.pv[:self.levels + 1]
+        self.b = log_p.pv[self.levels + 1:]
 
         # Now load a and b values to calculate pressure levels and heights.
         self.model_data[time]['pressures'] = geo_p * self.b[:, None, None] + self.a[:, None, None]

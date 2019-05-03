@@ -1,6 +1,8 @@
 import os
 from ecmwfapi import ECMWFService, ECMWFDataServer
-
+from cdsapi import Client
+from time import sleep
+import random
 
 class MarsRequest(object):
 
@@ -14,18 +16,27 @@ class MarsRequest(object):
         self.level_list = level_list
         self.dataset = dataset
 
-        if self.data_type in ['interim', 'era5']:
+        if self.data_type == 'interim':
             self.server = ECMWFDataServer()
+        elif self.data_type == 'era5':
+            self.server = Client()
         else:
             self.service = ECMWFService("mars")
 
     def __call__(self, date, target):
 
-        if not os.path.exists(target):
-            print('Downloading ECMWF surface data to ' + target)
+        if os.path.exists(target):
+            print('ECMWF surface data is already downloaded at ' + target)
+            return
+
+        sleep(random.randint(1, 30))
+
+        while not os.path.exists(target):
+
+            print('Downloading ECMWF file' + target)
 
             if self.dataset == 'surface':
-                if self.data_type in ['interim', 'era5']:
+                if self.data_type == 'interim':
 
                     self.server.retrieve({
                         "class": self.dataset_class,
@@ -33,9 +44,8 @@ class MarsRequest(object):
                         "date": date,
                         "expver": "1",
                         "grid": self.grid,
-                        "levelist": "1",
-                        "levtype": "ml",
-                        "param": "129.128/152.128",
+                        "levtype": "sfc",
+                        "param": "129.128/134.128",
                         "step": "0",
                         "stream": "oper",
                         "time": self.t_list,
@@ -44,7 +54,26 @@ class MarsRequest(object):
                         "target": target,
                     })
 
-                elif self.data_type in ['oper']:
+                elif self.data_type == 'era5':
+
+                    self.server.retrieve('reanalysis-era5-complete',
+                        {
+                            "class": self.dataset_class,
+                            "date": date,
+                            "expver": "1",
+                            "grid": self.grid,
+                            "levtype": "sfc",
+                            "param": "129.128/134.128",
+                            "step": "0",
+                            "stream": "oper",
+                            "time": self.t_list,
+                            "type": "an",
+                            "area": self.bb_str,
+                            "format": "grib"
+                        },
+                        target)
+
+                elif self.data_type == 'oper':
 
                     self.service.execute({
                         "class": self.dataset_class,
@@ -52,9 +81,8 @@ class MarsRequest(object):
                         "date": date,
                         "expver": "1",
                         "grid": self.grid,
-                        "levelist": "1",
-                        "levtype": "ml",
-                        "param": "129.128/152.128",
+                        "levtype": "sfc",
+                        "param": "129.128/134.128",
                         "step": "0",
                         "stream": "oper",
                         "time": self.t_list,
@@ -63,7 +91,7 @@ class MarsRequest(object):
                         target)
 
             elif self.dataset == 'atmosphere':
-                if self.data_type in ['interim', 'era5']:
+                if self.data_type == 'interim':
 
                     self.server.retrieve({
                         "class": self.dataset_class,
@@ -79,10 +107,29 @@ class MarsRequest(object):
                         "time": self.t_list,
                         "type": "an",
                         "area": self.bb_str,
-                        "target": target,
+                        "target": target
                     })
 
-                elif self.data_type in ['oper']:
+                elif self.data_type == 'era5':
+
+                    self.server.retrieve('reanalysis-era5-complete',
+                        {
+                            "class": self.dataset_class,
+                            "date": date,
+                            "expver": "1",
+                            "grid": self.grid,
+                            "levelist": self.level_list,
+                            "levtype": "ml",
+                            "param": "130.128/133.128/246.128/247.128",
+                            "step": "0",
+                            "stream": "oper",
+                            "time": self.t_list,
+                            "type": "an",
+                            "area": self.bb_str
+                        },
+                        target)
+
+                elif self.data_type == 'oper':
 
                     self.service.execute({
                         "class": self.dataset_class,
@@ -99,5 +146,6 @@ class MarsRequest(object):
                         "type": "an",
                         "area": self.bb_str},
                         target)
-        else:
-            print('ECMWF surface data is already downloaded at ' + target)
+
+            print('Failed to download, retrying in 100 seconds')
+            sleep(100)

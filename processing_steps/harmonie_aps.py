@@ -106,6 +106,7 @@ class HarmonieAps(object):
             proc_date = date[0].strftime('%Y%m%dT%H%M')
             # Run the ray tracing
             self.ray_tracing(data, proc_date)
+            data.remove_harmonie(proc_date)
 
             # TODO Add a loop to run this method for different time steps. So the wind vectors will be used to create
             # new delay images on different time scales.
@@ -150,7 +151,6 @@ class HarmonieAps(object):
         model_delays = ModelToDelay(65, geoid_file)
         model_delays.load_model_delay(data.model_data)
         model_delays.model_to_delay()
-        data.remove_harmonie(proc_date)
 
         # Convert model delays to delays over specific rays
         ray_delays.load_delay(model_delays.delay_data)

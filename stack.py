@@ -335,4 +335,26 @@ class Stack(object):
         download = SrtmDownload(srtm_folder, username, password, srtm_type)
         download(self.images[self.master_date].res_data, buf=buf, rounding=rounding, parallel=parallel)
 
-    # Possibly an extension to use of free tandem-x data?
+    def download_ECMWF_data(self, dat_type, ecmwf_data_folder, latlim='', lonlim= '', processes=6):
+        # Download ECMWF data for whole dataset at once. This makes this process much more clear and faster.
+
+        # Check the progress of your download at:
+        # 1 https://apps.ecmwf.int/webmars/joblist/ (for operational products)
+        # 2 https://cds.climate.copernicus.eu/cdsapp#!/yourrequests (for ERA5 data)
+
+        try:
+            from rippl.NWP_simulations.ECMWF.ecmwf_download import ECMWFdownload
+        except:
+            print('One of the ecmwf or grib reading packages is not configured correctly')
+            return
+
+        if len(latlim) != 2:
+            latlim = [45, 56]
+        if len(lonlim) != 2:
+            lonlim = [-2, 12]
+
+        down_dates = [datetime.datetime.strptime(d, '%Y%m%d') for d in self.images.keys()]
+
+        download = ECMWFdownload(latlim, lonlim, ecmwf_data_folder, dat_type, processes)
+        download.prepare_download(down_dates)
+        download.download()

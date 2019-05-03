@@ -14,7 +14,7 @@ harmonie_data = data_disk + 'weather_models/harmonie_data'
 ecmwf_data = data_disk + 'weather_models/ecmwf_data'
 
 start_date = '2014-10-15'
-end_date = '2018-01-22'
+end_date = '2020-01-22'
 master_date = '2017-11-15'
 
 database_folder = data_disk + 'radar_database/sentinel-1/dsc_t037'
@@ -106,7 +106,7 @@ dem_coordinates.create_radar_coordinates(multilook=[50, 200], offset=[-100, -400
 # s1_stack('azimuth_elevation_angle', settings, dem_coordinates, 'cmaster',
 #         file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel, cores=cores)
 
-for resolution in [0.5]: #
+for resolution in [0.25]: #
     # Now we create the projected grid. The coordinates are chosen similar to the rainfall radar product from the KNMI
     lat_offset = [200, 115]
     lon_offset = [200, 50]
@@ -143,11 +143,11 @@ for resolution in [0.5]: #
     # s1_stack('harmonie_interferogram', settings, coordinates, 'ifg', file_type=['harmonie_interferogram'], parallel=parallel)
 
     # Then do the multilooking for the ifg/amplitude/coherence images
-    # s1_stack('interferogram', settings, coordinates, 'ifg', file_type='interferogram', parallel=parallel, cores=cores)
+    s1_stack('interferogram', settings, coordinates, 'ifg', file_type='interferogram', parallel=parallel, cores=cores)
     s1_stack('square_amplitude', settings, coordinates, 'slave', file_type='square_amplitude', parallel=parallel, cores=cores)
     s1_stack('coherence', settings, coordinates, 'ifg', file_type='coherence', parallel=parallel, cores=cores)
 
-for resolution in [0.5]:  #
+for resolution in [0.25]:  #
     # Now we create the projected grid. The coordinates are chosen similar to the rainfall radar product from the KNMI
 
     lat_offset = [200, 115]
@@ -164,7 +164,7 @@ for resolution in [0.5]:  #
     # Finally do the unwrapping.
     s1_stack('unwrap', settings, coordinates, 'ifg', file_type='unwrap', parallel=parallel, cores=cores)
 
-exp_strs = ['_rainfall_NL_stp_1_-1', '_rainfall_NL_stp_0.5_-0.5', '_rainfall_NL_stp_0.25_-0.25']
+exp_strs = ['_rainfall_NL_stp_0.25_-0.25']
 
 # Export outputs as geotiff
 for exp_str in exp_strs:
