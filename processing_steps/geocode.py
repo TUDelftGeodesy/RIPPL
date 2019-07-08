@@ -36,7 +36,7 @@ class Geocode(object):
         self.height = self.meta.image_load_data_memory('radar_DEM', self.s_lin, self.s_pix, self.shape, dat_key)
         self.orbits = OrbitCoordinates(self.meta)
 
-        self.no0 = (self.height != 0)
+        self.no0 = (self.height != np.nan)
         if self.coordinates.mask_grid:
             mask = self.meta.image_load_data_memory('create_sparse_grid', s_lin, 0, self.shape,
                                                     'mask' + self.coordinates.sample)

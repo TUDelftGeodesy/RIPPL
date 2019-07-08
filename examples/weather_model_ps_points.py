@@ -135,3 +135,4 @@ s1_stack.download_ECMWF_data(dat_type='era5', ecmwf_data_folder=ecmwf_folder, pr
 s1_stack('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_aps'], parallel=parallel)
 s1_stack('ecmwf_oper_aps', settings, coordinates, 'slave', file_type=['ecmwf_oper_aps'], parallel=parallel)
 s1_stack('ecmwf_era5_aps', settings, coordinates, 'slave', file_type=['ecmwf_era5_aps'], parallel=parallel)
+
