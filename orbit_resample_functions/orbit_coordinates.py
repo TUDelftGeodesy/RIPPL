@@ -505,12 +505,12 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             z['orbit'] = self.xyz_orbit[2, :]
             p['orbit'] = np.sqrt(self.xyz_orbit[0, :]**2 + self.xyz_orbit[1, :]**2)
             types.append('orbit')
-            self.lon_orbit = np.arctan(self.xyz_orbit[1, :] / self.xyz_orbit[1, :])
+            self.lon_orbit = np.arctan2(self.xyz_orbit[1, :], self.xyz_orbit[0, :])
         if pixel:
             z['pixel'] = np.ravel(self.z)
             p['pixel'] = np.sqrt(np.ravel(self.x)**2 + np.ravel(self.y)**2)
             types.append('pixel')
-            self.lon = np.arctan(self.y / self.x).astype(np.float32).reshape(self.x.shape) / np.pi * 180
+            self.lon = np.arctan2(self.y, self.x).astype(np.float32).reshape(self.x.shape) / np.pi * 180
 
         for t in types:
             if method == 1:
@@ -541,12 +541,12 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
                 # ESA procedure
                 e = np.sqrt(1 - b**2 / a**2)
 
-                lat = np.arctan(z[t] / ((1 - e ** 2) * p[t]))
+                lat = np.arctan2(z[t], ((1 - e ** 2) * p[t]))
 
                 for i in range(self.maxiter_coor):
                     N = a / (np.sqrt(1 - e**2 * np.sin(lat)**2))
                     height = p[t] / np.cos(lat) - N
-                    lat = np.arctan(z[t] / ((1 - e ** 2 * (N / (N + height))) * p[t]))
+                    lat = np.arctan2(z[t], ((1 - e ** 2 * (N / (N + height))) * p[t]))
 
             if t == 'orbit':
                 self.lat_orbit = lat.astype(np.float32)

@@ -3,6 +3,7 @@
 
 from rippl.stack import Stack
 from rippl.SAR_sensors.sentinel.sentinel_stack import SentinelStack
+from rippl.SAR_sensors.sentinel.sentinel_download import DownloadSentinelOrbit
 from rippl.coordinate_system import CoordinateSystem
 import os
 import numpy as np
@@ -13,8 +14,8 @@ datastack_disk = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/'
 harmonie_data = data_disk + 'weather_models/harmonie_data'
 ecmwf_data = data_disk + 'weather_models/ecmwf_data'
 
-start_date = '2014-10-15'
-end_date = '2020-01-22'
+start_date = '2017-11-01'
+end_date = '2017-12-01'
 master_date = '2017-11-15'
 
 database_folder = data_disk + 'radar_database/sentinel-1/dsc_t037'
@@ -88,7 +89,7 @@ coordinates.slice = True
 # Get the image orientation
 # s1_stack('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
 # Run processing
-# s1_stack(['earth_topo_phase'], settings, coordinates, 'slave', file_type=['earth_topo_phase'], parallel=parallel, cores=cores)
+s1_stack(['earth_topo_phase'], settings, coordinates, 'slave', file_type=['earth_topo_phase'], parallel=parallel, cores=cores)
 
 coordinates.slice = False
 # Full radar DEM grid
@@ -118,10 +119,14 @@ for resolution in [0.25]: #
     coordinates.create_projection(resolution, -resolution, projection_type='rainfall_NL',
                                   proj4_str="+proj=stere +lat_0=90 +lon_0=0.0 +lat_ts=60.0 +a=6378.137 +b=6356.752 +x_0=0 +y_0=0",
                                   shape=shape, x0=x0, y0=y0)
+
+    coordinates = CoordinateSystem()
+    coordinates.create_geographic(dlon=0.01, dlat=-0.01, lon0=4, lat0=54, shape=[400, 400])
+
     coordinates.slice = False
 
     # Get the image orientation
-    s1_stack('projection_coor', settings, coordinates, 'cmaster', file_type=['lat', 'lon'], parallel=parallel, cores=cores)
+    # s1_stack('projection_coor', settings, coordinates, 'cmaster', file_type=['lat', 'lon'], parallel=parallel, cores=cores)
     # Full radar DEM grid
     s1_stack('coor_DEM', settings, coordinates, 'cmaster', file_type='DEM', parallel=parallel, cores=cores)
     # Do the geocoding
@@ -130,9 +135,9 @@ for resolution in [0.25]: #
     s1_stack('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel, cores=cores)
 
     # After geocoding of the projected image we run the weather model for different types
-    # s1_stack('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_aps'], parallel=parallel)
+    s1_stack('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_aps'], parallel=parallel)
     # s1_stack('ecmwf_era5_aps', settings, coordinates, 'slave', file_type=['ecmwf_era5_aps'], parallel=parallel)
-    # s1_stack('ecmwf_oper_aps', settings, coordinates, 'slave', file_type=['ecmwf_oper_aps'], parallel=parallel)
+    s1_stack('ecmwf_oper_aps', settings, coordinates, 'slave', file_type=['ecmwf_oper_aps'], parallel=parallel)
 
     # Create the conversion grids (This should work automatically in the future, but we do it like this for now.)
     coordinates.slice = True
@@ -160,11 +165,19 @@ for resolution in [0.25]:  #
     coordinates.create_projection(resolution, -resolution, projection_type='rainfall_NL',
                                   proj4_str="+proj=stere +lat_0=90 +lon_0=0.0 +lat_ts=60.0 +a=6378.137 +b=6356.752 +x_0=0 +y_0=0",
                                   shape=shape, x0=x0, y0=y0)
+
+
+    coordinates = CoordinateSystem()
+    coordinates.create_geographic(dlon=0.01, dlat=-0.01, lon0=4, lat0=54, shape=[400, 400])
+
     coordinates.slice = False
+
     # Finally do the unwrapping.
     s1_stack('unwrap', settings, coordinates, 'ifg', file_type='unwrap', parallel=parallel, cores=cores)
 
-exp_strs = ['_rainfall_NL_stp_0.25_-0.25']
+
+
+exp_strs = ['_WGS84_stp_-36_36']
 
 # Export outputs as geotiff
 for exp_str in exp_strs:
@@ -174,3 +187,4 @@ for exp_str in exp_strs:
 
     s1_stack.export_to_geotiff(['unwrap'], ['unwrap' + exp_str])
     s1_stack.export_to_geotiff('harmonie_interferogram', 'harmonie_interferogram' + exp_str)
+

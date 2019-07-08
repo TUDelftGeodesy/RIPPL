@@ -26,7 +26,7 @@ class EcmwfOperAps(HarmonieAps):
     """
 
     def __init__(self, meta, cmaster_meta, coor_in, coordinates, s_lin=0, s_pix=0, lines=0,
-                 weather_data_archive='', ecmwf_type='oper', time_interp='nearest', split=False, download=True):
+                 weather_data_archive='', ecmwf_type='oper', time_interp='nearest', split=False, download=False):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 

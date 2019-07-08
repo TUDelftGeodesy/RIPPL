@@ -93,12 +93,16 @@ class ModelInterpolateDelays(object):
 
         self.splines = splines
 
-    def interpolate_points(self):
+    def interpolate_points(self, time_key=''):
         # This function interpolates from low coverage points calculated in find_point_delays to high coverage.
         # Interpolation is done by a 2d linear interpolation after selection based on heights.
 
         # print('Start interpolation from coarse to specific points in radar grid')
-        times = self.splines['total'].keys()
+        if time_key:
+            times = [time_key]
+        else:
+            times = self.splines['total'].keys()
+
         size = (len(self.lines), len(self.pixels))
 
         # Finially calculate the splines of the corresponding rays.
@@ -129,3 +133,8 @@ class ModelInterpolateDelays(object):
                     # Resample to new grid
                     delays = Resample.resample_grid(grid_delay, coor_l, coor_p, w_type='linear', table_size=[50, 50])
                     self.interp_delays[run_type][t][self.dh_bins[str(i)]] = delays
+
+    def remove_delay(self, time):
+
+        for run_type in self.run_data:
+            self.interp_delays[run_type].pop(time)

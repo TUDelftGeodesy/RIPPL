@@ -148,7 +148,7 @@ class HarmonieAps(object):
 
         geoid_file = os.path.join(self.weather_data_archive, 'egm96.raw')
 
-        model_delays = ModelToDelay(65, geoid_file)
+        model_delays = ModelToDelay(data.levels, geoid_file)
         model_delays.load_model_delay(data.model_data)
         model_delays.model_to_delay()
 

@@ -132,18 +132,24 @@ s1_stack('coor_geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 
 coordinates.slice = True
 s1_stack(['earth_topo_phase'], settings, coordinates, 'slave', file_type=['earth_topo_phase'], parallel=parallel)
 
+coordinates = CoordinateSystem()
+coordinates.create_radar_coordinates(multilook=[2, 6], offset=[0, 0], oversample=[1, 1])
+coordinates.slice = False
+
+s1_stack('interferogram', settings, coordinates, 'ifg', file_type='interferogram', parallel=parallel)
+s1_stack('square_amplitude', settings, coordinates, 'slave', file_type='square_amplitude', parallel=parallel)
+s1_stack('coherence', settings, coordinates, 'ifg', file_type='coherence', parallel=parallel)
+
 # Get the multilooked square amplitudes
 for multilook in [[20, 80]]:
-    coordinates = CoordinateSystem()
-    coordinates.create_radar_coordinates(multilook=multilook, offset=[0, 0], oversample=[1, 1])
-    coordinates.slice = False
-    # s1_stack('square_amplitude', settings, coordinates, 'slave', file_type='square_amplitude', parallel=parallel)
+
+    #
     # Create the DEM first
     # s1_stack('radar_DEM', settings, coordinates, 'cmaster', file_type='DEM', parallel=parallel)
 
     # Create ifgs / coherence for daisy chain.
-    # s1_stack('interferogram', settings, coordinates, 'ifg', file_type='interferogram', parallel=parallel)
-    # s1_stack('coherence', settings, coordinates, 'ifg', file_type='coherence', parallel=parallel)
+    #
+    #
 
     # Run the geocoding for the slices.
     # s1_stack('geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat', 'lon'], parallel=parallel)

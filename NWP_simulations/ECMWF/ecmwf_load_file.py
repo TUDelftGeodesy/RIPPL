@@ -75,22 +75,18 @@ class ECMWFData(object):
 
         # Calculate pressure and heights for model levels.
         # We have different files for surface files (surface pressure is different)
-        try:
-            geo = self.surface_model_data[filename].select(name='Geopotential', hour=hour,
-                                                                    dataDate=data_date)[0]
-            self.model_data['geo_h'] = geo.values / 9.80665
+        geo = self.surface_model_data[filename].select(name='Geopotential', hour=hour,
+                                                                dataDate=data_date)[0]
+        self.model_data['geo_h'] = geo.values / 9.80665
 
+        try:
             log_p = self.surface_model_data[filename].select(name='Logarithm of surface pressure', hour=hour,
-                                                                      dataDate=data_date)[0]
+                                                                  dataDate=data_date)[0]
             geo_p = np.exp(log_p.values)
         except:
-            geo = self.surface_model_data[filename].select(name='Geopotential', hour=hour,
-                                                           dataDate=data_date)[0]
-            self.model_data['geo_h'] = geo.values / 9.80665
-
-            log_p = self.surface_model_data[filename].select(name='Logarithm of surface pressure', hour=hour,
-                                                             dataDate=data_date)[0]
-            geo_p = np.exp(log_p.values)
+            log_p = self.surface_model_data[filename].select(name='Surface pressure', hour=hour,
+                                                                  dataDate=data_date)[0]
+            geo_p = log_p.values
 
         # Now load a and b values to calculate pressure levels and heights.
         self.model_data[time]['pressures'] = geo_p * self.b[:, None, None] + self.a[:, None, None]

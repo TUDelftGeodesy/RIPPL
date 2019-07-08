@@ -56,14 +56,14 @@ class MarsRequest(object):
 
                 elif self.data_type == 'era5':
 
-                    self.server.retrieve('reanalysis-era5-complete',
+                    self.server.retrieve('reanalysis-era5-single-levels',
                         {
-                            "class": self.dataset_class,
+                            "product_type": 'reanalysis',
+                            "variable": ['orograpy', 'surface_pressure'],
                             "date": date,
                             "expver": "1",
                             "grid": self.grid,
                             "levtype": "sfc",
-                            "param": "129.128/134.128",
                             "step": "0",
                             "stream": "oper",
                             "time": self.t_list,

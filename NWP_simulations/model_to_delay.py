@@ -27,7 +27,7 @@ class ModelToDelay(object):
         self.model_data = model_data
         self.times = [t for t in self.model_data.keys() if len(t) == 13]
 
-    def model_to_delay(self, method='pressures'):
+    def model_to_delay(self, method='pressures', time_key=''):
         # This function resamples the ECMWF grid to different 2d cross-section for different lines.
         # Input is:
         # - dat_file    > the ECMWF .grib file
@@ -63,7 +63,12 @@ class ModelToDelay(object):
         ks_som = 0.001931853  # constant formula Somigliana
         sin_lat = np.sin(self.model_data['latitudes'] * np.pi / 180) ** 2
 
-        for time in self.times:
+        if time_key:
+            times = [time_key]
+        else:
+            times = self.times
+
+        for time in times:
 
             # Preassign the heights and delays
             tot_size = (self.levels, self.model_data['latitudes'].size, self.model_data['longitudes'].size)
@@ -156,3 +161,4 @@ class ModelToDelay(object):
     def remove_delay(self, time):
 
         self.delay_data.pop(time)
+        self.model_data.pop(time)

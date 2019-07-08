@@ -13,14 +13,14 @@ datastack_disk = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/'
 harmonie_data = data_disk + 'weather_models/harmonie_data'
 ecmwf_data = data_disk + 'weather_models/ecmwf_data'
 
-start_date = '2014-02-12'
-end_date = '2020-02-28'
+start_date = '2018-09-01'
+end_date = '2019-01-01'
 master_date = '2017-02-21'
 
 database_folder = data_disk + 'radar_database/sentinel-1/asc_t088'
 shapefile = data_disk + 'GIS/shapes/netherlands/netherland.shp'
 orbit_folder = data_disk + 'orbits/sentinel-1'
-stack_folder = data_disk + 'radar_datastacks/asc_t088'
+stack_folder = datastack_disk + 'radar_datastacks/sentinel-1/asc_t088'
 polarisation = 'VV'
 mode = 'IW'
 product_type = 'SLC'
@@ -42,6 +42,7 @@ srtm_folder = data_disk + 'DEM/DEM_new'
 
 # Prepare processing
 if not os.listdir(stack_folder):
+    n_jobs = 4
     s1_stack = SentinelStack(stack_folder)
     s1_stack.read_from_database(database_folder, shapefile, track_no, orbit_folder, start_date, end_date, master_date,
                              mode, product_type, polarisation, cores=n_jobs)
@@ -86,7 +87,7 @@ coordinates.slice = True
 # Get the image orientation
 # s1_stack('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel, cores=cores)
 # Run processing
-# s1_stack(['earth_topo_phase'], settings, coordinates, 'slave', file_type=['earth_topo_phase'], parallel=parallel, cores=cores)
+s1_stack(['earth_topo_phase'], settings, coordinates, 'slave', file_type=['earth_topo_phase'], parallel=parallel, cores=cores)
 
 coordinates.slice = False
 # Full radar DEM grid
@@ -97,12 +98,12 @@ s1_stack('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=
 s1_stack('geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat', 'lon'], parallel=parallel, cores=cores)
 
 # Create DEM for harmonie aps
-dem_coordinates = CoordinateSystem()
-dem_coordinates.create_radar_coordinates(multilook=[50, 200], offset=[-100, -400])
-s1_stack('radar_DEM', settings, dem_coordinates, 'cmaster', file_type='DEM', parallel=parallel, cores=cores)
-s1_stack('geocode', settings, dem_coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat', 'lon'], parallel=parallel, cores=cores)
-s1_stack('azimuth_elevation_angle', settings, dem_coordinates, 'cmaster',
-         file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel, cores=cores)
+# dem_coordinates = CoordinateSystem()
+# dem_coordinates.create_radar_coordinates(multilook=[50, 200], offset=[-100, -400])
+# s1_stack('radar_DEM', settings, dem_coordinates, 'cmaster', file_type='DEM', parallel=parallel, cores=cores)
+# s1_stack('geocode', settings, dem_coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat', 'lon'], parallel=parallel, cores=cores)
+# s1_stack('azimuth_elevation_angle', settings, dem_coordinates, 'cmaster',
+#         file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel, cores=cores)
 
 for resolution in [0.25]:  #
     # Now we create the projected grid. The coordinates are chosen similar to the rainfall radar product from the KNMI
@@ -119,13 +120,13 @@ for resolution in [0.25]:  #
     coordinates.slice = False
 
     # Get the image orientation
-    s1_stack('projection_coor', settings, coordinates, 'cmaster', file_type=['lat', 'lon'], parallel=parallel, cores=cores)
+    # s1_stack('projection_coor', settings, coordinates, 'cmaster', file_type=['lat', 'lon'], parallel=parallel, cores=cores)
     # Full radar DEM grid
-    s1_stack('coor_DEM', settings, coordinates, 'cmaster', file_type='DEM', parallel=parallel, cores=cores)
+    # s1_stack('coor_DEM', settings, coordinates, 'cmaster', file_type='DEM', parallel=parallel, cores=cores)
     # Do the geocoding
-    s1_stack('coor_geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'line', 'pixel'], parallel=parallel, cores=cores)
+    # s1_stack('coor_geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'line', 'pixel'], parallel=parallel, cores=cores)
     # azimuth elevation angle
-    s1_stack('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel, cores=cores)
+    # s1_stack('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel, cores=cores)
 
     # After geocoding of the projected image we run the weather model for different types
     # s1_stack('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_aps'], parallel=parallel)
@@ -134,7 +135,7 @@ for resolution in [0.25]:  #
 
     # Create the conversion grids (This should work automatically in the future, but we do it like this for now.)
     coordinates.slice = True
-    s1_stack('conversion_grid', settings, coordinates, 'cmaster', file_type=['sum_ids', 'sort_ids', 'looks', 'output_ids'], parallel=parallel, cores=cores)
+    # s1_stack('conversion_grid', settings, coordinates, 'cmaster', file_type=['sum_ids', 'sort_ids', 'looks', 'output_ids'], parallel=parallel, cores=cores)
 
     # And create the interferograms for these images.
     coordinates.slice = False

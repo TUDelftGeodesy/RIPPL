@@ -102,8 +102,10 @@ class ECMWFdownload(ECMWFType):
                 self.requests[date]['surface'] = os.path.join(self.ecmwf_data_folder, 'ecmwf' + type2str[self.data_type] + date + '_' + path_str + '_surface.grb')
                 self.requests[date]['request'] = request_date
 
+        dates = [date.strftime('%Y%m%d') for date in self.dates]
+        for date in dates:
             self.filenames.append(os.path.join(self.ecmwf_data_folder, 'ecmwf' + type2str[self.data_type] +
-                                               date + '_' + path_str))
+                                                   date + '_' + path_str))
 
     def download(self):
 
@@ -137,9 +139,10 @@ class ECMWFdownload(ECMWFType):
                 atmosphere_files.append(self.requests[key]['atmosphere'])
                 atmosphere_dates.append(self.requests[key]['request'])
 
-        print('Surface files to be downloaded')
-        for surface_file in surface_files:
-            print(surface_file)
+        if len(surface_files) > 0:
+            print('Surface files to be downloaded')
+            for surface_file in surface_files:
+                print(surface_file)
 
         # Surface files
         input = dict()
@@ -161,9 +164,10 @@ class ECMWFdownload(ECMWFType):
         self.pool.map(parallel_download, inputs)
         self.pool.close()
 
-        print('Atmosphere files to be downloaded')
-        for atmosphere_file in atmosphere_files:
-            print(atmosphere_file)
+        if len(atmosphere_files) > 0:
+            print('Atmosphere files to be downloaded')
+            for atmosphere_file in atmosphere_files:
+                print(atmosphere_file)
 
         input['dataset'] = 'atmosphere'
         inputs = []

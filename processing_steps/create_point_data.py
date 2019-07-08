@@ -30,7 +30,7 @@ from collections import defaultdict
 
 class CreatePointData(object):
 
-    def __init__(self, meta, coordinates, shapefile='', points='', coor_points='', point_data_name='sparse'):
+    def __init__(self, meta, coordinates, shapefile='', points='', coor_points='', elevation='', point_data_name='sparse'):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
