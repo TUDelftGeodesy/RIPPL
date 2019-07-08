@@ -22,7 +22,7 @@ product_type = 'SLC'
 srtm_folder = data_disk + 'DEM/DEM_new'
 orbit_folder = data_disk + 'orbits/sentinel-1'
 
-track_no = 37
+track_no = 88
 if track_no == 37:
     start_date = '2014-10-15'
     end_date = '2019-01-01'
@@ -128,10 +128,10 @@ s1_stack('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=
 # Download ECMWF data.
 ecmwf_folder = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/radar_datastacks/weather_models/ecmwf_data'
 processes = 8
-s1_stack.download_ECMWF_data(dat_type='oper', ecmwf_data_folder=ecmwf_folder, processes=processes)
-s1_stack.download_ECMWF_data(dat_type='era5', ecmwf_data_folder=ecmwf_folder, processes=processes)
+s1_stack.download_ECMWF_data(dat_type='oper', ecmwf_data_folder=ecmwf_folder, processes=processes, parallel=True)
+s1_stack.download_ECMWF_data(dat_type='era5', ecmwf_data_folder=ecmwf_folder, processes=processes, parallel=True)
 
 # Finally process the different weather models
 s1_stack('harmonie_aps', settings, coordinates, 'slave', file_type=['harmonie_aps'], parallel=parallel)
 s1_stack('ecmwf_oper_aps', settings, coordinates, 'slave', file_type=['ecmwf_oper_aps'], parallel=parallel)
-# s1_stack('ecmwf_era5_aps', settings, coordinates, 'slave', file_type=['ecmwf_era5_aps'], parallel=parallel)
+s1_stack('ecmwf_era5_aps', settings, coordinates, 'slave', file_type=['ecmwf_era5_aps'], parallel=parallel)

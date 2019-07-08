@@ -12,7 +12,7 @@ import copy
 
 class ECMWFdownload(ECMWFType):
     
-    def __init__(self, latlim, lonlim, ecmwf_data_folder, data_type='era_interim', processes=8):
+    def __init__(self, latlim, lonlim, ecmwf_data_folder, data_type='era_interim', processes=8, parallel=True):
         # In the init function we mainly check the different dates, data folders and extend of dataset.
 
         ECMWFType.__init__(self, data_type)
@@ -28,6 +28,7 @@ class ECMWFdownload(ECMWFType):
         self.lonlim = lonlim
         self.bbox = np.asarray([latlim, lonlim])
         self.n_processes = processes
+        self.parallel = parallel
         
         # Date should be in datetime format.
         self.dates = []
@@ -160,9 +161,13 @@ class ECMWFdownload(ECMWFType):
             input['target'] = target
             inputs.append(copy.copy(input))
 
-        self.pool = multiprocessing.Pool(self.n_processes, maxtasksperchild=1)
-        self.pool.map(parallel_download, inputs)
-        self.pool.close()
+        if self.parallel:
+            self.pool = multiprocessing.Pool(self.n_processes, maxtasksperchild=1)
+            self.pool.map(parallel_download, inputs)
+            self.pool.close()
+        else:
+            for input in inputs:
+                parallel_download(input)
 
         if len(atmosphere_files) > 0:
             print('Atmosphere files to be downloaded')
@@ -177,10 +182,14 @@ class ECMWFdownload(ECMWFType):
             inputs.append(copy.copy(input))
 
         # Atmosphere files
-        self.pool = multiprocessing.Pool(self.n_processes, maxtasksperchild=1)
-        self.pool.map(parallel_download, inputs)
-        self.pool.close()
-        self.pool = []
+        if self.parallel:
+            self.pool = multiprocessing.Pool(self.n_processes, maxtasksperchild=1)
+            self.pool.map(parallel_download, inputs)
+            self.pool.close()
+            self.pool = []
+        else:
+            for input in inputs:
+                parallel_download(input)
 
         # Finally split the monthly values to daily values
         self.split_monthly_to_daily(surface_files)

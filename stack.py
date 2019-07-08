@@ -335,7 +335,7 @@ class Stack(object):
         download = SrtmDownload(srtm_folder, username, password, srtm_type)
         download(self.images[self.master_date].res_data, buf=buf, rounding=rounding, parallel=parallel)
 
-    def download_ECMWF_data(self, dat_type, ecmwf_data_folder, latlim='', lonlim= '', processes=6):
+    def download_ECMWF_data(self, dat_type, ecmwf_data_folder, latlim='', lonlim= '', processes=6, parallel=True):
         # Download ECMWF data for whole dataset at once. This makes this process much more clear and faster.
 
         # Check the progress of your download at:
@@ -355,6 +355,6 @@ class Stack(object):
 
         down_dates = [datetime.datetime.strptime(d, '%Y%m%d') for d in self.images.keys()]
 
-        download = ECMWFdownload(latlim, lonlim, ecmwf_data_folder, dat_type, processes)
+        download = ECMWFdownload(latlim, lonlim, ecmwf_data_folder, dat_type, processes, parallel=parallel)
         download.prepare_download(down_dates)
         download.download()

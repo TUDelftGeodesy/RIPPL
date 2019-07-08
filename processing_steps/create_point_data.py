@@ -83,6 +83,7 @@ class CreatePointData(object):
             point_coordinates.shape = self.lines.shape
             point_coordinates.sparse_grid = True
             point_coordinates.sample =  point_coordinates.sample + '_' + self.point_data_name
+            point_coordinates.sparse_name = self.point_data_name
 
             # Data can be saved using the create output files and add meta data function.
             self.add_meta_data(self.meta, point_coordinates)

@@ -56,19 +56,25 @@ class MarsRequest(object):
 
                 elif self.data_type == 'era5':
 
+                    # Translate to cds date info
+                    year = date[:4]
+                    month = date[5:7]
+                    last_day = int(date[22:])
+                    days = [str(d).zfill(2) for d in range(1, last_day)]
+                    time = [str(h).zfill(2) + ':00' for h in range(24)]
+                    bb_str = self.bb_str.split('/')
+                    grid_str = self.grid.split('/')
+
                     self.server.retrieve('reanalysis-era5-single-levels',
                         {
                             "product_type": 'reanalysis',
-                            "variable": ['orograpy', 'surface_pressure'],
-                            "date": date,
-                            "expver": "1",
-                            "grid": self.grid,
-                            "levtype": "sfc",
-                            "step": "0",
-                            "stream": "oper",
-                            "time": self.t_list,
-                            "type": "an",
-                            "area": self.bb_str,
+                            "variable": ['orography', 'surface_pressure'],
+                            "year": year,
+                            "month": month,
+                            "day": days,
+                            "grid": grid_str,
+                            "time": time,
+                            "area": bb_str,
                             "format": "grib"
                         },
                         target)

@@ -186,7 +186,6 @@ s1_stack.export_to_geotiff(['unwrap'], ['unwrap_ml_20_80'])
 s1_stack.export_to_geotiff('harmonie_interferogram', 'harmonie_interferogram_ml_10_40')
 s1_stack.export_to_geotiff('harmonie_interferogram', 'harmonie_interferogram_ml_20_80')
 
-
 # Plotting of stack
 import matplotlib.pyplot as plt
 import copy
