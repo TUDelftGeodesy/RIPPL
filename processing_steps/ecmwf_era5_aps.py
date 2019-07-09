@@ -125,9 +125,7 @@ class EcmwfEra5Aps(HarmonieAps):
             data.load_ecmwf(down.dates[0], down.filenames[0])
 
             proc_date = down.dates[0].strftime('%Y%m%dT%H%M')
-
             self.ray_tracing(data, proc_date)
-            data.remove_ecmwf(proc_date)
 
             # If needed do the multilooking step
             self.slave.image_new_data_memory(self.simulated_delay.astype(np.float32), 'NWP_phase', self.s_lin, self.s_pix, 'harmonie_' +

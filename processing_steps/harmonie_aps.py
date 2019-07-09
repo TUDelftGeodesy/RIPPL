@@ -106,7 +106,6 @@ class HarmonieAps(object):
             proc_date = date[0].strftime('%Y%m%dT%H%M')
             # Run the ray tracing
             self.ray_tracing(data, proc_date)
-            data.remove_harmonie(proc_date)
 
             # TODO Add a loop to run this method for different time steps. So the wind vectors will be used to create
             # new delay images on different time scales.

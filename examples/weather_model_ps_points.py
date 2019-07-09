@@ -22,7 +22,7 @@ product_type = 'SLC'
 srtm_folder = data_disk + 'DEM/DEM_new'
 orbit_folder = data_disk + 'orbits/sentinel-1'
 
-track_no = 88
+track_no = 37
 if track_no == 37:
     start_date = '2014-10-15'
     end_date = '2019-01-01'
