@@ -60,7 +60,7 @@ class MarsRequest(object):
                     year = date[:4]
                     month = date[5:7]
                     last_day = int(date[22:])
-                    days = [str(d).zfill(2) for d in range(1, last_day)]
+                    days = [str(d).zfill(2) for d in range(1, last_day + 1)]
                     time = [str(h).zfill(2) + ':00' for h in range(24)]
                     bb_str = self.bb_str.split('/')
                     grid_str = self.grid.split('/')

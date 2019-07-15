@@ -1,10 +1,13 @@
-from rippl.find_coordinates import FindCoordinates
+import xml.etree.cElementTree as ET
 from collections import OrderedDict
 import pyproj
 import datetime
 import numpy as np
 import os
 import osr
+
+from rippl.find_coordinates import FindCoordinates
+
 
 class CoordinateSystem():
 
@@ -46,7 +49,6 @@ class CoordinateSystem():
 
         # Characteristics for geographic type
         self.ellipse_type = ''
-        self.shape = [0, 0]
         self.lat0 = 0
         self.lon0 = 0
         self.dlat = 0
@@ -55,7 +57,6 @@ class CoordinateSystem():
         # Characteristics for projection type
         self.projection_type = ''
         self.proj4_str = ''
-        self.shape = [0, 0]
         self.x0 = 0
         self.y0 = 0
         self.dx = 0
@@ -65,6 +66,68 @@ class CoordinateSystem():
         self.meta_data = OrderedDict()
         self.geo = ''
         self.proj = ''
+        self.tree = []
+
+    def create_xml(self):
+
+        root = ET.Element("root")
+
+        radar = ET.SubElement(root, "radar")
+        ET.SubElement(radar, 'multilook').text = str(self.multilook[0]) + '_' + str(self.multilook[1])
+        ET.SubElement(radar, 'offset').text = str(self.offset[0]) + '_' + str(self.offset[1])
+        ET.SubElement(radar, 'interval_lines').text = str(self.interval_lines)
+        ET.SubElement(radar, 'interval_pixels').text = str(self.interval_pixels)
+        ET.SubElement(radar, 'ml_lines_in').text = str(self.ml_lines_in)
+        ET.SubElement(radar, 'ml_pixels_in').text = str(self.ml_pixels_in)
+        ET.SubElement(radar, 'ml_lines_out').text = str(self.ml_lines_out)
+        ET.SubElement(radar, 'ml_pixels_out').text = str(self.ml_pixels_out)
+
+        geographic = ET.SubElement(root, "geographic")
+        ET.SubElement(geographic, 'ellipse_type').text = self.ellipse_type
+        ET.SubElement(geographic, 'lat0').text = str(self.lat0)
+        ET.SubElement(geographic, 'lon0').text = str(self.lon0)
+        ET.SubElement(geographic, 'dlat').text = str(self.dlat)
+        ET.SubElement(geographic, 'dlon').text = str(self.dlon)
+
+        projection = ET.SubElement(root, "projections")
+        ET.SubElement(projection, 'ellipse_type').text = self.ellipse_type
+        ET.SubElement(projection, 'projection_type').text = self.projection_type
+        ET.SubElement(projection, 'proj4_str').text = self.proj4_str
+        ET.SubElement(projection, 'x0').text = str(self.x0)
+        ET.SubElement(projection, 'y0').text = str(self.y0)
+        ET.SubElement(projection, 'dx').text = str(self.dx)
+        ET.SubElement(projection, 'dy').text = str(self.dy)
+
+        timing = ET.SubElement(root, "timing")
+        ET.SubElement(timing, 'ra_time').text = str(self.ra_time)
+        ET.SubElement(timing, 'az_time').text = str(self.az_time)
+        ET.SubElement(timing, 'ra_step').text = str(self.ra_step)
+        ET.SubElement(timing, 'az_step').text = str(self.az_step)
+
+        grid_spec = ET.SubElement(root, "grid_spec")
+        ET.SubElement(grid_spec, 'shape').text = str(self.ra_time)
+        ET.SubElement(grid_spec, 'first_line').text = str(self.first_line)
+        ET.SubElement(grid_spec, 'first_pixel').text = str(self.first_pixel)
+        ET.SubElement(grid_spec, 'az_step').text = str(self.az_step)
+        ET.SubElement(grid_spec, 'sample').text = self.sample
+        ET.SubElement(grid_spec, 'meta_name').text = self.meta_name
+        ET.SubElement(grid_spec, 'res_path').text = self.res_path
+        ET.SubElement(grid_spec, 'over_size').text = str(self.over_size)
+        ET.SubElement(grid_spec, 'sparse_grid').text = str(self.sparse_grid)
+        ET.SubElement(grid_spec, 'sparse_name').text = str(self.sparse_name)
+        ET.SubElement(grid_spec, 'mask_grid').text = str(self.mask_grid)
+        ET.SubElement(grid_spec, 'mask_name').text = str(self.mask_name)
+
+        grid_type = ET.SubElement(root, "grid_type").text = self.grid_type
+        slice = ET.SubElement(root, "slice").text = str(self.slice)
+        coor_str = ET.SubElement(root, "coor_str").text = self.coor_str
+
+        self.xml = ET.ElementTree(root)
+
+    def read_xml(self):
+        # Load information from xml tree data.
+
+        print('Working on this')
 
     def create_radar_coordinates(self, res_info='', multilook='', oversample='', offset='', sparse_name=''):
 

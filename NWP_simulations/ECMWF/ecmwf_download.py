@@ -108,6 +108,7 @@ class ECMWFdownload(ECMWFType):
             self.filenames.append(os.path.join(self.ecmwf_data_folder, 'ecmwf' + type2str[self.data_type] +
                                                    date + '_' + path_str))
 
+
     def download(self):
 
         bb_str = str(int(self.bbox[0, 1])) + '/' + str(int(self.bbox[1, 0])) + '/' + str(
@@ -127,15 +128,19 @@ class ECMWFdownload(ECMWFType):
         grid = str(self.grid_size) + '/' + str(self.grid_size)
 
         surface_files = []
+        all_surface_files = []
         surface_dates = []
         atmosphere_files = []
+        all_atmosphere_files = []
         atmosphere_dates = []
 
         for key in self.requests.keys():
             # set all project_functions parameters
+            all_surface_files.append(self.requests[key]['surface'])
             if not os.path.exists(self.requests[key]['surface']):
                 surface_files.append(self.requests[key]['surface'])
                 surface_dates.append(self.requests[key]['request'])
+            all_atmosphere_files.append(self.requests[key]['atmosphere'])
             if not os.path.exists(self.requests[key]['atmosphere']):
                 atmosphere_files.append(self.requests[key]['atmosphere'])
                 atmosphere_dates.append(self.requests[key]['request'])
@@ -192,8 +197,8 @@ class ECMWFdownload(ECMWFType):
                 parallel_download(input)
 
         # Finally split the monthly values to daily values
-        self.split_monthly_to_daily(surface_files)
-        self.split_monthly_to_daily(atmosphere_files)
+        self.split_monthly_to_daily(all_surface_files)
+        self.split_monthly_to_daily(all_atmosphere_files)
 
     def split_monthly_to_daily(self, file_paths):
 
@@ -227,6 +232,7 @@ class ECMWFdownload(ECMWFType):
                     date += day
 
                 if len(daily_files) > 0:
+                    print('Splitting ' + file_path + ' to daily files.')
                     grib_data = pygrib.index(file_path, 'month', 'day', 'year')
 
                     for date, file in zip(daily_dates, daily_files):
@@ -238,4 +244,3 @@ class ECMWFdownload(ECMWFType):
                         grbout.close()
 
                     grib_data.close()
-
