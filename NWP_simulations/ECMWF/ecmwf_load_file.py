@@ -71,22 +71,22 @@ class ECMWFData(object):
             for level in range(1, self.levels + 1):
                 var = self.atmosphere_model_data[filename](name=dat_type, level=level, hour=hour,
                                                                     dataDate=data_date)[0]
-                self.model_data[time][dat_type][level - 1, :, :] = var.values
+                self.model_data[time][dat_type][level - 1, :, :] = np.flipud(var.values)
 
         # Calculate pressure and heights for model levels.
         # We have different files for surface files (surface pressure is different)
         geo = self.surface_model_data[filename].select(name='Geopotential', hour=hour,
                                                                 dataDate=data_date)[0]
-        self.model_data['geo_h'] = geo.values / 9.80665
+        self.model_data['geo_h'] = np.flipud(geo.values) / 9.80665
 
         try:
             log_p = self.surface_model_data[filename].select(name='Logarithm of surface pressure', hour=hour,
                                                                   dataDate=data_date)[0]
-            geo_p = np.exp(log_p.values)
+            geo_p = np.flipud(np.exp(log_p.values))
         except:
             log_p = self.surface_model_data[filename].select(name='Surface pressure', hour=hour,
                                                                   dataDate=data_date)[0]
-            geo_p = log_p.values
+            geo_p = np.flipud(log_p.values)
 
         # Now load a and b values to calculate pressure levels and heights.
         self.model_data[time]['pressures'] = geo_p * self.b[:, None, None] + self.a[:, None, None]

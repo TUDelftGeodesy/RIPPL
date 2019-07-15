@@ -128,13 +128,13 @@ class EcmwfEra5Aps(HarmonieAps):
             self.ray_tracing(data, proc_date)
 
             # If needed do the multilooking step
-            self.slave.image_new_data_memory(self.simulated_delay.astype(np.float32), 'NWP_phase', self.s_lin, self.s_pix, 'harmonie_' +
-                                             self.ecmwf_type + '_aps' + self.coor_out.sample)
+            self.slave.image_new_data_memory(self.simulated_delay.astype(np.float32), 'ecmwf_era5_aps', self.s_lin, self.s_pix,
+                                             'ecmwf_' + self.ecmwf_type + '_aps' + self.coor_out.sample)
             if self.split:
-                self.slave.image_new_data_memory(self.hydrostatic_delay.astype(np.float32), 'NWP_phase', self.s_lin, self.s_pix,
-                                                self.ecmwf_type + self.ecmwf_type + '_hydrostatic' + self.coor_out.sample)
-                self.slave.image_new_data_memory(self.wet_delay.astype(np.float32), 'NWP_phase', self.s_lin, self.s_pix,
-                                                self.ecmwf_type + self.ecmwf_type + '_wet' + self.coor_out.sample)
+                self.slave.image_new_data_memory(self.hydrostatic_delay.astype(np.float32), 'ecmwf_era5_aps', self.s_lin, self.s_pix,
+                                                'ecmwf_' + self.ecmwf_type + '_hydrostatic' + self.coor_out.sample)
+                self.slave.image_new_data_memory(self.wet_delay.astype(np.float32), 'ecmwf_era5_aps', self.s_lin, self.s_pix,
+                                                'ecmwf_' + self.ecmwf_type + '_wet' + self.coor_out.sample)
 
             return True
 
@@ -153,8 +153,8 @@ class EcmwfEra5Aps(HarmonieAps):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
 
-        if 'ecmwf_aps' in meta.processes.keys():
-            meta_info = meta.processes['ecmwf_aps']
+        if 'ecmwf_era5_aps' in meta.processes.keys():
+            meta_info = meta.processes['ecmwf_era5_aps']
         else:
             meta_info = OrderedDict()
 
@@ -167,7 +167,7 @@ class EcmwfEra5Aps(HarmonieAps):
 
         meta_info = coordinates.create_meta_data(aps_types, data_types, meta_info)
 
-        meta.image_add_processing_step('ecmwf_aps', meta_info)
+        meta.image_add_processing_step('ecmwf_era5_aps', meta_info)
 
     @staticmethod
     def processing_info(coordinates, e_type='era5', split=False):
@@ -198,9 +198,9 @@ class EcmwfEra5Aps(HarmonieAps):
 
         output_dat = recursive_dict()
         for t in aps_types:
-            output_dat['slave']['ecmwf_aps'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
-            output_dat['slave']['ecmwf_aps'][t + coordinates.sample]['coordinates'] = coordinates
-            output_dat['slave']['ecmwf_aps'][t + coordinates.sample]['slice'] = coordinates.slice
+            output_dat['slave']['ecmwf_era5_aps'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
+            output_dat['slave']['ecmwf_era5_aps'][t + coordinates.sample]['coordinates'] = coordinates
+            output_dat['slave']['ecmwf_era5_aps'][t + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5
@@ -211,14 +211,14 @@ class EcmwfEra5Aps(HarmonieAps):
     def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-        meta.images_create_disk('ecmwf_aps', file_type, coordinates)
+        meta.images_create_disk('ecmwf_era5_aps', file_type, coordinates)
 
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_memory_to_disk('ecmwf_aps', file_type, coordinates)
+        meta.images_memory_to_disk('ecmwf_era5_aps', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_clean_memory('ecmwf_aps', file_type, coordinates)
+        meta.images_clean_memory('ecmwf_era5_aps', file_type, coordinates)
