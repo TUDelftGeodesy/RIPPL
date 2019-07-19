@@ -244,7 +244,7 @@ class Pipeline():
                 start_meta_type = [self.meta_type for n in np.arange(len(self.function))]
                 start_coor = copy.deepcopy(self.coor)
 
-                if start_coor.meta_name != start_meta_name and start_coor.grid_type == 'radar_coordinates':
+                if start_coor.meta_name != start_meta_name and start_coor.grid_type == 'radar_coordinates' and start_coor.sparse_grid == False:
                     if 'cmaster' in self.res_dat['full'].keys():
                         start_coor.add_res_info(self.res_dat['full']['cmaster'])
                     else:
@@ -332,7 +332,7 @@ class Pipeline():
                     start_meta_type = [self.meta_type for n in np.arange(len(self.function))]
                     start_coor = copy.deepcopy(self.coor)
 
-                    if start_coor.meta_name != start_meta and start_coor.grid_type == 'radar_coordinates':
+                    if start_coor.meta_name != start_meta and start_coor.grid_type == 'radar_coordinates' and start_coor.sparse_grid == False:
                         if 'cmaster' in self.res_dat[start_meta].keys():
                             start_coor.add_res_info(self.res_dat[start_meta]['cmaster'])
                         else:
@@ -1210,7 +1210,8 @@ class Pipeline():
                     else:
                         blocks = (pipeline['coor_out'][0].shape[0] * pipeline['coor_out'][0].shape[1]) // self.pixels + 1
 
-                    lines = pipeline['coor_out'][0].shape[0] // blocks + 1
+                    tot_lines = pipeline['coor_out'][0].shape[0]
+                    lines = tot_lines // blocks + int(np.remainder(tot_lines, blocks) > 0)
 
                     for block_no in np.arange(int(blocks)):
 

@@ -26,7 +26,7 @@ class EcmwfOperAps(HarmonieAps):
     """
 
     def __init__(self, meta, cmaster_meta, coor_in, coordinates, s_lin=0, s_pix=0, lines=0,
-                 weather_data_archive='', ecmwf_type='oper', time_interp='nearest', split=False, download=True):
+                 weather_data_archive='', ecmwf_type='oper', time_interp='nearest', split=False, download=False):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
 
@@ -122,19 +122,18 @@ class EcmwfOperAps(HarmonieAps):
             data = ECMWFData(ecmwf_type.levels)
             data.load_ecmwf(down.dates[0], down.filenames[0])
 
-            date = down.dates[0].strftime('%Y%m%dT%H%M')
-
+            proc_date = down.dates[0].strftime('%Y%m%dT%H%M')
             # And convert the data to delays
-            self.ray_tracing(data, date)
+            self.ray_tracing(data, proc_date)
 
             # If needed do the multilooking step
-            self.slave.image_new_data_memory(self.simulated_delay.astype(np.float32), 'NWP_phase', self.s_lin, self.s_pix, 'harmonie_' +
-                                             self.ecmwf_type + '_aps' + self.coor_out.sample)
+            self.slave.image_new_data_memory(self.simulated_delay.astype(np.float32), 'ecmwf_oper_aps', self.s_lin, self.s_pix,
+                                             'ecmwf_' + self.ecmwf_type + '_aps' + self.coor_out.sample)
             if self.split:
-                self.slave.image_new_data_memory(self.hydrostatic_delay.astype(np.float32), 'NWP_phase', self.s_lin, self.s_pix,
-                                                self.ecmwf_type + self.ecmwf_type + '_hydrostatic' + self.coor_out.sample)
-                self.slave.image_new_data_memory(self.wet_delay.astype(np.float32), 'NWP_phase', self.s_lin, self.s_pix,
-                                                self.ecmwf_type + self.ecmwf_type + '_wet' + self.coor_out.sample)
+                self.slave.image_new_data_memory(self.hydrostatic_delay.astype(np.float32), 'ecmwf_oper_aps', self.s_lin, self.s_pix,
+                                                'ecmwf_' + self.ecmwf_type + '_hydrostatic' + self.coor_out.sample)
+                self.slave.image_new_data_memory(self.wet_delay.astype(np.float32), 'ecmwf_oper_aps', self.s_lin, self.s_pix,
+                                                'ecmwf_' + self.ecmwf_type + '_wet' + self.coor_out.sample)
 
             return True
 
@@ -153,8 +152,8 @@ class EcmwfOperAps(HarmonieAps):
         # This function adds information about this step to the image. If parallel processing is used this should be
         # done before the actual processing.
 
-        if 'ecmwf_aps' in meta.processes.keys():
-            meta_info = meta.processes['ecmwf_aps']
+        if 'ecmwf_oper_aps' in meta.processes.keys():
+            meta_info = meta.processes['ecmwf_oper_aps']
         else:
             meta_info = OrderedDict()
 
@@ -167,7 +166,7 @@ class EcmwfOperAps(HarmonieAps):
 
         meta_info = coordinates.create_meta_data(aps_types, data_types, meta_info)
 
-        meta.image_add_processing_step('ecmwf_aps', meta_info)
+        meta.image_add_processing_step('ecmwf_oper_aps', meta_info)
 
     @staticmethod
     def processing_info(coordinates, e_type='oper', split=False):
@@ -198,9 +197,9 @@ class EcmwfOperAps(HarmonieAps):
 
         output_dat = recursive_dict()
         for t in aps_types:
-            output_dat['slave']['ecmwf_aps'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
-            output_dat['slave']['ecmwf_aps'][t + coordinates.sample]['coordinates'] = coordinates
-            output_dat['slave']['ecmwf_aps'][t + coordinates.sample]['slice'] = coordinates.slice
+            output_dat['slave']['ecmwf_oper_aps'][t + coordinates.sample]['file'] = t + coordinates.sample + '.raw'
+            output_dat['slave']['ecmwf_oper_aps'][t + coordinates.sample]['coordinates'] = coordinates
+            output_dat['slave']['ecmwf_oper_aps'][t + coordinates.sample]['slice'] = coordinates.slice
 
         # Number of times input data is used in ram. Bit difficult here but 5 times is ok guess.
         mem_use = 5
@@ -211,14 +210,14 @@ class EcmwfOperAps(HarmonieAps):
     def create_output_files(meta, file_type='', coordinates=''):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
-        meta.images_create_disk('ecmwf_aps', file_type, coordinates)
+        meta.images_create_disk('ecmwf_oper_aps', file_type, coordinates)
 
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_memory_to_disk('ecmwf_aps', file_type, coordinates)
+        meta.images_memory_to_disk('ecmwf_oper_aps', file_type, coordinates)
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
-        meta.images_clean_memory('ecmwf_aps', file_type, coordinates)
+        meta.images_clean_memory('ecmwf_oper_aps', file_type, coordinates)

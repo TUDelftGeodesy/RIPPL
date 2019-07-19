@@ -86,7 +86,7 @@ class ModelRayTracing(object):
         # Load delays from ECMWF data
         self.delay_data = delay_data
 
-    def calc_cross_sections(self):
+    def calc_cross_sections(self, time_key=''):
         # Calc end points of heading lines
         # This can be done assuming a constant 2d grid or using ellipsoid equations.
         # The step size is chosen in kilometers.
@@ -154,7 +154,12 @@ class ModelRayTracing(object):
         mat_size = (self.lev, no, self.slice_lat.shape[1])
         h_size = (self.lev + 1, no, self.slice_lat.shape[1])
 
-        for t in self.t:
+        if time_key:
+            times = [time_key]
+        else:
+            times = self.t
+
+        for t in times:
             self.slice_heights[t] = np.zeros(h_size)
             self.slice_delays['total'][t] = np.zeros(mat_size)
 
@@ -181,7 +186,7 @@ class ModelRayTracing(object):
                 self.slice_heights[t][l, :, :] = Resample.resample_grid(self.delay_data[t]['heights'][l, :, :],
                                                      lat_id, lon_id, 'linear', table_size=[50, 50])
 
-    def find_point_delays(self, spline_num=10):
+    def find_point_delays(self, spline_num=10, time_key=''):
         # This function calculate the point delays based on:
         # - model line slices (see interpolate ECMWF in resample.py)
         # - elevation angle (we assume input going from left to right in the slices)
@@ -201,7 +206,12 @@ class ModelRayTracing(object):
         c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
         d = np.asarray(R * c)
 
-        for t in self.t:
+        if time_key:
+            times = [time_key]
+        else:
+            times = self.t
+
+        for t in times:
             # print('Calculate delay for time ' + t)
 
             # Convert heights and distances to resolution of pixels on the ground

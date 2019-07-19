@@ -1,6 +1,7 @@
 # This function does the resampling of a radar grid based on different kernels.
 # In principle this has the same functionality as some other
 from rippl.image_data import ImageData
+from rippl.processing_steps.coor_geocode import CoorGeocode
 from collections import OrderedDict, defaultdict
 from rippl.coordinate_system import CoordinateSystem
 import numpy as np
@@ -176,7 +177,7 @@ class RadarDem(object):
             print('coordinates should be an CoordinateSystem object')
             return
 
-        if len(coordinates.interval_lines) == 0 and coordinates.grid_type == 'radar_coordinates':
+        if len(coordinates.interval_lines) == 0 and coordinates.grid_type == 'radar_coordinates' and not coordinates.sparse_grid:
             coordinates.add_res_info(meta)
         shape = copy.copy(coordinates.shape)
         if n_lines != 0:
@@ -187,8 +188,8 @@ class RadarDem(object):
 
         if coordinates.grid_type == 'radar_coordinates':
             if coordinates.sparse_grid:
-                pixels = meta.image_load_data_memory('create_sparse_grid', s_lin, s_pix, shape, 'pixel' + coordinates.sample)
-                lines = meta.image_load_data_memory('create_sparse_grid', s_lin, s_pix, shape, 'line' + coordinates.sample)
+                pixels = meta.image_load_data_memory('point_data', s_lin, s_pix, shape, 'pixel' + coordinates.sample)
+                lines = meta.image_load_data_memory('point_data', s_lin, s_pix, shape, 'line' + coordinates.sample)
             else:
                 line = coordinates.interval_lines[s_lin: s_lin + shape[0]] + coordinates.first_line
                 pixel = coordinates.interval_pixels[s_pix: s_pix + shape[1]] + coordinates.first_pixel
@@ -227,6 +228,8 @@ class RadarDem(object):
         input_dat[meta_type]['import_DEM']['DEM' + coor_in.sample]['coordinates'] = coor_in
         input_dat[meta_type]['import_DEM']['DEM' + coor_in.sample]['slice'] = coor_in.slice
         input_dat[meta_type]['import_DEM']['DEM' + coor_in.sample]['coor_change'] = 'resample'
+
+        input_dat = CoorGeocode.line_pixel_processing_info(input_dat, coor_out, meta_type, False)
 
         for dat_type in ['DEM_pixel', 'DEM_line']:
             input_dat[meta_type]['inverse_geocode'][dat_type + coor_in.sample]['file'] = dat_type + coor_in.sample + '.raw'

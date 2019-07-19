@@ -12,7 +12,7 @@ class HarmonieDatabase():
     def __init__(self, database_folder='/media/gert/Data/weather_models/harmonie_data'):
 
         # Init the database for different Harmonie versions.
-        self.h37_folder = os.path.join(database_folder, 'h36')
+        self.h36_folder = os.path.join(database_folder, 'h36')
         self.h38_folder = os.path.join(database_folder, 'h38')
         self.h40_folder = os.path.join(database_folder, 'h40')
 
@@ -23,7 +23,7 @@ class HarmonieDatabase():
         self.analysis_times = []
         self.forecast_times = []
 
-        for folder, h_type in zip([self.h37_folder, self.h38_folder, self.h40_folder], ['h36', 'h38', 'h40']):
+        for folder, h_type in zip([self.h36_folder, self.h38_folder, self.h40_folder], ['h36', 'h38', 'h40']):
 
             h_files = next(os.walk(folder))[2]
             for h_file in h_files:
@@ -50,7 +50,7 @@ class HarmonieDatabase():
 
         if h_type == 'all':
             type_list = range(len(self.h_dates))
-        elif h_type in ['h37', 'h38', 'h40']:
+        elif h_type in ['h36', 'h38', 'h40']:
             type_list = np.where(self.h_types == h_type)[0]
         else:
             return

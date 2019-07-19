@@ -215,6 +215,12 @@ class CoorGeocode(object):
     def line_pixel_processing_info(input_dat, coordinates, type='cmaster', resample=False, slice=None):
         # Load the xyz coordinate information for an xyz location.
 
+        if coordinates.sparse_grid:
+            for dat_type in ['line', 'pixel']:
+                input_dat[type]['point_data'][dat_type + coordinates.sample]['files'] = dat_type + coordinates.sample + '.raw'
+                input_dat[type]['point_data'][dat_type + coordinates.sample]['coordinates'] = coordinates
+                input_dat[type]['point_data'][dat_type + coordinates.sample]['slice'] = coordinates.slice
+
         if coordinates.grid_type == 'radar_coordinates':
             return input_dat
         elif coordinates.grid_type in ['projection', 'geographic']:

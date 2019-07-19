@@ -92,6 +92,9 @@ class ImageMetadata(object):
                                                         ('filtphase', '0'), ('unwrap', '0'),
                                                         ('combined_tracking', '0'), ('NWP_phase', '0'),
                                                         ('structure_function', '0')])
+        elif res_type == 'triplet':
+            process_control = collections.OrderedDict([('triplet', '0')])
+
         else:
             print('res_type should either be single or interferogram')
             return

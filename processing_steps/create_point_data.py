@@ -30,7 +30,7 @@ from collections import defaultdict
 
 class CreatePointData(object):
 
-    def __init__(self, meta, coordinates, shapefile='', points='', coor_points='', point_data_name='sparse'):
+    def __init__(self, meta, coordinates, shapefile='', points='', coor_points='', elevation='', point_data_name='sparse'):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
@@ -44,6 +44,7 @@ class CreatePointData(object):
 
         self.coordinates = coordinates
         self.sample = coordinates.sample
+        self.point_data_name = point_data_name
 
         self.mask = []
         self.lines = []
@@ -60,16 +61,14 @@ class CreatePointData(object):
 
             self.input = 'points'
             if len(coor_points) == 0:
-                print('There should be a coordinate system supplied with points if there are any offsets. We assume'
+                print('There should be a coordinate system supplied with points if there are any offsets. We assume '
                       'the offsets to be the same in this case.')
                 self.coor_points = self.coordinates
 
             offsets = self.coordinates.get_offset(self.coor_points)
 
-            self.lines = points[:, 0] - offsets[0]
-            self.pixels = points[:, 2] - offsets[1]
-
-
+            self.lines = np.reshape(points[:, 0] - offsets[0], (1, points.shape[0]))
+            self.pixels = np.reshape(points[:, 1] - offsets[1], (1, points.shape[0]))
 
     def __call__(self):
 
@@ -81,12 +80,16 @@ class CreatePointData(object):
                 self.lines, self.pixels = self.mask_2_lp(self.mask, offsets)
 
             point_coordinates = copy.copy(self.coordinates)
-            point_coordinates.shape = (1, len(self.lines))
+            point_coordinates.shape = self.lines.shape
+            point_coordinates.sparse_grid = True
+            point_coordinates.sample =  point_coordinates.sample + '_' + self.point_data_name
+            point_coordinates.sparse_name = self.point_data_name
 
             # Data can be saved using the create output files and add meta data function.
-            self.add_meta_data(self.meta, self.coordinates)
-            self.meta.image_new_data_memory(self.lines, 'point_data', 1, 1, file_type='line' + self.sample)
-            self.meta.image_new_data_memory(self.pixels, 'point_data', 1, 1, file_type='pixel' + self.sample)
+            self.add_meta_data(self.meta, point_coordinates)
+            self.meta.image_new_data_memory(self.lines.astype(np.int32), 'point_data', 0, 0, file_type='line' + point_coordinates.sample)
+            self.meta.image_new_data_memory(self.pixels.astype(np.int32), 'point_data', 0, 0, file_type='pixel' + point_coordinates.sample)
+            self.coordinates = point_coordinates
             return True
 
         except Exception:
@@ -109,7 +112,7 @@ class CreatePointData(object):
         else:
             meta_info = OrderedDict()
 
-        meta_info = coordinates.create_meta_data(['line', 'pixel'], ['int4', 'int4'], meta_info)
+        meta_info = coordinates.create_meta_data(['line', 'pixel'], ['int32', 'int32'], meta_info)
         meta.image_add_processing_step('point_data', meta_info)
 
     @staticmethod

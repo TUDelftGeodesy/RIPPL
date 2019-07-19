@@ -95,7 +95,7 @@ class ProcessingList():
 
         processing['sparse_grid'] = SparseGrid
         processing['mask_grid'] = MaskGrid
-        processing['create_point_data'] = CreatePointData
+        processing['point_data'] = CreatePointData
         processing['create_mask'] = CreateMask
 
         processing['interferogram'] = Interfero

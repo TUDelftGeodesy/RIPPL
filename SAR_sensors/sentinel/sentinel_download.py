@@ -79,25 +79,25 @@ class DownloadSentinel(object):
 
         # Finally we do the query to get the search result.
         self.string = self.string[5:]
-        url = 'https://scihub.copernicus.eu/dhus/search?q=' + urllib.quote_plus(self.string)
+        url = 'https://scihub.copernicus.eu/dhus/search?q=' + urllib.parse.quote_plus(self.string)
     
-        request = urllib.Request(url)
-        base64string = base64.b64encode('%s:%s' % (self.user, self.password))
-        request.add_header("Authorization", "Basic %s" % base64string)
+        request = urllib.request.Request(url)
+        base64string = base64.b64encode(bytes('%s:%s' % (self.user, self.password), "utf-8")).decode()
+        request.add_header("Authorization", "Basic " + base64string)
     
         # connect to server. Hopefully this works at once
         try:
-            dat = urllib.urlopen(request)
+            dat = urllib.request.urlopen(request)
         except:
             print('not possible to connect this time')
             return [], [], []
     
         html_dat = ''
         for line in dat:
-            html_dat = html_dat + line
+            html_dat = html_dat + line.decode('UTF-8')
     
         parser = etree.HTMLParser()
-        tree = etree.fromstring(html_dat, parser)
+        tree = etree.fromstring(html_dat.encode('utf-8'), parser)
         self.products = [data for data in tree.iter(tag='entry')]
         self.links = [data.find('link').attrib for data in tree.iter(tag='entry')]
         self.dates = [data.findall('date')[1].text for data in tree.iter(tag='entry')]    
@@ -116,7 +116,7 @@ class DownloadSentinel(object):
             date = str(product.findall('date')[1].text)
             date = datetime.datetime.strptime(date[:19], '%Y-%m-%dT%H:%M:%S')
     
-            url = str('"'+product.findall('link')[0].attrib['href'][:-6]+ urllib.quote_plus('$value') +'"')
+            url = str('"'+product.findall('link')[0].attrib['href'][:-6]+ urllib.parse.quote_plus('$value') +'"')
             name = str(product.find('title').text)
     
             track = str(product.find('int[@name="relativeorbitnumber"]').text)
@@ -152,12 +152,13 @@ class DownloadSentinel(object):
             png = "'quick-look.png'"
             dat = "'" + name + ".SAFE'"
     
-            preview_url = url[:-10] + '/Nodes(' + dat + ')/Nodes(' + prev + ')/Nodes(' + png + ')/' + urllib.quote_plus('$value') + '"'
+            preview_url = url[:-10] + '/Nodes(' + dat + ')/Nodes(' + prev + ')/Nodes(' + png + ')/' + urllib.parse.quote_plus('$value') + '"'
     
             # Download data files and create symbolic link
             if not xml_only: # So we also project_functions the file
                 if not os.path.exists(file_dir):
                     wget_data = wget_base + url + ' -O ' + file_dir
+                    print(wget_data)
                     os.system(wget_data)
     
                     # Finally check whether the file is downloaded correctly. Otherwise delete file and wait for next round of
@@ -272,21 +273,21 @@ class DownloadSentinel(object):
     def sentinel_quality_check(filename, uuid, user, password):
         # Check whether the zip files can be unpacked or not. This is part of the project_functions procedure.
     
-        checksum_url = "https://scihub.copernicus.eu/dhus/odata/v1/Products('" + uuid + "')/Checksum/Value/" + urllib.quote_plus('$value')
-        request = urllib.Request(checksum_url)
-        base64string = base64.b64encode('%s:%s' % (user, password))
-        request.add_header("Authorization", "Basic %s" % base64string)
-    
+        checksum_url = "https://scihub.copernicus.eu/dhus/odata/v1/Products('" + uuid + "')/Checksum/Value/" + urllib.parse.quote_plus('$value')
+        request = urllib.request.Request(checksum_url)
+        base64string = base64.b64encode(bytes('%s:%s' % (user, password), "utf-8")).decode()
+        request.add_header("Authorization", "Basic " + base64string)
+
         # connect to server. Hopefully this works at once
         try:
-            dat = urllib.urlopen(request)
+            dat = urllib.request.urlopen(request)
         except:
             print('not possible to connect this time')
             return False
     
         html_dat = ''
         for line in dat:
-            html_dat = html_dat + line
+            html_dat = html_dat + line.decode('UTF-8')
     
         # Check file on disk
         if sys.platform == 'darwin':

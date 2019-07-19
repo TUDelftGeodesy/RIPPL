@@ -118,13 +118,13 @@ class Unwrap(object):
         # Create the output files as memmap files for the whole image. If parallel processing is used this should be
         # done before the actual processing.
 
-        print('Not needed for unwrapping')
+        print('Creating output files not needed for unwrapping')
 
     @staticmethod
     def save_to_disk(meta, file_type='', coordinates=''):
         # Save the function output in memory to disk
 
-        print('Not needed for unwrapping')
+        print('Saving from memory to disk not needed for unwrapping')
 
     @staticmethod
     def clear_memory(meta, file_type='', coordinates=''):

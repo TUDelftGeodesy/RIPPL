@@ -36,7 +36,7 @@ class Geocode(object):
         self.height = self.meta.image_load_data_memory('radar_DEM', self.s_lin, self.s_pix, self.shape, dat_key)
         self.orbits = OrbitCoordinates(self.meta)
 
-        self.no0 = (self.height != 0)
+        self.no0 = (self.height != np.nan)
         if self.coordinates.mask_grid:
             mask = self.meta.image_load_data_memory('create_sparse_grid', s_lin, 0, self.shape,
                                                     'mask' + self.coordinates.sample)
@@ -120,6 +120,12 @@ class Geocode(object):
         input_dat[meta_type]['radar_DEM']['DEM' + coordinates.sample]['file'] = 'DEM' + coordinates.sample + '.raw'
         input_dat[meta_type]['radar_DEM']['DEM' + coordinates.sample]['coordinates'] = coordinates
         input_dat[meta_type]['radar_DEM']['DEM' + coordinates.sample]['slice'] = coordinates.slice
+
+        if coordinates.sparse_grid:
+            for dat_type in ['line', 'pixel']:
+                input_dat[meta_type]['point_data'][dat_type + coordinates.sample]['files'] = dat_type + coordinates.sample + '.raw'
+                input_dat[meta_type]['point_data'][dat_type + coordinates.sample]['coordinates'] = coordinates
+                input_dat[meta_type]['point_data'][dat_type + coordinates.sample]['slice'] = coordinates.slice
 
         # One output file created radar dem
         output_dat = recursive_dict()
