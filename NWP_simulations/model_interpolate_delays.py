@@ -1,5 +1,5 @@
 import numpy as np
-from rippl.orbit_resample_functions.resample import Resample
+from rippl.resampling.resample_regular2irregular import Resample
 
 
 class ModelInterpolateDelays(object):

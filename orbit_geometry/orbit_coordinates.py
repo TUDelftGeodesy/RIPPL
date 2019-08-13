@@ -1,55 +1,43 @@
 # Class to calculate the geometry of a radar image based on the orbits.
-import datetime
-import os
 import numpy as np
-from rippl.orbit_resample_functions.orbit_interpolate import OrbitInterpolate
-from rippl.image_data import ImageData
+from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
+from rippl.meta_data.readfile import Readfiles
+from rippl.meta_data.orbit import Orbit
 
 
-class OrbitCoordinates(OrbitInterpolate, ImageData):
+class OrbitCoordinates(OrbitInterpolate):
 
-    def __init__(self, meta='', dem_grid=''):
+    def __init__(self, orbits='', coordinates='', meta=''):
         # This function needs several input files. This works for now, but ideally this information should all be
         # contained in the .res file.
 
         # Load data from res file
-        if isinstance(meta, str):
-            if len(meta) != 0:
-                ImageData.__init__(self, meta, 'single')
-        elif isinstance(meta, ImageData):
-            self.__dict__ = meta.__dict__.copy()
+        if not isinstance(coordinates, CoordinateSystem):
+            print('Needed input is an coordinate system Object')
+            return
 
-        # interpolate the orbit (from InterpolateOrbit)
-        OrbitInterpolate.__init__(self, meta)
-        self.fit_orbit_spline(vel=True, acc=True)
+        self.coordinates = coordinates
+
+
 
         if 'readfiles' in self.processes:
-            meta_dat = 'readfiles'
+            meta_dat = 'readfile.py'
             meta_crop = 'crop'
         elif 'coreg_readfiles' in self.processes:
             meta_dat = 'coreg_readfiles'
             meta_crop = 'coreg_crop'
 
         # Get main variables from the .res file
-        self.az_time = self.processes[meta_dat]['First_pixel_azimuth_time (UTC)']
-        az_seconds = (datetime.datetime.strptime(self.az_time, '%Y-%m-%dT%H:%M:%S.%f') -
-                           datetime.datetime.strptime(self.az_time[:10], '%Y-%m-%d'))
-        self.az_seconds = az_seconds.seconds + az_seconds.microseconds / 1000000.0
-        self.ra_time = float(self.processes[meta_dat]['Range_time_to_first_pixel (2way) (ms)']) / 1000
-        self.az_step = 1 / float(self.processes[meta_dat]['Pulse_Repetition_Frequency (computed, Hz)'])
-        self.ra_step = 1 / float(self.processes[meta_dat]['Range_sampling_rate (computed, MHz)']) / 1000000
+        self.az_time = []
+        self.ra_time = []
+        self.az_step = []
+        self.ra_step = []
+        self.center_phi = []
+        self.center_lambda = []
 
         self.degree2rad = np.asarray([np.pi / 180])
         self.rad2degree = np.asarray([180 / np.pi])
-        self.center_phi = float(self.processes[meta_dat]['Scene_centre_latitude']) * self.degree2rad
-        self.center_lambda = float(self.processes[meta_dat]['Scene_centre_longitude']) * self.degree2rad
-
-        # Read pixel coordinate information
-        self.first_line = int(self.processes[meta_crop]['crop_first_line'])
-        self.first_pixel = int(self.processes[meta_crop]['crop_first_pixel'])
-        lines = int(self.processes[meta_crop]['crop_lines'])
-        pixels = int(self.processes[meta_crop]['crop_pixels'])
-        self.size = (lines, pixels)
 
         # Define the main variables for this function
         self.az_times = np.asarray([])          # azimuth times of different lines
@@ -84,18 +72,81 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         self.maxiter_coor = 1                       # maximum number of iterations lat/lon calculations
         self.criterpos = 0.00000001                 # iteration accuracy [m]
 
-        # Load dem
-        self.dem_grid = dem_grid
-        if dem_grid:
-            if os.path.exists(dem_grid):
-                self.dem_data = np.memmap(dem_grid, dtype=np.float32, shape=self.size, mode='r')
-            else:
-                print('DEM file cannot be loaded. Path does not exist')
-                self.dem_data = []
-        else:
-            # print('No DEM file loaded. Make sure you run the create_radar_dem function if you want to calculate' +
-            #      ' xyz coordinates of specific points')
-            self.dem_data = []
+
+    def load_orbit(self, orbit):
+        # type: (OrbitCoordinates, Orbit) -> None
+        # Load the orbit information.
+
+        # interpolate the orbit (from InterpolateOrbit)
+        self.orbit = OrbitInterpolate(self, orbit)
+        self.orbit.fit_orbit_spline(vel=True, acc=True)
+
+    def load_coordinate_system(self, coordinates):
+        # type: (OrbitCoordinates, CoordinateSystem) -> None
+
+        # Here we load the information on lines/pixels and timing from a coordinate system.
+        self.az_time = coordinates.az_time
+        self.ra_time = coordinates.ra_time
+        self.az_step = coordinates.az_step
+        self.ra_step = coordinates.ra_step
+
+        # Line pixel coordinates
+        self.lines = coordinates.interval_lines
+        self.pixels = coordinates.interval_pixels
+
+        # Check whether additional line and pixel information should be loaded.
+
+
+        # Readfiles information if needed.
+        if coordinates.readfiles:
+            self.load_readfiles(coordinates.readfiles)
+
+        # Orbit information
+        self.load_orbit(coordinates.orbit)
+
+    def load_readfiles(self, readfiles):
+        # type: (OrbitCoordinates, Readfiles) -> None
+
+        # Load the timing from a readfile object.
+        self.az_time = readfiles.az_first_pix_time
+        self.ra_time = readfiles.ra_first_pix_time
+        self.az_step = readfiles.az_time_step
+        self.ra_step = readfiles.ra_time_step
+
+        self.center_phi = readfiles.center_lat * self.degree2rad
+        self.center_lambda = readfiles.center_lon * self.degree2rad
+
+    def load_data(self, meta, s_lin=0, lines=0, DEM=True, xyz=False):
+        # Load data from resfile. Only the ones that are available with the same coordinate system.
+
+
+
+
+    def manual_az_ra_timing(self, ra_time=0, az_time=0, ra_step=0, az_step=0, approx_lat=0, approx_lon=0):
+        # type: (OrbitCoordinates, float, float, float, float, float, float) -> None
+        # This functions replaces the inputs you would get from the readfiles object normally
+        # Note that you will need to give an approximate lat/lon combination for the first guess. There are always two
+        # solutions possible depending on whether we work with a left or right looking satellite!
+
+        for coor_par, man_par, deg2rad in zip([self.ra_time, self.az_time, self.ra_step, self.az_step, self.center_phi, self.center_lambda],
+                                     [ra_time, az_time, ra_step, az_step, approx_lat, approx_lon],
+                                     [False, False, False, False, True, True]):
+            if man_par != 0:
+                coor_par = man_par
+                if deg2rad:
+                    coor_par *= self.degree2rad
+
+    def manual_line_pixel_height(self, lines, pixels, heights):
+        # type: (OrbitCoordinates, np.array, np.array, np.array) -> None
+        # This enables you to add the line pixel height values manually, without using a coordinate system.
+        # This will always create an irregular grid so shape of three arrays should be the same.
+
+        if not len(lines) == len(pixels) == len(heights):
+            print('Arrays with lines, pixels and heights should be the same.')
+
+        self.lines = np.ravel(lines)
+        self.pixels = np.ravel(pixels)
+        self.height = np.ravel(heights)
 
     # The next two processing_steps convert from and to pixel coordinates and range/azimuth times.
     def lp_time(self, lines='', pixels='', regular=True, grid_type='radar_coordinates'):
@@ -120,44 +171,18 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
             all_lines = np.arange(np.min(lines), np.max(lines) + 1)
             all_pixels = np.arange(np.min(pixels), np.max(pixels) + 1)
 
-            self.az_times = self.az_seconds + self.az_step * (all_lines - 1)
+            self.az_times = self.az_time + self.az_step * (all_lines - 1)
             self.ra_times = self.ra_time + self.ra_step * (all_pixels - 1)
 
             # Reduce the line number to create right az/ra ids
             self.lines = lines - np.min(lines)
             self.pixels = pixels - np.min(pixels)
         else:
-            self.az_times = self.az_seconds + self.az_step * (lines - 1)
+            self.az_times = self.az_time + self.az_step * (lines - 1)
             self.ra_times = self.ra_time + self.ra_step * (pixels - 1)
 
         # Evaluate the orbit based on the given az_times
         self.xyz_orbit, self.vel_orbit, self.acc_orbit = self.evaluate_orbit_spline(self.az_times, vel=True, acc=True)
-
-    def time_lp(self, az_times=None, ra_times=None):
-        # This function calculates the azimuth and range timing (two way), based on a resfile.
-        # If there are no specific lines or pixels specified, we will assume you want to work with the first pixel.
-
-        if az_times:
-            self.az_times = np.asarray(az_times)
-        if ra_times:
-            self.ra_times = np.asarray(ra_times)
-
-        self.lines = ((self.az_times - self.az_seconds) / self.az_step) + 1
-        self.pixels = ((self.ra_times - self.ra_time) / self.ra_step) + 1
-
-        # Evaluate the orbit based on the given az_times
-        self.xyz_orbit, self.vel_orbit, self.acc_orbit = self.evaluate_orbit_spline(self.az_times, vel=True, acc=True)
-
-    def load_height(self):
-        # This function loads the heights from the dem file, based on the line and pixel values
-
-        if len(self.dem_data) == 0:
-            print('There is no DEM file loaded')
-            return
-        if len(self.pixels) == 0 or len(self.lines) == 0:
-            print('Variables lines and pixels should be created first. Using either the lp_time or time_lp method')
-
-        self.height = self.dem_data[(self.lines - self.first_line)[:, None], self.pixels - self.first_pixel]
 
     # The next two function are used to calculate xyz coordinates on the ground.
     # To do so we also need the heights of the points on the ground.
@@ -165,7 +190,7 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         # LPH2XYZ   Convert radar line/pixel coordinates into Cartesian coordinates.
         #   XYZ=LPH2XYZ(LINE,PIXEL,HEIGHT,IMAGE,ORBFIT) converts the radar coordinates
         #   LINE and PIXEL into Cartesian coordinates XYZ. HEIGHT contains the height
-        #   of the pixel above the ellipsoid. IMAGE contains the image metadata
+        #   of the pixel above the ellipsoid. IMAGE contains the image meta_data
         #   and ORBFIT the orbit fit, proceduced respectively by the METADATA and
         #   ORBITFIT processing_steps.
         #
@@ -182,7 +207,7 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         #   VERBOSE=0.
         #
         #   Example:
-        #       [image, orbit] = metadata('master.res');
+        #       [image, orbit] = meta_data('master.res');
         #       orbfit = orbitfit(orbit);
         #       xyz = lph2xyz(line,pixel,0,image,orbfit);
         #
@@ -336,7 +361,7 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         # XYZ2T   Convert Cartesian coordinates into radar azimuth and range time.
         #   [T_AZI,T_RAN]=XYZ2T(XYZ,resfile) converts the Cartesian coordinates
         #   XYZ into radar azimuth time T_AZI and range time T_RAN. IMAGE contains
-        #   image metadata and orbits.
+        #   image meta_data and orbits.
         #
         #   [...]=XYZ2T(...,t0, maxiter, criterpos) includes
         #   optional input arguments VERBOSE, MAXITER and CRITERPOS to override
@@ -376,7 +401,7 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
 
         # Make a first guess of the azimuth times:
         if len(az_times) == 0:
-            az_times = self.az_seconds * np.ones((1, xyz.shape[1]))
+            az_times = self.az_time * np.ones((1, xyz.shape[1]))
         solve_ids = np.arange(n)
 
         # Now start the iteration to find the optimal point
@@ -426,7 +451,7 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         dist_diff = []
         ra_times = range_dist / self.sol * 2
 
-        lines = (((az_times - self.az_seconds) / self.az_step) + 1.0).reshape(old_shape)
+        lines = (((az_times - self.az_time) / self.az_step) + 1.0).reshape(old_shape)
         pixels = (((ra_times - self.ra_time) / self.ra_step) + 1.0).reshape(old_shape)
 
         return lines, pixels
@@ -634,7 +659,6 @@ class OrbitCoordinates(OrbitInterpolate, ImageData):
         north_vector = []
 
         self.heading = np.arctan2(det, dot).astype(np.float32) / np.pi * 180
-
 
     def xyz2scatterer_azimuth_elevation(self, grid_type='radar_coordinates'):
         # Calculates the azimuth and elevation angle of a point on the ground based on the point on the

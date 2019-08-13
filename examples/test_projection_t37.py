@@ -1,10 +1,9 @@
 #!/usr/bin/python
 # Create a datastack
 
-from rippl.stack import Stack
+from rippl.meta_data.stack import Stack
 from rippl.SAR_sensors.sentinel.sentinel_stack import SentinelStack
-from rippl.SAR_sensors.sentinel.sentinel_download import DownloadSentinelOrbit
-from rippl.coordinate_system import CoordinateSystem
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 import os
 import numpy as np
 
@@ -102,10 +101,10 @@ coordinates.slice = False
 # Create DEM for harmonie aps
 dem_coordinates = CoordinateSystem()
 dem_coordinates.create_radar_coordinates(multilook=[50, 200], offset=[-100, -400])
-# s1_stack('radar_DEM', settings, dem_coordinates, 'cmaster', file_type='DEM', parallel=parallel, cores=cores)
-# s1_stack('geocode', settings, dem_coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat', 'lon'], parallel=parallel, cores=cores)
-# s1_stack('azimuth_elevation_angle', settings, dem_coordinates, 'cmaster',
-#         file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel, cores=cores)
+s1_stack('radar_DEM', settings, dem_coordinates, 'cmaster', file_type='DEM', parallel=parallel, cores=cores)
+s1_stack('geocode', settings, dem_coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 'lat', 'lon'], parallel=parallel, cores=cores)
+s1_stack('azimuth_elevation_angle', settings, dem_coordinates, 'cmaster',
+ file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel, cores=cores)
 
 for resolution in [0.25]: #
     # Now we create the projected grid. The coordinates are chosen similar to the rainfall radar product from the KNMI

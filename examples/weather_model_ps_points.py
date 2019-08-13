@@ -1,10 +1,8 @@
 #!/usr/bin/python
 # Create a datastack
 
-from rippl.stack import Stack
-from rippl.SAR_sensors.sentinel.sentinel_stack import SentinelStack
-from rippl.coordinate_system import CoordinateSystem
-import os
+from rippl.meta_data.stack import Stack
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 import numpy as np
 from rippl.processing_steps.create_point_data import CreatePointData
 from rippl.processing_steps.sparse_data import SparseData
@@ -22,7 +20,7 @@ product_type = 'SLC'
 srtm_folder = data_disk + 'DEM/DEM_new'
 orbit_folder = data_disk + 'orbits/sentinel-1'
 
-track_no = 37
+track_no = 88
 if track_no == 37:
     start_date = '2014-10-15'
     end_date = '2019-01-01'
@@ -126,7 +124,7 @@ s1_stack('geocode', settings, coordinates, 'cmaster', file_type=['X', 'Y', 'Z', 
 s1_stack('azimuth_elevation_angle', settings, coordinates, 'cmaster', file_type=['elevation_angle', 'off_nadir_angle', 'heading', 'azimuth_angle'], parallel=parallel)
 
 # Download ECMWF data.
-ecmwf_folder = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/radar_datastacks/weather_models/ecmwf_data'
+ecmwf_folder = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/radar_datastacks/weather_models/ecmwf_data_new'
 processes = 8
 s1_stack.download_ECMWF_data(dat_type='oper', ecmwf_data_folder=ecmwf_folder, processes=processes, parallel=True)
 s1_stack.download_ECMWF_data(dat_type='era5', ecmwf_data_folder=ecmwf_folder, processes=processes, parallel=True)

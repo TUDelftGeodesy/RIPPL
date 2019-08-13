@@ -8,10 +8,10 @@
 #   - Resample the slave grid to master coordinates
 #   - (optional) Calculate the baselines between the two images
 
-from rippl.image_data import ImageData
-from rippl.orbit_resample_functions.orbit_interpolate import OrbitInterpolate
+from rippl.meta_data.image_data import ImageData
+from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 from rippl.processing_steps.radar_dem import RadarDem
-from rippl.coordinate_system import CoordinateSystem
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.processing_steps.coor_geocode import CoorGeocode
 from collections import OrderedDict, defaultdict
 import numpy as np
@@ -49,19 +49,19 @@ class Baseline(object):
 
         # Information on conversion from range/azimuth to distances.
         sol = 299792458  # speed of light [m/s]
-        self.ra2m = 1 / float(self.cmaster.processes['readfiles']['Range_sampling_rate (computed, MHz)']) / 1000000 * sol / 2
+        self.ra2m = 1 / float(self.cmaster.processes['readfile.py']['Range_sampling_rate (computed, MHz)']) / 1000000 * sol / 2
 
-        az_time = self.cmaster.processes['readfiles']['First_pixel_azimuth_time (UTC)']
+        az_time = self.cmaster.processes['readfile.py']['First_pixel_azimuth_time (UTC)']
         az_seconds = (datetime.datetime.strptime(az_time, '%Y-%m-%dT%H:%M:%S.%f') -
                            datetime.datetime.strptime(az_time[:10], '%Y-%m-%d'))
         self.master_az_time = az_seconds.seconds + az_seconds.microseconds / 1000000.0
-        self.master_az_step = 1 / float(self.cmaster.processes['readfiles']['Pulse_Repetition_Frequency (computed, Hz)'])
+        self.master_az_step = 1 / float(self.cmaster.processes['readfile.py']['Pulse_Repetition_Frequency (computed, Hz)'])
 
-        az_time = self.slave.processes['readfiles']['First_pixel_azimuth_time (UTC)']
+        az_time = self.slave.processes['readfile.py']['First_pixel_azimuth_time (UTC)']
         az_seconds = (datetime.datetime.strptime(az_time, '%Y-%m-%dT%H:%M:%S.%f') -
                            datetime.datetime.strptime(az_time[:10], '%Y-%m-%d'))
         self.slave_az_time = az_seconds.seconds + az_seconds.microseconds / 1000000.0
-        self.slave_az_step = 1 / float(self.slave.processes['readfiles']['Pulse_Repetition_Frequency (computed, Hz)'])
+        self.slave_az_step = 1 / float(self.slave.processes['readfile.py']['Pulse_Repetition_Frequency (computed, Hz)'])
 
         # Load data
         self.X, self.Y, self.Z = CoorGeocode.load_xyz(self.coordinates, self.cmaster, self.s_lin, self.s_pix, self.shape)

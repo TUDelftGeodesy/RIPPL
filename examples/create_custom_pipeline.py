@@ -1,5 +1,5 @@
 from rippl.processing_list import ProcessingList
-from rippl.image_data import ImageData
+from rippl.meta_data.image_data import ImageData
 
 
 class ProcessingPipeline():

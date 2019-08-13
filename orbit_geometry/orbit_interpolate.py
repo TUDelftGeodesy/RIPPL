@@ -3,7 +3,8 @@
 
 import numpy as np
 from scipy.interpolate import CubicSpline
-from rippl.image_data import ImageData
+from rippl.meta_data.image_data import ImageData
+from rippl.meta_data.orbit import Orbit
 
 
 class OrbitInterpolate(ImageData):
@@ -12,14 +13,26 @@ class OrbitInterpolate(ImageData):
     :type self.orbit_fit = np.ndarray
     """
 
-    def __init__(self, meta):
+    def __init__(self, orbit):
 
         # Load data from res file
-        if isinstance(meta, str):
-            if len(meta) != 0:
-                self.slave = ImageData.__init__(self, meta, 'single')
-        elif isinstance(meta, ImageData):
-            self.__dict__ = meta.__dict__.copy()
+        if not isinstance(orbit, Orbit):
+            print('Input for input interpolate should be an orbit object')
+
+        # Initialize the orbit values
+        self.t = orbit.t
+        
+        self.x = orbit.x
+        self.y = orbit.y
+        self.z = orbit.z
+        
+        self.v_x = orbit.v_x
+        self.v_y = orbit.v_y
+        self.v_z = orbit.v_z
+        
+        self.a_x = orbit.a_x
+        self.a_y = orbit.a_y
+        self.a_z = orbit.a_z
 
         # Initialize the needed variables
         self.orbit_time = []
@@ -44,49 +57,31 @@ class OrbitInterpolate(ImageData):
         #   Created:    14 March 2014 by Hans van der Marel
         #   Modified:   5 Juli 2017 rewritten to python by Gert Mulder
 
-        processes = self.processes.keys()
-        if 'orbits' in processes:
-            orbits = self.processes['orbits']
-        elif 'precise_orbits' in processes:
-            orbits = self.processes['precise_orbits']
-        elif 'data_points' in processes:
-            orbits = self.processes['data_points']
-        elif 'coreg_orbits' in processes:
-            orbits = self.processes['coreg_orbits']
-        elif 'coreg_precise_orbits' in processes:
-            orbits = self.processes['coreg_precise_orbits']
-        elif 'coreg_data_points' in processes:
-            orbits = self.processes['coreg_data_points']
-        t = []
-        x = []
-        y = []
-        z = []
-        for key in orbits.keys():
-            if key.startswith('row') and key != 'row_0':
-                t.append(float(orbits[key][0]))
-                x.append(float(orbits[key][1]))
-                y.append(float(orbits[key][2]))
-                z.append(float(orbits[key][3]))
-        t = np.array(t)
-        x = np.array(x)
-        y = np.array(t)
-        z = np.array(x)
-
         # Now find the polynomials for x,y,z and their derivatives.
-        x_poly = np.polyfit(t, x, degree)
-        y_poly = np.polyfit(t, y, degree)
-        z_poly = np.polyfit(t, z, degree)
+        x_poly = np.polyfit(self.t, self.x, degree)
+        y_poly = np.polyfit(self.t, self.y, degree)
+        z_poly = np.polyfit(self.t, self.z, degree)
         fit_len = 3
 
         if vel or acc:
-            x_der = np.polyder(x_poly)
-            y_der = np.polyder(y_poly)
-            z_der = np.polyder(z_poly)
+            if len(self.v_x) > 0 and len(self.v_y) > 0 and len(self.v_z) > 0:
+                x_der = np.polyfit(self.v_x)
+                y_der = np.polyfit(self.v_y)
+                z_der = np.polyfit(self.v_z)
+            else:
+                x_der = np.polyder(x_poly)
+                y_der = np.polyder(y_poly)
+                z_der = np.polyder(z_poly)
             fit_len = 6
             if acc:
-                x_acc = np.polyder(x_der)
-                y_acc = np.polyder(y_der)
-                z_acc = np.polyder(z_der)
+                if len(self.a_x) > 0 and len(self.a_y) > 0 and len(self.a_z) > 0:
+                    x_acc = np.polyfit(self.a_x)
+                    y_acc = np.polyfit(self.a_y)
+                    z_acc = np.polyfit(self.a_z)
+                else:
+                    x_acc = np.polyder(x_der)
+                    y_acc = np.polyder(y_der)
+                    z_acc = np.polyder(z_der)
                 fit_len = 9
 
         self.orbit_fit = np.zeros(shape=(fit_len, degree + 1))
@@ -147,50 +142,32 @@ class OrbitInterpolate(ImageData):
 
         #   Created:   5 July 2017 by Gert Mulder
 
-        processes = self.processes.keys()
-        if 'orbits' in processes:
-            orbits = self.processes['orbits']
-        elif 'precise_orbits' in processes:
-            orbits = self.processes['precise_orbits']
-        elif 'data_points' in processes:
-            orbits = self.processes['data_points']
-        elif 'coreg_orbits' in processes:
-            orbits = self.processes['coreg_orbits']
-        elif 'coreg_precise_orbits' in processes:
-            orbits = self.processes['coreg_precise_orbits']
-        elif 'coreg_data_points' in processes:
-            orbits = self.processes['coreg_data_points']
-
-        t = []
-        x = []
-        y = []
-        z = []
-        for key in orbits.keys():
-            if key.startswith('row') and key != 'row_0':
-                t.append(float(orbits[key][0]))
-                x.append(float(orbits[key][1]))
-                y.append(float(orbits[key][2]))
-                z.append(float(orbits[key][3]))
-        self.orbit_time = np.array(t)
-        x = np.array(x)
-        y = np.array(y)
-        z = np.array(z)
 
         # Now find the polynomials for x,y,z and their derivatives.
-        x_poly = CubicSpline(self.orbit_time, x)
-        y_poly = CubicSpline(self.orbit_time, y)
-        z_poly = CubicSpline(self.orbit_time, z)
+        x_poly = CubicSpline(self.t, self.x)
+        y_poly = CubicSpline(self.t, self.y)
+        z_poly = CubicSpline(self.t, self.z)
         fit_len = 3
 
         if vel or acc:
-            x_der = x_poly.derivative()
-            y_der = y_poly.derivative()
-            z_der = z_poly.derivative()
+            if len(self.v_x) > 0 and len(self.v_y) > 0 and len(self.v_z) > 0:
+                x_der = CubicSpline(self.v_x)
+                y_der = CubicSpline(self.v_y)
+                z_der = CubicSpline(self.v_z)
+            else:
+                x_der = x_poly.derivative()
+                y_der = y_poly.derivative()
+                z_der = z_poly.derivative()
             fit_len = 6
             if acc:
-                x_acc = x_der.derivative()
-                y_acc = y_der.derivative()
-                z_acc = z_der.derivative()
+                if len(self.a_x) > 0 and len(self.a_y) > 0 and len(self.a_z) > 0:
+                    x_acc = CubicSpline(self.a_x)
+                    y_acc = CubicSpline(self.a_y)
+                    z_acc = CubicSpline(self.a_z)
+                else:
+                    x_acc = x_der.derivative()
+                    y_acc = y_der.derivative()
+                    z_acc = z_der.derivative()
                 fit_len = 9
 
         self.orbit_spline = np.zeros(shape=(fit_len, 4, len(self.orbit_time) - 1))

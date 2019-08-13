@@ -16,7 +16,7 @@ Possible inputs are:
 import os
 import collections
 
-from rippl.image_data import ImageData
+from rippl.meta_data.image_data import ImageData
 from rippl.SAR_sensors.sentinel.sentinel_precise_orbit import SentinelOrbitsDatabase
 
 
@@ -51,11 +51,11 @@ class DummyRes(object):
         self.create_readfiles()
         self.create_crop()
 
-        # In the last step we combine header, readfiles, orbit and crop to create burst resfiles
+        # In the last step we combine header, readfile.py, orbit and crop to create burst resfiles
         self.burst_meta = []
 
         dummy = ImageData('', 'single')
-        dummy.insert(self.readfiles, 'readfiles')
+        dummy.insert(self.readfiles, 'readfile.py')
         dummy.insert(self.orbit, 'orbits')
         dummy.insert(self.crop, 'crop')
         dummy.header = self.header
@@ -77,7 +77,7 @@ class DummyRes(object):
         self.crop['Data_last_line (w.r.t. tiff_image)'] = str(self.lines)
 
     def create_readfiles(self):
-        # Create the dummy readfiles information
+        # Create the dummy readfile.py information
 
         self.readfiles['SAR_PROCESSOR'] = 'Sentinel-' + self.satellite[1:]
 

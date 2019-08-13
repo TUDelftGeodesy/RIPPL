@@ -3,10 +3,10 @@
 
 import numpy as np
 from collections import OrderedDict, defaultdict
-from rippl.image_data import ImageData
+from rippl.meta_data.image_data import ImageData
 import os
 import logging
-from rippl.coordinate_system import CoordinateSystem
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 
 class EarthTopoPhase(object):
@@ -20,7 +20,7 @@ class EarthTopoPhase(object):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
-        # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
+        # 2. Give the data files (crop, new_line, new_pixel). No need for meta_data in this case
         # 3. Give the first and last line plus the buffer of the input and output
 
         if isinstance(meta, ImageData):
@@ -59,9 +59,9 @@ class EarthTopoPhase(object):
 
         try:
             # Then calculate the ramp
-            az_time = 1 / float(self.meta.processes['readfiles']['Range_sampling_rate (computed, MHz)']) / 1000000
+            az_time = 1 / float(self.meta.processes['readfile.py']['Range_sampling_rate (computed, MHz)']) / 1000000
             c = 299792458
-            wave_length = float(self.meta.processes['readfiles']['Radar_wavelength (m)'])
+            wave_length = float(self.meta.processes['readfile.py']['Radar_wavelength (m)'])
             conversion_factor = c * az_time / wave_length
             phase_shift = np.remainder(self.new_pixel * conversion_factor, 1) * np.pi * 2
 

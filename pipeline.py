@@ -18,12 +18,11 @@ import copy
 from rippl.run_parallel import run_parallel
 from collections import defaultdict
 from rippl.processing_list import ProcessingList
-from rippl.image_data import ImageData
+from rippl.meta_data.image_data import ImageData
 import numpy as np
 from rippl.processing_steps.concatenate import Concatenate
-from rippl.coordinate_system import CoordinateSystem
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from multiprocessing import Pool
-import sys
 
 
 class Pipeline():
@@ -978,7 +977,7 @@ class Pipeline():
 
         # There are four types of inputs for individual packages
         # 1. Processing step > this processes and runs the function for either a part or a full slice
-        # 2. Metadata step > this only generates the metadata needed to initialize the processing step to write to disk
+        # 2. Metadata step > this only generates the meta_data needed to initialize the processing step to write to disk
         # 3. Create step > this step creates a new file on disk
         # 4. Save step > this step saves the data from memory to disk
 
@@ -1046,7 +1045,7 @@ class Pipeline():
 
                         if func in save_disk:
                             meta_var, meta_var_names, res_dat = self.create_var_package(
-                                func, meta, meta_type, coordinates, coor_out, file_type=file_type, package_type='metadata', res_dat=res_dat)
+                                func, meta, meta_type, coordinates, coor_out, file_type=file_type, package_type='meta_data', res_dat=res_dat)
                             create_var, create_var_names, res_dat = self.create_var_package(
                                 func, meta, meta_type, coordinates, coor_out, file_type=file_type, package_type='disk_data', res_dat=res_dat)
 
@@ -1096,7 +1095,7 @@ class Pipeline():
                                 res_dat=res_dat, step=settings['step'], package_type='processing')
                             meta_var, meta_var_names, res_dat = self.create_var_package(
                                 func, meta, meta_type, coordinates, coor_out, file_type=settings['file_type'],
-                                res_dat=res_dat, step=settings['step'], package_type='metadata')
+                                res_dat=res_dat, step=settings['step'], package_type='meta_data')
 
                             if func == 'multilook':
                                 disk_var, disk_var_names, res_dat = self.create_var_package(
@@ -1255,7 +1254,7 @@ class Pipeline():
                                 meta_list=meta, step=settings['step'], package_type='processing', res_dat=res_dat)
                             meta_var, meta_var_names, res_dat = self.create_var_package(
                                 func, 'full', meta_type, coordinates, coor_out, file_type=settings['file_type'],
-                                meta_list=meta, step=settings['step'], package_type='metadata', res_dat=res_dat)
+                                meta_list=meta, step=settings['step'], package_type='meta_data', res_dat=res_dat)
                             disk_var, disk_var_names, res_dat = self.create_var_package(
                                 func, 'full', meta_type, coordinates, coor_out, file_type=settings['file_type'],
                                 meta_list=meta, step=settings['step'], package_type='disk_data', res_dat=res_dat)
@@ -1315,12 +1314,12 @@ class Pipeline():
 
         if package_type == 'processing':
             func_var_names = self.processing_inputs[function]['__init__']
-        elif package_type == 'metadata':
+        elif package_type == 'meta_data':
             func_var_names = self.processing_inputs[function]['add_meta_data']
         elif package_type == 'disk_data':
             func_var_names = self.processing_inputs[function]['save_to_disk']
         else:
-            print('package type should processing, metadata, disk_data')
+            print('package type should processing, meta_data, disk_data')
             return
 
         # First the variables that can be used for every case here.
@@ -1353,7 +1352,7 @@ class Pipeline():
             var_names.append('file_type')
             vars.append(file_type)
 
-        if package_type in ['metadata', 'processing']:
+        if package_type in ['meta_data', 'processing']:
             if 'master_meta' in func_var_names:
                 var_names.append('master_meta')
                 vars.append(self.res_dat[meta]['master'])

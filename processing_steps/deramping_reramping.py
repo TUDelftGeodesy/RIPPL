@@ -1,10 +1,10 @@
 # Function to do deramping and reramping on individual bursts.
 import datetime
 import numpy as np
-from rippl.image_data import ImageData
-from rippl.orbit_resample_functions.orbit_interpolate import OrbitInterpolate
+from rippl.meta_data.image_data import ImageData
+from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 from rippl.processing_steps.resample import Resample
-from rippl.coordinate_system import CoordinateSystem
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import logging
 import os
@@ -25,37 +25,37 @@ class GetDopplerRamp(OrbitInterpolate):
         self.orbit = OrbitInterpolate(self.slave)
 
         # FM
-        self.t_fm = float(self.slave.processes['readfiles']['FM_reference_range_time'])
+        self.t_fm = float(self.slave.processes['readfile.py']['FM_reference_range_time'])
         self.c_fm = [0, 0, 0]
-        self.c_fm[0] = float(self.slave.processes['readfiles']['FM_polynomial_constant_coeff (Hz, early edge)'])
-        self.c_fm[1] = float(self.slave.processes['readfiles']['FM_polynomial_linear_coeff (Hz/s, early edge)'])
-        self.c_fm[2] = float(self.slave.processes['readfiles']['FM_polynomial_quadratic_coeff (Hz/s/s, early edge)'])
+        self.c_fm[0] = float(self.slave.processes['readfile.py']['FM_polynomial_constant_coeff (Hz, early edge)'])
+        self.c_fm[1] = float(self.slave.processes['readfile.py']['FM_polynomial_linear_coeff (Hz/s, early edge)'])
+        self.c_fm[2] = float(self.slave.processes['readfile.py']['FM_polynomial_quadratic_coeff (Hz/s/s, early edge)'])
 
         # DC
-        az_time_dc = self.slave.processes['readfiles']['DC_reference_azimuth_time']
+        az_time_dc = self.slave.processes['readfile.py']['DC_reference_azimuth_time']
         az_time_dc = (datetime.datetime.strptime(az_time_dc, '%Y-%m-%dT%H:%M:%S.%f') -
                       datetime.datetime.strptime(az_time_dc[:10], '%Y-%m-%d'))
         self.az_time_dc = az_time_dc.seconds + az_time_dc.microseconds / 1000000.0
 
-        self.t_dc = float(self.slave.processes['readfiles']['DC_reference_range_time'])
+        self.t_dc = float(self.slave.processes['readfile.py']['DC_reference_range_time'])
         self.c_dc = [0, 0, 0]
-        self.c_dc[0] = float(self.slave.processes['readfiles']['Xtrack_f_DC_constant (Hz, early edge)'])
-        self.c_dc[1] = float(self.slave.processes['readfiles']['Xtrack_f_DC_linear (Hz/s, early edge)'])
-        self.c_dc[2] = float(self.slave.processes['readfiles']['Xtrack_f_DC_quadratic (Hz/s/s, early edge)'])
+        self.c_dc[0] = float(self.slave.processes['readfile.py']['Xtrack_f_DC_constant (Hz, early edge)'])
+        self.c_dc[1] = float(self.slave.processes['readfile.py']['Xtrack_f_DC_linear (Hz/s, early edge)'])
+        self.c_dc[2] = float(self.slave.processes['readfile.py']['Xtrack_f_DC_quadratic (Hz/s/s, early edge)'])
 
-        self.ks = float(self.slave.processes['readfiles']['Azimuth_steering_rate (deg/s)'])
+        self.ks = float(self.slave.processes['readfile.py']['Azimuth_steering_rate (deg/s)'])
 
         # Image sampling parameters
-        t_az_start = self.slave.processes['readfiles']['First_pixel_azimuth_time (UTC)']
+        t_az_start = self.slave.processes['readfile.py']['First_pixel_azimuth_time (UTC)']
         t_az_start = (datetime.datetime.strptime(t_az_start, '%Y-%m-%dT%H:%M:%S.%f') -
                       datetime.datetime.strptime(t_az_start[:10], '%Y-%m-%d'))
         self.t_az_start = t_az_start.seconds + t_az_start.microseconds / 1000000.0
-        self.l_num = int(self.slave.processes['readfiles']['Number_of_lines_original'])
+        self.l_num = int(self.slave.processes['readfile.py']['Number_of_lines_original'])
 
-        self.t_rg_start = float(self.slave.processes['readfiles']['Range_time_to_first_pixel (2way) (ms)']) * 1e-3
-        self.fs_rg = float(self.slave.processes['readfiles']['Range_sampling_rate (computed, MHz)'])
+        self.t_rg_start = float(self.slave.processes['readfile.py']['Range_time_to_first_pixel (2way) (ms)']) * 1e-3
+        self.fs_rg = float(self.slave.processes['readfile.py']['Range_sampling_rate (computed, MHz)'])
 
-        self.dt_az = float(self.slave.processes['readfiles']['Azimuth_time_interval (s)'])
+        self.dt_az = float(self.slave.processes['readfile.py']['Azimuth_time_interval (s)'])
         self.dt_rg = 1 / self.fs_rg / 1e6
     
         # Initialize the needed orbit variables
@@ -85,7 +85,7 @@ class GetDopplerRamp(OrbitInterpolate):
 
         # From S-1 steering rate and orbit information %
         # Computes sensor velocity from orbits
-        c_lambda = float(self.slave.processes['readfiles']['Radar_wavelength (m)'])
+        c_lambda = float(self.slave.processes['readfile.py']['Radar_wavelength (m)'])
 
         # Frequency rate
         ks_hz = 2 * np.mean(orbit_velocity) / c_lambda * self.ks / 180 * np.pi
@@ -272,7 +272,7 @@ class Reramp(GetDopplerRamp):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
-        # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
+        # 2. Give the data files (crop, new_line, new_pixel). No need for meta_data in this case
         # 3. Give the first and last line plus the buffer of the input and output
 
         if isinstance(meta, ImageData):

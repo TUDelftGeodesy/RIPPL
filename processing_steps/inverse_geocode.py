@@ -1,8 +1,8 @@
 """
 This script is mainly used to fit a DEM to the line and pixel coordinates of a specific orbit.
 To do so we follow the next 3 steps:
-1. Based on image metadata we load the DEM.
-2. For irregular lat/lon grids, we load lat/lon files. / For regular lat/lon grids we calculate it from metadata
+1. Based on image meta_data we load the DEM.
+2. For irregular lat/lon grids, we load lat/lon files. / For regular lat/lon grids we calculate it from meta_data
 3. If needed, we correct the height grid for the geoid based on EGM96
 4. Calculate the xyz cartesian coordinates for every pixel from latitude, longitude and height using the WGS84 ellipsoid
 5. Finally the xyz coordinates are used to find line and pixel coordinates of the grid.
@@ -17,9 +17,9 @@ The results of this step is a grid of line and pixel coordinates
 
 """
 
-from rippl.orbit_resample_functions.orbit_coordinates import OrbitCoordinates
-from rippl.coordinate_system import CoordinateSystem
-from rippl.image_data import ImageData
+from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
+from rippl.meta_data.image_data import ImageData
 from collections import OrderedDict, defaultdict
 import numpy as np
 import logging

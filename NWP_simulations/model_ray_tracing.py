@@ -2,7 +2,7 @@
 import numpy as np
 
 from rippl.NWP_simulations.massive_spline import MassiveSpline
-from rippl.orbit_resample_functions.resample import Resample
+from rippl.resampling.resample_regular2irregular import Resample
 import copy
 
 class ModelRayTracing(object):
@@ -188,7 +188,7 @@ class ModelRayTracing(object):
 
     def find_point_delays(self, spline_num=10, time_key=''):
         # This function calculate the point delays based on:
-        # - model line slices (see interpolate ECMWF in resample.py)
+        # - model line slices (see interpolate ECMWF in resample_regular2irregular.py)
         # - elevation angle (we assume input going from left to right in the slices)
         # - lat/lon to find position in slice
         # - line to link with slice (maybe we will work with 2d grids later on)

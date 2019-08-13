@@ -8,9 +8,9 @@
 #   - Resample the slave grid to master coordinates
 #   - (optional) Calculate the baselines between the two images
 
-from rippl.image_data import ImageData
+from rippl.meta_data.image_data import ImageData
 from rippl.processing_steps.radar_dem import RadarDem
-from rippl.coordinate_system import CoordinateSystem
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.processing_steps.coor_geocode import CoorGeocode
 from collections import OrderedDict, defaultdict
 import numpy as np
@@ -44,10 +44,10 @@ class HeightToPhase(object):
 
         # Information on conversion from range to distances.
         sol = 299792458  # speed of light [m/s]
-        self.ra2m = 1 / float(self.cmaster.processes['readfiles']['Range_sampling_rate (computed, MHz)']) / 1000000 * sol
-        self.dist_first_pix = float(self.cmaster.processes['readfiles']['Range_time_to_first_pixel (2way) (ms)']) \
+        self.ra2m = 1 / float(self.cmaster.processes['readfile.py']['Range_sampling_rate (computed, MHz)']) / 1000000 * sol
+        self.dist_first_pix = float(self.cmaster.processes['readfile.py']['Range_time_to_first_pixel (2way) (ms)']) \
                               / 1000 / 2 * sol
-        self.wavelength = 1.0 / float(self.cmaster.processes['readfiles']['RADAR_FREQUENCY (HZ)']) * sol
+        self.wavelength = 1.0 / float(self.cmaster.processes['readfile.py']['RADAR_FREQUENCY (HZ)']) * sol
 
         # Load data
         self.baseline = self.slave.image_load_data_memory('baseline', self.s_lin, self.s_pix, self.shape,

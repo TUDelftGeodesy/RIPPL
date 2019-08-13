@@ -2,8 +2,8 @@
 # In principle this has the same functionality as some other
 
 import numpy as np
-from rippl.image_data import ImageData
-from rippl.coordinate_system import CoordinateSystem
+from rippl.meta_data.image_data import ImageData
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from collections import defaultdict, OrderedDict
 import logging
 import os
@@ -22,7 +22,7 @@ class Resample(object):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
-        # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
+        # 2. Give the data files (crop, new_line, new_pixel). No need for meta_data in this case
         # 3. Give the first and last line plus the buffer of the input and output
 
         if isinstance(meta, ImageData):
@@ -143,26 +143,7 @@ class Resample(object):
 
             return False
 
-    @staticmethod
-    def select_region_resampling(meta, new_line, new_pixel, buf):
-        # Selects the region we need to load from the original image to do the resampling to the new grid.
 
-        orig_s_lin = meta.data_limits['crop']['crop'][0] - 1
-        in_s_lin = int(np.floor(np.maximum(np.min(new_line) - buf - orig_s_lin, 0)))
-        orig_s_pix = meta.data_limits['crop']['crop'][1] - 1
-        in_s_pix = int(np.floor(np.maximum(np.min(new_pixel) - buf - orig_s_pix, 0)))
-        orig_lines = meta.data_sizes['crop']['crop'][0]
-        in_e_lin = int(np.ceil(np.minimum(np.max(new_line) + buf - orig_s_lin, orig_lines)))
-        orig_pixels = meta.data_sizes['crop']['crop'][1]
-        in_e_pix = int(np.ceil(np.minimum(np.max(new_pixel) + buf - orig_s_pix, orig_pixels)))
-
-        in_shape = [in_e_lin - in_s_lin, in_e_pix - in_s_pix]
-
-        # Find the coordinate of the first based on which the new_line and new_pixel are calculated.
-        out_s_lin = in_s_lin + orig_s_lin
-        out_s_pix = in_s_pix + orig_s_pix
-
-        return in_s_lin, in_s_pix, in_shape, out_s_lin, out_s_pix
 
     @staticmethod
     def add_meta_data(meta, coordinates):

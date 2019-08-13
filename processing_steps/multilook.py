@@ -1,8 +1,8 @@
 # The following class creates an interferogram from a master and slave image.
 
-from rippl.image_data import ImageData
-from rippl.find_coordinates import FindCoordinates
-from rippl.coordinate_system import CoordinateSystem
+from rippl.meta_data.image_data import ImageData
+from rippl.orbit_geometry.sparse_coordinates import FindCoordinates
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 import numpy as np
 import logging
@@ -414,21 +414,4 @@ class Multilook(object):
         data_types = [meta.data_types[step][file_type + coor_in.sample]]
         meta_info = coordinates.create_meta_data([file_type], data_types, meta_info)
         meta.image_add_processing_step(step, meta_info)
-
-    @staticmethod
-    def create_output_files(meta, step, file_type='', coordinates=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-        meta.images_create_disk(step, file_type, coordinates)
-
-    @staticmethod
-    def save_to_disk(meta, step, file_type='', coordinates=''):
-        # Save the function output in memory to disk
-        meta.images_memory_to_disk(step, file_type, coordinates)
-
-    @staticmethod
-    def clear_memory(meta, step, file_type='', coordinates=''):
-        # Save the function output in memory to disk
-        meta.images_clean_memory(step, file_type, coordinates)
-
 

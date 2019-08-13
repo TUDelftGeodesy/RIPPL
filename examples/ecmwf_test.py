@@ -16,7 +16,7 @@ from rippl.NWP_simulations.ECMWF.ecmwf_type import ECMWFType
 from rippl.NWP_simulations.ECMWF.ecmwf_download import ECMWFdownload
 from rippl.NWP_simulations.ECMWF.ecmwf_load_file import ECMWFData
 
-from rippl.image_data import ImageData
+from rippl.meta_data.image_data import ImageData
 from rippl.NWP_simulations.model_ray_tracing import ModelRayTracing
 from rippl.NWP_simulations.radar_data import RadarData
 from rippl.NWP_simulations.model_to_delay import ModelToDelay

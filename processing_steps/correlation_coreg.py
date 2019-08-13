@@ -8,7 +8,7 @@ Main functions are:
 
 '''
 
-from rippl.image_data import ImageData
+from rippl.meta_data.image_data import ImageData
 
 
 class CorrelationWindows(ImageData):

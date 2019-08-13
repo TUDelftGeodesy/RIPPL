@@ -81,9 +81,9 @@ ps_line = np.ravel(ps_line[1:-1, 1:-1])
 json_file = '/media/gert/Data/radar_results/netherlands/nl_full_t037/ps_points/master.json'
 m_dat = json.load(open(json_file))
 
-offset_range = int((m_dat['timeToFirstPixel'] - float(meta.processes['readfiles']['Range_time_to_first_pixel (2way) (ms)']) / 1000) /
-                (1 / 1000000.0 / float(meta.processes['readfiles']['Range_sampling_rate (computed, MHz)'])))
-az_time_1 = datetime.datetime.strptime(meta.processes['readfiles']['First_pixel_azimuth_time (UTC)'], '%Y-%m-%dT%H:%M:%S.%f')
+offset_range = int((m_dat['timeToFirstPixel'] - float(meta.processes['readfile.py']['Range_time_to_first_pixel (2way) (ms)']) / 1000) /
+                (1 / 1000000.0 / float(meta.processes['readfile.py']['Range_sampling_rate (computed, MHz)'])))
+az_time_1 = datetime.datetime.strptime(meta.processes['readfile.py']['First_pixel_azimuth_time (UTC)'], '%Y-%m-%dT%H:%M:%S.%f')
 az_time_2 = datetime.datetime.strptime(m_dat['date'], '%d-%b-%Y %H:%M:%S.%f')
 offset_azimuth = int((az_time_2 - az_time_1).microseconds * m_dat['PRF'])
 

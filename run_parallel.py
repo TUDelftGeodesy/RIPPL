@@ -1,8 +1,7 @@
 # Function to run parallel package. For further details inspect the pipeline class.
 import os
-import six
 import numpy as np
-from rippl.image_data import ImageData
+from rippl.meta_data.image_data import ImageData
 import gc
 
 

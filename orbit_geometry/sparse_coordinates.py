@@ -3,7 +3,7 @@
 import numpy as np
 
 
-class FindCoordinates():
+class SparseCoordinates():
 
     @staticmethod
     def multilook_str(multilook, oversample, offset):
@@ -52,7 +52,7 @@ class FindCoordinates():
     @staticmethod
     def multilook_coors(in_shape, s_lin=0, s_pix=0, lines=0, first_line=0, first_pixel=0, multilook='', oversample='', offset='', interval=False):
 
-        sample, multilook, oversample, offset = FindCoordinates.multilook_str(multilook, oversample, offset)
+        sample, multilook, oversample, offset = SparseCoordinates.multilook_str(multilook, oversample, offset)
 
         if multilook[0] % oversample[0] != 0 or multilook[1] / oversample[1] == 0:
             print('oversample does not fit in multilooking window. Make sure that multilooking/oversample is an'
@@ -90,7 +90,7 @@ class FindCoordinates():
                     offset[1] = offset[1] + int(np.ceil(float(offset[1] - ovr_pix) // ra))
 
                 # We will have to find a new sample string to!
-                sample, multilook, oversample, offset = FindCoordinates.multilook_str(multilook, oversample, offset)
+                sample, multilook, oversample, offset = SparseCoordinates.multilook_str(multilook, oversample, offset)
         """
 
         # Adjust the first line/pixel based on first_line / first_pixel
@@ -114,7 +114,7 @@ class FindCoordinates():
 
         # shape times pixel size + the overlapping area needed of multilooking.
         in_shape = np.array(out_shape) * np.array([az, ra]) + (np.array(multilook) - np.array([az, ra]))
-        sample = FindCoordinates.multilook_str(multilook, oversample, offset)[0]
+        sample = SparseCoordinates.multilook_str(multilook, oversample, offset)[0]
 
         return sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, out_shape]
 
@@ -122,7 +122,7 @@ class FindCoordinates():
     def multilook_lines(in_shape, s_lin=0, s_pix=0, lines=0, first_line=0, first_pixel=0, multilook='', oversample='', offset='', interval=False):
 
         sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, out_shape] = \
-            FindCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset, interval)
+            SparseCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset, interval)
 
         lines_in = in_s_lin + np.arange(in_shape[0])
         pixels_in = in_s_pix + np.arange(in_shape[1])
@@ -139,7 +139,7 @@ class FindCoordinates():
         # empty lines after resampling or disalignment of master and slave)
 
         sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, out_shape] = \
-            FindCoordinates.multilook_coors(in_shape, 0, 0, 0, first_line, first_pixel, multilook, oversample, offset)
+            SparseCoordinates.multilook_coors(in_shape, 0, 0, 0, first_line, first_pixel, multilook, oversample, offset)
 
         # In case we only need coordinates for one slice.
         if isinstance(slices_start[0], int):
@@ -168,7 +168,7 @@ class FindCoordinates():
     def interval_coors(in_shape, s_lin=0, s_pix=0, lines=0, first_line=0, first_pixel=0, multilook='', oversample='', offset='', interval=True):
 
         sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, shape] = \
-            FindCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset, interval)
+            SparseCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset, interval)
 
         ml_shift = (np.array(multilook).astype(np.float32) - np.array([1,1])) // 2
 
@@ -187,7 +187,7 @@ class FindCoordinates():
     def interval_lines(in_shape, s_lin=0, s_pix=0, lines=0, first_line=0, first_pixel=0, multilook='', oversample='', offset='', interval=True):
 
         sample, multilook, oversample, offset, [in_s_lin, in_s_pix, in_shape], [s_lin, s_pix, out_shape] = \
-            FindCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset, interval)
+            SparseCoordinates.multilook_coors(in_shape, s_lin, s_pix, lines, first_line, first_pixel, multilook, oversample, offset, interval)
 
         ml_shift = (np.array(multilook).astype(np.float32) - np.array([1, 1])) // 2
 

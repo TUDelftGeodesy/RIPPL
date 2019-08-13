@@ -6,9 +6,9 @@ import datetime
 import logging
 from collections import OrderedDict, defaultdict
 
-from rippl.image_data import ImageData
+from rippl.meta_data.image_data import ImageData
 from rippl.processing_steps.radar_dem import RadarDem
-from rippl.coordinate_system import CoordinateSystem
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 from rippl.NWP_simulations.harmonie.harmonie_database import HarmonieDatabase
 from rippl.NWP_simulations.harmonie.harmonie_load_file import HarmonieData
@@ -91,7 +91,7 @@ class HarmonieAps(object):
 
         try:
             # Define date we need weather data.
-            overpass = datetime.datetime.strptime(self.slave.processes['readfiles']['First_pixel_azimuth_time (UTC)'], '%Y-%m-%dT%H:%M:%S.%f')
+            overpass = datetime.datetime.strptime(self.slave.processes['readfile.py']['First_pixel_azimuth_time (UTC)'], '%Y-%m-%dT%H:%M:%S.%f')
             harmonie_archive = HarmonieDatabase(database_folder=self.weather_data_folder)
             filename, date = harmonie_archive(overpass)
 

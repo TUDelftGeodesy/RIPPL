@@ -40,7 +40,7 @@ def xmltext(f,addr,ns='{http://www.rsi.ca/rs2/prod/xml/schemas}'):
     return f.find(addr.replace('/','/'+ns)).text
 
 def get_metadata(fi):
-    """Extract metadata from a RSAT2 xml file and return as a dict."""
+    """Extract meta_data from a RSAT2 xml file and return as a dict."""
     dateformat = '%Y-%m-%dT%H:%M:%S.%fZ'
     f = etree.parse(fi)
     return {
@@ -58,7 +58,7 @@ def get_nearest_frame(done, m):
 
     Args:
       done: list of dicts of existing frames.
-      m: metadata dict of image.
+      m: meta_data dict of image.
     
     Returns:
       frame, dist: found frame name and distance from given image.

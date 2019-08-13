@@ -8,9 +8,9 @@
 #   - Resample the slave grid to master coordinates
 #   - (optional) Calculate the baselines between the two images
 
-from rippl.image_data import ImageData
-from rippl.orbit_resample_functions.orbit_coordinates import OrbitCoordinates
-from rippl.coordinate_system import CoordinateSystem
+from rippl.meta_data.image_data import ImageData
+from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from collections import OrderedDict, defaultdict
 from rippl.processing_steps.radar_dem import RadarDem
 from rippl.processing_steps.coor_geocode import CoorGeocode
@@ -97,14 +97,14 @@ class GeometricalCoreg(object):
         else:
             meta_info = OrderedDict()
 
-        meta_info['Master_reference_date'] = cmaster_meta.processes['readfiles']['First_pixel_azimuth_time (UTC)'][:10]
+        meta_info['Master_reference_date'] = cmaster_meta.processes['readfile.py']['First_pixel_azimuth_time (UTC)'][:10]
         meta_info = coordinates.create_meta_data(['new_line', 'new_pixel'], ['real8', 'real8'], meta_info)
 
         meta.image_add_processing_step('geometrical_coreg', meta_info)
         meta.image_add_processing_step('combined_coreg', meta_info)
 
         # Add the information from the master file to the slave .res files.
-        meta.image_add_processing_step('coreg_readfiles', copy.deepcopy(cmaster_meta.processes['readfiles']))
+        meta.image_add_processing_step('coreg_readfiles', copy.deepcopy(cmaster_meta.processes['readfile.py']))
         meta.image_add_processing_step('coreg_orbits', copy.deepcopy(cmaster_meta.processes['orbits']))
         meta.image_add_processing_step('coreg_crop', copy.deepcopy(cmaster_meta.processes['crop']))
 

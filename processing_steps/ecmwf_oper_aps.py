@@ -6,8 +6,8 @@ import datetime
 import logging
 from collections import OrderedDict, defaultdict
 
-from rippl.image_data import ImageData
-from rippl.coordinate_system import CoordinateSystem
+from rippl.meta_data.image_data import ImageData
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.processing_steps.radar_dem import RadarDem
 from rippl.processing_steps.harmonie_aps import HarmonieAps
 from rippl.processing_steps.coor_dem import CoorDem
@@ -94,7 +94,7 @@ class EcmwfOperAps(HarmonieAps):
 
         try:
             # Define date we need weather data.
-            date = datetime.datetime.strptime(self.slave.processes['readfiles']['First_pixel_azimuth_time (UTC)'], '%Y-%m-%dT%H:%M:%S.%f')
+            date = datetime.datetime.strptime(self.slave.processes['readfile.py']['First_pixel_azimuth_time (UTC)'], '%Y-%m-%dT%H:%M:%S.%f')
 
             ecmwf_type = ECMWFType(self.ecmwf_type)
             radar_data = RadarData(self.time_interp, ecmwf_type.t_step, 0)

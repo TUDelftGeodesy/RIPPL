@@ -18,12 +18,12 @@ import numpy as np
 from multiprocessing import Pool
 from lxml import etree
 
-from rippl.orbit_resample_functions.orbit_interpolate import OrbitInterpolate
+from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 from rippl.SAR_sensors.sentinel.sentinel_database import SentinelDatabase
 from rippl.SAR_sensors.sentinel.sentinel_precise_orbit import SentinelOrbitsDatabase
 from rippl.SAR_sensors.sentinel.sentinel_read_data import write_sentinel_burst
 from rippl.SAR_sensors.sentinel.sentinel_swath_metadata import CreateSwathXmlRes
-from rippl.stack import Stack
+from rippl.meta_data.stack import Stack
 
 
 class SentinelStack(SentinelDatabase, Stack):
@@ -119,7 +119,7 @@ class SentinelStack(SentinelDatabase, Stack):
                         swath_data = etree.parse(xml_path)
 
                     xml_meta = CreateSwathXmlRes(xml_path, swath_data)
-                    print('Read metadata ' + os.path.basename(xml_path))
+                    print('Read meta_data ' + os.path.basename(xml_path))
                     xml_meta.read_xml()
                     xml_meta.burst_swath_coverage()
 
@@ -129,7 +129,7 @@ class SentinelStack(SentinelDatabase, Stack):
 
     def create_slice_list(self, master_date):
         # master date should be in yyyy-mm-dd format
-        # This function creates a list of all slices within the datastack and reads the needed metadata.
+        # This function creates a list of all slices within the datastack and reads the needed meta_data.
 
         time_lim = 0.1
         master_start = datetime.datetime.strptime(master_date, '%Y-%m-%d')
@@ -161,11 +161,11 @@ class SentinelStack(SentinelDatabase, Stack):
                             self.master_slice_x.append(xyz[0, 0])
                             self.master_slice_y.append(xyz[1, 0])
                             self.master_slice_z.append(xyz[2, 0])
-                            self.master_slice_pol.append(slice.processes['readfiles']['polarisation'])
+                            self.master_slice_pol.append(slice.processes['readfile.py']['polarisation'])
                             self.master_slice_lat.append(slice_coors[1])
                             self.master_slice_lon.append(slice_coors[0])
                             self.master_slice_date.append(slice_time[:10])
-                            self.master_slice_swath_no.append(int(slice.processes['readfiles']['SWATH'][-1:]))
+                            self.master_slice_swath_no.append(int(slice.processes['readfile.py']['SWATH'][-1:]))
                             self.master_slice_az_time.append(slice_time)
                             self.master_slice_seconds.append(b_time)
                             self.master_slice_time.append(b_t)
@@ -186,11 +186,11 @@ class SentinelStack(SentinelDatabase, Stack):
                         self.slice_x.append(xyz[0, 0])
                         self.slice_y.append(xyz[1, 0])
                         self.slice_z.append(xyz[2, 0])
-                        self.slice_pol.append(slice.processes['readfiles']['polarisation'])
+                        self.slice_pol.append(slice.processes['readfile.py']['polarisation'])
                         self.slice_lat.append(slice_coors[1])
                         self.slice_lon.append(slice_coors[0])
                         self.slice_date.append(slice_time[:10])
-                        self.slice_swath_no.append(int(slice.processes['readfiles']['SWATH'][-1:]))
+                        self.slice_swath_no.append(int(slice.processes['readfile.py']['SWATH'][-1:]))
                         self.slice_az_time.append(slice_time)
                         self.slice_seconds.append(b_time)
                         self.slice_time.append(b_t)

@@ -21,8 +21,8 @@ from collections import OrderedDict
 import os
 import logging
 
-from rippl.image_data import ImageData
-from rippl.coordinate_system import CoordinateSystem
+from rippl.meta_data.image_data import ImageData
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.processing_steps.projection_coor import ProjectionCoor
 from collections import defaultdict
 
@@ -33,7 +33,7 @@ class CreateMask(object):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
-        # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
+        # 2. Give the data files (crop, new_line, new_pixel). No need for meta_data in this case
         # 3. Give the first and last line plus the buffer of the input and output
 
         if isinstance(meta, ImageData):

@@ -12,12 +12,12 @@ Following information is generated
 
 """
 
-from rippl.image_data import ImageData
+from rippl.meta_data.image_data import ImageData
 from collections import OrderedDict, defaultdict
-from rippl.coordinate_system import CoordinateSystem
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.processing_steps.coor_dem import CoorDem
 from rippl.processing_steps.projection_coor import ProjectionCoor
-from rippl.orbit_resample_functions.orbit_coordinates import OrbitCoordinates
+from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 import numpy as np
 import logging
 import os
@@ -35,7 +35,7 @@ class CoorGeocode(object):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
-        # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
+        # 2. Give the data files (crop, new_line, new_pixel). No need for meta_data in this case
         # 3. Give the first and last line plus the buffer of the input and output
 
         if isinstance(meta, ImageData):

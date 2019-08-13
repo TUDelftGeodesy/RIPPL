@@ -1,8 +1,8 @@
 import datetime
 import numpy as np
 import locale
-from rippl.image_data import ImageData
-from rippl.orbit_resample_functions.orbit_coordinates import OrbitCoordinates
+from rippl.meta_data.image_data import ImageData
+from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 from rippl.external_DEMs.srtm.srtm_download import SrtmDownload
 from rippl.processing_steps.import_dem import CreateSrtmDem
 from rippl.processing_steps.inverse_geocode import InverseGeocode
@@ -21,7 +21,7 @@ class RadarData(OrbitCoordinates, ImageData):
         # Set locale
         locale.setlocale(locale.LC_ALL, 'en_US.utf8')
 
-        # Init the rounding time step and metadata
+        # Init the rounding time step and meta_data
         self.t_step = t_step
         self.time_interp = time_interp
         

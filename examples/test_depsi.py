@@ -1,8 +1,8 @@
 #!/usr/bin/python
 # Create a datastack
 
-from rippl.stack import Stack
-from rippl.coordinate_system import CoordinateSystem
+from rippl.meta_data.stack import Stack
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 track_no = 37
 parallel = False

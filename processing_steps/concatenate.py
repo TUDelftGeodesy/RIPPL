@@ -7,10 +7,10 @@
 
 # The following class creates an interferogram from a master and slave image.
 
-from rippl.image_data import ImageData
-from rippl.find_coordinates import FindCoordinates
-from rippl.coordinate_system import CoordinateSystem
-from rippl.orbit_resample_functions.orbit_coordinates import OrbitCoordinates
+from rippl.meta_data.image_data import ImageData
+from rippl.orbit_geometry.sparse_coordinates import FindCoordinates
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
+from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 from collections import OrderedDict, defaultdict
 import datetime
 import numpy as np
@@ -233,7 +233,7 @@ class Concatenate(object):
 
         lon_corners, lat_corners = Concatenate.get_concat_bounding_box(min_az, min_ra, shape, meta_slices[0])
 
-        # Add the readfiles and orbit information
+        # Add the readfile.py and orbit information
         if meta_slices[0].process_control['coreg_readfiles'] == '1':
             if meta_slices[0].res_type == 'single':
                 steps_meta = ['', 'coreg_']
@@ -245,12 +245,12 @@ class Concatenate(object):
             steps_meta = ['']
 
         for step_meta in steps_meta:
-            meta.image_add_processing_step(step_meta + 'readfiles', copy.copy(meta_slices[0].processes[step_meta + 'readfiles']))
+            meta.image_add_processing_step(step_meta + 'readfile.py', copy.copy(meta_slices[0].processes[step_meta + 'readfile.py']))
             meta.image_add_processing_step(step_meta + 'orbits', copy.copy(meta_slices[0].processes[step_meta + 'orbits']))
             meta.image_add_processing_step(step_meta + 'crop',copy.copy(meta_slices[0].processes[step_meta + 'crop']))
 
-            # Adapt the readfiles and orbit information
-            az_date = datetime.datetime.strptime(meta_slices[0].processes[step_meta + 'readfiles']
+            # Adapt the readfile.py and orbit information
+            az_date = datetime.datetime.strptime(meta_slices[0].processes[step_meta + 'readfile.py']
                                                  ['First_pixel_azimuth_time (UTC)'][:10], '%Y-%m-%d')
             az_time = (az_date + datetime.timedelta(seconds=min_az)).strftime('%Y-%m-%dT%H:%M:%S.%f')
             ra_time = str(min_ra * 1000)
@@ -266,52 +266,52 @@ class Concatenate(object):
             meta.processes[step_meta + 'crop'].pop('crop_last_line (w.r.t. tiff_image)')
 
             # Change from slice to full image
-            meta.processes[step_meta + 'readfiles']['slice'] = 'False'
+            meta.processes[step_meta + 'readfile.py']['slice'] = 'False'
 
             # Add coordinates and azimuth/range timing
-            meta.processes[step_meta + 'readfiles']['Number_of_lines_original'] = str(int(shape[0]))
-            meta.processes[step_meta + 'readfiles']['Number_of_pixels_original'] = str(int(shape[1]))
-            meta.processes[step_meta + 'readfiles']['First_pixel_azimuth_time (UTC)'] = az_time
-            meta.processes[step_meta + 'readfiles']['Range_time_to_first_pixel (2way) (ms)'] = ra_time
+            meta.processes[step_meta + 'readfile.py']['Number_of_lines_original'] = str(int(shape[0]))
+            meta.processes[step_meta + 'readfile.py']['Number_of_pixels_original'] = str(int(shape[1]))
+            meta.processes[step_meta + 'readfile.py']['First_pixel_azimuth_time (UTC)'] = az_time
+            meta.processes[step_meta + 'readfile.py']['Range_time_to_first_pixel (2way) (ms)'] = ra_time
 
             # Remove all burst specific information to avoid confusion
-            meta.processes[step_meta + 'readfiles'].pop('Number_of_lines_Swath')
-            meta.processes[step_meta + 'readfiles'].pop('SWATH')
-            meta.processes[step_meta + 'readfiles'].pop('number_of_pixels_Swath')
-            meta.processes[step_meta + 'readfiles'].pop('total_Burst')
-            meta.processes[step_meta + 'readfiles'].pop('Burst_number_index')
+            meta.processes[step_meta + 'readfile.py'].pop('Number_of_lines_Swath')
+            meta.processes[step_meta + 'readfile.py'].pop('SWATH')
+            meta.processes[step_meta + 'readfile.py'].pop('number_of_pixels_Swath')
+            meta.processes[step_meta + 'readfile.py'].pop('total_Burst')
+            meta.processes[step_meta + 'readfile.py'].pop('Burst_number_index')
 
             # Add the new coordinates. This is only an approximation using a combination of the burst lat/lon coordinates
-            meta.processes[step_meta + 'readfiles']['Scene_ul_corner_latitude'] = str(lat_corners[0])
-            meta.processes[step_meta + 'readfiles']['Scene_ur_corner_latitude'] = str(lat_corners[1])
-            meta.processes[step_meta + 'readfiles']['Scene_lr_corner_latitude'] = str(lat_corners[2])
-            meta.processes[step_meta + 'readfiles']['Scene_ll_corner_latitude'] = str(lat_corners[3])
-            meta.processes[step_meta + 'readfiles']['Scene_ul_corner_longitude'] = str(lon_corners[0])
-            meta.processes[step_meta + 'readfiles']['Scene_ur_corner_longitude'] = str(lon_corners[1])
-            meta.processes[step_meta + 'readfiles']['Scene_lr_corner_longitude'] = str(lon_corners[2])
-            meta.processes[step_meta + 'readfiles']['Scene_ll_corner_longitude'] = str(lon_corners[3])
+            meta.processes[step_meta + 'readfile.py']['Scene_ul_corner_latitude'] = str(lat_corners[0])
+            meta.processes[step_meta + 'readfile.py']['Scene_ur_corner_latitude'] = str(lat_corners[1])
+            meta.processes[step_meta + 'readfile.py']['Scene_lr_corner_latitude'] = str(lat_corners[2])
+            meta.processes[step_meta + 'readfile.py']['Scene_ll_corner_latitude'] = str(lat_corners[3])
+            meta.processes[step_meta + 'readfile.py']['Scene_ul_corner_longitude'] = str(lon_corners[0])
+            meta.processes[step_meta + 'readfile.py']['Scene_ur_corner_longitude'] = str(lon_corners[1])
+            meta.processes[step_meta + 'readfile.py']['Scene_lr_corner_longitude'] = str(lon_corners[2])
+            meta.processes[step_meta + 'readfile.py']['Scene_ll_corner_longitude'] = str(lon_corners[3])
 
-            meta.processes[step_meta + 'readfiles'].pop('First_pixel (w.r.t. tiff_image)')
-            meta.processes[step_meta + 'readfiles'].pop('First_line (w.r.t. tiff_image)')
-            meta.processes[step_meta + 'readfiles'].pop('Last_pixel (w.r.t. tiff_image)')
-            meta.processes[step_meta + 'readfiles'].pop('Last_line (w.r.t. tiff_image)')
-            meta.processes[step_meta + 'readfiles'].pop('Number_of_lines_burst')
-            meta.processes[step_meta + 'readfiles'].pop('Number_of_pixels_burst')
+            meta.processes[step_meta + 'readfile.py'].pop('First_pixel (w.r.t. tiff_image)')
+            meta.processes[step_meta + 'readfile.py'].pop('First_line (w.r.t. tiff_image)')
+            meta.processes[step_meta + 'readfile.py'].pop('Last_pixel (w.r.t. tiff_image)')
+            meta.processes[step_meta + 'readfile.py'].pop('Last_line (w.r.t. tiff_image)')
+            meta.processes[step_meta + 'readfile.py'].pop('Number_of_lines_burst')
+            meta.processes[step_meta + 'readfile.py'].pop('Number_of_pixels_burst')
 
-            meta.processes[step_meta + 'readfiles'].pop('DC_reference_azimuth_time')
-            meta.processes[step_meta + 'readfiles'].pop('DC_reference_range_time')
-            meta.processes[step_meta + 'readfiles'].pop('Xtrack_f_DC_constant (Hz, early edge)')
-            meta.processes[step_meta + 'readfiles'].pop('Xtrack_f_DC_linear (Hz/s, early edge)')
-            meta.processes[step_meta + 'readfiles'].pop('Xtrack_f_DC_quadratic (Hz/s/s, early edge)')
+            meta.processes[step_meta + 'readfile.py'].pop('DC_reference_azimuth_time')
+            meta.processes[step_meta + 'readfile.py'].pop('DC_reference_range_time')
+            meta.processes[step_meta + 'readfile.py'].pop('Xtrack_f_DC_constant (Hz, early edge)')
+            meta.processes[step_meta + 'readfile.py'].pop('Xtrack_f_DC_linear (Hz/s, early edge)')
+            meta.processes[step_meta + 'readfile.py'].pop('Xtrack_f_DC_quadratic (Hz/s/s, early edge)')
 
-            meta.processes[step_meta + 'readfiles'].pop('FM_reference_azimuth_time')
-            meta.processes[step_meta + 'readfiles'].pop('FM_reference_range_time')
-            meta.processes[step_meta + 'readfiles'].pop('FM_polynomial_constant_coeff (Hz, early edge)')
-            meta.processes[step_meta + 'readfiles'].pop('FM_polynomial_linear_coeff (Hz/s, early edge)')
-            meta.processes[step_meta + 'readfiles'].pop('FM_polynomial_quadratic_coeff (Hz/s/s, early edge)')
+            meta.processes[step_meta + 'readfile.py'].pop('FM_reference_azimuth_time')
+            meta.processes[step_meta + 'readfile.py'].pop('FM_reference_range_time')
+            meta.processes[step_meta + 'readfile.py'].pop('FM_polynomial_constant_coeff (Hz, early edge)')
+            meta.processes[step_meta + 'readfile.py'].pop('FM_polynomial_linear_coeff (Hz/s, early edge)')
+            meta.processes[step_meta + 'readfile.py'].pop('FM_polynomial_quadratic_coeff (Hz/s/s, early edge)')
 
-            meta.processes[step_meta + 'readfiles'].pop('Datafile')
-            meta.processes[step_meta + 'readfiles'].pop('Dataformat')
+            meta.processes[step_meta + 'readfile.py'].pop('Datafile')
+            meta.processes[step_meta + 'readfile.py'].pop('Dataformat')
 
         meta.geometry()
 
@@ -331,16 +331,16 @@ class Concatenate(object):
         az_end = []
         ra_end = []
 
-        az_step = 1 / float(meta_slices[0].processes[pref + 'readfiles']['Pulse_Repetition_Frequency (computed, Hz)'])
-        ra_step = 1 / float(meta_slices[0].processes[pref + 'readfiles']['Range_sampling_rate (computed, MHz)']) / 1000000
+        az_step = 1 / float(meta_slices[0].processes[pref + 'readfile.py']['Pulse_Repetition_Frequency (computed, Hz)'])
+        ra_step = 1 / float(meta_slices[0].processes[pref + 'readfile.py']['Range_sampling_rate (computed, MHz)']) / 1000000
 
         for slice in meta_slices:
-            az_datetime = slice.processes[pref + 'readfiles']['First_pixel_azimuth_time (UTC)']
+            az_datetime = slice.processes[pref + 'readfile.py']['First_pixel_azimuth_time (UTC)']
             az_time = (datetime.datetime.strptime(az_datetime, '%Y-%m-%dT%H:%M:%S.%f') -
                        datetime.datetime.strptime(az_datetime[:10], '%Y-%m-%d'))
 
             az0 = az_time.seconds + az_time.microseconds / 1000000.0
-            ra0 = float(slice.processes[pref + 'readfiles']['Range_time_to_first_pixel (2way) (ms)']) / 1000
+            ra0 = float(slice.processes[pref + 'readfile.py']['Range_time_to_first_pixel (2way) (ms)']) / 1000
 
             lines = int(slice.processes[pref + 'crop']['crop_first_line']) + int(slice.processes[pref + 'crop']['crop_lines'])
             pixels = int(slice.processes[pref + 'crop']['crop_first_pixel']) + int(slice.processes[pref + 'crop']['crop_pixels'])
@@ -363,7 +363,7 @@ class Concatenate(object):
     def find_slice_coordinates(meta_slices, in_coor, out_coor, slice_offset='', step='', file_type=''):
         # This function is used to create an oversight of the coordinates of the available slices. This results in an
         # oversight of the start pixel/line of every burst compared to the full image.
-        # This function can be run using the base readfiles and crop data of the coregistration image.
+        # This function can be run using the base readfile.py and crop data of the coregistration image.
         # (slave images will resample to this coregistration image)
 
         for slice in meta_slices:

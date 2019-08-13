@@ -1,26 +1,38 @@
 # This function does the resampling of a radar grid based on different kernels.
-# In principle this has the same functionality as some other
 import numpy as np
-import os
 
 
 class Resample(object):
 
+    def __init__(self, w_type='4p_cubic', table_size=None):
+        # Both the resampling and interp table scripts are staticmethod which makes them usable outside this class.
+        # However, if you want to do the processing using the same interpolation kernel you can use this class to keep
+        # those stable.
+        self.window = self.create_interp_table(w_type, table_size)
+        self.table_size = table_size
+
+    def __call__(self, orig_grid, new_grid_lines, new_grid_pixels, w_type, step_size=100000000):
+        # Do the actual resampling.
+        return self.resample_grid(orig_grid, new_grid_lines, new_grid_pixels, w_type, step_size, self.table_size, self.window)
+
     @staticmethod
-    def resample_grid(orig_grid, new_grid_lines, new_grid_pixels, w_type, step_size=100000000, out_grid=False,
-                      table_size='', window='', out_window=False):
+    def resample_grid(orig_grid, new_grid_lines, new_grid_pixels, w_type, step_size=100000000, table_size='', window=''):
         # Here the actual resampling is done. If the output is a grid, the variables new_grid_lines and new_grid_pixels
         # should be the same size as the output grid.
 
-        # If you use the same resampling window many times, you can also pass it with the function.
-        if len(window) == 0:
-            window, w_steps = Resample.create_interp_table(w_type, table_size=table_size)
-        window_size = [window.shape[2], window.shape[3]]
+        # If the table size was not defined, it defaults to [1000, 100]
         if len(table_size) == 0:
             table_size = [1000, 100]
+        # If you use the same resampling window many times, you can also pass it with the function
+        if len(window) == 0:
+            window = Resample.create_interp_table(w_type, table_size=table_size)
+        w_steps = [1.0 / table_size[0], 1.0 / table_size[1]]
+        window_size = [window.shape[2], window.shape[3]]
 
         out_dim = len(new_grid_lines.shape)
 
+        # Because the resampling can take up a lot of memory, we split the operation in a number of steps defined by
+        # the size of the dataset. The size of the steps is defined by the number of pixels defined in step_size
         if out_dim == 2:
             line_steps = np.ceil(float(step_size) / new_grid_lines.shape[1])
             steps = np.ceil(new_grid_lines.shape[0] / float(line_steps))
@@ -28,12 +40,8 @@ class Resample(object):
             steps = np.ceil(new_grid_lines.size / float(step_size))
             line_steps = step_size
 
-        # Create the output grid. If a filename is defined we will work with a memmap otherwise a simple grid.
-        if out_grid:
-            if os.path.exists(os.path.dirname(out_grid)):
-                out_grid = np.memmap(out_grid, orig_grid.dtype, 'w+', shape=new_grid_lines.shape)
-        else:
-            out_grid = np.zeros(new_grid_lines.shape)
+        # Create the output grid.
+        out_grid = np.zeros(new_grid_lines.shape).astype(orig_grid.dtype)
 
         # Now use the location of the new pixels to extract the weights and the values from the input grid.
         # After adding up and multiplying the weights and values we have the out going grid.
@@ -81,10 +89,7 @@ class Resample(object):
                 out_grid[line_0:line_1] = out_vals
 
         # Return resampling result
-        if out_window:
-            return out_grid, window
-        else:
-            return out_grid
+        return out_grid
 
     @staticmethod
     def create_interp_table(w_type, table_size=None):
@@ -142,4 +147,4 @@ class Resample(object):
         # Calculate the 2d window
         window = np.einsum('ij,kl->jlik', d_az, d_ra)
 
-        return window, [1.0 / table_size[0], 1.0 / table_size[1]]
+        return window

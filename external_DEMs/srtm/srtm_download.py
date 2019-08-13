@@ -20,9 +20,9 @@ import numpy as np
 import requests
 from scipy.interpolate import RectBivariateSpline
 from rippl.external_DEMs.srtm.srtm_dir_listing import ParseHTMLDirectoryListing
-from rippl.coordinate_system import CoordinateSystem
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from multiprocessing import Pool
-from rippl.image_data import ImageData
+from rippl.meta_data.image_data import ImageData
 
 
 class SrtmDownloadTile(object):

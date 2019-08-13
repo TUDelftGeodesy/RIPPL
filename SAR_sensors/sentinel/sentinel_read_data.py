@@ -50,7 +50,7 @@ def write_sentinel_burst(input):
     first_pixel = int(slice.processes['crop']['crop_first_pixel'])
     pixels = int(slice.processes['crop']['crop_pixels'])
 
-    data_path = slice.processes['readfiles']['Datafile']
+    data_path = slice.processes['readfile.py']['Datafile']
     slice_file = os.path.join(folder, 'crop.raw')
     slice_res = os.path.join(folder, 'info.res')
 

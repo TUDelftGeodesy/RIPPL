@@ -1,5 +1,6 @@
 # This function performs an xml query on a provided xml file.
-from rippl.image_data import ImageData
+from rippl.meta_data.image_data import ImageData
+from rippl.meta_data.orbit import Orbit
 
 import collections
 from lxml import etree
@@ -36,7 +37,7 @@ class CreateSwathXmlRes():
         
         # Initialize the xml swath inputs
         self.swath_header = dict()          # Header of resfile
-        self.swath_readfiles = dict()       # Dummy readfiles for swath, used as base for the burst readfiles
+        self.swath_readfiles = dict()       # Dummy readfile.py for swath, used as base for the burst readfile.py
         self.swath_orbit = dict()           # Swath orbit information
         self.swath_xml_update = dict()
         self.burst_xml_dat = dict()         # Extra data read from xml to get burst information
@@ -62,18 +63,17 @@ class CreateSwathXmlRes():
     def __call__(self, orbit_class):
         # When we call the function perform all steps and create the burst .res files
         self.read_xml()
-        self.create_swath_header()
         self.create_swath_orbit(orbit_class)
         self.burst_swath_coverage()
         self.create_burst_readfiles()
         self.create_burst_crop()
 
-        # In the last step we combine header, readfiles, orbit and crop to create burst resfiles
+        # In the last step we combine header, readfile.py, orbit and crop to create burst resfiles
         self.burst_meta = []
 
         for readfiles, crop, coverage in zip(self.burst_readfiles, self.burst_crop, self.burst_coverage):
             resfile = ImageData('', 'single')
-            resfile.insert(readfiles, 'readfiles')
+            resfile.insert(readfiles, 'readfile.py')
             resfile.insert(self.swath_orbit, 'orbits')
             resfile.insert(crop, 'crop')
             resfile.header = self.swath_header
@@ -228,22 +228,6 @@ class CreateSwathXmlRes():
         self.swath_readfiles['First_pixel (w.r.t. tiff_image)'] = '1'
         self.swath_readfiles['Last_pixel (w.r.t. tiff_image)'] = self.swath_xml_update['samplesPerBurst']
 
-    def create_swath_header(self):
-
-        self.swath_header = collections.OrderedDict()
-
-        self.swath_header['row_1'] = ['===============================================\n']
-        self.swath_header['MASTER RESULTFILE:'] = ''
-        self.swath_header['Created by'] = 'Doris TU Delft'
-        self.swath_header['row_2'] = 'Doris (Delft o-o Radar Interferometric Software)'
-        self.swath_header['Version'] = 'Version (2015) (For TOPSAR)'
-        self.swath_header['FFTW library'] = 'used'
-        self.swath_header['VECLIB library'] = 'not used'
-        self.swath_header['LAPACK library'] = 'not used'
-        self.swath_header['Compiled at'] = 'XXXXXXXX'
-        self.swath_header['By GUN gcc'] = 'XXXXXXXX'
-        self.swath_header['row_3'] = ['===============================================\n']
-
     def create_swath_orbit(self, orbit_class):
         # This function utilizes the orbit_read script to read precise orbit files and export them to the resfile format.
         # Additionally it removes the burst_datapoints part, as it is not needed anymore.
@@ -268,15 +252,12 @@ class CreateSwathXmlRes():
         vel_z = orbit_dat['velZ']
         self.swath_orbit['NUMBER_OF_DATAPOINTS'] = str(len(t))
 
-        # Save the rows
-        for n in np.arange(len(t)):
-            self.swath_orbit['row_' + str(n + 1)] = ["{:.6f}".format(t[n]),
-                                                     "{:.7f}".format(float(x[n])),
-                                                     "{:.7f}".format(float(y[n])),
-                                                     "{:.7f}".format(float(z[n])),
-                                                     "{:.7f}".format(float(vel_x[n])),
-                                                     "{:.7f}".format(float(vel_y[n])),
-                                                     "{:.7f}".format(float(vel_z[n]))]
+        # Create orbit object
+        self.swath_orbit = Orbit()
+        self.swath_orbit.create_orbit(t, x, y, z, vel_x, vel_y, vel_z, satellite=self.swath_readfiles['SAR_PROCESSOR'],
+                                      type='original',
+                                      date=self.swath_readfiles['First_pixel_azimuth_time'][:10])
+
 
     def burst_swath_coverage(self):
         # This function returns the lat, lon of the corners of all bursts in this swath. If polygon is True also the poly
@@ -318,7 +299,7 @@ class CreateSwathXmlRes():
         self.swath_coverage = geometry.Polygon(self.swath_coors)
 
     def create_burst_readfiles(self):
-        # First copy swath metadata for burst and create a georef dict which stores information about the geo reference of
+        # First copy swath meta_data for burst and create a georef dict which stores information about the geo reference of
         # the burst.
 
         self.burst_readfiles = []
@@ -357,7 +338,7 @@ class CreateSwathXmlRes():
             doppler_id = np.where(doppler_times > burst_start_time[n])[0][0]
             frequency_id = np.where(frequency_times > burst_start_time[n])[0][0]
 
-            # Assign DC values to metadata
+            # Assign DC values to meta_data
             parameter = self.burst_xml_dat['dopplerCoeff'][doppler_id].split()
             readfiles['DC_reference_azimuth_time'] = doppler_times[doppler_id].strftime('%Y-%m-%dT%H:%M:%S.%f')
             readfiles['DC_reference_range_time'] = self.burst_xml_dat['doppler_range_Time'][doppler_id]
@@ -365,7 +346,7 @@ class CreateSwathXmlRes():
             readfiles['Xtrack_f_DC_linear (Hz/s, early edge)'] = parameter[1]
             readfiles['Xtrack_f_DC_quadratic (Hz/s/s, early edge)'] = parameter[2]
 
-            # Assign FM values to metadata
+            # Assign FM values to meta_data
             parameter = self.burst_xml_dat['azimuthFmRatePolynomial'][frequency_id].split()
             readfiles['FM_reference_azimuth_time'] = frequency_times[frequency_id].strftime('%Y-%m-%dT%H:%M:%S.%f')
             readfiles['FM_reference_range_time'] = self.burst_xml_dat['azimuthFmRate_reference_Range_time'][frequency_id]

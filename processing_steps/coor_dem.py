@@ -1,9 +1,9 @@
 # This function does the resampling of a radar grid based on different kernels.
 # In principle this has the same functionality as some other
-from rippl.image_data import ImageData
-from rippl.orbit_resample_functions.resample import Resample
+from rippl.meta_data.image_data import ImageData
+from rippl.resampling.resample_regular2irregular import Resample
 from collections import OrderedDict, defaultdict
-from rippl.coordinate_system import CoordinateSystem
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.processing_steps.projection_coor import ProjectionCoor
 import numpy as np
 import logging
@@ -22,7 +22,7 @@ class CoorDem(object):
         # There are three options for processing:
         # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
         #       ImageData object.
-        # 2. Give the data files (crop, new_line, new_pixel). No need for metadata in this case
+        # 2. Give the data files (crop, new_line, new_pixel). No need for meta_data in this case
         # 3. Give the first and last line plus the buffer of the input and output
 
         if isinstance(meta, ImageData):
@@ -124,81 +124,3 @@ class CoorDem(object):
         meta_info = coordinates.create_meta_data(['DEM'], ['real4'], meta_info)
 
         meta.image_add_processing_step('coor_DEM', meta_info)
-
-    @staticmethod
-    def processing_info(coor_out, coor_in='', meta_type='cmaster'):
-
-        # Three input files needed Dem, Dem_line and Dem_pixel
-        recursive_dict = lambda: defaultdict(recursive_dict)
-        input_dat = recursive_dict()
-
-        input_dat[meta_type]['import_DEM']['DEM' + coor_in.sample]['file'] = 'DEM' + coor_in.sample + '.raw'
-        input_dat[meta_type]['import_DEM']['DEM' + coor_in.sample]['coordinates'] = coor_in
-        input_dat[meta_type]['import_DEM']['DEM' + coor_in.sample]['slice'] = coor_in.slice
-        input_dat[meta_type]['import_DEM']['DEM' + coor_in.sample]['coor_change'] = 'resample'
-
-        if coor_out.grid_type == 'projection':
-            for dat_type in ['lat', 'lon']:
-                input_dat[meta_type]['projection_coor'][dat_type + coor_out.sample]['file'] = dat_type + coor_out.sample + '.raw'
-                input_dat[meta_type]['projection_coor'][dat_type + coor_out.sample]['coordinates'] = coor_out
-                input_dat[meta_type]['projection_coor'][dat_type + coor_out.sample]['slice'] = coor_out.slice
-                input_dat[meta_type]['projection_coor'][dat_type + coor_out.sample]['coor_change'] = 'resample'
-
-        # One output file created radar dem
-        output_dat = recursive_dict()
-        output_dat[meta_type]['coor_DEM']['DEM' + coor_out.sample]['files'] = 'DEM' + coor_out.sample + '.raw'
-        output_dat[meta_type]['coor_DEM']['DEM' + coor_out.sample]['coordinate'] = coor_out
-        output_dat[meta_type]['coor_DEM']['DEM' + coor_out.sample]['slice'] = coor_out.slice
-
-        # Number of times input data is used in ram. Bit difficult here but 15 times is ok guess.
-        mem_use = 5
-
-        return input_dat, output_dat, mem_use
-
-    @staticmethod
-    def create_output_files(meta, file_type='', coordinates=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-        meta.images_create_disk('coor_DEM', file_type, coordinates)
-
-    @staticmethod
-    def save_to_disk(meta, file_type='', coordinates=''):
-        # Save the function output in memory to disk
-        meta.images_memory_to_disk('coor_DEM', file_type, coordinates)
-
-    @staticmethod
-    def clear_memory(meta, file_type='', coordinates=''):
-        # Save the function output in memory to disk
-        meta.images_clean_memory('coor_DEM', file_type, coordinates)
-
-    @staticmethod
-    def load_dem(coordinates, meta, s_lin, s_pix, shape):
-
-        dem_key = 'DEM' + coordinates.sample
-        if coordinates.grid_type == 'radar_coordinates':
-            height = meta.image_load_data_memory('radar_DEM', s_lin, s_pix, shape, dem_key)
-        elif coordinates.grid_type in ['projection', 'geographic']:
-            height = meta.image_load_data_memory('coor_DEM', s_lin, s_pix, shape, dem_key)
-        else:
-            print('DEM values could not be loaded with this function!')
-            return
-
-        return height
-
-    @staticmethod
-    def dem_processing_info(input_dat, coordinates, type='cmaster', resample=False):
-        # Load the lat/lon info for the processing step.
-
-        if coordinates.grid_type == 'radar_coordinates':
-            step = 'radar_DEM'
-        elif coordinates.grid_type in ['projection', 'geographic']:
-            step = 'coor_DEM'
-
-        # For multiprocessing this information is needed to define the selected area to deramp.
-        input_dat[type][step]['DEM' + coordinates.sample]['file'] = 'DEM' + coordinates.sample + '.raw'
-        input_dat[type][step]['DEM' + coordinates.sample]['coordinates'] = coordinates
-        input_dat[type][step]['DEM' + coordinates.sample]['slice'] = coordinates.slice
-        if resample:
-            input_dat[type][step]['DEM' + coordinates.sample]['coor_change'] = 'resample'
-
-        return input_dat

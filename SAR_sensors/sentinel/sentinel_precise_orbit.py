@@ -5,6 +5,8 @@
 import os
 from datetime import datetime, timedelta
 from lxml import etree
+from rippl.meta_data.orbit import Orbit
+import numpy as np
 
 
 class SentinelOrbitsDatabase(object):
@@ -101,24 +103,23 @@ class SentinelOrbitsDatabase(object):
                 return False
 
         # print('Loading orbits for ' + ref_time)
-
         if type == 'precise':
             if os.path.basename(orb_file) in self.precise_files[satellite].keys():
                 orbit_dat = self.precise_files[satellite][os.path.basename(orb_file)]
             else:
-                orbit_meta, orbit_dat = self.orbit_read(orb_file, overpass_time)
+                orbit_meta, orbit_dat = self.orbit_read(orb_file, overpass_time, type)
                 self.precise_files[satellite][os.path.basename(orb_file)] = orbit_dat
         if type == 'restituted':
             if os.path.basename(orb_file) in self.restituted_files[satellite].keys():
                 orbit_dat = self.restituted_files[satellite][os.path.basename(orb_file)]
             else:
-                orbit_meta, orbit_dat = self.orbit_read(orb_file, overpass_time)
+                orbit_meta, orbit_dat = self.orbit_read(orb_file, overpass_time, type)
                 self.restituted_files[satellite][os.path.basename(orb_file)] = orbit_dat
 
         return orbit_dat
 
     @staticmethod
-    def orbit_read(input_orbit, input_time):
+    def orbit_read(input_orbit, input_time, orbit_type='precise'):
 
         in_tree = etree.parse(input_orbit)
         metadata = {'Mission' : './/Earth_Explorer_Header/Fixed_Header/Mission',
@@ -148,6 +149,18 @@ class SentinelOrbitsDatabase(object):
                 orbit_dat['velX'].append(float(times[7].text))
                 orbit_dat['velY'].append(float(times[8].text))
                 orbit_dat['velZ'].append(float(times[9].text))
+
+        orbit_object = Orbit()
+        orbit_object.create_orbit(np.array(orbit_dat['orbitTime']),
+                                  np.array(orbit_dat['orbitX']),
+                                  np.array(orbit_dat['orbitY']),
+                                  np.array(orbit_dat['orbitZ']),
+                                  np.array(orbit_dat['velX']),
+                                  np.array(orbit_dat['velY']),
+                                  np.array(orbit_dat['velZ']),
+                                  satellite='Sentinel-' + input_orbit[1:3],
+                                  date=times[1].text[4:14],
+                                  orbit_type=orbit_type)
 
         return orbit_meta, orbit_dat
 
