@@ -12,48 +12,48 @@ import inspect
 # Import the different steps:
 
 # Individual images > coregistering / geocoding / resampling
-from rippl.external_DEMs.srtm.srtm_download import SrtmDownload
-from rippl.processing_steps.import_dem import CreateSrtmDem, CreateExternalDem
-from rippl.processing_steps.radar_dem import RadarDem
-from rippl.processing_steps.geocode import Geocode
-from rippl.processing_steps.inverse_geocode import InverseGeocode
-from rippl.processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
-from rippl.processing_steps.geometrical_coreg import GeometricalCoreg
-# from rippl.processing_steps.correlation_coreg import CorrelationWindows
-from rippl.processing_steps.deramping_reramping import Deramp, Reramp
-from rippl.processing_steps.square_amplitude import SquareAmplitude
-from rippl.processing_steps.amplitude import Amplitude
-from rippl.processing_steps.conversion_grid import ConversionGrid
-from rippl.processing_steps.resample import Resample
-from rippl.processing_steps.earth_topo_phase import EarthTopoPhase
-from rippl.processing_steps.baseline import Baseline
-from rippl.processing_steps.height_to_phase import HeightToPhase
+from rippl.external_dems.srtm.srtm_download import SrtmDownload
+from rippl.processing_steps_old.import_dem import CreateSrtmDem, CreateExternalDem
+from rippl.processing_steps_old.radar_dem import RadarDem
+from rippl.processing_steps_old.geocode import Geocode
+from rippl.processing_steps_old.inverse_geocode import InverseGeocode
+from rippl.processing_steps_old.azimuth_elevation_angle import AzimuthElevationAngle
+from rippl.processing_steps_old.geometrical_coreg import GeometricalCoreg
+# from rippl.processing_steps_old.correlation_coreg import CorrelationWindows
+from rippl.processing_steps_old.deramping_reramping import Deramp, Reramp
+from rippl.processing_steps_old.square_amplitude import SquareAmplitude
+from rippl.processing_steps_old.amplitude import Amplitude
+from rippl.processing_steps_old.conversion_grid import ConversionGrid
+from rippl.processing_steps_old.resample import Resample
+from rippl.processing_steps_old.earth_topo_phase import EarthTopoPhase
+from rippl.processing_steps_old.baseline import Baseline
+from rippl.processing_steps_old.height_to_phase import HeightToPhase
 
-from rippl.processing_steps.ecmwf_era5_aps import EcmwfEra5Aps
-from rippl.processing_steps.ecmwf_oper_aps import EcmwfOperAps
-from rippl.processing_steps.harmonie_aps import HarmonieAps
-from rippl.processing_steps.harmonie_interferogram import HarmonieInterferogram
+from rippl.processing_steps_old.ecmwf_era5_aps import EcmwfEra5Aps
+from rippl.processing_steps_old.ecmwf_oper_aps import EcmwfOperAps
+from rippl.processing_steps_old.harmonie_aps import HarmonieAps
+from rippl.processing_steps_old.harmonie_interferogram import HarmonieInterferogram
 
-# Geocoding, DEM generation of geographic/projected grids
-from rippl.processing_steps.coor_geocode import CoorGeocode
-from rippl.processing_steps.coor_dem import CoorDem
-from rippl.processing_steps.projection_coor import ProjectionCoor
+# Geocoding, dem generation of geographic/projected grids
+from rippl.processing_steps_old.coor_geocode import CoorGeocode
+from rippl.processing_steps_old.coor_dem import CoorDem
+from rippl.processing_steps_old.projection_coor import ProjectionCoor
 
 # Sparsing and masking
-from rippl.processing_steps.create_point_data import CreatePointData
-from rippl.processing_steps.create_mask import CreateMask
-from rippl.processing_steps.sparse_grid import SparseGrid
-from rippl.processing_steps.mask_grid import MaskGrid
+from rippl.processing_steps_old.create_point_data import CreatePointData
+from rippl.processing_steps_old.create_mask import CreateMask
+from rippl.processing_steps_old.sparse_grid import SparseGrid
+from rippl.processing_steps_old.mask_grid import MaskGrid
 
 # Interferograms > interferogram creation, coherence, filters, corrections.
-from rippl.processing_steps.interfero import Interfero
-from rippl.processing_steps.coherence import Coherence
-from rippl.processing_steps.multilook import Multilook
-from rippl.processing_steps.unwrap import Unwrap
+from rippl.processing_steps_old.interfero import Interfero
+from rippl.processing_steps_old.coherence import Coherence
+from rippl.processing_steps_old.multilook import Multilook
+from rippl.processing_steps_old.unwrap import Unwrap
 
 # Concatenation. This is a special step because it moves from slices to full images and does not belong to a certain
 # processing algorithm specifically.
-from rippl.processing_steps.concatenate import Concatenate
+from rippl.processing_steps_old.concatenate import Concatenate
 
 # Slice overlaps > For images in TOPS mode we can get information about overlapping regions.
 # Nothing yet...
@@ -70,10 +70,10 @@ class ProcessingList():
         # Add to dict with processing steps:
         processing = dict()
         processing['srtm_download'] = SrtmDownload
-        processing['import_DEM'] = CreateSrtmDem
-        processing['create_external_DEM'] = CreateExternalDem
+        processing['import_dem'] = CreateSrtmDem
+        processing['create_external_dem'] = CreateExternalDem
         processing['inverse_geocode'] = InverseGeocode
-        processing['radar_DEM'] = RadarDem
+        processing['radar_dem'] = RadarDem
         processing['geocode'] = Geocode
         processing['azimuth_elevation_angle'] = AzimuthElevationAngle
         processing['geometrical_coreg'] = GeometricalCoreg
@@ -90,7 +90,7 @@ class ProcessingList():
         processing['amplitude'] = Amplitude
 
         processing['projection_coor'] = ProjectionCoor
-        processing['coor_DEM'] = CoorDem
+        processing['coor_dem'] = CoorDem
         processing['coor_geocode'] = CoorGeocode
 
         processing['sparse_grid'] = SparseGrid

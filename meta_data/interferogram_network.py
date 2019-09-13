@@ -44,7 +44,7 @@ class InterferogramNetwork(object):
         n_im = len(self.dates)
         for i in np.arange(n_im):
             for n in np.arange(0, self.temp_no + 1):
-                if n + i < n_im:
+                if n + i < n_im and i != n:
                     self.ifg_pairs.append([i, n])
 
     def single_master(self):

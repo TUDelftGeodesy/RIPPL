@@ -1,8 +1,8 @@
 # This is a test_file to do the processing for one ECMWF date. This includes:
 # - project_functions of ECMWF data
 # - project_functions of SRTM data
-# - creation of a radar DEM
-# Because a DEM is generally already created, the script will ask for a username and password for the usgs website.
+# - creation of a radar dem
+# Because a dem is generally already created, the script will ask for a username and password for the usgs website.
 # You can create an account at .....
 
 import matplotlib.pyplot as plt
@@ -25,7 +25,7 @@ from rippl.NWP_simulations.harmonie.harmonie_load_file import HarmonieData
 archive_folder = '/media/gert/Data/weather_models/harmonie_data'
 radar_datastack = '/media/gert/Data/radar_results/netherlands/nl_full_t037'
 master_image = '/media/gert/Data/radar_results/netherlands/nl_full_t037/20170302_20170308_ifg'
-dem_folder = '/media/gert/Data/DEM/dem_processing'
+dem_folder = '/media/gert/Data/dem/dem_processing'
 
 # Option between nearest (neighbour) and linear in time. Takes the closest or linear interpolated delay.
 time_interp = 'nearest'

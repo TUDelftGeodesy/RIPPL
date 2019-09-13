@@ -45,7 +45,6 @@ class SentinelStack(SentinelDatabase, Stack):
 
         # Specific information individual slices
         self.slice_swath_no = []
-        self.slice_pol = []
         self.slice_lat = []
         self.slice_lon = []
         self.slice_date = []
@@ -66,6 +65,11 @@ class SentinelStack(SentinelDatabase, Stack):
         # Select data products
         SentinelDatabase.__call__(self, database_folder, shapefile, track_no, start_date, end_date, mode, product_type, polarisation)
         print('Selected images:')
+
+        if len(self.selected_images) == 0:
+            print('No SAR images found! Aborting')
+            return
+
         for info in self.selected_images:
             print(info)
         print('')
@@ -80,7 +84,6 @@ class SentinelStack(SentinelDatabase, Stack):
             self.orbits = SentinelOrbitsDatabase(precise, restituted)
 
         # Load list of slices from these data products.
-        self.read_master_slice_list()
         self.extract_swath_xml_orbit(polarisation)
         if master_date:
             self.master_date = master_date
@@ -91,6 +94,7 @@ class SentinelStack(SentinelDatabase, Stack):
             return
 
         self.create_slice_list(self.master_date)
+        self.read_master_slice_list()
 
         # Now assign ids to new master and slave slices
         self.assign_slice_id()
@@ -140,7 +144,7 @@ class SentinelStack(SentinelDatabase, Stack):
             # Select if it overlaps with area of interest
             if self.shape.intersects(swath.swath_coverage):
                 slices = swath(self.orbits)
-                interp_orbit = OrbitInterpolate(slices[0])
+                interp_orbit = OrbitInterpolate(slices[0].meta.orbits[list(slices[0].meta.orbits.keys())[0]])
                 interp_orbit.fit_orbit_spline(vel=False, acc=False)
 
                 for slice, slice_coverage, slice_time, slice_coors in zip(
@@ -161,11 +165,10 @@ class SentinelStack(SentinelDatabase, Stack):
                             self.master_slice_x.append(xyz[0, 0])
                             self.master_slice_y.append(xyz[1, 0])
                             self.master_slice_z.append(xyz[2, 0])
-                            self.master_slice_pol.append(slice.processes['readfile.py']['polarisation'])
                             self.master_slice_lat.append(slice_coors[1])
                             self.master_slice_lon.append(slice_coors[0])
                             self.master_slice_date.append(slice_time[:10])
-                            self.master_slice_swath_no.append(int(slice.processes['readfile.py']['SWATH'][-1:]))
+                            self.master_slice_swath_no.append(int(slice.readfiles['original'].json_dict['Swath'][-1:]))
                             self.master_slice_az_time.append(slice_time)
                             self.master_slice_seconds.append(b_time)
                             self.master_slice_time.append(b_t)
@@ -186,11 +189,10 @@ class SentinelStack(SentinelDatabase, Stack):
                         self.slice_x.append(xyz[0, 0])
                         self.slice_y.append(xyz[1, 0])
                         self.slice_z.append(xyz[2, 0])
-                        self.slice_pol.append(slice.processes['readfile.py']['polarisation'])
                         self.slice_lat.append(slice_coors[1])
                         self.slice_lon.append(slice_coors[0])
                         self.slice_date.append(slice_time[:10])
-                        self.slice_swath_no.append(int(slice.processes['readfile.py']['SWATH'][-1:]))
+                        self.slice_swath_no.append(int(slice.readfiles['original'].json_dict['Swath'][-1:]))
                         self.slice_az_time.append(slice_time)
                         self.slice_seconds.append(b_time)
                         self.slice_time.append(b_t)
@@ -209,7 +211,6 @@ class SentinelStack(SentinelDatabase, Stack):
         else:
             times = self.master_slice_seconds[known_ids:]
             swaths = self.master_slice_swath_no[known_ids:]
-            pols = self.master_slice_pol[known_ids:]
             dates = self.master_slice_date[known_ids:]
             slice_step = 2.7596
 
@@ -223,12 +224,12 @@ class SentinelStack(SentinelDatabase, Stack):
                 ref_time = self.master_slice_seconds[0]
                 ref_num = self.master_slice_number[0]
 
-            for time, swath, pol, date in zip(times, swaths, pols, dates):
+            for time, swath, date in zip(times, swaths, dates):
                 swath_diff = (swath - ref_swath) / 3.0 * slice_step
 
                 num = int(np.round(ref_num + ((time - swath_diff) - ref_time) / slice_step))
                 self.master_slice_number.append(num)
-                slice = 'slice_' + str(num) + '_swath_' + str(swath) + '_' + pol
+                slice = 'slice_' + str(num) + '_swath_' + str(swath)
                 self.master_slice_names.append(slice)
                 print('Assigned master burst ' + slice + ' at ' + date)
 
@@ -254,15 +255,13 @@ class SentinelStack(SentinelDatabase, Stack):
                 continue
             self.slice_number.append(self.master_slice_number[min_num])
             name = 'slice_' + (str(self.master_slice_number[min_num]) + '_swath_' +
-                               str(self.master_slice_swath_no[min_num]) + '_' +
-                                   self.master_slice_pol[min_num])
+                               str(self.master_slice_swath_no[min_num]))
             self.slice_names.append(name)
             print('Assigned slave burst ' + name + ' at ' + date)
 
         # Remove the slices without master equivalent.
         for id in reversed(del_list):
             del self.slice_swath_no[id]
-            del self.slice_pol[id]
             del self.slice_lat[id]
             del self.slice_lon[id]
             del self.slice_date[id]
@@ -287,10 +286,10 @@ class SentinelStack(SentinelDatabase, Stack):
         # az_time, yyyy-mm-ddThh:mm:ss.ssssss, swath x, slice i, x xxxx, y yyyy, z zzzz, lat ll.ll, lon ll.ll, pol pp
 
         l = open(os.path.join(self.datastack_folder, 'master_slice_list'), 'w+')
-        for az_time, swath_no, number, x, y, z, lat, lon, pol in zip(
+        for az_time, swath_no, number, x, y, z, lat, lon in zip(
             self.master_slice_az_time, self.master_slice_swath_no, self.master_slice_number,
             self.master_slice_x, self.master_slice_y, self.master_slice_z,
-            self.master_slice_lat, self.master_slice_lon, self.master_slice_pol):
+            self.master_slice_lat, self.master_slice_lon):
 
             l.write('az_time ' + az_time +
                     ',\tswath ' + str(swath_no) +
@@ -300,7 +299,6 @@ class SentinelStack(SentinelDatabase, Stack):
                     ',\tz ' + str(int(z)) +
                     ',\tlat ' + '{0:.2f}'.format(lat) +
                     ',\tlon ' + '{0:.2f}'.format(lon) +
-                    ',\tpol ' + pol +
                     ' \n')
 
         l.close()
@@ -311,15 +309,24 @@ class SentinelStack(SentinelDatabase, Stack):
 
         # Create the crops in parallel
 
-        pool = Pool(num_cores)
+        if num_cores > 1:
+            pool = Pool(num_cores)
 
-        master_dat = [[self.datastack_folder, slice, number, pol, swath_no, date]
-                     for slice, number, pol, swath_no, date
-                      in zip(self.master_slices, self.master_slice_number, self.master_slice_pol, self.master_slice_swath_no,
+        master_dat = [[self.datastack_folder, slice, number, swath_no, date]
+                     for slice, number, swath_no, date
+                      in zip(self.master_slices, self.master_slice_number, self.master_slice_swath_no,
                       self.master_slice_date)]
-        res = pool.map(write_sentinel_burst, master_dat)
+        if num_cores > 1:
+            res = pool.map(write_sentinel_burst, master_dat)
+        else:
+            for m_dat in master_dat:
+                write_sentinel_burst(m_dat)
 
-        slave_dat = [[self.datastack_folder, slice, number, pol, swath_no, date]
-                     for slice, number, pol, swath_no, date
-                     in zip(self.slices, self.slice_number, self.slice_pol, self.slice_swath_no, self.slice_date)]
-        res = pool.map(write_sentinel_burst, slave_dat)
+        slave_dat = [[self.datastack_folder, slice, number, swath_no, date]
+                     for slice, number, swath_no, date
+                     in zip(self.slices, self.slice_number, self.slice_swath_no, self.slice_date)]
+        if num_cores > 1:
+            res = pool.map(write_sentinel_burst, slave_dat)
+        else:
+            for s_dat in slave_dat:
+                write_sentinel_burst(s_dat)

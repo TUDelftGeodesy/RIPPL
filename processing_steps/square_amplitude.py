@@ -1,146 +1,89 @@
-# The following class creates an interferogram from a master and slave image.
+# This processing file is a template for other processing steps.
+# Do not change the already given steps in this function to prevent problems with creating pipeline processing
+# later on.
 
-from rippl.meta_data.image_data import ImageData
-from collections import OrderedDict, defaultdict
+# Try to do all calculations using numpy functions.
 import numpy as np
+
+# Import the parent class Process for processing steps.
+from rippl.meta_data.process import Process
+from rippl.meta_data.image_data import ImageData
+from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
-import logging
-import os
 
 
-class SquareAmplitude(object):
+class SquareAmplitude(Process):  # Change this name to the one of your processing step.
 
-    """
-    :type s_pix = int
-    :type s_lin = int
-    """
+    def __init__(self, data_id='', polarisation='', coor_in=[],
+                 in_processes=[], in_file_types=[], in_polarisations=[], in_data_ids=[],
+                 slave=[]):
 
-    def __init__(self, meta, coordinates, s_lin=0, s_pix=0, lines=0, step='earth_topo_phase', file_type=''):
-        # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
-        # function.
+        """
+        :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
+                    the same process.
+        :param str polarisation: Polarisation of processing outputs
 
-        if isinstance(meta, ImageData):
-            self.meta = meta
-        else:
-            return
+        :param CoordinateSystem coor_in: Coordinate system of the input grids.
 
-        if isinstance(coordinates, CoordinateSystem):
-            self.coordinates = coordinates
+        :param list[str] in_processes: Which process outputs are we using as an input
+        :param list[str] in_file_types: What are the exact outputs we use from these processes
+        :param list[str] in_polarisations: For which polarisation is it done. Leave empty if not relevant
+        :param list[str] in_data_ids: If processes are used multiple times in different parts of the processing they can be
+                distinguished using an data_id. If this is the case give the correct data_id. Leave empty if not relevant
 
-        # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        self.shape = coordinates.shape
-        if lines != 0:
-            self.shape = [np.minimum(lines, self.shape[0] - s_lin), self.shape[1] - s_pix]
+        :param ImageProcessingData slave: Slave image, used as the default for input and output for processing.
+        """
 
-        self.s_lin = s_lin
-        self.s_pix = s_pix
+        """
+        First define the name and output types of this processing step.
+        1. process_name > name of process
+        2. file_types > name of process types that will be given as output
+        3. data_types > names 
+        """
 
-        # Load data
-        if file_type == '':
-            self.file_type = step
-        else:
-            self.file_type = file_type
-        self.step = step
-        self.slc_dat = self.meta.image_load_data_memory(self.step, self.s_lin, self.s_pix, self.shape, self.file_type + coordinates.sample, warn=False)
+        self.process_name = 'square_amplitude'
+        file_types = ['square_amplitude']
+        data_types = ['real4']
 
-        self.no0 = (self.slc_dat != 0)
-        if self.coordinates.mask_grid:
-            mask = self.meta.image_load_data_memory('create_sparse_grid', s_lin, 0, self.shape,
-                                                       'mask' + self.coordinates.sample)
-            self.no0 *= mask
+        """
+        Then give the default input steps for the processing. The given input values will be overridden when other input
+        values are given.
+        """
 
-        # Initialize output
-        self.squared = np.zeros(self.shape).astype(np.float32)
+        in_image_types = ['slave']
+        in_coor_types = ['coor_in']
+        if len(in_data_ids) == 0:
+            in_data_ids = ['none']
+        if len(in_polarisations) == 0:
+            in_polarisations = ['']
+        if len(in_processes) == 0:
+            in_processes = ['earth_topo_phase']
+        if len(in_file_types) == 0:
+            in_file_types = ['earth_topo_phase']
 
-    def __call__(self):
-        # Check if needed data is loaded
-        if len(self.slc_dat) == 0:
-            print('Missing input data to square SLC data for ' + self.meta.folder + '. Aborting..')
-            return False
+        in_type_names = ['input_data']
 
-        try:
-            # Square image
-            if np.sum(self.no0) > 0:
-                self.squared[self.no0] = np.abs(self.slc_dat[self.no0])**2
+        # Initialize
+        super(SquareAmplitude, self).__init__(
+                       process_name=self.process_name,
+                       data_id=data_id,
+                       polarisation=polarisation,
+                       file_types=file_types,
+                       process_dtypes=data_types,
+                       coor_in=coor_in,
+                       in_type_names=in_type_names,
+                       in_image_types=in_image_types,
+                       in_processes=in_processes,
+                       in_file_types=in_file_types,
+                       in_polarisations=in_polarisations,
+                       in_data_ids=in_data_ids,
+                       slave=slave)
 
-            # If needed do the multilooking step
-            self.add_meta_data(self.meta, self.coordinates, self.step, self.file_type)
-            self.meta.image_new_data_memory(self.squared, 'square_amplitude', self.s_lin, self.s_pix, 'square_amplitude' + self.coordinates.sample)
+    def process_calculations(self):
+        """
+        Create a square amplitude image. (Very basic operation)
 
-            return True
+        :return:
+        """
 
-        except Exception:
-            log_file = os.path.join(self.meta.folder, 'error.log')
-            if not os.path.exists(self.meta.folder):
-                os.makedirs(self.meta.folder)
-            logging.basicConfig(filename=log_file, level=logging.DEBUG)
-            logging.exception(
-                'Failed processing squared amplitude for ' + self.meta.folder + '. Check ' + log_file + ' for details.')
-            print('Failed processing squared amplitude for ' + self.meta.folder + '. Check ' + log_file + ' for details.')
-
-            return False
-
-    @staticmethod
-    def add_meta_data(meta, coordinates, step='earth_topo_phase', file_type='earth_topo_phase'):
-        # This function adds information about this step to the image. If parallel processing is used this should be
-        # done before the actual processing.
-        if 'square_amplitude' in meta.processes.keys():
-            meta_info = meta.processes['square_amplitude']
-        else:
-            meta_info = OrderedDict()
-
-        if not isinstance(coordinates, CoordinateSystem):
-            print('coordinates should be an CoordinateSystem object')
-            return
-
-        type_str = 'square_amplitude'
-        meta_info[type_str + '_input_step'] = step
-        meta_info[type_str + '_input_file_type'] = file_type
-        meta_info = coordinates.create_meta_data([type_str], ['real4'], meta_info)
-
-        meta.image_add_processing_step('square_amplitude', meta_info)
-
-    @staticmethod
-    def processing_info(coordinates, step='earth_topo_phase', file_type='earth_topo_phase', meta_type='slave'):
-
-        in_coordinates = CoordinateSystem()
-        in_coordinates.create_radar_coordinates(multilook=[1, 1], offset=[0, 0], oversample=[1, 1])
-
-        if not isinstance(coordinates, CoordinateSystem):
-            print('coordinates should be an CoordinateSystem object')
-
-        # Data input file from a random step / file type
-        recursive_dict = lambda: defaultdict(recursive_dict)
-        input_dat = recursive_dict()
-        input_dat[meta_type][step][file_type + in_coordinates.sample]['file'] = file_type + in_coordinates.sample + '.raw'
-        input_dat[meta_type][step][file_type + in_coordinates.sample]['coordinates'] = in_coordinates
-        input_dat[meta_type][step][file_type + in_coordinates.sample]['slice'] = True
-        input_dat[meta_type][step][file_type + in_coordinates.sample]['coor_change'] = 'multilook'
-
-        # line and pixel output files.
-        output_dat = recursive_dict()
-        output_dat[meta_type]['square_amplitude']['square_amplitude' + coordinates.sample]['file'] = 'square_amplitude' + coordinates.sample + '.raw'
-        output_dat[meta_type]['square_amplitude']['square_amplitude' + coordinates.sample]['coordinates'] = coordinates
-        output_dat[meta_type]['square_amplitude']['square_amplitude' + coordinates.sample]['slice'] = coordinates.slice
-
-        # Number of times input data is used in ram.
-        mem_use = 2
-
-        return input_dat, output_dat, mem_use
-
-    @staticmethod
-    def create_output_files(meta, file_type='', coordinates=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-        meta.images_create_disk('square_amplitude', file_type, coordinates)
-
-    @staticmethod
-    def save_to_disk(meta, file_type='', coordinates=''):
-        # Save the function output in memory to disk
-        meta.images_memory_to_disk('square_amplitude', file_type, coordinates)
-
-    @staticmethod
-    def clear_memory(meta, file_type='', coordinates=''):
-        # Save the function output in memory to disk
-        meta.images_clean_memory('square_amplitude', file_type, coordinates)
-
+        self['amplitude'] = np.abs(self['input_data'])**2

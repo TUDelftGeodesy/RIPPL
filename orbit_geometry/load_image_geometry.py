@@ -10,7 +10,7 @@ Other information has to be loaded from former processing steps. The respective 
 is not possible.
 """
 
-from rippl.meta_data.image_data import ImageData
+from rippl.meta_data.image_processing_data import ImageData
 import numpy as np
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 import copy
@@ -40,13 +40,13 @@ class LoadImageGeometry():
     @staticmethod
     def load_dem(coordinates, meta, s_lin, s_pix, shape):
 
-        dem_key = 'DEM' + coordinates.sample
+        dem_key = 'dem' + coordinates.sample
         if coordinates.grid_type == 'radar_coordinates':
-            height = meta.image_load_data_memory('radar_DEM', s_lin, s_pix, shape, dem_key)
+            height = meta.image_load_data_memory('radar_dem', s_lin, s_pix, shape, dem_key)
         elif coordinates.grid_type in ['projection', 'geographic']:
-            height = meta.image_load_data_memory('coor_DEM', s_lin, s_pix, shape, dem_key)
+            height = meta.image_load_data_memory('coor_dem', s_lin, s_pix, shape, dem_key)
         else:
-            print('DEM values could not be loaded with this function!')
+            print('dem values could not be loaded with this function!')
             return
 
         return height

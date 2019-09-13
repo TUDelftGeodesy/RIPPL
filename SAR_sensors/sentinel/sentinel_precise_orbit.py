@@ -160,7 +160,6 @@ class SentinelOrbitsDatabase(object):
                                   np.array(orbit_dat['velZ']),
                                   satellite='Sentinel-' + input_orbit[1:3],
                                   date=times[1].text[4:14],
-                                  orbit_type=orbit_type)
+                                  type=orbit_type)
 
         return orbit_meta, orbit_dat
-

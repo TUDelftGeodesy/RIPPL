@@ -1,6 +1,6 @@
 import numpy as np
 
-from rippl.external_DEMs.srtm.srtm_download import SrtmDownloadTile
+from rippl.external_dems.srtm.srtm_download import SrtmDownloadTile
 
 
 class ModelReference(object):

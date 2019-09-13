@@ -10,10 +10,9 @@
 
 import os
 
-from rippl.meta_data.image import Image
+from rippl.meta_data.image_processing_concatenate import ImageConcatData
 
-
-class SLC(Image):
+class SLC(ImageConcatData):
 
     """
     :type reference_image = SLC
@@ -27,7 +26,7 @@ class SLC(Image):
         # Processing will be done based on these slices. Although some processes for which not everything needs to be
         # read in memory can be done seperately.
 
-        super.__init__(folder, slice_list, update_full_image)
+        super(SLC, self).__init__(folder, slice_list, update_full_image)
 
         # Add the reference image. We use this image to reference other images too. If this image is missing coregistration
         # is not possible.

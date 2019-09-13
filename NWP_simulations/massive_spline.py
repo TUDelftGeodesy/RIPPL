@@ -58,7 +58,7 @@ class MassiveSpline(object):
             on Wikiversity.
     .. [2] Carl de Boor, "A Practical Guide to Splines", Springer-Verlag, 1978.
 
-    This processing_steps is created to fastly produce many cubic spline interpolations for short time-series.
+    This processing_steps_old is created to fastly produce many cubic spline interpolations for short time-series.
 
 
     """
@@ -190,7 +190,7 @@ class MassiveSpline(object):
 
     def evaluate_splines(self, new_x):
         # This function evaluate the calculated splines.
-        # The input of this function is one or more x values on which all processing_steps are evaluated. If the values are
+        # The input of this function is one or more x values on which all processing_steps_old are evaluated. If the values are
         # outside this interval we extrapolate from the last spline.
 
         n = self.x.shape[0]

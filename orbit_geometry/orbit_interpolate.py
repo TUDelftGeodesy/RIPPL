@@ -3,11 +3,11 @@
 
 import numpy as np
 from scipy.interpolate import CubicSpline
-from rippl.meta_data.image_data import ImageData
+from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.meta_data.orbit import Orbit
 
 
-class OrbitInterpolate(ImageData):
+class OrbitInterpolate(ImageProcessingData):
 
     """
     :type self.orbit_fit = np.ndarray
@@ -20,22 +20,21 @@ class OrbitInterpolate(ImageData):
             print('Input for input interpolate should be an orbit object')
 
         # Initialize the orbit values
-        self.t = orbit.t
+        self.t = np.array(orbit.t)
         
-        self.x = orbit.x
-        self.y = orbit.y
-        self.z = orbit.z
+        self.x = np.array(orbit.x)
+        self.y = np.array(orbit.y)
+        self.z = np.array(orbit.z)
         
-        self.v_x = orbit.v_x
-        self.v_y = orbit.v_y
-        self.v_z = orbit.v_z
+        self.v_x = np.array(orbit.v_x)
+        self.v_y = np.array(orbit.v_y)
+        self.v_z = np.array(orbit.v_z)
         
-        self.a_x = orbit.a_x
-        self.a_y = orbit.a_y
-        self.a_z = orbit.a_z
+        self.a_x = np.array(orbit.a_x)
+        self.a_y = np.array(orbit.a_y)
+        self.a_z = np.array(orbit.a_z)
 
         # Initialize the needed variables
-        self.orbit_time = []
         self.orbit_spline = np.array([])
         self.orbit_fit = np.array([])
 
@@ -65,9 +64,9 @@ class OrbitInterpolate(ImageData):
 
         if vel or acc:
             if len(self.v_x) > 0 and len(self.v_y) > 0 and len(self.v_z) > 0:
-                x_der = np.polyfit(self.v_x)
-                y_der = np.polyfit(self.v_y)
-                z_der = np.polyfit(self.v_z)
+                x_der = np.polyfit(self.t, self.v_x, degree - 1)
+                y_der = np.polyfit(self.t, self.v_y, degree - 1)
+                z_der = np.polyfit(self.t, self.v_z, degree - 1)
             else:
                 x_der = np.polyder(x_poly)
                 y_der = np.polyder(y_poly)
@@ -75,9 +74,9 @@ class OrbitInterpolate(ImageData):
             fit_len = 6
             if acc:
                 if len(self.a_x) > 0 and len(self.a_y) > 0 and len(self.a_z) > 0:
-                    x_acc = np.polyfit(self.a_x)
-                    y_acc = np.polyfit(self.a_y)
-                    z_acc = np.polyfit(self.a_z)
+                    x_acc = np.polyfit(self.t, self.a_x, degree - 2)
+                    y_acc = np.polyfit(self.t, self.a_y, degree - 2)
+                    z_acc = np.polyfit(self.t, self.a_z, degree - 2)
                 else:
                     x_acc = np.polyder(x_der)
                     y_acc = np.polyder(y_der)
@@ -142,7 +141,6 @@ class OrbitInterpolate(ImageData):
 
         #   Created:   5 July 2017 by Gert Mulder
 
-
         # Now find the polynomials for x,y,z and their derivatives.
         x_poly = CubicSpline(self.t, self.x)
         y_poly = CubicSpline(self.t, self.y)
@@ -151,9 +149,9 @@ class OrbitInterpolate(ImageData):
 
         if vel or acc:
             if len(self.v_x) > 0 and len(self.v_y) > 0 and len(self.v_z) > 0:
-                x_der = CubicSpline(self.v_x)
-                y_der = CubicSpline(self.v_y)
-                z_der = CubicSpline(self.v_z)
+                x_der = CubicSpline(self.t, self.v_x)
+                y_der = CubicSpline(self.t, self.v_y)
+                z_der = CubicSpline(self.t, self.v_z)
             else:
                 x_der = x_poly.derivative()
                 y_der = y_poly.derivative()
@@ -161,27 +159,29 @@ class OrbitInterpolate(ImageData):
             fit_len = 6
             if acc:
                 if len(self.a_x) > 0 and len(self.a_y) > 0 and len(self.a_z) > 0:
-                    x_acc = CubicSpline(self.a_x)
-                    y_acc = CubicSpline(self.a_y)
-                    z_acc = CubicSpline(self.a_z)
+                    x_acc = CubicSpline(self.t, self.a_x)
+                    y_acc = CubicSpline(self.t, self.a_y)
+                    z_acc = CubicSpline(self.t, self.a_z)
                 else:
                     x_acc = x_der.derivative()
                     y_acc = y_der.derivative()
                     z_acc = z_der.derivative()
                 fit_len = 9
 
-        self.orbit_spline = np.zeros(shape=(fit_len, 4, len(self.orbit_time) - 1))
+        self.orbit_spline = np.zeros(shape=(fit_len, 4, len(self.t) - 1))
         self.orbit_spline[0, :, :] = x_poly.c
         self.orbit_spline[1, :, :] = y_poly.c
         self.orbit_spline[2, :, :] = z_poly.c
         if vel or acc:
-            self.orbit_spline[3, 1:, :] = x_der.c
-            self.orbit_spline[4, 1:, :] = y_der.c
-            self.orbit_spline[5, 1:, :] = z_der.c
+            c_size = x_der.c.shape[0]
+            self.orbit_spline[3, 4-c_size:, :] = x_der.c
+            self.orbit_spline[4, 4-c_size:, :] = y_der.c
+            self.orbit_spline[5, 4-c_size:, :] = z_der.c
             if acc:
-                self.orbit_spline[6, 2:, :] = x_acc.c
-                self.orbit_spline[7, 2:, :] = y_acc.c
-                self.orbit_spline[8, 2:, :] = z_acc.c
+                c_size = x_acc.c.shape[0]
+                self.orbit_spline[6, 4-c_size:, :] = x_acc.c
+                self.orbit_spline[7, 4-c_size:, :] = y_acc.c
+                self.orbit_spline[8, 4-c_size:, :] = z_acc.c
         self.orbit_spline = np.fliplr(self.orbit_spline)
 
     def evaluate_orbit_spline(self, az_times, pos=True, vel=False, acc=False, sorted=False):
@@ -192,25 +192,28 @@ class OrbitInterpolate(ImageData):
         #
         #   Created:    5 July 2017 by Gert Mulder
 
-        if len(self.orbit_spline) == 0 or len(self.orbit_time) == 0:
+        if len(self.orbit_spline) == 0 or len(self.t) == 0:
             print('First the orbit spline should be calculated')
             return
 
         deg = self.orbit_spline.shape[1]
+
+        if isinstance(az_times, list):
+            az_times = np.array(az_times)
 
         if not sorted and len(az_times) > 1:
             sort_ids = np.argsort(az_times)
             az_times = az_times[sort_ids]
 
         # We assume evenly spaced intervals here. This is normally the case for orbit vectors.
-        tot_interval = self.orbit_time[-1] - self.orbit_time[0]
-        step_size = tot_interval / (len(self.orbit_time) - 1)
-        interval_id = np.int16(np.floor((az_times - self.orbit_time[0]) / step_size))
+        tot_interval = self.t[-1] - self.t[0]
+        step_size = tot_interval / (len(self.t) - 1)
+        interval_id = np.int16(np.floor((az_times - self.t[0]) / step_size))
 
-        interval_id[interval_id >= len(self.orbit_time)] = len(self.orbit_time) - 2
+        interval_id[interval_id >= len(self.t)] = len(self.t) - 2
         interval_id[interval_id < 0] = 0
 
-        eq_times = az_times - self.orbit_time[interval_id]
+        eq_times = az_times - self.t[interval_id]
         n = len(az_times)
 
         # Because there will be many pixels within the same slots, we can seperate the array in parts based on the

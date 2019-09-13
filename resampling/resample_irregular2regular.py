@@ -16,38 +16,57 @@ import numpy as np
 from scipy.spatial import Delaunay
 
 from rippl.resampling.select_input_window import SelectInputWindow
+from rippl.orbit_geometry.orbit_coordinates import CoordinateSystem
 
 
 class Irregular2Regular():
 
-    def __init__(self, input_pixels, input_lines, s_lin=0, s_pix=0, shape=[1,1], multilooking=[1,1], buf=3):
+    def __init__(self, input_pixels, input_lines, input_val, coordinates='', s_lin=0, s_pix=0, shape=[1,1], multilooking=[1,1], buf=3):
 
+        if isinstance(coordinates, CoordinateSystem):
+            self.s_lin = coordinates.first_line
+            self.s_pix = coordinates.first_pixel
+            self.shape = coordinates.shape
+            self.ml_step = np.array(coordinates.multilook) / np.array(coordinates.oversample)
 
-        # Start with getting the convex hull of both input lines and pixels
+        self.s_lin = 0
+        self.s_pix = 0
+        self.shape = shape
+        self.ml_step = multilooking
+        self.buf = 3
 
+        # We correct for an output grid starting at 0 and steps of 1.
+        self.lines = (input_lines - s_lin) / self.ml_step[0]
+        self.pixels = (input_pixels - s_pix) / self.ml_step[1]
+        
+        # Data values
+        self.input_values = input_val
+        
 
-        # Convert the input data to start s_lin/s_pix and multilooking.
-
-
-    def __call__(self, weed=True):
+    def __call__(self, weed=False):
 
         # Create delaunay triangulation
+        delaunay, point_coor = Irregular2Regular.delaunay(self.lines, self.pixels, 0, 0, self.shape, self.buf)
 
         # Weed out non-used delaunay triangles
+        if weed:
+            point_coor = Irregular2Regular.weed_triangles(delaunay, point_coor)
+            delaunay, point_coor = Irregular2Regular.delaunay(point_coor[:, 0], point_coor[:, 1], 0, 0, self.shape, self.buf)
 
         # Assign interp points to the triangles
-
+        grid_triangle_id = Irregular2Regular.assign_pixels_to_triangle(delaunay, point_coor, 0, 0, self.shape)
+        
         # Apply baricentric interpolation.
+        output_values = Irregular2Regular.barycentric_interpolation(delaunay, grid_triangle_id, point_coor,
+                                                                    self.lines, self.pixels, self.input_values)
 
-
-
-
+        return output_values
 
     @staticmethod
-    def delaunay(line_coor, pixel_coor, s_lin=0, s_pix=0, shape=[0, 0]):
+    def delaunay(line_coor, pixel_coor, s_lin=0, s_pix=0, shape=[0, 0], buf=3):
 
         # Start with finding the relevant pixel and line coordinates
-        used_pixels = SelectInputWindow.input_irregular_bool_grid(line_coor, pixel_coor, s_lin, s_pix, shape, buf=3)
+        used_pixels = SelectInputWindow.input_irregular_bool_grid(line_coor, pixel_coor, s_lin, s_pix, shape, buf)
 
         # Create a delaunay triangulation for the obtained grid.
         point_coor = np.concatenate((line_coor[:, None], pixel_coor[:, None]), axis=1)
@@ -56,18 +75,38 @@ class Irregular2Regular():
         return delaunay, point_coor
 
     @staticmethod
+    def weed_triangles(delaunay, point_coor):
+        # Remove triangles which are not used in the interpolation. This works only if points are not part of any
+        # usable triangle
+
+        triangle_coors = point_coor[delaunay.simplices]
+
+        dem_min_line = np.ceil(np.min(triangle_coors[:, :, 0])).astype(np.int32)
+        dem_max_line = np.floor(np.max(triangle_coors[:, :, 0])).astype(np.int32)
+        dem_min_pixel = np.ceil(np.min(triangle_coors[:, :, 1])).astype(np.int32)
+        dem_max_pixel = np.floor(np.max(triangle_coors[:, :, 1])).astype(np.int32)
+        del triangle_coors
+
+        invalid = ~(dem_max_line - dem_min_line == 0) * (dem_max_pixel - dem_min_pixel == 0)
+        point_ids = np.unique(point_coor[delaunay.simplices[invalid, :]])
+        del dem_min_pixel, dem_max_pixel, dem_min_line, dem_max_line
+
+        # Return the usable points.
+        return point_coor[point_ids]
+
+    @staticmethod
     def assign_pixels_to_triangle(delaunay, point_coor, s_lin=0, s_pix=0, shape=[0, 0]):
-        # This processing_steps links the dem grid boxes to line and pixel coordinates. It returns a sparse matrix with all the
+        # This processing_steps_old links the dem grid boxes to line and pixel coordinates. It returns a sparse matrix with all the
         # pixels and lines inside the grid boxes.
 
-        # For simplicity we assume that there is minimal overlay of the points in the DEM grid. This means that
+        # For simplicity we assume that there is minimal overlay of the points in the dem grid. This means that
         # triangulation is already known. In fact this is also very likely for low resolution datasets like SRTM,
         # because we barely have areas steeper than the satellite look angle (50-70 degrees), perpendicular to the
         # satellite orbit.
 
-        # For every DEM pixel we find the radar pixels within these grid boxes. Then these grid boxes are divided in
+        # For every dem pixel we find the radar pixels within these grid boxes. Then these grid boxes are divided in
         # two triangles, which enables the use of a barycentric interpolation technique later on. The result of this
-        # step is a grid with the same shape as the radar grid indicating the corresponding DEM grid box and triangle
+        # step is a grid with the same shape as the radar grid indicating the corresponding dem grid box and triangle
         # inside the grid box.
 
         triangle_coors = point_coor[delaunay.simplices]
@@ -83,7 +122,7 @@ class Irregular2Regular():
         max_lines = (np.ceil((dem_max_line - dem_min_line))).astype(np.int16) + 1
         m_lin = np.unique(max_lines)
 
-        grid_dem_id = np.zeros(shape).astype(np.int32)
+        grid_triangle_id = np.zeros(shape).astype(np.int32)
 
         for l in m_lin:
 
@@ -98,37 +137,36 @@ class Irregular2Regular():
 
                 p_mesh, l_mesh = np.meshgrid(np.arange(int(np.floor(dem_max_num[1]))),
                                              np.arange(int(np.floor(dem_max_num[0]))))
-                dem_p = np.ravel(np.ravel(p_mesh)[None, :] + (dem_min_pixel[ids] - s_pix)[:, None] + s_pix).astype('int32')
-                dem_l = np.ravel(np.ravel(l_mesh)[None, :] + (dem_min_line[ids] - s_lin)[:, None] + s_lin).astype('int32')
+                data_p = np.ravel(np.ravel(p_mesh)[None, :] + (dem_min_pixel[ids] - s_pix)[:, None] + s_pix).astype('int32')
+                data_l = np.ravel(np.ravel(l_mesh)[None, :] + (dem_min_line[ids] - s_lin)[:, None] + s_lin).astype('int32')
 
                 # get the corresponding dem ids
-                dem_id = np.ravel(ids[:, None] * np.ones(shape=(1, len(np.ravel(p_mesh))), dtype='int32')[None, :]).astype('int32')
+                triangle_id = np.ravel(ids[:, None] * np.ones(shape=(1, len(np.ravel(p_mesh))), dtype='int32')[None, :]).astype('int32')
 
                 # From here we filter all created points using a rectangular bounding box followed by a step
                 # get rid of all the points outside the bounding box
-                dem_valid = ((dem_p <= dem_max_pixel[dem_id]) * (dem_p >= dem_min_pixel[dem_id]) *  # within bounding box
-                             (dem_l <= dem_max_line[dem_id]) * (dem_l >= dem_min_line[dem_id]) *  # within bounding box
-                             (s_lin <= dem_l) * (dem_l <= s_lin + shape[0]) *  # Within image
-                             (s_pix <= dem_p) * (dem_p <= s_pix + shape[1]))
-
-                dem_p = dem_p[dem_valid]
-                dem_l = dem_l[dem_valid]
-                dem_id = dem_id[dem_valid]
+                dem_valid = ((data_p <= dem_max_pixel[triangle_id]) * (data_p >= dem_min_pixel[triangle_id]) *  # within bounding box
+                             (data_l <= dem_max_line[triangle_id]) * (data_l >= dem_min_line[triangle_id]) *  # within bounding box
+                             (s_lin <= data_l) * (data_l <= s_lin + shape[0]) *  # Within image
+                             (s_pix <= data_p) * (data_p <= s_pix + shape[1]))
+                data_p = data_p[dem_valid]
+                data_l = data_l[dem_valid]
+                triangle_id = triangle_id[dem_valid]
 
                 # Now check whether the remaining points are inside the triangle using a barycentric check.
-                grid_id = used_grids[dem_id].astype(np.int32)
-                in_gridbox, first_triangle = RadarDem.barycentric_check(dem_line, dem_pixel, grid_id, dem_l, dem_p)
-                dem_p = dem_p[in_gridbox]
-                dem_l = dem_l[in_gridbox]
+                in_triangle = Irregular2Regular.point_in_triangle(delaunay, triangle_id, point_coor, data_l, data_p)
+                data_p = data_p[in_triangle]
+                data_l = data_l[in_triangle]
+                triangle_id = triangle_id[in_triangle]
 
                 # Finally assign the different pixels in the new dem grid to the correct triangle in the delaunay
                 # triangulation.
+                grid_triangle_id[data_l, data_p] = triangle_id
 
-
-        return grid_dem_id
+        return grid_triangle_id
 
     @staticmethod
-    def barycentric_interpolation(delaunay, triangle_id, point_coor, pixel_coor, line_coor, dem_vals):
+    def barycentric_interpolation(delaunay, triangle_id, point_coor, line_coor, pixel_coor, dem_vals):
         # This function interpolates all grid points based on the four surrounding points. We will use a barycentric
         # weighting technique. This method interpolates from an irregular to a regular grid.
 
@@ -140,7 +178,7 @@ class Irregular2Regular():
         return new_dem_vals
 
     @staticmethod
-    def point_in_triangle(delaunay, triangle_id, point_coor, pixel_coor, line_coor, weights=True):
+    def point_in_triangle(delaunay, triangle_id, point_coor, line_coor, pixel_coor, weights=True):
         # Check if points are inside a triangle
 
         v, w = Irregular2Regular.barycentric_coordinates(delaunay, triangle_id, point_coor, pixel_coor, line_coor)

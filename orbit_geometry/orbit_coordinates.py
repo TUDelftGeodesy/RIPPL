@@ -2,13 +2,13 @@
 import numpy as np
 from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
-from rippl.meta_data.readfile import Readfiles
+from rippl.meta_data.readfile import Readfile
 from rippl.meta_data.orbit import Orbit
 
 
-class OrbitCoordinates(OrbitInterpolate):
+class OrbitCoordinates(object):
 
-    def __init__(self, orbits='', coordinates='', meta=''):
+    def __init__(self, coordinates='', readfile='', orbit=''):
         # This function needs several input files. This works for now, but ideally this information should all be
         # contained in the .res file.
 
@@ -16,17 +16,6 @@ class OrbitCoordinates(OrbitInterpolate):
         if not isinstance(coordinates, CoordinateSystem):
             print('Needed input is an coordinate system Object')
             return
-
-        self.coordinates = coordinates
-
-
-
-        if 'readfiles' in self.processes:
-            meta_dat = 'readfile.py'
-            meta_crop = 'crop'
-        elif 'coreg_readfiles' in self.processes:
-            meta_dat = 'coreg_readfiles'
-            meta_crop = 'coreg_crop'
 
         # Get main variables from the .res file
         self.az_time = []
@@ -54,9 +43,7 @@ class OrbitCoordinates(OrbitInterpolate):
         self.lat_orbit = np.asarray([])         # latitude of azimuth points along orbit (WGS84)
         self.lon_orbit = np.asarray([])         # longitude of azimuth points along orbit (WGS84)
         self.height_orbit = np.asarray([])      # height of azimuth points along orbit (WGS84)
-        self.x = np.asarray([])                 # cartesian coordinates on the ground
-        self.y = np.asarray([])                 # cartesian coordinates on the ground
-        self.z = np.asarray([])                 # cartesian coordinates on the ground
+        self.xyz = np.asarray([])                 # cartesian coordinates on the ground
         self.geoid = np.asarray([])             # geoid correction for points on the ground (EGM96)
 
         # Variables that can be used for ray tracing
@@ -72,13 +59,20 @@ class OrbitCoordinates(OrbitInterpolate):
         self.maxiter_coor = 1                       # maximum number of iterations lat/lon calculations
         self.criterpos = 0.00000001                 # iteration accuracy [m]
 
+        # Load coordinate system, readfile and orbits
+        if isinstance(coordinates, CoordinateSystem):
+            self.load_coordinate_system(coordinates)
+        if isinstance(readfile, Readfile):
+            self.load_readfile(readfile)
+        if isinstance(orbit, Orbit):
+            self.load_orbit(Orbit)
 
     def load_orbit(self, orbit):
         # type: (OrbitCoordinates, Orbit) -> None
         # Load the orbit information.
 
         # interpolate the orbit (from InterpolateOrbit)
-        self.orbit = OrbitInterpolate(self, orbit)
+        self.orbit = OrbitInterpolate(orbit)
         self.orbit.fit_orbit_spline(vel=True, acc=True)
 
     def load_coordinate_system(self, coordinates):
@@ -89,23 +83,23 @@ class OrbitCoordinates(OrbitInterpolate):
         self.ra_time = coordinates.ra_time
         self.az_step = coordinates.az_step
         self.ra_step = coordinates.ra_step
+        self.center_phi = coordinates.center_lat * self.degree2rad
+        self.center_lambda = coordinates.center_lon * self.degree2rad
 
         # Line pixel coordinates
         self.lines = coordinates.interval_lines
         self.pixels = coordinates.interval_pixels
 
-        # Check whether additional line and pixel information should be loaded.
-
-
         # Readfiles information if needed.
-        if coordinates.readfiles:
-            self.load_readfiles(coordinates.readfiles)
+        if coordinates.readfile:
+            self.load_readfile(coordinates.readfile)
 
         # Orbit information
-        self.load_orbit(coordinates.orbit)
+        if isinstance(coordinates.orbit, Orbit):
+            self.load_orbit(coordinates.orbit)
 
-    def load_readfiles(self, readfiles):
-        # type: (OrbitCoordinates, Readfiles) -> None
+    def load_readfile(self, readfiles):
+        # type: (OrbitCoordinates, Readfile) -> None
 
         # Load the timing from a readfile object.
         self.az_time = readfiles.az_first_pix_time
@@ -116,9 +110,10 @@ class OrbitCoordinates(OrbitInterpolate):
         self.center_phi = readfiles.center_lat * self.degree2rad
         self.center_lambda = readfiles.center_lon * self.degree2rad
 
-    def load_data(self, meta, s_lin=0, lines=0, DEM=True, xyz=False):
+    def load_data(self, meta, s_lin=0, lines=0, dem=True, xyz=False):
         # Load data from resfile. Only the ones that are available with the same coordinate system.
 
+        print('Working on this!')
 
 
 
@@ -148,7 +143,14 @@ class OrbitCoordinates(OrbitInterpolate):
         self.pixels = np.ravel(pixels)
         self.height = np.ravel(heights)
 
-    # The next two processing_steps convert from and to pixel coordinates and range/azimuth times.
+        self.az_times = self.az_time + self.az_step * lines
+        self.ra_times = self.ra_time + self.ra_step * pixels
+
+        # Evaluate the orbit based on the given az_times
+        self.regular = False
+        self.xyz_orbit, self.vel_orbit, self.acc_orbit = self.orbit.evaluate_orbit_spline(self.az_times, vel=True, acc=True)
+
+    # The next two processing_steps_old convert from and to pixel coordinates and range/azimuth times.
     def lp_time(self, lines='', pixels='', regular=True, grid_type='radar_coordinates'):
         # This function calculates the azimuth and range timing (two way), based on a resfile.
         # If there are no specific lines or pixels specified, we will assume you want to work with the first pixel.
@@ -171,18 +173,18 @@ class OrbitCoordinates(OrbitInterpolate):
             all_lines = np.arange(np.min(lines), np.max(lines) + 1)
             all_pixels = np.arange(np.min(pixels), np.max(pixels) + 1)
 
-            self.az_times = self.az_time + self.az_step * (all_lines - 1)
-            self.ra_times = self.ra_time + self.ra_step * (all_pixels - 1)
+            self.az_times = self.az_time + self.az_step * all_lines
+            self.ra_times = self.ra_time + self.ra_step * all_pixels
 
             # Reduce the line number to create right az/ra ids
             self.lines = lines - np.min(lines)
             self.pixels = pixels - np.min(pixels)
         else:
-            self.az_times = self.az_time + self.az_step * (lines - 1)
-            self.ra_times = self.ra_time + self.ra_step * (pixels - 1)
+            self.az_times = self.az_time + self.az_step * lines
+            self.ra_times = self.ra_time + self.ra_step * pixels
 
         # Evaluate the orbit based on the given az_times
-        self.xyz_orbit, self.vel_orbit, self.acc_orbit = self.evaluate_orbit_spline(self.az_times, vel=True, acc=True)
+        self.xyz_orbit, self.vel_orbit, self.acc_orbit = self.orbit.evaluate_orbit_spline(self.az_times, vel=True, acc=True)
 
     # The next two function are used to calculate xyz coordinates on the ground.
     # To do so we also need the heights of the points on the ground.
@@ -192,7 +194,7 @@ class OrbitCoordinates(OrbitInterpolate):
         #   LINE and PIXEL into Cartesian coordinates XYZ. HEIGHT contains the height
         #   of the pixel above the ellipsoid. IMAGE contains the image meta_data
         #   and ORBFIT the orbit fit, proceduced respectively by the METADATA and
-        #   ORBITFIT processing_steps.
+        #   ORBITFIT processing_steps_old.
         #
         #   [XYZ,SATVEC]=LPH2XYZ(...) also outputs the corresponding satellite
         #   position and velocity, with SATVEC a matrix with in it's columns the
@@ -232,7 +234,7 @@ class OrbitCoordinates(OrbitInterpolate):
             print('First define for which pixels or which azimuth/range times you want to compute the xyz coordinates')
             return
         if len(self.height) == 0:
-            print('First find the heights of the invidual pixels. This can be done using the create DEM function')
+            print('First find the heights of the invidual pixels. This can be done using the create dem function')
 
         ell_a = self.ellipsoid[0]
         ell_b = self.ellipsoid[1]
@@ -349,15 +351,10 @@ class OrbitCoordinates(OrbitInterpolate):
                 print(str(len(solve_ids)) + 'did not converge within ' + str(
                     self.maxiter) + ' iterations. Maybe use more iterations or less stringent criteria?')
 
-        self.x = np.reshape(posonellx, shp)
-        posonellx = []
-        self.y = np.reshape(posonelly, shp)
-        posonelly = []
-        self.z = np.reshape(posonellz, shp)
-        posonellz = []
+        self.xyz = np.concatenate((np.ravel(posonellx)[None, :], np.ravel(posonelly)[None, :], np.ravel(posonellz)[None, :]), axis=0)
 
     # This function is mainly used to find the coordinates of known points on the ground in the radar grid
-    def xyz2lp(self, x, y, z, az_times=''):
+    def xyz2lp(self, xyz, az_times=''):
         # XYZ2T   Convert Cartesian coordinates into radar azimuth and range time.
         #   [T_AZI,T_RAN]=XYZ2T(XYZ,resfile) converts the Cartesian coordinates
         #   XYZ into radar azimuth time T_AZI and range time T_RAN. IMAGE contains
@@ -388,20 +385,16 @@ class OrbitCoordinates(OrbitInterpolate):
         #                - optimize fit of orbit using cubic spline
         #                - vectorize to improve speed
 
-        n = np.size(x)
+        n = np.size(self.xyz) / 3
 
-        if not x.shape == y.shape == z.shape:
-            print('x,y,z coordinate matrices should have same dimensions')
+        if not self.xyz.shape[0] == 3:
+            print('x,y,z coordinate matrix should be of size [3,n]')
 
-        old_shape = x.shape
-        xyz = np.concatenate((np.ravel(x)[None, :], np.ravel(y)[None, :], np.ravel(z)[None, :]), axis=0)
-        x = []
-        y = []
-        z = []
+        old_shape = self.xyz.shape[1]
 
         # Make a first guess of the azimuth times:
         if len(az_times) == 0:
-            az_times = self.az_time * np.ones((1, xyz.shape[1]))
+            az_times = self.az_time * np.ones((1, self.xyz.shape[1]))
         solve_ids = np.arange(n)
 
         # Now start the iteration to find the optimal point
@@ -416,13 +409,13 @@ class OrbitCoordinates(OrbitInterpolate):
             else:
                 az_time = np.ravel(az_times)
 
-            possat = self.evaluate_orbit_spline(az_time, pos=True, acc=False, vel=False, sorted=True)[0]
-            delta = xyz[:, solve_ids] - possat
+            possat = self.orbit.evaluate_orbit_spline(az_time, pos=True, acc=False, vel=False, sorted=True)[0]
+            delta = self.xyz[:, solve_ids] - possat
 
-            accsat = self.evaluate_orbit_spline(az_time, pos=False, acc=True, vel=False, sorted=True)[2]
+            accsat = self.orbit.evaluate_orbit_spline(az_time, pos=False, acc=True, vel=False, sorted=True)[2]
             s1 = np.sum(delta * accsat, axis=0)
             accsat = []
-            velsat = self.evaluate_orbit_spline(az_time, pos=False, acc=False, vel=True, sorted=True)[1]
+            velsat = self.orbit.evaluate_orbit_spline(az_time, pos=False, acc=False, vel=True, sorted=True)[1]
             s0 = np.sum(delta * velsat, axis=0)
             delta = []
             s2 = np.sum(velsat * velsat, axis=0)
@@ -446,7 +439,7 @@ class OrbitCoordinates(OrbitInterpolate):
                     self.maxiter) + ' iterations. Maybe use more iterations or less stringent criteria?')
 
         # Calculate range times
-        dist_diff = self.evaluate_orbit_spline(np.ravel(az_times))[0] - xyz
+        dist_diff = self.orbit.evaluate_orbit_spline(np.ravel(az_times))[0] - self.xyz
         range_dist = np.sqrt(np.sum(dist_diff**2, axis=0))
         dist_diff = []
         ra_times = range_dist / self.sol * 2
@@ -456,7 +449,7 @@ class OrbitCoordinates(OrbitInterpolate):
 
         return lines, pixels
 
-    # Next two processing_steps convert back and forth from cartesian to lat/lon
+    # Next two processing_steps_old convert back and forth from cartesian to lat/lon
     # This function is used to find known lat/lon/h points to convert to xyz, which can be used to find the radar
     # coordinates later on.
     @staticmethod
@@ -493,7 +486,9 @@ class OrbitCoordinates(OrbitInterpolate):
         y = Nph * np.cos(lat) * np.sin(lon)
         z = (Nph - ell_e2 * N) * np.sin(lat)
 
-        return x, y, z
+        xyz = np.concatenate((np.ravel(x)[None, :], np.ravel(y)[None, :], np.ravel(z)[None, :]), axis=0)
+
+        return xyz
 
     # This method is used to convert the calculated xyz points to find the lat, lon, h on the ellipsoid.
     def xyz2ell(self, method=1, h_diff=False, pixel=True, orbit=False):
@@ -512,7 +507,7 @@ class OrbitCoordinates(OrbitInterpolate):
         # Second method from http://www.navipedia.net/index.php/Ellipsoidal_and_Cartesian_Coordinates_Conversion
         # ********************************************
 
-        if len(self.x) == 0:
+        if len(self.xyz) == 0:
             print('First calculate the cartesian xyz coordinates before converting to lat/lon coordinates')
             return
         if not pixel and not orbit:
@@ -532,10 +527,10 @@ class OrbitCoordinates(OrbitInterpolate):
             types.append('orbit')
             self.lon_orbit = np.arctan2(self.xyz_orbit[1, :], self.xyz_orbit[0, :])
         if pixel:
-            z['pixel'] = np.ravel(self.z)
-            p['pixel'] = np.sqrt(np.ravel(self.x)**2 + np.ravel(self.y)**2)
+            z['pixel'] = np.ravel(self.xyz[2, :])
+            p['pixel'] = np.sqrt(np.ravel(self.xyz[0, :])**2 + np.ravel(self.xyz[1, :])**2)
             types.append('pixel')
-            self.lon = np.arctan2(self.y, self.x).astype(np.float32).reshape(self.x.shape) / np.pi * 180
+            self.lon = np.arctan2(self.xyz[1, :], self.xyz[0, :]).astype(np.float32).reshape([1, self.xyz.shape[1]]) / np.pi * 180
 
         for t in types:
             if method == 1:
@@ -577,17 +572,17 @@ class OrbitCoordinates(OrbitInterpolate):
                 self.lat_orbit = lat.astype(np.float32)
                 self.height_orbit = height
             elif t == 'pixel':
-                self.lat = np.reshape(lat, self.lon.shape).astype(np.float32).reshape(self.x.shape) / np.pi * 180
+                self.lat = np.reshape(lat, self.lon.shape).astype(np.float32).reshape(self.xyz.shape[1]) / np.pi * 180
 
         if h_diff:
             return np.reshape(height, self.height.shape) - self.height
 
-    # Next two processing_steps are used to find the heading and inclination angle of the satellite at certain pixel, range
+    # Next two processing_steps_old are used to find the heading and inclination angle of the satellite at certain pixel, range
     # combinations, as well as the azimuth and elevation angle on the ground.
     def xyz2orbit_heading_off_nadir(self, grid_type='radar_coordinates'):
         # Calculates the heading and off-nadir angle from the satellite
 
-        if len(self.x) == 0:
+        if self.xyz.shape[1] == 0:
             print('First calculate the cartesian xyz coordinates before you run this function')
             return
         elif len(self.lat_orbit) == 0:
@@ -596,17 +591,17 @@ class OrbitCoordinates(OrbitInterpolate):
 
         # orbit vector
         if self.regular:
-            x_diff = self.xyz_orbit[0, :][:, None] - self.x
-            y_diff = self.xyz_orbit[1, :][:, None] - self.y
-            z_diff = self.xyz_orbit[2, :][:, None] - self.z
+            x_diff = self.xyz_orbit[0, :][:, None] - self.xyz[0, :]
+            y_diff = self.xyz_orbit[1, :][:, None] - self.xyz[1, :]
+            z_diff = self.xyz_orbit[2, :][:, None] - self.xyz[2, :]
         elif grid_type == 'radar_coordinates':
-            x_diff = self.xyz_orbit[0, self.lines] - self.x
-            y_diff = self.xyz_orbit[1, self.lines] - self.y
-            z_diff = self.xyz_orbit[2, self.lines] - self.z
+            x_diff = self.xyz_orbit[0, self.lines] - self.xyz[0, :]
+            y_diff = self.xyz_orbit[1, self.lines] - self.xyz[1, :]
+            z_diff = self.xyz_orbit[2, self.lines] - self.xyz[2, :]
         else:
-            x_diff = self.xyz_orbit[0, :] - np.ravel(self.x)
-            y_diff = self.xyz_orbit[1, :] - np.ravel(self.y)
-            z_diff = self.xyz_orbit[2, :] - np.ravel(self.z)
+            x_diff = self.xyz_orbit[0, :] - np.ravel(self.xyz[0, :])
+            y_diff = self.xyz_orbit[1, :] - np.ravel(self.xyz[1, :])
+            z_diff = self.xyz_orbit[2, :] - np.ravel(self.xyz[2, :])
 
         ray = np.stack((x_diff, y_diff, z_diff), axis=0)
         ray = ray / np.sqrt(np.sum(ray**2, axis=0))
@@ -664,23 +659,23 @@ class OrbitCoordinates(OrbitInterpolate):
         # Calculates the azimuth and elevation angle of a point on the ground based on the point on the
         # ground (xyz) and the point in orbit
 
-        if len(self.x) == 0:
+        if self.xyz.shape[1] == 0:
             print('First calculate the cartesian xyz coordinates before you run this function')
             return
 
         # point to orbit vector
         if self.regular:
-            x_diff = self.xyz_orbit[0, :][:, None] - self.x
-            y_diff = self.xyz_orbit[1, :][:, None] - self.y
-            z_diff = self.xyz_orbit[2, :][:, None] - self.z
+            x_diff = self.xyz_orbit[0, :][:, None] - self.xyz[0, :]
+            y_diff = self.xyz_orbit[1, :][:, None] - self.xyz[1, :]
+            z_diff = self.xyz_orbit[2, :][:, None] - self.xyz[2, :]
         elif grid_type == 'radar_coordinates':
-            x_diff = self.xyz_orbit[0, self.lines] - self.x
-            y_diff = self.xyz_orbit[1, self.lines] - self.y
-            z_diff = self.xyz_orbit[2, self.lines] - self.z
+            x_diff = self.xyz_orbit[0, self.lines] - self.xyz[0, :]
+            y_diff = self.xyz_orbit[1, self.lines] - self.xyz[1, :]
+            z_diff = self.xyz_orbit[2, self.lines] - self.xyz[2, :]
         else:
-            x_diff = self.xyz_orbit[0, :] - np.ravel(self.x)
-            y_diff = self.xyz_orbit[1, :] - np.ravel(self.y)
-            z_diff = self.xyz_orbit[2, :] - np.ravel(self.z)
+            x_diff = self.xyz_orbit[0, :] - np.ravel(self.xyz[0, :])
+            y_diff = self.xyz_orbit[1, :] - np.ravel(self.xyz[1, :])
+            z_diff = self.xyz_orbit[2, :] - np.ravel(self.xyz[2, :])
 
         # Calc normalized vector ground to satellite
         diff = np.stack((x_diff, y_diff, z_diff), axis=0)
@@ -691,9 +686,9 @@ class OrbitCoordinates(OrbitInterpolate):
         z_diff = []
 
         # Calc tangent plane
-        x_tan = 2 * self.x / (self.ellipsoid[0] + self.height)**2
-        y_tan = 2 * self.y / (self.ellipsoid[0] + self.height)**2
-        z_tan = 2 * self.z / (self.ellipsoid[1] + self.height)**2
+        x_tan = 2 * self.xyz[0, :] / (self.ellipsoid[0] + self.height)**2
+        y_tan = 2 * self.xyz[1, :] / (self.ellipsoid[0] + self.height)**2
+        z_tan = 2 * self.xyz[2, :] / (self.ellipsoid[1] + self.height)**2
 
         # Calc normalized vector normal to surface ellipsoid
         N = np.stack((x_tan, y_tan, z_tan), axis=0)
@@ -710,9 +705,9 @@ class OrbitCoordinates(OrbitInterpolate):
 
         # Calc vector on tangent plant to satellite and to north
         if self.regular:
-            north_plane = np.stack((-self.x, -self.y, np.zeros((self.x.shape[0], self.x.shape[1]))), axis=0)
+            north_plane = np.stack((-self.xyz[0, :], -self.xyz[1, :], np.zeros((self.xyz.shape[0], self.x.shape[1]))), axis=0)
         else:
-            north_plane = np.stack((-self.x, -self.y, np.zeros((self.x.shape[0]))), axis=0)
+            north_plane = np.stack((-self.xyz[0, :], -self.xyz[1, :], np.zeros((self.x.shape[0]))), axis=0)
 
         north_vector = OrbitCoordinates.project_on_plane(N, north_plane, regular=self.regular)
         ray_vector = OrbitCoordinates.project_on_plane(N, ray, regular=self.regular)

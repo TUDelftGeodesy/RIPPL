@@ -1,14 +1,14 @@
 import datetime
 import numpy as np
 import locale
-from rippl.meta_data.image_data import ImageData
+from rippl.meta_data.image_processing_data import ImageData
 from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
-from rippl.external_DEMs.srtm.srtm_download import SrtmDownload
-from rippl.processing_steps.import_dem import CreateSrtmDem
-from rippl.processing_steps.inverse_geocode import InverseGeocode
-from rippl.processing_steps.radar_dem import RadarDem
-from rippl.processing_steps.geocode import Geocode
-from rippl.processing_steps.azimuth_elevation_angle import AzimuthElevationAngle
+from rippl.external_dems.srtm.srtm_download import SrtmDownload
+from rippl.processing_steps_old.import_dem import CreateSrtmDem
+from rippl.processing_steps_old.inverse_geocode import InverseGeocode
+from rippl.processing_steps_old.radar_dem import RadarDem
+from rippl.processing_steps_old.geocode import Geocode
+from rippl.processing_steps_old.azimuth_elevation_angle import AzimuthElevationAngle
 
 
 class RadarData(OrbitCoordinates, ImageData):

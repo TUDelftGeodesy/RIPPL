@@ -1,122 +1,95 @@
-# This function does the resampling of a radar grid based on different kernels.
-# In principle this has the same functionality as some other
-from rippl.image_data import ImageData
-from rippl.processing_steps.coor_geocode import CoorGeocode
-from collections import OrderedDict, defaultdict
-from rippl.orbit_geometry.coordinate_system import CoordinateSystem
+# Try to do all calculations using numpy functions.
 import numpy as np
-import logging
-import os
-from shapely.geometry import Polygon
-import copy
+
+# Import the parent class Process for processing steps.
+from rippl.meta_data.process import Process
+from rippl.meta_data.image_data import ImageData
+from rippl.meta_data.image_processing_data import ImageProcessingData
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
+from rippl.resampling.resample_irregular2regular import Irregular2Regular
 
 
-class RadarDem(object):
+class RadarDem(Process):  # Change this name to the one of your processing step.
 
-    """
-    :type s_pix = int
-    :type s_lin = int
-    :type shape = list
-    """
+    def __init__(self, data_id='', coor_in=[], coor_out=[], dem_type='SRTM1',
+                 in_coor_types=[], in_processes=[], in_file_types=[], in_data_ids=[],
+                 coreg_master=[]):
 
-    def __init__(self, meta, coordinates, s_lin=0, s_pix=0, lines=0, coor_in=''):
-        # There are three options for processing:
-        # 1. Only give the meta_file, all other information will be read from this file. This can be a path or an
-        #       ImageData object.
-        # 2. Give the data files (crop, new_line, new_pixel). No need for meta_data in this case
-        # 3. Give the first and last line plus the buffer of the input and output
+        """
+        :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
+                    the same process.
 
-        if isinstance(meta, ImageData):
-            self.meta = meta
-        else:
-            return
+        :param CoordinateSystem coor_in: Coordinate system of the input grids.
+        :param CoordinateSystem coor_out: Coordinate system of output grids, if not defined the same as coor_in
+        :param list[str] in_coor_types: The coordinate types of the input grids. Sometimes some of these grids are
+                different from the defined coor_in. Options are 'coor_in', 'coor_out' or anything else defined in the
+                coordinate system input.
 
-        # Load coordinates
-        self.s_lin = s_lin
-        self.s_pix = s_pix
-        self.coordinates = coordinates
-        self.sample = coordinates.sample
-        self.first_pixel = coordinates.first_pixel
-        self.first_line = coordinates.first_line
-        self.multilook = coordinates.multilook
-        self.shape, self.lines, self.pixels = RadarDem.find_coordinates(meta, s_lin, s_pix, lines, coordinates)
+        :param list[str] in_processes: Which process outputs are we using as an input
+        :param list[str] in_file_types: What are the exact outputs we use from these processes
+        :param list[str] in_data_ids: If processes are used multiple times in different parts of the processing they can be
+                distinguished using an data_id. If this is the case give the correct data_id. Leave empty if not relevant
 
-        # Load input data and check whether extend of input data is large enough.
-        if isinstance(coor_in, CoordinateSystem):
-            dem_type = coor_in.sample
-        else:
-            if 'import_DEM' in self.meta.processes.keys():
-                dem_types = [key_str[3:-12] for key_str in self.meta.processes['import_DEM'] if
-                             key_str.endswith('output_file') and not key_str.startswith('DEM_q')]
-                if len(dem_types) > 0:
-                    dem_type = dem_types[0]
-                else:
-                    print('No imported DEM found. Please rerun import_DEM function')
-                    return
-            else:
-                print('Import a DEM first using the import_DEM function!')
-                return
+        :param ImageProcessingData coreg_master: Image used to coregister the slave image for resampline etc.
+        """
 
-        self.lines = self.lines[:, 0]
-        self.pixels = self.pixels[0, :]
-        self.dem, self.dem_line, self.dem_pixel = RadarDem.source_dem_extend(self.meta, self.lines,
-                                                                             self.pixels, dem_type)
-        self.no0 = (self.dem_line != 0) * (self.dem_pixel != 0)
-        if self.coordinates.mask_grid:
-            mask = self.meta.image_load_data_memory('create_sparse_grid', s_lin, 0, self.shape,
-                                                       'mask' + self.coordinates.sample)
-            self.no0 *= mask
-            # TODO Implement masking for calculating radar DEM.
+        """
+        First define the name and output types of this processing step.
+        1. process_name > name of process
+        2. file_types > name of process types that will be given as output
+        3. data_types > names 
+        """
 
-        self.radar_dem = []
+        self.process_name = 'radar_dem'
+        file_types = ['radar_dem']
+        data_types = ['real4']
 
-    def __call__(self):
-        if len(self.dem) == 0 or len(self.dem_line) == 0 or len(self.dem_pixel) == 0:
-            print('Missing input data for creating radar DEM for ' + self.meta.folder + '. Aborting..')
-            return False
+        """
+        Then give the default input steps for the processing. The given input values will be overridden when other input
+        values are given.
+        """
 
-        try:
-            # Here the actual geocoding is done.
-            # First calculate the heights using an external DEM. This generates the self.height grid..
-            used_grids, grid_extends = self.dem_pixel2grid(self.dem, self.dem_line, self.dem_pixel, self.lines, self.pixels, self.multilook)
+        in_image_types = ['coreg_master', 'coreg_master', 'coreg_master']
+        if len(in_coor_types) == 0:
+            in_coor_types = ['coor_in', 'coor_in', 'coor_in']  # Same here but then for the coor_out and coordinate_systems
+        if len(in_data_ids) == 0:
+            in_data_ids = [dem_type, dem_type, dem_type]
+        in_polarisations = ['none', 'none', 'none']
+        if len(in_processes) == 0:
+            in_processes = ['create_dem', 'inverse_geocode', 'inverse_geocode']
+        if len(in_file_types) == 0:
+            in_file_types = ['dem', 'lines', 'pixels']
 
-            # Find coordinates and matching interpolation areas
-            dem_id, first_triangle = self.radar_in_dem_grid(used_grids, grid_extends, self.lines, self.pixels, self.multilook, self.shape, self.dem_line, self.dem_pixel)
-            del used_grids, grid_extends
+        in_type_names = ['dem', 'lines', 'pixels']
 
-            # Then do the interpolation
-            self.radar_dem = self.dem_barycentric_interpolation(self.dem, self.dem_line, self.dem_pixel, self.shape, first_triangle, dem_id)
-            del self.dem, self.dem_line, self.dem_pixel
+        # Initialize process step
+        super(RadarDem, self).__init__(
+                       process_name=self.process_name,
+                       data_id=data_id,
+                       file_types=file_types,
+                       process_dtypes=data_types,
+                       coor_in=coor_in,
+                       coor_out=coor_out,
+                       in_type_names=in_type_names,
+                       in_coor_types=in_coor_types,
+                       in_image_types=in_image_types,
+                       in_processes=in_processes,
+                       in_file_types=in_file_types,
+                       in_polarisations=in_polarisations,
+                       in_data_ids=in_data_ids,
+                       coreg_master=coreg_master,
+                       out_processing_image='coreg_master')
 
-            # Data can be saved using the create output files and add meta data function.
-            self.add_meta_data(self.meta, self.coordinates)
-            self.meta.image_new_data_memory(self.radar_dem, 'radar_DEM', self.s_lin, self.s_pix, file_type='DEM' + self.sample)
-            return True
+        # Define the irregular grid for input. This is needed if you want to calculate in blocks.
+        self.in_irregular_grids = [self.in_processing_images['lines'].data_disk,
+                                   self.in_processing_images['pixels'].data_disk]
 
-        except Exception:
-            log_file = os.path.join(self.meta.folder, 'error.log')
-            logging.basicConfig(filename=log_file, level=logging.DEBUG)
-            logging.exception('Failed creating radar DEM for ' + self.meta.folder + '. Check ' + log_file + ' for details.')
-            print('Failed creating radar DEM for ' + self.meta.folder + '. Check ' + log_file + ' for details.')
+    def process_calculations(self):
+        """
+        Calculate radar DEM using the
 
-            return False
+        :return:
+        """
 
-    @staticmethod
-    def source_dem_extend(meta, lines, pixels, dem_type, buf=3):
-
-
-    @staticmethod
-    def add_meta_data(meta, coordinates):
-        # This function adds information about this step to the image. If parallel processing is used this should be
-        # done before the actual processing.
-        if not isinstance(coordinates, CoordinateSystem):
-            print('coordinates should be an CoordinateSystem object')
-
-        if 'radar_DEM' in meta.processes.keys():
-            meta_info = meta.processes['radar_DEM']
-        else:
-            meta_info = OrderedDict()
-
-        meta_info = coordinates.create_meta_data(['DEM'], ['real4'], meta_info)
-
-        meta.image_add_processing_step('radar_DEM', meta_info)
+        resample = Irregular2Regular(self['lines'], self['pixels'], self['dem'], self.block_coor)
+        self['radar_dem'] = resample()

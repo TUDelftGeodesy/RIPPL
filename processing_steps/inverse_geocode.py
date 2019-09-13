@@ -1,186 +1,107 @@
-"""
-This script is mainly used to fit a DEM to the line and pixel coordinates of a specific orbit.
-To do so we follow the next 3 steps:
-1. Based on image meta_data we load the DEM.
-2. For irregular lat/lon grids, we load lat/lon files. / For regular lat/lon grids we calculate it from meta_data
-3. If needed, we correct the height grid for the geoid based on EGM96
-4. Calculate the xyz cartesian coordinates for every pixel from latitude, longitude and height using the WGS84 ellipsoid
-5. Finally the xyz coordinates are used to find line and pixel coordinates of the grid.
+# This processing file is a template for other processing steps.
+# Do not change the already given steps in this function to prevent problems with creating pipeline processing
+# later on.
 
-This steps follows the create SRTM DEM function or load the external DEM function.
-
-The main function is called inverse geocoding, because the performed steps are also done during geocoding but in the
-opposite order, where the line and pixel coordinates are converted to lat/lon/height coordinates via cartesian coordi-
-nates.
-
-The results of this step is a grid of line and pixel coordinates
-
-"""
-
-from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
-from rippl.orbit_geometry.coordinate_system import CoordinateSystem
-from rippl.meta_data.image_data import ImageData
-from collections import OrderedDict, defaultdict
+# Try to do all calculations using numpy functions.
 import numpy as np
-import logging
-import os
+
+# Import the parent class Process for processing steps.
+from rippl.meta_data.process import Process
+from rippl.meta_data.image_data import ImageData
+from rippl.meta_data.image_processing_data import ImageProcessingData
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
+from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 
-class InverseGeocode(object):
+class InverseGeocode(Process):  # Change this name to the one of your processing step.
 
-    """
-    :type s_pix = int
-    :type s_lin = int
-    :type shape = list
-    """
+    def __init__(self, data_id='', coor_in=[], in_processes=[], in_file_types=[], in_data_ids=[], coreg_master=[]):
 
-    def __init__(self, meta, coordinates, s_lin=0, s_pix=0, lines=0):
-        # There are three options for processing:
+        """
+        This function is used to find the line/pixel coordinates of the dem grid. These can later on be used to
+        calculate the radar dem grid.
 
-        if isinstance(meta, ImageData):
-            self.meta = meta
-        else:
-            return
+        :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
+                    the same process.
 
-        # If we did not define the shape (lines, pixels) of the file it will be done for the whole image crop
-        dem_key = 'DEM' + coordinates.sample
-        shape = np.array(self.meta.data_sizes['import_DEM'][dem_key])
-        if lines != 0:
-            l = np.minimum(lines, shape[0] - s_lin)
-        else:
-            l = shape[0] - s_lin
-        self.shape = [l, shape[1] - s_pix]
+        :param CoordinateSystem coor_in: Coordinate system of the input grids.
 
-        self.s_lin = s_lin
-        self.s_pix = s_pix
-        self.e_lin = self.s_lin + self.shape[0]
-        self.e_pix = self.s_pix + self.shape[1]
-        self.coordinates = coordinates
+        :param list[str] in_processes: Which process outputs are we using as an input
+        :param list[str] in_file_types: What are the exact outputs we use from these processes
+        :param list[str] in_data_ids: If processes are used multiple times in different parts of the processing they can be
+                distinguished using an data_id. If this is the case give the correct data_id. Leave empty if not relevant
 
-        # Load height and create lat/lon or load lat/lon
-        self.dem = self.meta.image_load_data_memory('import_DEM', self.s_lin, self.s_pix, self.shape, dem_key)
+        :param ImageProcessingData coreg_master: Image used to coregister the slave image for resampline etc.
+        """
+
+        """
+        First define the name and output types of this processing step.
+        1. process_name > name of process
+        2. file_types > name of process types that will be given as output
+        3. data_types > names 
+        """
+
+        self.process_name = 'inverse_geocode'
+        file_types = ['lines', 'pixels']
+        data_types = ['real4', 'real4']
+
+        """
+        Then give the default input steps for the processing. The given input values will be overridden when other input
+        values are given.
+        """
+
+        in_image_types = ['coreg_master']
+        in_coor_types = ['coor_in']
+        if len(in_data_ids) == 0:
+            in_data_ids = [data_id]
+        in_polarisations = ['none']
+        if len(in_processes) == 0:
+            in_processes = ['create_dem']
+        if len(in_file_types) == 0:
+            in_file_types = ['dem']
+
+        in_type_names = ['dem']
+
+        super(InverseGeocode, self).__init__(
+                       process_name=self.process_name,
+                       data_id=data_id,
+                       file_types=file_types,
+                       process_dtypes=data_types,
+                       coor_in=coor_in,
+                       in_type_names=in_type_names,
+                       in_coor_types=in_coor_types,
+                       in_image_types=in_image_types,
+                       in_processes=in_processes,
+                       in_file_types=in_file_types,
+                       in_polarisations=in_polarisations,
+                       in_data_ids=in_data_ids,
+                       coreg_master=coreg_master,
+                       out_processing_image='coreg_master')
+
+    def process_calculations(self):
+        """
+        We calculate the line and pixel coordinates of the DEM grid as a preparation for the conversion to a radar grid
+
+        :return:
+        """
+
+        processing_data = self.in_processing_images['coreg_master']
+
+        coordinates = self.coor_in
+        orbit = processing_data.find_best_orbit('original')
+
+        # Evaluate the orbit and create orbit coordinates object.
+        orbit_interp = OrbitCoordinates(orbit=orbit)
 
         if coordinates.grid_type == 'geographic':
-
-            self.lat = np.flip(np.linspace(coordinates.lat0, coordinates.lat0 + coordinates.dlat *
-                                           (shape[0] - 1), shape[0]), axis=0)[
-                                            self.s_lin:self.s_lin + self.shape[0], None] * np.ones((1, self.shape[1]))
-
-            self.lon = np.linspace(coordinates.lon0 + coordinates.dlon * self.s_pix,
-                                   coordinates.lon0 + coordinates.dlon * (self.s_pix + self.shape[1] - 1),
-                                   self.shape[1])[None, :] * np.ones((self.shape[0], 1))
-
+            lons, lats = self.block_coor.create_latlon_grid()
         elif coordinates.grid_type == 'projection':
+            x, y = self.block_coor.create_xy_grid()
+            lats, lons = self.block_coor.proj2ell(x, y)
 
-            y = np.linspace(coordinates.y0 + coordinates.dy * self.s_pix,
-                                   coordinates.y0 + coordinates.dy * (self.s_pix + self.shape[0] - 1),
-                                   self.shape[0])[None, :] * np.ones((self.shape[1], 1))
+        xyz = orbit_interp.ell2xyz(np.ravel(lats), np.ravel(lons), self['dem'])
+        lines, pixels = orbit_interp.xyz2lp(xyz)
 
-            x = np.linspace(coordinates.x0 + coordinates.dx * self.s_pix,
-                                   coordinates.x0 + coordinates.dx * (self.s_pix + self.shape[1] - 1),
-                                   self.shape[1])[None, :] * np.ones((self.shape[0], 1))
-
-            self.lat, self.lon = coordinates.proj2ell(x, y)
-
-        # Initialize the output data
-        self.x = []
-        self.y = []
-        self.z = []
-        self.line = []
-        self.pixel = []
-        self.orbits = OrbitCoordinates(self.meta)
-
-    def __call__(self):
-
-        if len(self.lat) == 0 or len(self.lon) == 0 or len(self.dem) == 0:
-            print('Missing input data for inverse geocoding for ' + self.meta.folder + '. Aborting..')
-            return False
-
-        try:
-            # Here the actual geocoding is done.
-
-            # Then calculate the x,y,z coordinates
-            self.x, self.y, self.z = self.orbits.ell2xyz(np.ravel(self.lat), np.ravel(self.lon), np.ravel(self.dem))
-
-            # Finally calculate the lat/lon coordinates
-            self.line, self.pixel = self.orbits.xyz2lp(self.x, self.y, self.z)
-            self.x = []
-            self.y = []
-            self.z = []
-            self.line = self.line.reshape(self.shape).astype(np.float32)
-            self.pixel = self.pixel.reshape(self.shape).astype(np.float32)
-
-            # Data can be saved using the create output files and add meta data function.
-            self.add_meta_data(self.meta, self.coordinates)
-            self.meta.image_new_data_memory(self.line, 'inverse_geocode', self.s_lin, self.s_pix, file_type='DEM_line' + self.coordinates.sample)
-            self.meta.image_new_data_memory(self.pixel, 'inverse_geocode', self.s_lin, self.s_pix, file_type='DEM_pixel' + self.coordinates.sample)
-
-            return True
-
-        except Exception:
-            log_file = os.path.join(self.meta.folder, 'error.log')
-            logging.basicConfig(filename=log_file, level=logging.DEBUG)
-            logging.exception('Failed geocoding for ' +
-                              self.meta.folder + '. Check ' + log_file + ' for details.')
-            print('Failed geocoding for ' +
-                  self.meta.folder + '. Check ' + log_file + ' for details.')
-
-            return False
-
-    @staticmethod
-    def add_meta_data(meta, coordinates):
-        # This function adds information about this step to the image. If parallel processing is used this should be
-        # done before the actual processing.
-        if not isinstance(coordinates, CoordinateSystem):
-            print('coordinates should be an CoordinateSystem object')
-
-        if 'inverse_geocode' in meta.processes.keys():
-            meta_info = meta.processes['inverse_geocode']
-        else:
-            meta_info = OrderedDict()
-
-        meta_info = coordinates.create_meta_data(['DEM_line', 'DEM_pixel'],
-                                                 ['real4', 'real4'], meta_info)
-
-        meta.image_add_processing_step('inverse_geocode', meta_info)
-
-    @staticmethod
-    def processing_info(coordinates, meta_type='cmaster'):
-
-        if not isinstance(coordinates, CoordinateSystem):
-            print('coordinates should be an CoordinateSystem object')
-
-        # Three input files needed Dem, Dem_line and Dem_pixel
-        recursive_dict = lambda: defaultdict(recursive_dict)
-        input_dat = recursive_dict()
-        input_dat[meta_type]['import_DEM']['DEM' + coordinates.sample]['file'] = 'DEM_' + coordinates.sample + '.raw'
-        input_dat[meta_type]['import_DEM']['DEM' + coordinates.sample]['coordinates'] = coordinates
-        input_dat[meta_type]['import_DEM']['DEM' + coordinates.sample]['slice'] = coordinates.slice
-
-        # One output file created radar dem
-        output_dat = recursive_dict()
-        for t in ['DEM_line', 'DEM_pixel']:
-            output_dat[meta_type]['inverse_geocode'][t + coordinates.sample]['files'] = t + coordinates.sample + '.raw'
-            output_dat[meta_type]['inverse_geocode'][t + coordinates.sample]['coordinates'] = coordinates
-            output_dat[meta_type]['inverse_geocode'][t + coordinates.sample]['slice'] = coordinates.slice
-
-        # Number of times input data is used in ram. Bit difficult here but 20 times is ok guess.
-        mem_use = 20
-
-        return input_dat, output_dat, mem_use
-
-    @staticmethod
-    def create_output_files(meta, file_type='', coordinates=''):
-        # Create the output files as memmap files for the whole image. If parallel processing is used this should be
-        # done before the actual processing.
-        meta.images_create_disk('inverse_geocode', file_type, coordinates)
-
-    @staticmethod
-    def save_to_disk(meta, file_type='', coordinates=''):
-        # Save the function output in memory to disk
-        meta.images_memory_to_disk('inverse_geocode', file_type, coordinates)
-
-    @staticmethod
-    def clear_memory(meta, file_type='', coordinates=''):
-        # Save the function output in memory to disk
-        meta.images_clean_memory('inverse_geocode', file_type, coordinates)
+        self['lines'] = np.reshape(lines, coordinates.shape)
+        self['pixels'] = np.reshape(pixels, coordinates.shape)
+        

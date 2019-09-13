@@ -17,7 +17,7 @@ import numpy as np
 
 from rippl.meta_data.slc import SLC
 from rippl.meta_data.interferogram import Interferogram
-from rippl.external_DEMs.srtm.srtm_download import SrtmDownload
+from rippl.external_dems.srtm.srtm_download import SrtmDownload
 from rippl.meta_data.interferogram_network import InterferogramNetwork
 
 
@@ -27,9 +27,9 @@ class Stack(object):
         self.datastack_folder = datastack_folder
 
         # List of images and interferograms
-        self.images = dict()
-        self.image_dates = []
-        self.interferograms = dict()
+        self.slcs = dict()
+        self.slc_dates = []
+        self.ifgs = dict()
         self.ifg_dates = []
 
         self.dates = []
@@ -76,22 +76,21 @@ class Stack(object):
             sl = line.split(',')
             time = sl[0].split(' ')[1]
             t = datetime.datetime.strptime(time, '%Y-%m-%dT%H:%M:%S.%f')
-            self.master_slice_az_time.append(time)
-            self.master_slice_time.append(t)
-            self.master_slice_date.append(sl[0].split(' ')[1][:10])
-            self.master_slice_swath_no.append(int(sl[1].split(' ')[1]))
-            self.master_slice_number.append(int(sl[2].split(' ')[1]))
-            self.master_slice_x.append(int(sl[3].split(' ')[1]))
-            self.master_slice_y.append(int(sl[4].split(' ')[1]))
-            self.master_slice_z.append(int(sl[5].split(' ')[1]))
-            self.master_slice_lat.append(float(sl[6].split(' ')[1]))
-            self.master_slice_lon.append(float(sl[7].split(' ')[1]))
-            self.master_slice_pol.append(sl[8].split(' ')[1])
-            self.master_slice_seconds.append(float(t.hour * 3600 + t.minute * 60 + t.second) + float(t.microsecond) / 1000000)
-
-            self.master_slice_names.append('slice_' + sl[2].split(' ')[1] +
-                                    '_swath_' + sl[1].split(' ')[1] + '_' + sl[8].split(' ')[1])
-            self.master_date = t.strftime('%Y%m%d')
+            name = 'slice_' + sl[2].split(' ')[1] + '_swath_' + sl[1].split(' ')[1]
+            if not name in self.master_slice_names:
+                self.master_slice_az_time.append(time)
+                self.master_slice_time.append(t)
+                self.master_slice_date.append(sl[0].split(' ')[1][:10])
+                self.master_slice_swath_no.append(int(sl[1].split(' ')[1]))
+                self.master_slice_number.append(int(sl[2].split(' ')[1]))
+                self.master_slice_x.append(int(sl[3].split(' ')[1]))
+                self.master_slice_y.append(int(sl[4].split(' ')[1]))
+                self.master_slice_z.append(int(sl[5].split(' ')[1]))
+                self.master_slice_lat.append(float(sl[6].split(' ')[1]))
+                self.master_slice_lon.append(float(sl[7].split(' ')[1]))
+                self.master_slice_seconds.append(float(t.hour * 3600 + t.minute * 60 + t.second) + float(t.microsecond) / 1000000)
+                self.master_slice_names.append(name)
+                self.master_date = t.strftime('%Y%m%d')
 
         l.close()
 
@@ -113,37 +112,48 @@ class Stack(object):
 
         # Load individual images.
         for image_dir in image_dirs:
-            if image_dir not in self.image_dates:
-                self.images[os.path.dirname(image_dir)] = SLC(image_dir, slice_list=self.master_slice_names)
-                self.image_dates.append(os.path.basename(image_dir))
+            if image_dir not in self.slc_dates:
+                self.slcs[os.path.basename(image_dir)] = SLC(image_dir, slice_list=self.master_slice_names)
+                self.slc_dates.append(os.path.basename(image_dir))
 
         # Load master date information.
-        cmaster_image = self.images[self.master_date]
+        cmaster_image = self.slcs[self.master_date]
         cmaster_image.load_full_meta()
         cmaster_image.load_slice_meta()
 
         # Load ifgs
         for ifg_dir in ifg_dirs:
             if ifg_dir not in self.ifg_dates:
-                self.interferograms[ifg_dir[-17:]] = Interferogram(ifg_dir, slice_list=self.master_slice_names)
+
+                if os.path.basename(ifg_dir)[:8] in self.slcs.keys():
+                    master_slc = self.slcs[os.path.basename(ifg_dir)[:8]]
+                else:
+                    master_slc = ''
+                if os.path.basename(ifg_dir)[9:] in self.slcs.keys():
+                    slave_slc = self.slcs[os.path.basename(ifg_dir)[9:]]
+                else:
+                    slave_slc = ''
+
+                self.ifgs[ifg_dir[-17:]] = Interferogram(ifg_dir, master_slc=master_slc, slave_slc=slave_slc,
+                                                         coreg_slc=cmaster_image, slice_list=self.master_slice_names)
                 self.ifg_dates.append(os.path.basename(ifg_dir))
 
         # combine the ifg and image dates
-        self.dates = sorted(set(self.ifg_dates) - set(self.image_dates))
+        self.dates = sorted(set(self.ifg_dates) - set(self.slc_dates))
 
     def create_interferogram_network(self, image_baselines=[], network_type='temp_baseline',
                                      temporal_baseline=60, temporal_no=3, spatial_baseline=2000):
         # This method will call the create interferogram network class.
         # Run after reading in the datastack.
 
-        network = InterferogramNetwork(self.images.keys(), self.master_date, image_baselines, network_type,
+        network = InterferogramNetwork(self.slcs.keys(), self.master_date, image_baselines, network_type,
                                        temporal_baseline, temporal_no, spatial_baseline)
         ifg_pairs = network.ifg_pairs
 
         # Finally create the requested ifg if they do not exist already
-        ifg_ids = self.interferograms.keys()
+        ifg_ids = self.ifgs.keys()
         cmaster_key = self.master_date
-        date_int = np.sort([int(key) for key in self.images.keys()])
+        date_int = np.sort([int(key) for key in self.slcs.keys()])
 
         for ifg_pair in ifg_pairs:
 
@@ -154,18 +164,72 @@ class Stack(object):
             ifg_key_2 = slave_key + '_' + master_key
 
             if not ifg_key_1 in ifg_ids and not ifg_key_2 in ifg_ids:
-                ifg = Interferogram(slave=self.images[slave_key], master=self.images[master_key],
-                                    cmaster=self.images[cmaster_key])
-                self.interferograms[ifg_key_1] = ifg
+                folder = os.path.join(self.datastack_folder, ifg_key_1)
+                ifg = Interferogram(folder, slave_slc=self.slcs[slave_key], master_slc=self.slcs[master_key], coreg_slc=self.slcs[cmaster_key])
+                self.ifgs[ifg_key_1] = ifg
 
-    def stack_data_iterator(self, coordinates, process, process_type='',
-                            images=True, interferograms=True,  full_image=True, slices=False):
-        # Get all the full-images or slices
+    def stack_data_iterator(self, processes=[], coordinates=[], data_ids=[], polarisations=[], process_types=[],
+                            slc_date=False, ifg_date=False, slc=True, ifg=True, full_image=True, slices=False, data=True):
 
+        processes_out = []
+        process_ids_out = []
+        file_types_out = []
+        coordinates_out = []
+        slice_names_out = []
+        images_out = []
+        image_dates_out = []
+        image_types_out = []
 
+        if slc_date:
+            if not slc_date in self.slcs.keys():
+                print('The selected SLC data should be part of the stack')
+                return
+        if ifg_date:
+            if not ifg_date in self.ifgs.keys():
+                print('The selected interferogram date should be part of the stack')
+                return
 
+        # Get all the full-images or slices for one image/interferogram or all.
+        if slc:
+            if slc_date:
+                slc_dates = [slc_date]
+            else:
+                slc_dates = self.slcs.keys()
 
-    def download_SRTM_dem(self, srtm_folder, username, password, buf=0.5, rounding=0.5, srtm_type='SRTM3', parallel=True):
+            for date in slc_dates:
+                slice_names_slc, processes_slc, process_ids_slc, coordinates_slc, file_types_slc, images_slc \
+                    = self.slcs[date].concat_image_data_iterator(processes, coordinates, data_ids, polarisations,
+                                                                 process_types, full_image, slices, data)
+                process_ids_out += process_ids_slc
+                file_types_out += file_types_slc
+                slice_names_out += slice_names_slc
+                images_out += images_slc
+                coordinates_out += coordinates_slc
+                image_dates_out += [date for i in range(len(processes_slc))]
+                image_types_out += ['slc' for i in range(len(processes_slc))]
+
+        if ifg:
+            if ifg_date:
+                ifg_dates = [ifg_date]
+            else:
+                ifg_dates = self.ifgs.keys()
+
+            for date in ifg_dates:
+                slice_names_ifg, processes_ifg, process_ids_ifg, coordinate_systems_ifg, file_types_ifg, images_ifg \
+                    = self.ifgs[date].concat_image_data_iterator(processes, coordinates, data_ids, polarisations,
+                                                                 process_types, full_image, slices, data)
+                process_ids_out += process_ids_ifg
+                file_types_out += file_types_ifg
+                slice_names_out += slice_names_ifg
+                images_out += images_ifg
+                coordinates_out += coordinate_systems_ifg
+                image_dates_out += [date for i in range(len(processes_ifg))]
+                image_types_out += ['ifg' for i in range(len(processes_ifg))]
+
+        return image_types_out, image_dates_out, slice_names_out, processes_out, process_ids_out, coordinates_out, \
+               file_types_out, images_out
+
+    def download_SRTM_dem(self, srtm_folder, username, password, buffer=0.5, rounding=0.5, srtm_type='SRTM3', parallel=True):
         # Downloads the needed srtm data for this datastack. srtm_folder is the folder the downloaded srtm tiles are
         # stored.
         # Username and password can be obtained at https://lpdaac.usgs.gov
@@ -175,7 +239,7 @@ class Stack(object):
         # Description srtm q data: https://lpdaac.usgs.gov/node/505
 
         download = SrtmDownload(srtm_folder, username, password, srtm_type)
-        download(self.images[self.master_date].data, buf=buf, rounding=rounding, parallel=parallel)
+        download(self.slcs[self.master_date].data.meta, buffer=buffer, rounding=rounding, parallel=parallel)
 
     def download_ECMWF_data(self, dat_type, ecmwf_data_folder, latlim='', lonlim= '', processes=6, parallel=True):
         # Download ECMWF data for whole dataset at once. This makes this process much faster.
@@ -195,7 +259,7 @@ class Stack(object):
         if len(lonlim) != 2:
             lonlim = [-2, 12]
 
-        down_dates = [datetime.datetime.strptime(d, '%Y%m%d') for d in self.images.keys()]
+        down_dates = [datetime.datetime.strptime(d, '%Y%m%d') for d in self.slcs.keys()]
 
         download = ECMWFdownload(latlim, lonlim, ecmwf_data_folder, dat_type, processes, parallel=parallel)
         download.prepare_download(down_dates)
