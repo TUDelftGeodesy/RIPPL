@@ -23,7 +23,7 @@ class Process():
     def __init__(self, process_name='', data_id='', polarisation='', file_types=[], process_dtypes=[], shapes=[], settings=dict(),
                  coor_in=[], coor_out=[], in_coor_types=[], coordinate_systems=dict(),
                  in_image_types=[], in_processes=[], in_file_types=[], in_polarisations=[], in_data_ids=[], in_type_names = [],
-                 slave=[], master=[], coreg_master=[], ifg=[], processing_images=dict(), out_processing_image='slave'):
+                 slave=[], master=[], coreg_master=[], ifg=[], processing_images=dict(), out_processing_image='slave', overwrite=False):
         """
         Define the name and output files of the processing step.
 
@@ -72,7 +72,7 @@ class Process():
 
         # Input and output image (slave/master/ifg etc.)
         self.in_processing_images = dict()  # type: dict(ImageProcessingData)
-        self.out_processing_image = ''      # type: str
+        self.out_processing_image = ''      # type: ImageProcessingData
 
         # Input and output image data. To load from disk to memory and save results
         self.in_type_names = in_type_names  # type: list
@@ -85,8 +85,21 @@ class Process():
         self.define_processing_images(slave, master, coreg_master, ifg, processing_images, out_processing_image)
 
         # Create the process metadata and images. Load the input images too.
+        if not overwrite and self.check_output_exists(self.out_processing_image, self.process_name, self.coor_out,
+                                                      polarisation, data_id, file_types):
+            print('Processing step already done.')
+            self.process_finished = True
+            return
+        else:
+            self.process_finished = False
+
         self.create_process_metadata(polarisation, data_id, settings)
         self.create_output_images(file_types, process_dtypes, shapes)
+
+        n_inputs = len(in_image_types)
+        if len(in_processes) != n_inputs or len(in_file_types) != n_inputs or len(in_polarisations) != n_inputs or \
+            len(in_data_ids) != n_inputs or len(in_coor_types) != n_inputs or len(in_type_names) != n_inputs:
+            raise LookupError('Lists with input specifications are not the same. Check your process setup.')
         self.load_input_images(in_image_types, in_processes, in_file_types, in_polarisations, in_data_ids, in_coor_types,
                                in_type_names)        # We load the input images only. The data is not loaded to memory yet.
 
@@ -113,6 +126,10 @@ class Process():
         :return:
         """
 
+        if self.process_finished:
+            print('Process already finished')
+            return
+
         self.load_input_data()
         self.create_output_data_files()
         self.create_memory()
@@ -120,6 +137,8 @@ class Process():
         self.save_to_disk()
         self.clean_memory()
         self.out_processing_image.update_json()
+
+        self.process_finished = True
 
     def __getitem__(self, key):
         # Check if there is a memory file with this name and give the output.
@@ -143,6 +162,29 @@ class Process():
         else:
             return False
 
+    @staticmethod
+    def check_output_exists(out_processing_image, process_name, coor_out, polarisation, data_id, file_types):
+        """
+        Check if processing of this step is already done.
+
+        :param str polarisation: Polarisation of output process
+        :param str data_id: Data ID of output process
+        :param list(str) file_types: List of file types output process
+        :return:
+        """
+
+        for file_type in file_types:
+            image = out_processing_image.processing_image_data_exists(process_name, coor_out, data_id, polarisation,
+                                                                      file_type, data=True, message=False)
+            if not isinstance(image, ImageData):
+                return False
+            else:
+                if not image.check_data_disk_valid() == (True, True):
+                    return False
+
+        # If al data sources exist and are available on disk cancel processing.
+        return True
+
     def process_calculations(self):
         """
         This is the function in every processing step where the actual calculations are done. Because this is the
@@ -165,8 +207,14 @@ class Process():
         :return:
         """
 
-        self.process_data = ProcessData(self.out_processing_image.folder, self.process_name, self.coor_out,
-                                        settings, polarisation=polarisation, data_id=data_id)
+        if self.coor_in == self.coor_out:
+            in_coordinates = []
+        else:
+            in_coordinates = self.coor_in
+
+        self.process_data = ProcessData(self.out_processing_image.folder, self.process_name,
+                                        coordinates=self.coor_out, in_coordinates=in_coordinates,
+                                        settings=settings, polarisation=polarisation, data_id=data_id)
         self.out_processing_image.add_process(self.process_data)
         self.process = self.process_data.meta
 
@@ -364,9 +412,12 @@ class Process():
                                                                                             type_names)):
             image_data = self.in_processing_images[image_type].\
                 processing_image_data_exists(process, self.coordinate_systems[coor], data_id, polarisation, file_type)
-            if not image_data:
-                return False
+            if image_data == False:
+                raise TypeError('No processing information for ' + process + ' file type ' + file_type + ' found.')
+            elif image_data.check_data_disk_valid() != (True, True):
+                raise FileNotFoundError('Input data file not found or wrong size')
             else:
+                self.process_data.add_input_image(image_data, name)
                 self.in_images[name] = image_data
 
         return True
@@ -397,11 +448,20 @@ class Process():
             s_pix = 0
             shape = self.coor_in.shape
 
+        self.coordinate_systems['coor_in'].create_coor_id()
+        self.coordinate_systems['coor_out'].create_coor_id()
+
         for key in self.in_images.keys():
+            self.in_images[key].coordinates.create_coor_id()
             if self.in_images[key].coordinates.id_str == self.coordinate_systems['coor_in'].id_str:
-                self.in_images[key].load_memory_data(shape, s_lin, s_pix)
+                success = self.in_images[key].load_memory_data(shape, s_lin, s_pix)
             elif self.in_images[key].coordinates.id_str == self.coordinate_systems['coor_out'].id_str:
-                self.in_images[key].load_memory_data([self.lines, self.pixels], self.s_lin, self.s_pix)
+                success = self.in_images[key].load_memory_data([self.lines, self.pixels], self.s_lin, self.s_pix)
+            else:
+                success = False
+            if not success:
+                raise ValueError('Input data ' + key + ' for ' + self.process_name + ' from image ' +
+                                 self.in_images[key].folder + ' cannot be loaded.')
 
     def create_memory(self, file_types=[]):
         """

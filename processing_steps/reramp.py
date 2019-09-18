@@ -15,7 +15,7 @@ from rippl.processing_steps.deramp import Deramp
 class Reramp(Process):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', polarisation='', coor_in=[], in_image_types=[], in_coor_types=[], in_processes=[],
-                 in_file_types=[], in_polarisations=[], in_data_ids=[], slave=[]):
+                 in_file_types=[], in_polarisations=[], in_data_ids=[], slave=[], overwrite=False):
         """
         This function deramps the ramped data from TOPS mode to a deramped data. Input data of this function should
         be a radar coordinates grid.
@@ -51,7 +51,7 @@ class Reramp(Process):  # Change this name to the one of your processing step.
         if len(in_polarisations) == 0:
             in_polarisations = ['', 'none', 'none']
         if len(in_processes) == 0:
-            in_processes = ['resample', 'geometrical_coregistration', 'geometrical_coregistration']
+            in_processes = ['resample', 'geometric_coregistration', 'geometric_coregistration']
         if len(in_file_types) == 0:
             in_file_types = ['resampled', 'lines', 'pixels']
 
@@ -63,14 +63,17 @@ class Reramp(Process):  # Change this name to the one of your processing step.
                        file_types=file_types,
                        process_dtypes=data_types,
                        coor_in=coor_in,
+                       in_coor_types=in_coor_types,
                        in_image_types=in_image_types,
                        in_processes=in_processes,
                        in_file_types=in_file_types,
                        in_polarisations=in_polarisations,
                        in_data_ids=in_data_ids,
-                       slave=slave)
+                       in_type_names=in_type_names,
+                       slave=slave,
+                       overwrite=overwrite)
 
-    def process_calculations(self):
+    def process_calculations(self, test=False):
         """
         Main calculations done are based on information given in the meta data. The ramp can be calculated based on the
         DC and FM polynomials combined with range and azimuth time.
@@ -87,11 +90,41 @@ class Reramp(Process):  # Change this name to the one of your processing step.
 
         readfile = processing_data.readfiles['original']
         orbit = processing_data.find_best_orbit('original')
+        coor_in = self.in_images['lines'].in_coordinates
 
         # Calculate azimuth/range grid and ramp.
-        az_grid = self['lines'] * self.coor_out.az_step + self.coor_out.az_time
-        ra_grid = self['pixels'] * self.coor_out.ra_step + self.coor_out.ra_time
+        az_grid = self['lines'] * coor_in.az_step + coor_in.az_time
+        ra_grid = self['pixels'] * coor_in.ra_step + coor_in.ra_time
         ramp = Deramp.calc_ramp(readfile, orbit, az_grid, ra_grid)
 
         # Finally calced the deramped image.
-        self['reramped'] = (self['deramped'] * np.conj(ramp))
+        self['reramped'] = self['deramped'] * np.conj(ramp)
+
+        if test:
+            self.test_result()
+
+    def test_result(self):
+        """
+        Method to check the results of the deramping. Here we generate the spectrogram of the input and output and
+        create two images.
+
+        :return:
+        """
+
+        # import needed function
+        import matplotlib.pyplot as plt
+
+        # Calculate the spectrogram of the ramped data
+        spec_in = np.log(np.abs(np.fft.ifftshift(np.fft.fft2(self['reramped']))**2))
+
+        # And the deramped data
+        spec_out = np.log(np.abs(np.fft.ifftshift(np.fft.fft2(self['deramped'])) ** 2))
+
+        # plot in one image
+        plt.figure()
+        plt.subplot(211)
+        plt.imshow(spec_in[:, ::10])
+
+        plt.subplot(212)
+        plt.imshow(spec_out[:, ::10])
+        plt.show()

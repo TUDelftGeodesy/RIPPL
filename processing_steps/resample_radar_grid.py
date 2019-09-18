@@ -1,5 +1,6 @@
 # Try to do all calculations using numpy functions.
 import numpy as np
+from collections import OrderedDict
 
 # Import the parent class Process for processing steps.
 from rippl.meta_data.process import Process
@@ -14,7 +15,7 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
     def __init__(self, data_id='', polarisation='', resample_type='4p_cubic',
                  coor_in=[], coor_out=[],
                  in_coor_types=[], in_processes=[], in_file_types=[], in_polarisations=[], in_data_ids=[],
-                 slave=[]):
+                 slave=[], overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -46,7 +47,8 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
         self.process_name = 'resample'
         file_types = ['resampled']
         data_types = ['complex_short']
-        self.resample_type = resample_type
+        self.settings = OrderedDict()
+        self.settings['resample_type'] = resample_type
 
         """
         Then give the default input steps for the processing. The given input values will be overridden when other input
@@ -58,7 +60,7 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
         if len(in_data_ids) == 0:
             in_data_ids = ['none', '', '']
         if len(in_polarisations) == 0:
-            in_polarisations = ['', 'none', 'none']
+            in_polarisations = [polarisation, 'none', 'none']
         if len(in_processes) == 0:
             in_processes = ['deramp', 'geometric_coregistration', 'geometric_coregistration']
         if len(in_file_types) == 0:
@@ -70,6 +72,7 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
         super(ResampleRadarGrid, self).__init__(
                        process_name=self.process_name,
                        data_id=data_id,
+                       settings=self.settings,
                        polarisation=polarisation,
                        file_types=file_types,
                        process_dtypes=data_types,
@@ -82,11 +85,14 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
                        in_file_types=in_file_types,
                        in_polarisations=in_polarisations,
                        in_data_ids=in_data_ids,
-                       slave=slave)
+                       slave=slave,
+                       overwrite=overwrite)
+        if self.process_finished:
+            return
 
         # Define the irregular grid for output. This is needed if you want to calculate in blocks.
-        self.out_irregular_grids = [self.in_processing_images['lines'].data_disk,
-                                   self.in_processing_images['pixels'].data_disk]
+        self.out_irregular_grids = [self.in_images['lines'].disk['data'],
+                                   self.in_images['pixels'].disk['data']]
 
 
     def process_calculations(self):
@@ -97,12 +103,12 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
         """
 
         # Init resampling
-        resample = Resample(self.resample_type)
+        resample = Resample(self.settings['resample_type'])
 
         # Change line/pixel coordinates to right value
-        lines = (self['lines'] - self.block_coor.first_line) / \
+        lines = (self['lines'] + (self.coor_out.first_line - self.coor_in.first_line) - self.block_coor.first_line) / \
                                (self.block_coor.multilook[0] / self.block_coor.oversample[0])
-        pixels = (self['pixels'] - self.block_coor.first_pixel) / \
+        pixels = (self['pixels'] + (self.coor_out.first_pixel - self.coor_in.first_pixel) - self.block_coor.first_pixel) / \
                                (self.block_coor.multilook[1] / self.block_coor.oversample[1])
 
         self['resampled'] = resample(self['input_data'], lines, pixels)

@@ -19,7 +19,7 @@ from rippl.resampling.coor_new_extend import CoorNewExtend
 class CreateDem(Process):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', coor_in=[], in_image_types=[], coreg_master=[],
-                 dem_folder='', quality=False, buffer=0.2, rounding=0.2, dem_type='SRTM3'):
+                 dem_folder='', quality=False, buffer=0.2, rounding=0.2, dem_type='SRTM3', overwrite=False):
 
         """
         This function creates a dem. Current options are SRTM1 and SRTM3. This could be extended in the future.
@@ -35,7 +35,7 @@ class CreateDem(Process):  # Change this name to the one of your processing step
         """
 
         # Output grid
-        self.process_name = 'import_dem'
+        self.process_name = 'create_dem'
         self.dem_type = dem_type
         self.quality = quality
         if not quality:
@@ -44,6 +44,10 @@ class CreateDem(Process):  # Change this name to the one of your processing step
         else:
             file_types = ['dem', 'dem_quality']
             data_types = ['real4', 'int8']
+
+        if not overwrite and self.check_output_exists(coreg_master, self.process_name, coor_in, '', data_id, file_types):
+            self.process_finished = True
+            return
 
         # Input steps are not needed for dem creation.
         in_image_types = []
@@ -77,7 +81,8 @@ class CreateDem(Process):  # Change this name to the one of your processing step
                        coor_in=coor_in,
                        coor_out=self.coor_out,
                        coreg_master=coreg_master,
-                       out_processing_image='coreg_master')
+                       out_processing_image='coreg_master',
+                       overwrite=overwrite)
 
     def process_calculations(self):
         """
@@ -95,7 +100,6 @@ class CreateDem(Process):  # Change this name to the one of your processing step
 
         geoid_file = os.path.join(self.dem_folder, 'egm96.dat')
         geoid = self.create_geoid(self.coor_out, geoid_file, download=False)
-        self.process.data_id = self.dem_type
         self['dem'] -= geoid
 
     @staticmethod

@@ -9,14 +9,15 @@ class Resample(object):
         # However, if you want to do the processing using the same interpolation kernel you can use this class to keep
         # those stable.
         self.window = self.create_interp_table(w_type, table_size)
-        self.table_size = table_size
+        self.table_size = [self.window.shape[0] - 1, self.window.shape[1] - 1]
+        self.w_type = w_type
 
-    def __call__(self, orig_grid, new_grid_lines, new_grid_pixels, w_type, step_size=100000000):
+    def __call__(self, orig_grid, new_grid_lines, new_grid_pixels, step_size=100000000):
         # Do the actual resampling.
-        return self.resample_grid(orig_grid, new_grid_lines, new_grid_pixels, w_type, step_size, self.table_size, self.window)
+        return self.resample_grid(orig_grid, new_grid_lines, new_grid_pixels, self.w_type, step_size, self.table_size, self.window)
 
     @staticmethod
-    def resample_grid(orig_grid, new_grid_lines, new_grid_pixels, w_type, step_size=100000000, table_size='', window=''):
+    def resample_grid(orig_grid, new_grid_lines, new_grid_pixels, w_type='', step_size=100000000, table_size='', window=''):
         # Here the actual resampling is done. If the output is a grid, the variables new_grid_lines and new_grid_pixels
         # should be the same size as the output grid.
 
@@ -69,7 +70,7 @@ class Resample(object):
                           ((pixel_id - half_w_pixel + 1) >= 0) * ((pixel_id + half_w_pixel) < orig_grid.shape[1]))
 
             # Pre assign the final values of this step.
-            out_vals = np.zeros(len(l_window_id))
+            out_vals = np.zeros(len(l_window_id)).astype(orig_grid.dtype)
 
             # Calculate individually for different pixels in the image window. Saves a lot of memory space...
             for i in np.arange(window_size[0]):

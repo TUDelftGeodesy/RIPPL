@@ -17,7 +17,7 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
 
     def __init__(self, data_id='', coor_in=[], coor_out=[], dem_type='SRTM1',
                  in_image_types=[], in_processes=[], in_file_types=[], in_data_ids=[],
-                 slave=[], coreg_master=[]):
+                 slave=[], coreg_master=[], overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -44,7 +44,7 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
 
         self.process_name = 'geometric_coregistration'
         file_types = ['lines', 'pixels']
-        data_types = ['real4', 'real4']
+        data_types = ['real8', 'real8']
 
         """
         Then give the default input steps for the processing. The given input values will be overridden when other input
@@ -56,7 +56,7 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
             # However, if you override the default values this could change.
         in_coor_types = ['coor_out', 'coor_out', 'coor_out']  # Same here but then for the coor_out and coordinate_systems
         if len(in_data_ids) == 0:
-            in_data_ids = [dem_type, dem_type, dem_type]
+            in_data_ids = ['', '', '']
         in_polarisations = ['none', 'none', 'none']
         if len(in_processes) == 0:
             in_processes = ['geocode', 'geocode', 'geocode']
@@ -69,9 +69,11 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
         super(GeometricCoregistration, self).__init__(
                        process_name=self.process_name,
                        file_types=file_types,
-                       data_id=dem_type,
+                       data_id=data_id,
                        process_dtypes=data_types,
                        coor_in=coor_in,
+                       coor_out=coor_out,
+                       in_coor_types=in_coor_types,
                        in_type_names=in_type_names,
                        in_image_types=in_image_types,
                        in_processes=in_processes,
@@ -80,7 +82,8 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
                        in_data_ids=in_data_ids,
                        slave=slave,
                        coreg_master=coreg_master,
-                       out_processing_image='slave')
+                       out_processing_image='slave',
+                       overwrite=overwrite)
 
     def process_calculations(self):
         """
@@ -95,7 +98,7 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
 
         # Now initialize the orbit estimation.
         orbit_interp = OrbitCoordinates(coordinates=self.coor_in, orbit=orbit_slave)
-        xyz = np.concatenate((self['X_coreg'][:, None], self['Y_coreg'][:, None], self['Z_coreg'][:, None]))
+        xyz = np.vstack((np.ravel(self['X_coreg'])[None, :], np.ravel(self['Y_coreg'])[None, :], np.ravel(self['Z_coreg'])[None, :]))
         lines, pixels = orbit_interp.xyz2lp(xyz)
 
         self['lines'] = np.reshape(lines, self.block_coor.shape)

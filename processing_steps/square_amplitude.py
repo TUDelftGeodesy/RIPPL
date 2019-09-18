@@ -16,7 +16,7 @@ class SquareAmplitude(Process):  # Change this name to the one of your processin
 
     def __init__(self, data_id='', polarisation='', coor_in=[],
                  in_processes=[], in_file_types=[], in_polarisations=[], in_data_ids=[],
-                 slave=[]):
+                 slave=[], overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -55,11 +55,11 @@ class SquareAmplitude(Process):  # Change this name to the one of your processin
         if len(in_data_ids) == 0:
             in_data_ids = ['none']
         if len(in_polarisations) == 0:
-            in_polarisations = ['']
+            in_polarisations = [polarisation]
         if len(in_processes) == 0:
             in_processes = ['earth_topo_phase']
         if len(in_file_types) == 0:
-            in_file_types = ['earth_topo_phase']
+            in_file_types = ['earth_topo_phase_corrected']
 
         in_type_names = ['input_data']
 
@@ -71,13 +71,15 @@ class SquareAmplitude(Process):  # Change this name to the one of your processin
                        file_types=file_types,
                        process_dtypes=data_types,
                        coor_in=coor_in,
+                       in_coor_types=in_coor_types,
                        in_type_names=in_type_names,
                        in_image_types=in_image_types,
                        in_processes=in_processes,
                        in_file_types=in_file_types,
                        in_polarisations=in_polarisations,
                        in_data_ids=in_data_ids,
-                       slave=slave)
+                       slave=slave,
+                       overwrite=overwrite)
 
     def process_calculations(self):
         """
@@ -86,4 +88,4 @@ class SquareAmplitude(Process):  # Change this name to the one of your processin
         :return:
         """
 
-        self['amplitude'] = np.abs(self['input_data'])**2
+        self['square_amplitude'] = np.abs(self['input_data'])**2

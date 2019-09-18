@@ -16,7 +16,7 @@ class Amplitude(Process):  # Change this name to the one of your processing step
 
     def __init__(self, data_id='', polarisation='', coor_in=[],
                  in_processes=[], in_file_types=[], in_polarisations=[], in_data_ids=[],
-                 slave=[]):
+                 slave=[], overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -77,7 +77,8 @@ class Amplitude(Process):  # Change this name to the one of your processing step
                        in_file_types=in_file_types,
                        in_polarisations=in_polarisations,
                        in_data_ids=in_data_ids,
-                       slave=slave)
+                       slave=slave,
+                       overwrite=overwrite)
 
     def process_calculations(self):
         """

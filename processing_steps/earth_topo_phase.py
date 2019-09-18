@@ -15,7 +15,7 @@ from rippl.processing_steps.deramp import Deramp
 class EarthTopoPhase(Process):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', polarisation='', coor_in=[], in_image_types=[], in_coor_types=[], in_processes=[],
-                 in_file_types=[], in_polarisations=[], in_data_ids=[], slave=[]):
+                 in_file_types=[], in_polarisations=[], in_data_ids=[], slave=[], overwrite=False):
         """
         This function deramps the ramped data from TOPS mode to a deramped data. Input data of this function should
         be a radar coordinates grid.
@@ -49,11 +49,11 @@ class EarthTopoPhase(Process):  # Change this name to the one of your processing
         if len(in_data_ids) == 0:
             in_data_ids = ['none', '']
         if len(in_polarisations) == 0:
-            in_polarisations = ['', 'none']
+            in_polarisations = [polarisation, 'none']
         if len(in_processes) == 0:
-            in_processes = ['deramp', 'geometrical_coregistration']
+            in_processes = ['reramp', 'geometric_coregistration']
         if len(in_file_types) == 0:
-            in_file_types = ['deramped', 'pixels']
+            in_file_types = ['reramped', 'pixels']
 
         in_type_names = ['input_data', 'pixels']
 
@@ -63,13 +63,15 @@ class EarthTopoPhase(Process):  # Change this name to the one of your processing
                        file_types=file_types,
                        process_dtypes=data_types,
                        coor_in=coor_in,
+                       in_coor_types=in_coor_types,
                        in_type_names=in_type_names,
                        in_image_types=in_image_types,
                        in_processes=in_processes,
                        in_file_types=in_file_types,
                        in_polarisations=in_polarisations,
                        in_data_ids=in_data_ids,
-                       slave=slave)
+                       slave=slave,
+                       overwrite=overwrite)
 
     def process_calculations(self):
         """
@@ -86,11 +88,15 @@ class EarthTopoPhase(Process):  # Change this name to the one of your processing
 
         readfile = processing_data.readfiles['original']
         orbit = processing_data.find_best_orbit('original')
+        coor_in = self.in_images['pixels'].in_coordinates
 
         # Calculate azimuth/range grid and ramp.
-        ra_shift = self['pixels'] * self.coor_out.ra_step + self.coor_out.ra_time
+        ra_in = np.tile(((np.arange(self.coor_out.shape[1]) + coor_in.first_pixel) * coor_in.ra_step + coor_in.ra_time)
+                        [None, :], (self.coor_out.shape[0], 1))
+
+        ra_shift = (self['pixels']  * self.coor_out.ra_step) + self.coor_out.ra_time - ra_in
         c = 299792458
-        ramp = (ra_shift * c / readfile.wavelength) * 2 * np.pi
+        ramp = np.exp(-1j * (ra_shift * c / readfile.wavelength) * 2 * np.pi).astype(np.complex64)
 
         # Finally calced the deramped image.
-        self['earth_topo_phase'] = self['input_data'] * np.exp(-1j * ramp)
+        self['earth_topo_phase_corrected'] = self['input_data'] * np.conjugate(ramp)

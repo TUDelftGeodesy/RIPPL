@@ -17,7 +17,7 @@ class Geocode(Process):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', coor_in=[], dem_type='',
                  in_image_types=[], in_coor_types=[], in_processes=[], in_file_types=[], in_data_ids=[],
-                 coreg_master=[]):
+                 coreg_master=[], overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -82,7 +82,9 @@ class Geocode(Process):  # Change this name to the one of your processing step.
                        in_file_types=in_file_types,
                        in_polarisations=in_polarisations,
                        in_data_ids=in_data_ids,
-                       coreg_master=coreg_master)
+                       coreg_master=coreg_master,
+                       out_processing_image='coreg_master',
+                       overwrite=overwrite)
 
     def process_calculations(self):
         """
@@ -94,10 +96,12 @@ class Geocode(Process):  # Change this name to the one of your processing step.
 
         # Get orbit
         orbit = self.in_processing_images['coreg_master'].find_best_orbit('original')
+        self.block_coor.create_radar_lines()
         orbit_interp = OrbitCoordinates(coordinates=self.block_coor, orbit=orbit)
 
         # Add DEM values
         orbit_interp.height = self['dem']
+        orbit_interp.lp_time()
 
         # Calculate cartesian coordinates
         orbit_interp.lph2xyz()

@@ -81,20 +81,14 @@ class ImageProcessingMeta(object):
         self.readfiles[readfile_type] = readfile
         self.process_control['readfiles'].append(readfile.date)
 
-    def dump_process(self, process, coordinates='', polarisation='', data_id=''):
+    def dump_process(self, process, coordinates, in_coordinates='', data_id='', polarisation=''):
         # This removes one of the processes and their respective datafiles.
 
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an Coordinatesystem object!')
             return
 
-        # Create id
-        if not polarisation:
-            polarisation = 'not_defined'
-        if not data_id:
-            data_id = 'none'
-
-        process_id = process + '_#coor#_' + coordinates.short_id_str + '_#id#_' + data_id + '_#pol#_' + polarisation
+        process_id = ProcessMeta.create_process_id(process, coordinates, in_coordinates, data_id, polarisation)
 
         if process in self.process_control.keys():
             if process_id in self.process_control[process]:

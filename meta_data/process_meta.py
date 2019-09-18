@@ -10,7 +10,7 @@ from rippl.meta_data.readfile import Readfile
 
 class ProcessMeta():
 
-    def __init__(self, folder, process_name=[], coordinates=[], settings=[], polarisation='', data_id='',
+    def __init__(self, folder, process_name=[], coordinates=[], in_coordinates=[], settings=[], polarisation='', data_id='',
                  json_data='', json_path=''):
 
         self.folder = folder
@@ -20,10 +20,11 @@ class ProcessMeta():
             self.json_path = json_path
         self.process_name = ''
 
+        self.in_coordinates = []
         self.coordinates = []
         self.data_id = ''
         self.polarisation = ''
-        self.process_settings = []
+        self.settings = []
 
         self.json_dict = OrderedDict()
 
@@ -36,14 +37,9 @@ class ProcessMeta():
 
             self.process_name = process_name
             self.coordinates = coordinates
-            if not polarisation:
-                self.polarisation = 'none'
-            else:
-                self.polarisation = polarisation
-            if not data_id:
-                self.data_id = 'none'
-            else:
-                self.data_id = data_id
+            self.in_coordinates = in_coordinates
+            self.polarisation = polarisation
+            self.data_id = data_id
 
             # Both input and output files are dicts that come with their coor_id and file_path
             self.input_files = OrderedDict()
@@ -51,7 +47,7 @@ class ProcessMeta():
 
             # Specific settings for this step. You can label specific settings using a data_id. This will allow you to
             # run the same code with different settings in parallel.
-            self.process_settings = settings
+            self.settings = settings
 
             # Data from readfiles and orbit. This information is usefull for a number of processing steps.
             # This data is only added in case they are used for the processing. (e.g. deramping/reramping, geocoding or geometrical coreg)
@@ -60,8 +56,26 @@ class ProcessMeta():
 
         # Create the processing ID
         self.coordinates.create_short_coor_id()
+        self.coordinates.create_coor_id()
         self.coor_id = self.coordinates.id_str
-        self.process_id = self.process_name + '_#coor#_' + self.coordinates.short_id_str + '_#id#_' + self.data_id + '_#pol#_' + self.polarisation
+        self.process_id = self.create_process_id(self.process_name, self.coordinates, self.in_coordinates, self.data_id,
+                                                 self.polarisation)
+
+    @staticmethod
+    def create_process_id(process_name, coordinates, in_coordinates, data_id, polarisation):
+        process_id = ''
+        if len(coordinates.short_id_str) > 0:
+            process_id += ('_#coor#_' + coordinates.short_id_str)
+        if isinstance(in_coordinates, CoordinateSystem):
+            in_coordinates.create_short_coor_id()
+            if len(in_coordinates.short_id_str) > 0:
+                process_id += ('_#in_coor#_' + in_coordinates.short_id_str)
+        if data_id:
+            process_id += '_#id#_' + data_id
+        if polarisation:
+            process_id += '_#pol#_' + polarisation
+
+        return process_id
 
     def update_json(self, json_path='', save_orbits=False, save_readfiles=False):
         # Update json data dict with current data.
@@ -79,14 +93,19 @@ class ProcessMeta():
 
         self.json_dict['output_files'] = self.output_files
         self.json_dict['input_files'] = self.input_files
+        self.json_dict['process_settings'] = self.settings
 
         self.json_dict['process_name'] = self.process_name
-        self.json_dict['process_settings'] = self.process_settings
         self.json_dict['data_id'] = self.data_id
         self.json_dict['polarisation'] = self.polarisation
 
         self.coordinates.update_json()
         self.json_dict['coordinates'] = self.coordinates.json_dict
+
+        if isinstance(self.in_coordinates, CoordinateSystem):
+            self.json_dict['in_coordinates'] = self.in_coordinates.json_dict
+        else:
+            self.json_dict['in_coordinates'] = []
         
         if json_path:
             file = open(json_path, 'w+')
@@ -109,9 +128,9 @@ class ProcessMeta():
         self.input_files = self.json_dict['input_files']
 
         self.process_name = self.json_dict['process_name']
-        self.process_settings = self.json_dict['process_settings']
         self.polarisation = self.json_dict['polarisation']
         self.data_id = self.json_dict['data_id']
+        self.settings = self.json_dict['process_settings']
 
         self.readfiles = OrderedDict()
         for readfile_key in self.json_dict['readfiles'].keys():
@@ -122,6 +141,8 @@ class ProcessMeta():
             self.readfiles[readfile_key] = Orbit(json_data=self.json_dict['orbits'][orbit_key])
 
         self.coordinates = CoordinateSystem(json_data=self.json_dict['coordinates'])
+        if len(self.json_dict['in_coordinates']) > 0:
+            self.in_coordinates = CoordinateSystem(json_data=self.json_dict['in_coordinates'])
 
     @staticmethod
     def split_process_id(process_id):
@@ -129,8 +150,18 @@ class ProcessMeta():
         strs = process_id.split('#')
 
         process_name = strs[0][:-1]
-        coordinates_str = strs[2][1:-1]
-        data_id = strs[4][1:-1]
-        polarisation = strs[6][1:]
+        coordinates_str = strs[strs.index['coor'] + 1][1:-1]
+        if 'in_coor' in strs:
+            in_coordinates_str = strs[strs.index['in_coor'] + 1][1:-1]
+        else:
+            in_coordinates_str = 'none'
+        if 'id' in strs:
+            data_id = strs[strs.index['id'] + 1][1:-1]
+        else:
+            data_id = 'none'
+        if 'pol' in strs:
+            polarisation = strs[strs.index['pol'] + 1][1:-1]
+        else:
+            polarisation = 'none'
 
-        return process_name, coordinates_str, data_id, polarisation
+        return process_name, coordinates_str, in_coordinates_str, data_id, polarisation

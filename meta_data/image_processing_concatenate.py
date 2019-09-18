@@ -56,21 +56,22 @@ class ImageConcatData(object):
         self.load_full_meta()
         self.load_full_memmap()
 
-    def concat_image_data_exists(self, process, coordinates, data_id, polarisation, process_type, slice='', disk_data=True):
+    def concat_image_data_exists(self, process, coordinates, in_coordinates, data_id, polarisation, process_type,
+                                 slice='', disk_data=True):
         # Check if a certain file exists.
 
         if slice in self.slice_names:
             if len(self.slice_data.keys()) == 0:
                 self.load_slice_meta()
-            return self.slice_data[slice].processing_image_data_exists(process, coordinates, data_id, polarisation,
-                                                                       process_type, disk_data)
+            return self.slice_data[slice].processing_image_data_exists(process, coordinates, in_coordinates, data_id,
+                                                                       polarisation, process_type, disk_data)
         else:
             if not isinstance(self.data, ImageProcessingData):
                 self.load_full_meta()
-            return self.data.processing_image_data_exists(process, coordinates, data_id, polarisation,
+            return self.data.processing_image_data_exists(process, coordinates, in_coordinates, data_id, polarisation,
                                                                        process_type, disk_data)
 
-    def concat_image_data_iterator(self, processes=[], coordinates=[], data_ids=[], polarisations=[], file_types=[],
+    def concat_image_data_iterator(self, processes=[], coordinates=[], in_coordinates=[], data_ids=[], polarisations=[], file_types=[],
                                    full_image=True, slices=True, data=True):
         # type: (ImageConcatData, List(str), List(CoordinateSystem), List(str), List(str), List(str), bool, bool, bool) -> (List(str), List(str), List(CoordinateSystem), List(str), List(ImageData))
 
@@ -78,6 +79,7 @@ class ImageConcatData(object):
         processes_out = []
         file_types_out = []
         coordinates_out = []
+        in_coordinates_out = []
         slice_names_out = []
         images_out = []
 
@@ -87,11 +89,12 @@ class ImageConcatData(object):
             if data:
                 self.load_full_memmap()
 
-            processes_full, process_ids_full, coordinates_full, file_types_full, images_full = \
-                self.data.processing_image_data_iterator(processes, coordinates, data_ids, polarisations, file_types)
+            processes_full, process_ids_full, coordinates_full, in_coordinates_full, file_types_full, images_full = \
+                self.data.processing_image_data_iterator(processes, coordinates, in_coordinates, data_ids, polarisations, file_types)
             process_ids_out += process_ids_full
             file_types_out += file_types_full
             coordinates_out += coordinates_full
+            in_coordinates_out += in_coordinates_full
             processes_out += processes_full
             slice_names_out += ['' for n in range(len(process_ids_full))]
             if data:
@@ -104,17 +107,19 @@ class ImageConcatData(object):
                 self.load_slice_memmap()
 
             for slice_name in self.slice_data.keys():
-                processes_slice, process_ids_slice, coordinates_slice, file_types_slice, images_slice = \
-                    self.slice_data[slice_name].processing_image_data_iterator(processes, coordinates, data_ids, polarisations, file_types)
+                processes_slice, process_ids_slice, coordinates_slice, in_coordinates_slice, file_types_slice, images_slice = \
+                    self.slice_data[slice_name].processing_image_data_iterator(processes, coordinates, in_coordinates, data_ids, polarisations, file_types)
                 process_ids_out += process_ids_full
                 file_types_out += file_types_full
                 coordinates_out += coordinates_slice
+                in_coordinates_out += in_coordinates_slice
                 processes_out += processes_slice
                 slice_names_out += [slice_name for n in range(len(process_ids_full))]
                 if data:
                     images_out += images_slice
         
-        return slice_names_out, processes_out, process_ids_out, coordinates_out, file_types_out, images_out
+        return slice_names_out, processes_out, process_ids_out, coordinates_out, in_coordinates_out, file_types_out, \
+               images_out
 
     def reference_images_iterator(self, function_name, reference_images=True):
         # Run the same function for all images.
@@ -206,8 +211,8 @@ class ImageConcatData(object):
         slice_names, process_ids, coordinates, file_types, images = self.concat_image_data_iterator(
             [process], [coor], process_types=[process_type], data_ids=[data_id], polarisations=[polarisation], slices=True, full_image=False)
 
-        data_ids = [ProcessMeta.split_process_id(process_id)[2] for process_id in process_ids]
-        polarisations = [ProcessMeta.split_process_id(process_id)[3] for process_id in process_ids]
+        data_ids = [ProcessMeta.split_process_id(process_id)[3] for process_id in process_ids]
+        polarisations = [ProcessMeta.split_process_id(process_id)[4] for process_id in process_ids]
         process_name = ProcessMeta.split_process_id(process_ids[0])[0]
         process_id = process_ids[0]
 

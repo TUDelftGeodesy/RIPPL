@@ -114,37 +114,43 @@ class ImageProcessingData(object):
         # Synchronize the image oversight
         self.load_process_data_info(process.process_name, process.process_id)
 
-    def processing_image_data_exists(self, process, coordinates, data_id, polarisation, file_type):
+    def processing_image_data_exists(self, process, coordinates, in_coordinates='', data_id='', polarisation='',
+                                     file_type='', data=True, message=True):
         """
         Check if a specific image exists and load it. If more than one image is selected, give a warning.
 
         :param str process: Name process
         :param CoordinateSystem coordinates: Coordinate system
+        :param CoordinateSystem in_coordinates: Coordinate system of input processing step
         :param str data_id: ID of dataset
         :param str polarisation: Polarisation of the image
         :param str file_type: Output file type within the processing step
         :return: ImageData object
         """
 
-        images = self.processing_image_data_iterator([process], [coordinates], [data_id], [polarisation], [file_type], data=True)[-1]
+        images = self.processing_image_data_iterator([process], [coordinates], [in_coordinates], [data_id],
+                                                     [polarisation], [file_type], data=data)[-1]
         if len(images) == 0:
-            print('No image data found')
+            if message:
+                print('No image data found')
             return False
         elif len(images) > 1:
-            print('Search criterea for image selection not specific enough. More than one image selected. Note that if '
-                  'data_id or polarisation should be empty use "none" as keyword.')
+            if message:
+                print('Search criterea for image selection not specific enough. More than one image selected. Note that if '
+                      'data_id or polarisation should be empty use "none" as keyword.')
             return False
         else:
             return images[0]
 
-    def processing_image_data_iterator(self, processes=[], coordinates=[], data_ids=[], polarisations=[], file_types=[],
-                                       data=True):
+    def processing_image_data_iterator(self, processes=[], coordinates=[], in_coordinates=[], data_ids=[],
+                                       polarisations=[], file_types=[], data=True):
         """
         This function find all the ImageData objects in this processing image that fullfill the set requirements in the
         inputs. If inputs are left blank, this parameter is not taken into account.
 
         :param list(str) processes: Name of processes to select
         :param list(CoordinateSystem) coordinates: Coordinate systems to select
+        :param list(CoordinateSystem) in_coordinates: Input coordinate systems to select
         :param list(str) data_ids: Name of IDs for selection
         :param list(str) polarisations: Types of polarisation to select
         :param list(str) file_types: File types to select
@@ -161,16 +167,18 @@ class ImageProcessingData(object):
         processes_out = []
         process_ids_out = []
         coordinates_out = []
+        in_coordinates_out = []
         file_types_out = []
         images_out = []
 
         for process_name in processes:
+            if process_name not in self.data_disk_meta.keys():
+                continue
+
+            # If it does exist.
             process_ids = self.data_disk_meta[process_name].keys()
             for process_id in process_ids:
-                strs = process_id.split('#')
-                coor_str = strs[2][1:-1]
-                id_str = strs[4][1:-1]
-                pol_str = strs[6][1:]
+                proc, coor_str, in_coor_str, id_str, pol_str = ProcessMeta.split_process_id(process_id)
 
                 if len(coor_strs) > 0 and coor_strs != ['']:
                     if coor_str not in coor_strs:
@@ -182,7 +190,8 @@ class ImageProcessingData(object):
                     if pol_str not in polarisations:
                         continue
 
-                file_types_process, coordinate_systems_process, images_process = self.processes_data[process_name][process_id].process_data_iterator(file_types, data)
+                file_types_process, coordinate_systems_process, in_coordinate_systems_process, images_process = \
+                    self.processes_data[process_name][process_id].process_data_iterator(file_types, data)
 
                 # All the same for every file type
                 processes_out += [process_name for i in range(len(file_types_process))]
@@ -190,10 +199,11 @@ class ImageProcessingData(object):
 
                 file_types_out += file_types_process
                 coordinates_out += coordinate_systems_process
+                in_coordinates_out += in_coordinate_systems_process
                 if data:
                     images_out += images_process
 
-        return processes_out, process_ids_out, coordinates_out, file_types_out, images_out
+        return processes_out, process_ids_out, coordinates_out, in_coordinates_out, file_types_out, images_out
 
     def all_data_iterator(self):
         """
@@ -202,16 +212,19 @@ class ImageProcessingData(object):
         :return: All image data objects
         """
 
-        processes_out, process_ids_out, coordinates_out, file_types_out, images_out = self.processing_image_data_iterator([], [], [], [], [])
+        processes_out, process_ids_out, coordinates_out, in_coordinates_out, file_types_out, images_out = \
+            self.processing_image_data_iterator([], [], [], [], [])
 
-        return processes_out, process_ids_out, coordinates_out, file_types_out, images_out
+        return processes_out, process_ids_out, coordinates_out, in_coordinates_out, file_types_out, images_out
 
-    def check_process_exist(self, process_name, coordinates, data_id=None, polarisation=None, process_id=None):
+    def check_process_exist(self, process_name, coordinates, in_coordinates='', data_id='', polarisation='',
+                            process_id=''):
         """
         Check if a certain process exists.
 
         :param str process_name: Name of process
         :param CoordinateSystem coordinates: Coordinate system of process
+        :param CoordinateSystem in_coordinates: Input coordinate system of process
         :param str data_id: ID of data set
         :param str polarisation: Polarisation of data
         :param str process_id: You can give also a process id directly. Generally left blank.
@@ -219,8 +232,7 @@ class ImageProcessingData(object):
         """
 
         if not process_id:
-            process_id = process_name + '_#coor#_' + coordinates.short_id_str + '_#id#_' + data_id + \
-                         '_#pol#_' + polarisation
+            process_id = ProcessMeta.create_process_id(process_name, coordinates, in_coordinates, data_id, polarisation)
         if process_name in self.processes_data.keys():
             if process_id in self.processes_data[process_name].keys():
                 return True, process_id

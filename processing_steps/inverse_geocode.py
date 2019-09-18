@@ -15,7 +15,7 @@ from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 class InverseGeocode(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', coor_in=[], in_processes=[], in_file_types=[], in_data_ids=[], coreg_master=[]):
+    def __init__(self, data_id='', coor_in=[], in_processes=[], in_file_types=[], in_data_ids=[], coreg_master=[], overwrite=False):
 
         """
         This function is used to find the line/pixel coordinates of the dem grid. These can later on be used to
@@ -44,6 +44,7 @@ class InverseGeocode(Process):  # Change this name to the one of your processing
         self.process_name = 'inverse_geocode'
         file_types = ['lines', 'pixels']
         data_types = ['real4', 'real4']
+
 
         """
         Then give the default input steps for the processing. The given input values will be overridden when other input
@@ -76,7 +77,8 @@ class InverseGeocode(Process):  # Change this name to the one of your processing
                        in_polarisations=in_polarisations,
                        in_data_ids=in_data_ids,
                        coreg_master=coreg_master,
-                       out_processing_image='coreg_master')
+                       out_processing_image='coreg_master',
+                       overwrite=overwrite)
 
     def process_calculations(self):
         """
@@ -89,17 +91,18 @@ class InverseGeocode(Process):  # Change this name to the one of your processing
 
         coordinates = self.coor_in
         orbit = processing_data.find_best_orbit('original')
+        coordinates.load_readfile(processing_data.readfiles['original'])
 
         # Evaluate the orbit and create orbit coordinates object.
-        orbit_interp = OrbitCoordinates(orbit=orbit)
+        orbit_interp = OrbitCoordinates(coordinates=coordinates, orbit=orbit)
 
         if coordinates.grid_type == 'geographic':
-            lons, lats = self.block_coor.create_latlon_grid()
+            lats, lons = self.block_coor.create_latlon_grid()
         elif coordinates.grid_type == 'projection':
             x, y = self.block_coor.create_xy_grid()
             lats, lons = self.block_coor.proj2ell(x, y)
 
-        xyz = orbit_interp.ell2xyz(np.ravel(lats), np.ravel(lons), self['dem'])
+        xyz = orbit_interp.ell2xyz(np.ravel(lats), np.ravel(lons), np.ravel(self['dem']))
         lines, pixels = orbit_interp.xyz2lp(xyz)
 
         self['lines'] = np.reshape(lines, coordinates.shape)

@@ -14,7 +14,7 @@ class Interferogram(Process):  # Change this name to the one of your processing 
                  coor_in=[],
                  in_image_types=[], in_coor_types=[], in_processes=[], in_file_types=[], in_polarisations=[],
                  in_data_ids=[],
-                 slave=[], master=[], ifg=[]):
+                 slave=[], master=[], coreg_master=[], ifg=[], overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -57,19 +57,29 @@ class Interferogram(Process):  # Change this name to the one of your processing 
         values are given.
         """
         if len(in_image_types) == 0:
-            in_image_types = ['slave', 'master']  # In this case only the slave is used, so the input variable master,
-            # coreg_master, ifg and processing_images are not needed.
-            # However, if you override the default values this could change.
+            in_image_types = ['slave', 'master']
         if len(in_coor_types) == 0:
             in_coor_types = ['coor_in', 'coor_in']  # Same here but then for the coor_out and coordinate_systems
         if len(in_data_ids) == 0:
             in_data_ids = ['none', 'none']
         if len(in_polarisations) == 0:
-            in_polarisations = ['', '']
-        if len(in_processes) == 0:
-            in_processes = ['earth_topo_phase', 'earth_topo_phase']
-        if len(in_file_types) == 0:
-            in_file_types = ['earth_topo_phase', 'earth_topo_phase']
+            in_polarisations = [polarisation, polarisation]
+
+        if coreg_master == slave:
+            if len(in_processes) == 0:
+                in_processes = ['crop', 'earth_topo_phase']
+            if len(in_file_types) == 0:
+                in_file_types = ['crop', 'earth_topo_phase_corrected']
+        elif coreg_master == master:
+            if len(in_processes) == 0:
+                in_processes = ['earth_topo_phase', 'crop']
+            if len(in_file_types) == 0:
+                in_file_types = ['earth_topo_phase_corrected', 'crop']
+        else:
+            if len(in_processes) == 0:
+                in_processes = ['earth_topo_phase', 'earth_topo_phase']
+            if len(in_file_types) == 0:
+                in_file_types = ['earth_topo_phase_corrected', 'earth_topo_phase_corrected']
 
         in_type_names = ['master', 'slave']
 
@@ -90,7 +100,8 @@ class Interferogram(Process):  # Change this name to the one of your processing 
                        slave=slave,
                        master=master,
                        ifg=ifg,
-                       out_processing_image='ifg')
+                       out_processing_image='ifg',
+                       overwrite=overwrite)
 
     def process_calculations(self):
         """
@@ -99,4 +110,16 @@ class Interferogram(Process):  # Change this name to the one of your processing 
         :return:
         """
 
-        self['ifg'] = self['earth_topo_phase'] * np.conjugate(self['slave'])
+        self['interferogram'] = self['master'] * np.conjugate(self['slave'])
+
+    def test_result(self):
+
+        import matplotlib.pyplot as plt
+
+        plt.figure()
+        plt.subplot(211)
+        plt.imshow(np.angle(self['interferogram'][:, ::10]))
+
+        plt.subplot(212)
+        plt.imshow(np.log(np.abs(self['interferogram'][:, ::10])))
+        plt.show()

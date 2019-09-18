@@ -15,9 +15,10 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 class ImageData():
 
     def __init__(self, json_dict='', file_type='', dtype='', shape='',
-                 folder='', process_name='', coordinates='', polarisation='', data_id=''):
+                 folder='', process_name='', coordinates='', polarisation='', data_id='', in_coordinates=''):
         
         """
+        This class organizes the reading and writing of an image from and to disk.
 
         :param dict json_dict: Information about image based on information from .json data
         :param file_type:
@@ -34,17 +35,17 @@ class ImageData():
         self.folder = folder
         self.process_name = process_name
         self.coordinates = coordinates
+        self.in_coordinates = in_coordinates
         self.polarisation = polarisation
         self.data_id = data_id
         self.dtype_disk, self.dtype_memory, self.dtype_size, self.dtype_gdal, self.dtype_gdal_numpy = self.load_dtypes()
 
-        self.disk = OrderedDict()
-
-        self.disk['data'] = []
-        self.disk['meta'] = OrderedDict()
-        self.memory = OrderedDict()
-        self.memory['data'] = []
-        self.memory['meta'] = OrderedDict([('exist', None), ('shape', [0, 0]), ('s_lin', 0), ('s_pix', 0)])
+        self.disk = OrderedDict()                   # type: OrderedDict(OrderedDict or np.memmap)
+        self.disk['data'] = []                      # type: np.memmap
+        self.disk['meta'] = OrderedDict()           # type: OrderedDict
+        self.memory = OrderedDict()                 # type: OrderedDict(OrderedDict or np.ndarray)
+        self.memory['data'] = []                    # type: np.ndarray
+        self.memory['meta'] = OrderedDict([('shape', [0, 0]), ('s_lin', 0), ('s_pix', 0)])
         
         if isinstance(json_dict, OrderedDict):
             self.json_dict = json_dict
@@ -53,6 +54,8 @@ class ImageData():
             self.dtype = self.json_dict['dtype']
             self.shape = self.json_dict['shape']
             self.file_name = self.json_dict['file_name']
+            self.slice_name = self.json_dict['slice_name']
+            self.image_name = self.json_dict['image_name']
             self.file_path = os.path.join(self.folder, self.file_name)
             self.json_dict['exist'], self.json_dict['valid'] = self.check_data_disk_valid()
         else:
@@ -82,9 +85,16 @@ class ImageData():
         """
 
         self.json_dict = OrderedDict()
+        self.json_dict['process_name'] = self.process_name
         self.json_dict['file_type'] = self.file_type
         self.json_dict['shape'] = [int(self.shape[0]), int(self.shape[1])]
         self.json_dict['file_name'] = self.file_name
+        if self.coordinates.slice:
+            self.json_dict['slice_name'] = os.path.basename(self.folder)
+            self.json_dict['image_name'] = os.path.basename(os.path.dirname(self.folder))
+        else:
+            self.json_dict['slice_name'] = 'none'
+            self.json_dict['image_name'] = os.path.basename(self.folder)
         self.json_dict['dtype'] = self.dtype
         self.json_dict['file_exist'], self.json_dict['file_valid'] = self.check_data_disk_valid()
         self.disk['meta'] = self.json_dict
@@ -255,6 +265,8 @@ class ImageData():
         self.memory['meta']['s_pix'] = s_pix
         self.memory['meta']['shape'] = shape
 
+        return True
+
     def save_memory_data_to_disk(self):
         # Save data to disk from memory
 
@@ -281,6 +293,7 @@ class ImageData():
         # Save data to disk
         memory_data = self.memory2disk(self.memory['data'], self.json_dict['dtype'])
         self.disk['data'][s_lin:s_lin + shape[0], s_pix:s_pix + shape[1]] = memory_data
+        self.disk['data'].flush()
 
         return True
 
@@ -289,6 +302,7 @@ class ImageData():
 
         if isinstance(self.memory['data'], np.ndarray):
             self.memory['data'] = []
+            self.memory['meta']['shape'] = [0, 0]
 
     # Helper functions for reading writing functions
     def check_memory_file(self):

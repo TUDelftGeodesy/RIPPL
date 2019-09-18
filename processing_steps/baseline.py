@@ -17,7 +17,7 @@ class Baseline(Process):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', coor_in=[],
                  in_processes=[], in_file_types=[], in_data_ids=[],
-                 slave=[], coreg_master=[]):
+                 slave=[], coreg_master=[], overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -41,9 +41,9 @@ class Baseline(Process):  # Change this name to the one of your processing step.
         3. data_types > names 
         """
 
-        self.process_name = 'radar_ray_angles'
-        file_types = ['perpendicular_baseline', 'parallel_baseline', 'total_baseline']
-        data_types = ['real4', 'real4', 'real4']
+        self.process_name = 'baseline'
+        file_types = ['perpendicular_baseline', 'parallel_baseline']
+        data_types = ['real4', 'real4']
 
         """
         Then give the default input steps for the processing. The given input values will be overridden when other input
@@ -56,9 +56,11 @@ class Baseline(Process):  # Change this name to the one of your processing step.
             in_data_ids = ['', '', '', '']
         in_polarisations = ['none', 'none', 'none', 'none']
         if len(in_processes) == 0:
-            in_processes = ['geocode', 'geocode', 'geocode', 'geometrical_coreg']
+            in_processes = ['geocode', 'geocode', 'geocode', 'geometric_coregistration']
         if len(in_file_types) == 0:
-            in_file_types = ['X', 'Y', 'Z', 'pixels']
+            in_file_types = ['X', 'Y', 'Z', 'lines']
+
+        in_type_names = ['X', 'Y', 'Z', 'lines']
 
         # Initialize processing step
         super(Baseline, self).__init__(
@@ -73,8 +75,11 @@ class Baseline(Process):  # Change this name to the one of your processing step.
                        in_file_types=in_file_types,
                        in_polarisations=in_polarisations,
                        in_data_ids=in_data_ids,
+                       in_type_names=in_type_names,
                        coreg_master=coreg_master,
-                       out_processing_image='coreg_master')
+                       slave=slave,
+                       out_processing_image='slave',
+                       overwrite=overwrite)
 
     def process_calculations(self):
         """
@@ -96,24 +101,23 @@ class Baseline(Process):  # Change this name to the one of your processing step.
         s_orbit = OrbitInterpolate(orbit_slave)
         m_orbit = OrbitInterpolate(orbit_coreg_master)
 
-        # TODO add input coordinate system to processing steps and make it accessible.
-        # TODO Make input coordinate systems accessible in processes and image data objects.
-        coor_slave = self.in_images['lines'].coor_in
-        s_az = self.lines * coor_slave.az_step + coor_slave.az_time
+        coor_slave = self.in_images['lines'].in_coordinates
+        s_az = self['lines'] * coor_slave.az_step + coor_slave.az_time
+        self.block_coor.create_radar_lines()
         m_az = self.block_coor.interval_lines * self.block_coor.az_step + self.block_coor.az_time
 
         # Calc xyz coreg master and slave.
-        s_orbit.evaluate_orbit_spline(s_az)
-        m_orbit.evaluate_orbit_spline(m_az)
+        s_orbit.fit_orbit_spline()
+        s_xyz = s_orbit.evaluate_orbit_spline(np.ravel(s_az))[0]
+        lines = np.ravel(np.tile(np.arange(self.block_coor.shape[0])[:, None], (1, self.block_coor.shape[1]))).astype(np.int32)
+        m_orbit.fit_orbit_spline()
+        m_xyz = m_orbit.evaluate_orbit_spline(m_az)[0][:, lines]
 
-        s_xyz = np.concatenate((s_orbit.x, s_orbit.y, s_orbit.z))
-        m_xyz = np.concatenate((m_orbit.x, m_orbit.y, m_orbit.z))
-        baseline_squared = np.sum((m_xyz - s_xyz) ** 2, axis=0).astype(np.float32)
-
-        p_xyz = np.concatenate((self['X'], self['Y'], self['Z']))
+        baseline_squared = np.reshape(np.sum((m_xyz - s_xyz) ** 2, axis=0), self.block_coor.shape)
+        p_xyz = np.concatenate((np.ravel(self['X'])[None, :], np.ravel(self['Y'])[None, :], np.ravel(self['Z'])[None, :]))
         s_xyz -= p_xyz
         m_xyz -= p_xyz
-        self['parallel_baseline'] = np.sqrt(np.sum((m_xyz) ** 2, axis=0)) - np.sqrt(np.sum((s_xyz) ** 2, axis=0))
+        self['parallel_baseline'] = np.reshape(np.sqrt(np.sum((m_xyz) ** 2, axis=0)) - np.sqrt(np.sum((s_xyz) ** 2, axis=0)), self.block_coor.shape)
 
         m_xyz = m_xyz / np.sqrt(np.sum(m_xyz ** 2, axis=0))
         s_xyz = s_xyz / np.sqrt(np.sum(s_xyz ** 2, axis=0))
@@ -124,14 +128,9 @@ class Baseline(Process):  # Change this name to the one of your processing step.
         angle_s = np.arccos(np.einsum('ij,ij->j', s_xyz, p_xyz)).astype(np.float32)
         del s_xyz, p_xyz
 
-        self['perpendicular_baseline'] = np.sqrt(baseline_squared -  self['parallel_baseline'] ** 2)
-
         # Define direction of baseline.
-        pos_neg = angle_m < angle_s
-
-        self['perpendicular_baseline'][pos_neg] *= -1
-        baseline_squared[pos_neg] *= -1
+        pos_neg = np.reshape(angle_m < angle_s, self.block_coor.shape)
         del angle_m, angle_s
 
-        # Finally calculate the other baselines too.
-        self['total_baseline'] = np.sqrt(baseline_squared)
+        self['perpendicular_baseline'] = np.sqrt(baseline_squared - self['parallel_baseline']**2)
+        self['perpendicular_baseline'][pos_neg] *= -1

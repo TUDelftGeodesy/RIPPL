@@ -16,7 +16,7 @@ from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 class Deramp(Process):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', polarisation='', coor_in=[], in_image_types=[], in_coor_types=[], in_processes=[],
-                 in_file_types=[], in_polarisations=[], in_data_ids=[], slave=[]):
+                 in_file_types=[], in_polarisations=[], in_data_ids=[], slave=[], overwrite=False):
         """
         This function deramps the ramped data from TOPS mode to a deramped data. Input data of this function should
         be a radar coordinates grid.
@@ -64,15 +64,17 @@ class Deramp(Process):  # Change this name to the one of your processing step.
                        file_types=file_types,
                        process_dtypes=data_types,
                        coor_in=coor_in,
+                       in_coor_types=in_coor_types,
                        in_type_names=in_type_names,
                        in_image_types=in_image_types,
                        in_processes=in_processes,
                        in_file_types=in_file_types,
                        in_polarisations=in_polarisations,
                        in_data_ids=in_data_ids,
-                       slave=slave)
+                       slave=slave,
+                       overwrite=overwrite)
 
-    def process_calculations(self):
+    def process_calculations(self, test=False):
         """
         Main calculations done are based on information given in the meta data. The ramp can be calculated based on the
         DC and FM polynomials combined with range and azimuth time.
@@ -96,9 +98,12 @@ class Deramp(Process):  # Change this name to the one of your processing step.
         ramp = self.calc_ramp(readfile, orbit, az_grid, ra_grid)
 
         # Finally calced the deramped image.
-        self['deramped'] = (self['ramped_data'] * ramp)
+        self['deramped'] = self['ramped_data'] * ramp
 
-    def test_result(self, readfile):
+        if test:
+            self.test_result()
+
+    def test_result(self):
         """
         Method to check the results of the deramping. Here we generate the spectrogram of the input and output and
         create two images.
@@ -116,6 +121,7 @@ class Deramp(Process):  # Change this name to the one of your processing step.
         spec_out = np.log(np.abs(np.fft.ifftshift(np.fft.fft2(self['deramped'])) ** 2))
 
         # plot in one image
+        plt.figure()
         plt.subplot(211)
         plt.imshow(spec_in[:, ::10])
 
@@ -141,8 +147,8 @@ class Deramp(Process):  # Change this name to the one of your processing step.
 
         # Get the lines/pixels from the coordinate system.
         coordinates.create_radar_lines()
-        az_times = coordinates.interval_lines * coordinates.az_step + coordinates.az_time
-        ra_times = coordinates.interval_pixels * coordinates.ra_step + coordinates.ra_time
+        az_times = coordinates.ml_lines * coordinates.az_step + coordinates.az_time
+        ra_times = coordinates.ml_pixels * coordinates.ra_step + coordinates.ra_time
 
         # Now create the range and azimuth time grids.
         ra_time_grid, az_time_grid = np.meshgrid(ra_times, az_times)
@@ -199,7 +205,7 @@ class Deramp(Process):  # Change this name to the one of your processing step.
         alpha_nom = []
 
         # Reference time
-        az_dc = -(df_az_ctr / k_fm) + (f_dc_ref_0 / k_fm_0)
+        az_dc = -(df_az_ctr / k_fm)  + (f_dc_ref_0 / k_fm_0)
         k_fm = []
         k_fm_0 = []
         t_az_vec = az_time_grid - az_dc

@@ -12,11 +12,6 @@ class OrbitCoordinates(object):
         # This function needs several input files. This works for now, but ideally this information should all be
         # contained in the .res file.
 
-        # Load data from res file
-        if not isinstance(coordinates, CoordinateSystem):
-            print('Needed input is an coordinate system Object')
-            return
-
         # Get main variables from the .res file
         self.az_time = []
         self.ra_time = []
@@ -25,8 +20,8 @@ class OrbitCoordinates(object):
         self.center_phi = []
         self.center_lambda = []
 
-        self.degree2rad = np.asarray([np.pi / 180])
-        self.rad2degree = np.asarray([180 / np.pi])
+        self.degree2rad = np.pi / 180
+        self.rad2degree = 180 / np.pi
 
         # Define the main variables for this function
         self.az_times = np.asarray([])          # azimuth times of different lines
@@ -65,7 +60,7 @@ class OrbitCoordinates(object):
         if isinstance(readfile, Readfile):
             self.load_readfile(readfile)
         if isinstance(orbit, Orbit):
-            self.load_orbit(Orbit)
+            self.load_orbit(orbit)
 
     def load_orbit(self, orbit):
         # type: (OrbitCoordinates, Orbit) -> None
@@ -83,15 +78,15 @@ class OrbitCoordinates(object):
         self.ra_time = coordinates.ra_time
         self.az_step = coordinates.az_step
         self.ra_step = coordinates.ra_step
-        self.center_phi = coordinates.center_lat * self.degree2rad
-        self.center_lambda = coordinates.center_lon * self.degree2rad
+        self.center_phi = coordinates.center_lon * self.degree2rad
+        self.center_lambda = coordinates.center_lat * self.degree2rad
 
         # Line pixel coordinates
         self.lines = coordinates.interval_lines
         self.pixels = coordinates.interval_pixels
 
         # Readfiles information if needed.
-        if coordinates.readfile:
+        if isinstance(coordinates.readfile, Readfile) and self.az_time == 0:
             self.load_readfile(coordinates.readfile)
 
         # Orbit information
@@ -385,32 +380,31 @@ class OrbitCoordinates(object):
         #                - optimize fit of orbit using cubic spline
         #                - vectorize to improve speed
 
-        n = np.size(self.xyz) / 3
+        n = np.size(xyz) / 3
 
-        if not self.xyz.shape[0] == 3:
+        if not xyz.shape[0] == 3:
             print('x,y,z coordinate matrix should be of size [3,n]')
-
-        old_shape = self.xyz.shape[1]
 
         # Make a first guess of the azimuth times:
         if len(az_times) == 0:
-            az_times = self.az_time * np.ones((1, self.xyz.shape[1]))
-        solve_ids = np.arange(n)
+            az_times = self.az_time * np.ones(xyz.shape[1])
+
+        solve_ids = np.arange(n).astype(np.int32)
 
         # Now start the iteration to find the optimal point
         for iterate in range(self.maxiter):
 
             # Prepare next iteration
             if iterate != 0:
-                sort = np.argsort(az_times[0, solve_ids])
+                sort = np.argsort(az_times[solve_ids])
                 solve_ids = solve_ids[sort]
                 sort = []
-                az_time = az_times[0, solve_ids]
+                az_time = az_times[solve_ids]
             else:
                 az_time = np.ravel(az_times)
 
             possat = self.orbit.evaluate_orbit_spline(az_time, pos=True, acc=False, vel=False, sorted=True)[0]
-            delta = self.xyz[:, solve_ids] - possat
+            delta = xyz[:, solve_ids] - possat
 
             accsat = self.orbit.evaluate_orbit_spline(az_time, pos=False, acc=True, vel=False, sorted=True)[2]
             s1 = np.sum(delta * accsat, axis=0)
@@ -422,7 +416,7 @@ class OrbitCoordinates(object):
             velsat = []
 
             t_diff = -s0 / (s1 - s2)
-            az_times[0, solve_ids] += t_diff
+            az_times[solve_ids] += t_diff
 
             # remove approximation which are close enough
             finished = np.ravel(np.abs(t_diff) > self.criterpos)
@@ -439,13 +433,13 @@ class OrbitCoordinates(object):
                     self.maxiter) + ' iterations. Maybe use more iterations or less stringent criteria?')
 
         # Calculate range times
-        dist_diff = self.orbit.evaluate_orbit_spline(np.ravel(az_times))[0] - self.xyz
+        dist_diff = self.orbit.evaluate_orbit_spline(az_times)[0] - xyz
         range_dist = np.sqrt(np.sum(dist_diff**2, axis=0))
         dist_diff = []
         ra_times = range_dist / self.sol * 2
 
-        lines = (((az_times - self.az_time) / self.az_step) + 1.0).reshape(old_shape)
-        pixels = (((ra_times - self.ra_time) / self.ra_step) + 1.0).reshape(old_shape)
+        lines = (az_times - self.az_time) / self.az_step
+        pixels = (ra_times - self.ra_time) / self.ra_step
 
         return lines, pixels
 
@@ -585,75 +579,31 @@ class OrbitCoordinates(object):
         if self.xyz.shape[1] == 0:
             print('First calculate the cartesian xyz coordinates before you run this function')
             return
-        elif len(self.lat_orbit) == 0:
-            print('To calculate the heading we also need the latitude. Compute the lat/lon first.')
-            return
 
         # orbit vector
-        if self.regular:
-            x_diff = self.xyz_orbit[0, :][:, None] - self.xyz[0, :]
-            y_diff = self.xyz_orbit[1, :][:, None] - self.xyz[1, :]
-            z_diff = self.xyz_orbit[2, :][:, None] - self.xyz[2, :]
-        elif grid_type == 'radar_coordinates':
-            x_diff = self.xyz_orbit[0, self.lines] - self.xyz[0, :]
-            y_diff = self.xyz_orbit[1, self.lines] - self.xyz[1, :]
-            z_diff = self.xyz_orbit[2, self.lines] - self.xyz[2, :]
-        else:
-            x_diff = self.xyz_orbit[0, :] - np.ravel(self.xyz[0, :])
-            y_diff = self.xyz_orbit[1, :] - np.ravel(self.xyz[1, :])
-            z_diff = self.xyz_orbit[2, :] - np.ravel(self.xyz[2, :])
-
-        ray = np.stack((x_diff, y_diff, z_diff), axis=0)
-        ray = ray / np.sqrt(np.sum(ray**2, axis=0))
-        x_diff = []
-        y_diff = []
-        z_diff = []
-
-        # Now find the correction for the ellipsoid
-        # Calc tangent plane
-        if not self.regular and grid_type == 'radar_coordinates':
-            x_tan = 2 * self.xyz_orbit[0, :][self.lines] / (self.ellipsoid[0] + self.height_orbit[self.lines])**2
-            y_tan = 2 * self.xyz_orbit[1, :][self.lines] / (self.ellipsoid[0] + self.height_orbit[self.lines])**2
-            z_tan = 2 * self.xyz_orbit[2, :][self.lines] / (self.ellipsoid[1] + self.height_orbit[self.lines])**2
-        else:
-            x_tan = 2 * self.xyz_orbit[0, :] / (self.ellipsoid[0] + self.height_orbit)**2
-            y_tan = 2 * self.xyz_orbit[1, :] / (self.ellipsoid[0] + self.height_orbit)**2
-            z_tan = 2 * self.xyz_orbit[2, :] / (self.ellipsoid[1] + self.height_orbit)**2
-
-        # Calc normalized vector
-        N = np.transpose(np.vstack((x_tan, y_tan, z_tan)))
-        N = N / np.sqrt(np.sum(N**2, axis=1))[:, None]
-        x_tan = []
-        y_tan = []
-        z_tan = []
+        ray = self.get_ray_vector()
+        N = self.get_normal_vector(vector_type='orbit')
 
         # Calc off nadir angle
         if self.regular:
-            self.off_nadir_angle = np.arccos(np.einsum('jik,ij->ik', ray, N)).astype(np.float32) / np.pi * 180
+            lines = np.ravel(np.tile(np.arange(len(self.lines))[:, None], (1, len(self.pixels))))
+            self.off_nadir_angle = np.arccos(np.einsum('ij,ij->j', ray, N[:, lines])).astype(np.float32) / np.pi * 180
         else:
-            self.off_nadir_angle = np.arccos(np.einsum('ji,ij->i', ray, N)).astype(np.float32) / np.pi * 180
+            self.off_nadir_angle = np.arccos(np.einsum('ij,ij->j', ray, N)).astype(np.float32) / np.pi * 180
 
-        # Calc vector on tangent plant to satellite and to north
-        if not self.regular and grid_type == 'radar_coordinates':
-            north_plane = np.stack((-self.xyz_orbit[0, :][self.lines], -self.xyz_orbit[1, :][self.lines],
-                                    np.zeros((N.shape[0]))), axis=0)
-        else:
-            north_plane = np.stack((-self.xyz_orbit[0, :], -self.xyz_orbit[1, :], np.zeros((N.shape[0]))), axis=0)
-        north_vector = OrbitCoordinates.project_on_plane(np.transpose(N), north_plane, regular=False)
-
-        # Next part is only used for the heading, which is the same for every line.
-        if not self.regular and grid_type == 'radar_coordinates':
-            v_plane = OrbitCoordinates.project_on_plane(np.transpose(N), self.vel_orbit[:, self.lines], regular=False)
-        else:
-            v_plane = OrbitCoordinates.project_on_plane(np.transpose(N), self.vel_orbit, regular=False)
+        # Plane orthogonal to north vector
+        north_plane = np.stack((-self.xyz_orbit[0, :], -self.xyz_orbit[1, :], np.zeros((self.xyz_orbit.shape[1]))),axis=0)
+        north_vector = OrbitCoordinates.project_on_plane(N, north_plane)
 
         # Based on https://math.stackexchange.com/questions/878785/how-to-find-an-angle-in-range0-360-between-2-vectors
+        v_plane = OrbitCoordinates.project_on_plane(N, self.vel_orbit)
         dot = np.einsum('ki,ki->i', v_plane, north_vector)
-        det = np.einsum('ki,ki->i', np.transpose(N), np.cross(v_plane, north_vector, axis=0))
-        v_plane = []
-        north_vector = []
+        det = np.einsum('ki,ki->i', N, np.cross(v_plane, north_vector, axis=0))
 
-        self.heading = np.arctan2(det, dot).astype(np.float32) / np.pi * 180
+        if self.regular:
+            self.heading = np.arctan2(det, dot).astype(np.float32)[lines] / np.pi * 180
+        else:
+            self.heading = np.arctan2(det, dot).astype(np.float32) / np.pi * 180
 
     def xyz2scatterer_azimuth_elevation(self, grid_type='radar_coordinates'):
         # Calculates the azimuth and elevation angle of a point on the ground based on the point on the
@@ -662,75 +612,86 @@ class OrbitCoordinates(object):
         if self.xyz.shape[1] == 0:
             print('First calculate the cartesian xyz coordinates before you run this function')
             return
+        elif len(self.height) == 0:
+            print('Missing height values. Provide height of points first')
+            return
 
-        # point to orbit vector
+        ray = self.get_ray_vector()
+        N = self.get_normal_vector(vector_type='ground_pixel')
+
+        # Calc elevation angle
+        self.elevation_angle = np.arccos(np.einsum('ij,ij->j', ray, -N)).astype(np.float32) / np.pi * 180 - 90
+
+        # Calc vector on tangent plant to satellite and to north
+        north_plane = np.stack((-self.xyz[0, :], -self.xyz[1, :], np.zeros((self.xyz.shape[1]))), axis=0)
+        north_vector = OrbitCoordinates.project_on_plane(N, north_plane)
+        del north_plane
+        ray_vector = OrbitCoordinates.project_on_plane(N, ray)
+        del ray
+
+        # Based on https://math.stackexchange.com/questions/878785/how-to-find-an-angle-in-range0-360-between-2-vectors
+        dot = np.einsum('ki,ki->i', ray_vector, north_vector)
+        det = np.einsum('ki,ki->i', N, np.cross(ray_vector, north_vector, axis=0))
+        del ray_vector, north_vector, N
+
+        self.azimuth_angle = np.arctan2(det, dot).astype(np.float32) / np.pi * 180
+
+    def get_ray_vector(self):
+        """
+        Get the normalized vector of the satellite ray from the pixel on the ground
+
+        :return: Normalized ray vector
+        """
+
         if self.regular:
-            x_diff = self.xyz_orbit[0, :][:, None] - self.xyz[0, :]
-            y_diff = self.xyz_orbit[1, :][:, None] - self.xyz[1, :]
-            z_diff = self.xyz_orbit[2, :][:, None] - self.xyz[2, :]
-        elif grid_type == 'radar_coordinates':
-            x_diff = self.xyz_orbit[0, self.lines] - self.xyz[0, :]
-            y_diff = self.xyz_orbit[1, self.lines] - self.xyz[1, :]
-            z_diff = self.xyz_orbit[2, self.lines] - self.xyz[2, :]
+            lines = np.ravel(np.tile(np.arange(len(self.lines))[:, None], (1, len(self.pixels))))
+            x_diff = self.xyz_orbit[0, lines] - self.xyz[0, :]
+            y_diff = self.xyz_orbit[1, lines] - self.xyz[1, :]
+            z_diff = self.xyz_orbit[2, lines] - self.xyz[2, :]
         else:
             x_diff = self.xyz_orbit[0, :] - np.ravel(self.xyz[0, :])
             y_diff = self.xyz_orbit[1, :] - np.ravel(self.xyz[1, :])
             z_diff = self.xyz_orbit[2, :] - np.ravel(self.xyz[2, :])
 
-        # Calc normalized vector ground to satellite
-        diff = np.stack((x_diff, y_diff, z_diff), axis=0)
-        ray = diff / np.sqrt(np.sum(diff**2, axis=0))
-        diff = []
-        x_diff = []
-        y_diff = []
-        z_diff = []
+        ray = np.stack((x_diff, y_diff, z_diff), axis=0)
+        ray = ray / np.sqrt(np.sum(ray**2, axis=0))
 
+        return ray
+
+    def get_normal_vector(self, vector_type='ground_pixel'):
+        """
+        Get the normalized orthogonal vector of the ellipsoid at a pixel on the ground or at the orbit.
+
+        :param str vector_type: Do we want to get the normal vector at the point on the ground (ground pixel) or at the
+            satellite orbit? (orbit)
+        :return: Normalized vector orthogonal to the ellipsoid.
+        """
+
+        # Get the height of the orbit
+        if vector_type == 'orbit':
+            self.xyz2ell(pixel=False, orbit=True)
+
+        # Now find the correction for the ellipsoid
         # Calc tangent plane
-        x_tan = 2 * self.xyz[0, :] / (self.ellipsoid[0] + self.height)**2
-        y_tan = 2 * self.xyz[1, :] / (self.ellipsoid[0] + self.height)**2
-        z_tan = 2 * self.xyz[2, :] / (self.ellipsoid[1] + self.height)**2
+        if vector_type == 'orbit':
+            x_tan = 2 * self.xyz_orbit[0, :] / (self.ellipsoid[0] + self.height_orbit) ** 2
+            y_tan = 2 * self.xyz_orbit[1, :] / (self.ellipsoid[0] + self.height_orbit) ** 2
+            z_tan = 2 * self.xyz_orbit[2, :] / (self.ellipsoid[1] + self.height_orbit) ** 2
+        else:
+            x_tan = 2 * self.xyz[0, :] / (self.ellipsoid[0] + np.ravel(self.height))**2
+            y_tan = 2 * self.xyz[1, :] / (self.ellipsoid[0] + np.ravel(self.height))**2
+            z_tan = 2 * self.xyz[2, :] / (self.ellipsoid[1] + np.ravel(self.height))**2
 
-        # Calc normalized vector normal to surface ellipsoid
+        # Calc normalized vector
         N = np.stack((x_tan, y_tan, z_tan), axis=0)
-        N = N / np.sqrt(np.sum(N**2, axis=0))
-        x_tan = []
-        y_tan = []
-        z_tan = []
-
-        # Calc elevation angle
-        if self.regular:
-            self.elevation_angle = np.arccos(np.einsum('ijk,ijk->jk', ray, -N)).astype(np.float32) / np.pi * 180 - 90
-        else:
-            self.elevation_angle = np.arccos(np.einsum('ij,ij->j', ray, -N)).astype(np.float32) / np.pi * 180 - 90
-
-        # Calc vector on tangent plant to satellite and to north
-        if self.regular:
-            north_plane = np.stack((-self.xyz[0, :], -self.xyz[1, :], np.zeros((self.xyz.shape[0], self.x.shape[1]))), axis=0)
-        else:
-            north_plane = np.stack((-self.xyz[0, :], -self.xyz[1, :], np.zeros((self.x.shape[0]))), axis=0)
-
-        north_vector = OrbitCoordinates.project_on_plane(N, north_plane, regular=self.regular)
-        ray_vector = OrbitCoordinates.project_on_plane(N, ray, regular=self.regular)
-
-        # Based on https://math.stackexchange.com/questions/878785/how-to-find-an-angle-in-range0-360-between-2-vectors
-        if self.regular:
-            dot = np.einsum('kij,kij->ij', ray_vector, north_vector)
-            det = np.einsum('kij,kij->ij', N, np.cross(ray_vector, north_vector, axis=0))
-        else:
-            dot = np.einsum('ki,ki->i', ray_vector, north_vector)
-            det = np.einsum('ki,ki->i', N, np.cross(ray_vector, north_vector, axis=0))
-        ray_plane = []
-        north_vector = []
-        self.azimuth_angle = np.arctan2(det, dot).astype(np.float32) / np.pi * 180
-
-    @staticmethod
-    def project_on_plane(N, vector, regular=False):
-
         N = N / np.sqrt(np.sum(N ** 2, axis=0))
 
-        if regular:
-            out_vector = vector - np.einsum('kij,kij->ij', vector, N) * N
-        else:
-            out_vector = vector - np.einsum('ki,ki->i', vector, N) * N
+        return N
+
+    @staticmethod
+    def project_on_plane(N, vector):
+
+        N = N / np.sqrt(np.sum(N ** 2, axis=0))
+        out_vector = vector - np.einsum('ki,ki->i', vector, N) * N
 
         return out_vector

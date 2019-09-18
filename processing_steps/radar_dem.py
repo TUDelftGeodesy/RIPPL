@@ -13,7 +13,7 @@ class RadarDem(Process):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', coor_in=[], coor_out=[], dem_type='SRTM1',
                  in_coor_types=[], in_processes=[], in_file_types=[], in_data_ids=[],
-                 coreg_master=[]):
+                 coreg_master=[], overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -39,7 +39,6 @@ class RadarDem(Process):  # Change this name to the one of your processing step.
         2. file_types > name of process types that will be given as output
         3. data_types > names 
         """
-
         self.process_name = 'radar_dem'
         file_types = ['radar_dem']
         data_types = ['real4']
@@ -53,7 +52,7 @@ class RadarDem(Process):  # Change this name to the one of your processing step.
         if len(in_coor_types) == 0:
             in_coor_types = ['coor_in', 'coor_in', 'coor_in']  # Same here but then for the coor_out and coordinate_systems
         if len(in_data_ids) == 0:
-            in_data_ids = [dem_type, dem_type, dem_type]
+            in_data_ids = ['', '', '']
         in_polarisations = ['none', 'none', 'none']
         if len(in_processes) == 0:
             in_processes = ['create_dem', 'inverse_geocode', 'inverse_geocode']
@@ -78,11 +77,14 @@ class RadarDem(Process):  # Change this name to the one of your processing step.
                        in_polarisations=in_polarisations,
                        in_data_ids=in_data_ids,
                        coreg_master=coreg_master,
-                       out_processing_image='coreg_master')
+                       out_processing_image='coreg_master',
+                       overwrite=overwrite)
+        if self.process_finished:
+            return
 
         # Define the irregular grid for input. This is needed if you want to calculate in blocks.
-        self.in_irregular_grids = [self.in_processing_images['lines'].data_disk,
-                                   self.in_processing_images['pixels'].data_disk]
+        self.in_irregular_grids = [self.in_images['lines'].disk['data'],
+                                   self.in_images['pixels'].disk['data']]
 
     def process_calculations(self):
         """

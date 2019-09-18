@@ -22,7 +22,7 @@ class CoordinateSystem():
         self.json_dict = OrderedDict()
 
         self.grid_type = ''
-        self.slice = False
+        self.slice = True
         self.coor_str = ''
         self.short_id_str = ''
         self.id_str = ''
@@ -32,7 +32,6 @@ class CoordinateSystem():
         self.first_line = 0
         self.first_pixel = 0
         self.sample_name = ''
-        self.over_size = False
         self.sparse_name = ''
         self.mask_name = ''
 
@@ -40,19 +39,15 @@ class CoordinateSystem():
         self.multilook = [1, 1]
         self.oversample = [1, 1]
 
-        # Information on the original crop size
-        self.orig_shape = [0, 0]
-        self.orig_first_line = 0
-        self.orig_first_pixel = 0
-
         # Information from readfiles if available.
         # Next values are all in seconds (azimuth time from start of day to max of 25 hours)
+        self.date = ''
         self.ra_time = 0
         self.az_time = 0
         self.az_step = 0
         self.ra_step = 0
-        self.center_phi = 0
-        self.center_lambda = 0
+        self.center_lon = 0
+        self.center_lat = 0
         self.radar_grid_date = ''   # The origin of the master/slave or coregistration master grid and the orbits that
                                     # come with it.
 
@@ -107,10 +102,12 @@ class CoordinateSystem():
         self.az_time = readfile.az_first_pix_time
         self.ra_step = readfile.ra_time_step
         self.az_step = readfile.az_time_step
-        self.shape = readfile.size
         self.center_lat = readfile.center_lat
         self.center_lon = readfile.center_lon
+        self.date = readfile.date
 
+        if self.shape == [0, 0] and self.grid_type == 'radar_coordinates':
+            self.shape = readfile.size
         # To define the origin of the readfile we assume it is always from the same track. So it can be defined using
         # the date only.
         self.radar_grid_date = readfile.date
@@ -164,7 +161,6 @@ class CoordinateSystem():
         self.json_dict['first_line'] = int(self.first_line)
         self.json_dict['first_pixel'] = int(self.first_pixel)
         self.json_dict['oversample'] = [int(s) for s in self.oversample]
-        self.json_dict['over_size'] = self.over_size
         self.json_dict['sparse_name'] = self.sparse_name
         self.json_dict['mask_name'] = self.mask_name
 
@@ -173,6 +169,7 @@ class CoordinateSystem():
 
         # Now add information based on the grid type
         if self.grid_type == 'radar_coordinates':
+            self.json_dict['date'] = self.date
             self.json_dict['az_time'] = float(self.az_time)
             self.json_dict['ra_time'] = float(self.ra_time)
             self.json_dict['az_step'] = float(self.az_step)
@@ -180,9 +177,6 @@ class CoordinateSystem():
             self.json_dict['center_lat'] = float(self.center_lat)
             self.json_dict['center_lon'] = float(self.center_lon)
             self.json_dict['multilook'] = [int(s) for s in self.multilook]
-            self.json_dict['orig_shape'] = [int(s) for s in self.orig_shape]
-            self.json_dict['orig_first_line'] = int(self.orig_first_line)
-            self.json_dict['orig_first_pixel'] = int(self.orig_first_pixel)
         elif self.grid_type == 'geographic':
             self.json_dict['ellipse_type'] = self.ellipse_type
             self.json_dict['lat0'] = float(self.lat0)
@@ -227,7 +221,6 @@ class CoordinateSystem():
         self.first_line = self.json_dict['first_line']
         self.first_pixel = self.json_dict['first_pixel']
         self.oversample = self.json_dict['oversample']
-        self.over_size = self.json_dict['over_size']
         self.sparse_name = self.json_dict['sparse_name']
         self.mask_name = self.json_dict['mask_name']
 
@@ -236,6 +229,7 @@ class CoordinateSystem():
 
         # Now add information based on the grid type
         if self.grid_type == 'radar_coordinates':
+            self.date = self.json_dict['date']
             self.az_time = self.json_dict['az_time']
             self.ra_time = self.json_dict['ra_time']
             self.az_step = self.json_dict['az_step']
@@ -243,9 +237,6 @@ class CoordinateSystem():
             self.center_lat = self.json_dict['center_lat']
             self.center_lon = self.json_dict['center_lon']
             self.multilook = self.json_dict['multilook']
-            self.orig_shape = self.json_dict['orig_shape']
-            self.orig_first_pixel = self.json_dict['orig_first_pixel']
-            self.orig_first_line = self.json_dict['orig_first_line']
         elif self.grid_type == 'geographic':
             self.ellipse_type = self.json_dict['ellipse_type']
             self.lat0 = self.json_dict['lat0']
@@ -523,7 +514,7 @@ class CoordinateSystem():
     def create_coor_id(self):
 
         if self.grid_type == 'radar_coordinates':
-            self.id_str = (self.readfile.date + '_' + str(self.az_time) + '_' + str(self.ra_time) + '_' +
+            self.id_str = ('radar_' + self.date + '_' + str(self.az_time) + '_' + str(self.ra_time) + '_' +
                            str(self.shape[0]) + '_' + str(self.shape[1]) + '_' +
                            str(self.first_line) + '_' + str(self.first_pixel) + '_' +
                            str(self.az_step) + '_' + str(self.ra_step) + '_' +
@@ -531,13 +522,13 @@ class CoordinateSystem():
                            str(self.oversample[0]) + '_' + str(self.oversample[1]) + '_' +
                            self.sparse_name + self.mask_name)
         elif self.grid_type == 'geographic':
-            self.id_str = (self.ellipse_type + '_' + str(self.shape[0]) + '_' + str(self.shape[1]) + '_' +
+            self.id_str = ('geo_' + self.ellipse_type + '_' + str(self.shape[0]) + '_' + str(self.shape[1]) + '_' +
                            str(self.first_line) + '_' + str(self.first_pixel) + '_' +
                            str(self.lon0) + '_' + str(self.lat0) + '_' +
                            str(self.dlon) + '_' + str(self.dlat) + '_' +
                            self.sparse_name + self.mask_name)
         elif self.grid_type == 'projection':
-            self.id_str = (self.proj4_str + '_' + self.ellipse_type + '_' +
+            self.id_str = ('proj_' + self.proj4_str + '_' + self.ellipse_type + '_' +
                            str(self.shape[0]) + '_' + str(self.shape[1]) + '_' +
                            str(self.first_line) + '_' + str(self.first_pixel) + '_' +
                            str(self.y0) + '_' + str(self.x0) + '_' +
@@ -545,7 +536,7 @@ class CoordinateSystem():
                            self.sparse_name + self.mask_name)
 
         if self.id_str.endswith('_'):
-            self.id_str = self.short_id_str[:-1]
+            self.id_str = self.id_str[:-1]
 
     # Create a basic coordinate identifier. (Only include the basic coordinate settings)
     # We assume that during processing most other parameters will stay constant, so it should not matter to give a
@@ -561,12 +552,14 @@ class CoordinateSystem():
                 ovr_str = ''
             else:
                 ovr_str = 'ovr_' + str(self.oversample[0]) + '_' + str(self.oversample[1]) + '_'
+            if self.date:
+                date_str = self.date[:4] + self.date[5:7] + self.date[8:10] + '_'
 
-            self.short_id_str = (ml_str + ovr_str + self.sparse_name + self.mask_name)
+            self.short_id_str = 'radar_' + (date_str + ml_str + ovr_str + self.sparse_name + self.mask_name)
         elif self.grid_type == 'geographic':
-            self.short_id_str = (self.ellipse_type + '_' + str(int(self.dlon * 3600)) + '_' + str(int(self.dlat * 3600))) + '_' + self.sparse_name + self.mask_name
+            self.short_id_str = 'geo_' + (self.ellipse_type + '_' + str(int(self.dlon * 3600)) + '_' + str(int(self.dlat * 3600))) + '_' + self.sparse_name + self.mask_name
         elif self.grid_type == 'projection':
-            self.short_id_str = (self.projection_type + '_' + str(self.dy) + '_' + str(self.dx)) + '_' + self.sparse_name + self.mask_name
+            self.short_id_str = 'proj_' + (self.projection_type + '_' + str(self.dy) + '_' + str(self.dx)) + '_' + self.sparse_name + self.mask_name
 
         if self.short_id_str.endswith('_'):
             self.short_id_str = self.short_id_str[:-1]
@@ -616,10 +609,10 @@ class CoordinateSystem():
             print('xy grid can only be created for a projection')
             return
 
-        y_vals = self.y0 + np.arange(self.shape[0]) * self.dy
-        x_vals = self.x0 + np.arange(self.shape[1]) * self.dx
+        y_vals = self.y0 + np.arange(self.shape[0]) * self.dy + self.first_line * self.dy
+        x_vals = self.x0 + np.arange(self.shape[1]) * self.dx + self.first_pixel * self.dx
 
-        x, y = np.meshgrid((x_vals, y_vals))
+        x, y = np.meshgrid(x_vals, y_vals)
 
         return x, y
 
@@ -629,9 +622,9 @@ class CoordinateSystem():
             print('xy grid can only be created for a geographic coordinate system')
             return
 
-        lat_vals = self.lat0 + np.arange(self.shape[0]) * self.dlat
-        lon_vals = self.lon0 + np.arange(self.shape[1]) * self.dlon
+        lat_vals = self.lat0 + np.arange(self.shape[0]) * self.dlat + self.first_line * self.dlat
+        lon_vals = self.lon0 + np.arange(self.shape[1]) * self.dlon + self.first_pixel * self.dlon
 
-        lon, lat = np.meshgrid((lon_vals, lat_vals))
+        lon, lat = np.meshgrid(lon_vals, lat_vals)
 
         return lat, lon

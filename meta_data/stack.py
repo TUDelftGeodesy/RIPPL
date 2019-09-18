@@ -168,13 +168,14 @@ class Stack(object):
                 ifg = Interferogram(folder, slave_slc=self.slcs[slave_key], master_slc=self.slcs[master_key], coreg_slc=self.slcs[cmaster_key])
                 self.ifgs[ifg_key_1] = ifg
 
-    def stack_data_iterator(self, processes=[], coordinates=[], data_ids=[], polarisations=[], process_types=[],
+    def stack_data_iterator(self, processes=[], coordinates=[], in_coordinates=[], data_ids=[], polarisations=[], process_types=[],
                             slc_date=False, ifg_date=False, slc=True, ifg=True, full_image=True, slices=False, data=True):
 
         processes_out = []
         process_ids_out = []
         file_types_out = []
         coordinates_out = []
+        in_coordinates_out = []
         slice_names_out = []
         images_out = []
         image_dates_out = []
@@ -197,14 +198,15 @@ class Stack(object):
                 slc_dates = self.slcs.keys()
 
             for date in slc_dates:
-                slice_names_slc, processes_slc, process_ids_slc, coordinates_slc, file_types_slc, images_slc \
-                    = self.slcs[date].concat_image_data_iterator(processes, coordinates, data_ids, polarisations,
+                slice_names_slc, processes_slc, process_ids_slc, coordinates_slc, in_coordinates_slc, file_types_slc, images_slc \
+                    = self.slcs[date].concat_image_data_iterator(processes, coordinates, in_coordinates, data_ids, polarisations,
                                                                  process_types, full_image, slices, data)
                 process_ids_out += process_ids_slc
                 file_types_out += file_types_slc
                 slice_names_out += slice_names_slc
                 images_out += images_slc
                 coordinates_out += coordinates_slc
+                in_coordinates_out += in_coordinates_slc
                 image_dates_out += [date for i in range(len(processes_slc))]
                 image_types_out += ['slc' for i in range(len(processes_slc))]
 
@@ -215,19 +217,20 @@ class Stack(object):
                 ifg_dates = self.ifgs.keys()
 
             for date in ifg_dates:
-                slice_names_ifg, processes_ifg, process_ids_ifg, coordinate_systems_ifg, file_types_ifg, images_ifg \
+                slice_names_ifg, processes_ifg, process_ids_ifg, coordinates_ifg, in_coordinates_ifg, file_types_ifg, images_ifg \
                     = self.ifgs[date].concat_image_data_iterator(processes, coordinates, data_ids, polarisations,
                                                                  process_types, full_image, slices, data)
                 process_ids_out += process_ids_ifg
                 file_types_out += file_types_ifg
                 slice_names_out += slice_names_ifg
                 images_out += images_ifg
-                coordinates_out += coordinate_systems_ifg
+                coordinates_out += coordinates_ifg
+                in_coordinates_out += in_coordinates_ifg
                 image_dates_out += [date for i in range(len(processes_ifg))]
                 image_types_out += ['ifg' for i in range(len(processes_ifg))]
 
         return image_types_out, image_dates_out, slice_names_out, processes_out, process_ids_out, coordinates_out, \
-               file_types_out, images_out
+               in_coordinates_out, file_types_out, images_out
 
     def download_SRTM_dem(self, srtm_folder, username, password, buffer=0.5, rounding=0.5, srtm_type='SRTM3', parallel=True):
         # Downloads the needed srtm data for this datastack. srtm_folder is the folder the downloaded srtm tiles are

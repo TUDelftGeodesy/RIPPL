@@ -4,6 +4,8 @@ from rippl.SAR_sensors.sentinel.sentinel_stack import SentinelStack
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.SAR_sensors.sentinel.sentinel_download import DownloadSentinelOrbit, DownloadSentinel
 import os
+import numpy as np
+
 
 data_disk = '/mnt/fcf5fddd-48eb-445a-a9a6-bbbb3400ba42/'
 datastack_disk = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/'
@@ -11,8 +13,8 @@ datastack_disk = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/'
 harmonie_data = data_disk + 'weather_models/harmonie_data'
 ecmwf_data = data_disk + 'weather_models/ecmwf_data'
 
-start_date = '2017-02-01'
-end_date = '2017-03-01'
+start_date = '2017-02-07'
+end_date = '2017-02-25'
 master_date = '2017-02-21'
 
 database_folder = data_disk + 'radar_database/sentinel-1/asc_t088_test'
@@ -68,46 +70,74 @@ from rippl.processing_steps.geometric_coregistration import GeometricCoregistrat
 from rippl.processing_steps.earth_topo_phase import EarthTopoPhase
 from rippl.processing_steps.square_amplitude import SquareAmplitude
 from rippl.processing_steps.reramp import Reramp
+from rippl.processing_steps.radar_ray_angles import RadarRayAngles
+from rippl.processing_steps.baseline import Baseline
+from rippl.processing_steps.interferogram import Interferogram
+from rippl.processing_steps.coherence import Coherence
 
 # Test processing for full burst with processes only.
-s1_stack.slcs['20170221'].load_slice_memmap()
-image = s1_stack.slcs['20170215'].slice_data['slice_500_swath_1']
-coreg_image = s1_stack.slcs['20170221'].slice_data['slice_500_swath_1']
+slices = np.sort(s1_stack.slcs['20170221'].slice_names)
 
-coor = image.processes['crop']['crop_#coor#__#id#_none_#pol#_VH'].coordinates
-coreg_coor = coreg_image.processes['crop']['crop_#coor#__#id#_none_#pol#_VH'].coordinates
+for slice in [slices[0]]:
 
-# Creat DEM and geocode
-srtm = CreateDem(coor_in=coreg_coor, coreg_master=coreg_image, dem_type='SRTM3', dem_folder=srtm_folder)
-srtm()
-dem_coor = srtm.coor_out
-inverse_geocode = InverseGeocode(coor_in=dem_coor, coreg_master=coreg_image)
-inverse_geocode()
-radar_dem = RadarDem(coor_in=dem_coor, coor_out=coreg_coor, coreg_master=coreg_image)
-radar_dem()
-geocode = Geocode(coor_in=coreg_coor, coreg_master=coreg_image)
+    s1_stack.slcs['20170221'].load_slice_memmap()
+    coreg_image = s1_stack.slcs['20170221'].slice_data[slice]
+    coreg_coor = coreg_image.processes['crop']['crop_#coor#__#id#_none_#pol#_VH'].coordinates
 
-# Resample and correct images
-deramp = Deramp(polarisation='VH', coor_in=coor, slave=image)
-deramp()
-geometric_coreg = GeometricCoregistration(coor_in=coor, coor_out=coreg_coor, slave=image, coreg_master=coreg_image)
-geometric_coreg()
-resample = ResampleRadarGrid(polarisation='VH', coor_in=coor, coor_out=coreg_coor, slave=image)
-resample()
-reramp = Reramp(polarisation='VH', coor_in=coreg_coor, slave=image)
-reramp()
-earth_topo_phase = EarthTopoPhase(polarisation='VH', coor_in=coreg_coor, slave=image)
-earth_topo_phase()
-square_amplitude_master = SquareAmplitude(polarisation='VH', coor_in=coreg_coor, slave=coreg_image, in_processes=['crop'], in_file_types=['crop'])
-square_amplitude_master()
-square_amplitude_slave = SquareAmplitude(polarisation='VH', coor_in=coreg_coor, slave=image)
-square_amplitude_slave()
+    # Creat DEM and geocode
+    srtm = CreateDem(coor_in=coreg_coor, coreg_master=coreg_image, dem_type='SRTM3', dem_folder=srtm_folder,
+                     overwrite=False)
+    srtm()
+    dem_coor = coreg_image.processing_image_data_iterator(processes=['create_dem'], file_types=['dem'])[-1][
+        0].coordinates
+    inverse_geocode = InverseGeocode(coor_in=dem_coor, coreg_master=coreg_image, overwrite=False)
+    inverse_geocode()
+    radar_dem = RadarDem(coor_in=dem_coor, coor_out=coreg_coor, coreg_master=coreg_image, overwrite=False)
+    radar_dem()
+    geocode = Geocode(coor_in=coreg_coor, coreg_master=coreg_image, overwrite=False)
+    geocode()
+    radar_ray_angles = RadarRayAngles(coor_in=coreg_coor, coreg_master=coreg_image, overwrite=False)
+    radar_ray_angles()
+    square_amplitude_master = SquareAmplitude(polarisation='VH', coor_in=coreg_coor, slave=coreg_image,
+                                              in_processes=['crop'], in_file_types=['crop'], overwrite=False)
+    square_amplitude_master()
 
-# Create interferogram
+    for slave_date in ['20170215', '20170209']:
+
+        s1_stack.slcs[slave_date].load_slice_memmap()
+        image = s1_stack.slcs[slave_date].slice_data[slice]
+        coor = image.processes['crop']['crop_#coor#__#id#_none_#pol#_VH'].coordinates
+
+        # Resample and correct images
+        deramp = Deramp(polarisation='VH', coor_in=coor, slave=image, overwrite=False)
+        deramp()
+        geometric_coreg = GeometricCoregistration(coor_in=coor, coor_out=coreg_coor, slave=image, coreg_master=coreg_image, overwrite=False)
+        geometric_coreg()
+        resample = ResampleRadarGrid(polarisation='VH', coor_in=coor, coor_out=coreg_coor, slave=image, overwrite=False)
+        resample()
+        reramp = Reramp(polarisation='VH', coor_in=coreg_coor, slave=image, overwrite=False)
+        reramp()
+        earth_topo_phase = EarthTopoPhase(polarisation='VH', coor_in=coreg_coor, slave=image, overwrite=False)
+        earth_topo_phase()
+
+        square_amplitude_slave = SquareAmplitude(polarisation='VH', coor_in=coreg_coor, slave=image, overwrite=False)
+        square_amplitude_slave()
+        baseline = Baseline(coor_in=coreg_coor, coreg_master=coreg_image, slave=image, overwrite=True)
+        baseline()
 
 
-# Run interferogram, coherence and unwrapping
-interferogram =
+s1_stack.ifgs['20170209_20170221'].load_slice_memmap()
+ifg_image = s1_stack.ifgs['20170209_20170221'].slice_data[slice]
+s1_stack.ifgs['20170209_20170215'].load_slice_memmap()
+ifg_image = s1_stack.ifgs['20170209_20170215'].slice_data[slice]
+
+# Run interferogram, coherence
+interferogram = Interferogram(polarisation='VH', coor_in=coreg_coor, master=coreg_image, slave=image, coreg_master=coreg_image, ifg=ifg_image, overwrite=True)
+interferogram()
+coherence = Coherence(polarisation='VH', coor_in=coreg_coor, master=coreg_image, slave=image, coreg_master=coreg_image, ifg=ifg_image, overwrite=True)
+coherence()
+
+# Run approximation tropospheric and ionospheric delay
 
 
 # Apply multilooking and run unwrapping

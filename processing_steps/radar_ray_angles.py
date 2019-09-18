@@ -17,7 +17,7 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
 
     def __init__(self, data_id='', coor_in=[],
                  in_processes=[], in_file_types=[], in_data_ids=[],
-                 coreg_master=[]):
+                 coreg_master=[], overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -49,17 +49,17 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
         values are given.
         """
 
-        in_image_types = ['coreg_master', 'coreg_master', 'coreg_master']
-        in_coor_types = ['coor_in', 'coor_in', 'coor_in']
+        in_image_types = ['coreg_master', 'coreg_master', 'coreg_master', 'coreg_master']
+        in_coor_types = ['coor_in', 'coor_in', 'coor_in', 'coor_in']
         if len(in_data_ids) == 0:
-            in_data_ids = ['', '', '']
-        in_polarisations = ['none', 'none', 'none']
+            in_data_ids = ['', '', '', '']
+        in_polarisations = ['none', 'none', 'none', 'none']
         if len(in_processes) == 0:
-            in_processes = ['geocode', 'geocode', 'geocode']
+            in_processes = ['geocode', 'geocode', 'geocode', 'radar_dem']
         if len(in_file_types) == 0:
-            in_file_types = ['X', 'Y', 'Z']
+            in_file_types = ['X', 'Y', 'Z', 'radar_dem']
 
-        in_type_names = ['X', 'Y', 'Z']
+        in_type_names = ['X', 'Y', 'Z', 'dem']
 
         # Initialize processing step
         super(RadarRayAngles, self).__init__(
@@ -76,7 +76,8 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
                        in_polarisations=in_polarisations,
                        in_data_ids=in_data_ids,
                        coreg_master=coreg_master,
-                       out_processing_image='coreg_master')
+                       out_processing_image='coreg_master',
+                       overwrite=overwrite)
 
     def process_calculations(self):
         """
@@ -93,17 +94,19 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
 
         # Get the orbit and initialize orbit coordinates
         orbit = self.in_processing_images['coreg_master'].find_best_orbit('original')
+        self.block_coor.create_radar_lines()
         orbit_interp = OrbitCoordinates(coordinates=self.block_coor, orbit=orbit)
 
         # Calc xyz and velocity vector of satellite orbit.
         orbit_interp.lp_time()
+        orbit_interp.height = self['dem']
 
         # Calc angles based on xyz information from geocoding
-        orbit_interp.xyz = np.concatenate((self['X'][:, None], self['Y'][:, None], self['Z'][:, None]))
+        orbit_interp.xyz = np.vstack((np.ravel(self['X'])[None, :], np.ravel(self['Y'])[None, :], np.ravel(self['Z'])[None, :]))
         orbit_interp.xyz2scatterer_azimuth_elevation()
         orbit_interp.xyz2orbit_heading_off_nadir()
 
-        self['off_nadir_angle'] = orbit_interp.off_nadir_angle
-        self['heading'] = orbit_interp.heading
-        self['incidence_angle'] = (0.5 * np.pi) - orbit_interp.elevation_angle
-        self['azimuth_angle'] = orbit_interp.azimuth_angle
+        self['off_nadir_angle'] = np.reshape(orbit_interp.off_nadir_angle, self.block_coor.shape)
+        self['heading'] = np.reshape(orbit_interp.heading, self.block_coor.shape)
+        self['incidence_angle'] = np.reshape((0.5 * np.pi) - orbit_interp.elevation_angle, self.block_coor.shape)
+        self['azimuth_angle'] = np.reshape(orbit_interp.azimuth_angle, self.block_coor.shape)

@@ -24,18 +24,29 @@ class SelectInputWindow():
     def input_irregular_rectangle(input_lines, input_pixels, s_lin=0, s_pix=0, shape=[0, 0], buf=3):
         # Calculate the needed rectangle area for the input, given the needed output line and pixels.
 
-        line_min = np.min(input_lines, 1)
-        line_max = np.max(input_lines, 1)
-        pixel_min = np.min(input_lines, 0)
-        pixel_max = np.max(input_lines, 0)
+        line_min_y = np.min(input_lines, 1)
+        line_max_y = np.max(input_lines, 1)
+        line_min_x = np.min(input_lines, 0)
+        line_max_x = np.max(input_lines, 0)
 
-        lines_inside = line_min > (s_lin - buf) * line_max < (s_lin + shape[0] + buf)
-        pixels_inside = pixel_min > (s_pix - buf) * pixel_max < (s_pix + shape[1] + buf)
+        lines_inside_y = (line_max_y > (s_lin - buf)) * (line_min_y < (s_lin + shape[0] + buf))
+        lines_inside_x = (line_max_x > (s_lin - buf)) * (line_min_x < (s_lin + shape[0] + buf))
 
-        in_s_lin = np.argwhere(lines_inside)[0][0]
-        in_s_pix = np.argwhere(pixels_inside)[0][0]
+        pixel_min_y = np.min(input_pixels, 1)
+        pixel_max_y = np.max(input_pixels, 1)
+        pixel_min_x = np.min(input_pixels, 0)
+        pixel_max_x = np.max(input_pixels, 0)
 
-        in_shape = (np.argwhere(lines_inside)[-1][0] - in_s_lin, np.argwhere(pixels_inside)[-1][0] - in_s_pix)
+        pixels_inside_y = (pixel_max_y > (s_pix - buf)) * (pixel_min_y < (s_pix + shape[1] + buf))
+        pixels_inside_x = (pixel_max_x > (s_pix - buf)) * (pixel_min_x < (s_pix + shape[1] + buf))
+
+        line_ids = np.argwhere(lines_inside_y * pixels_inside_y)
+        pixel_ids = np.argwhere(lines_inside_x * pixels_inside_x)
+
+        in_s_lin = line_ids[0][0]
+        in_s_pix = pixel_ids[0][0]
+
+        in_shape = (line_ids[-1][0] - in_s_lin, pixel_ids[-1][0] - in_s_pix)
 
         return in_s_lin, in_s_pix, in_shape
 
@@ -48,14 +59,14 @@ class SelectInputWindow():
         in_s_lin, in_s_pix, in_shape = SelectInputWindow.input_irregular_rectangle(input_lines, input_pixels, s_lin, s_pix, shape, buf)
 
         # Then check all the pixels within that box that are needed given the buffer.
-        lines = input_lines[s_lin:s_lin + in_shape[0], s_pix:s_pix + in_shape[1]]
-        pixels = input_pixels[s_lin:s_lin + in_shape[0], s_pix:s_pix + in_shape[1]]
+        lines = input_lines[in_s_lin:in_s_lin + in_shape[0], in_s_pix:in_s_pix + in_shape[1]]
+        pixels = input_pixels[in_s_lin:in_s_lin + in_shape[0], in_s_pix:in_s_pix + in_shape[1]]
         bool_grid = (lines >= s_lin - buf) * (lines <= s_lin + shape[0] + buf) * \
                     (pixels >= s_pix - buf) * (pixels <= s_pix + shape[1] + buf)
         del lines, pixels
 
         # To be sure that we do not miss needed adjacent pixel we let the data grow with an additional pixel.
-        bool_grid = SelectInputWindow.grow_selection(bool_grid, buf=1)
+        bool_grid = SelectInputWindow.grow_selection(bool_grid, buf=4)
 
         return bool_grid, in_s_lin, in_s_pix, in_shape
 
@@ -114,6 +125,6 @@ class SelectInputWindow():
     def grow_selection(input_grid, buf=3):
 
         filter = np.ones((buf * 2 + 1, buf * 2 + 1))
-        output_grid = binary_dilation(filter)
+        output_grid = binary_dilation(input_grid, filter)
 
         return output_grid

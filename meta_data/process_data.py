@@ -19,8 +19,8 @@ class ProcessData():
     - convert data types to data efficient datasets on disk (complex data)
     """
 
-    def __init__(self, folder, process_name=[], coordinates=[], settings=[], polarisation='', data_id='',
-                 json_data='', json_path='', process_meta=''):
+    def __init__(self, folder, process_name=[], coordinates=[], in_coordinates=[], settings=[], polarisation='',
+                 data_id='', json_data='', json_path='', process_meta=''):
         """
         Class that connects a process with the datafiles on disk. This enables easy access of the data files and loading
         in memory of these files in the processing code.
@@ -28,6 +28,7 @@ class ProcessData():
         :param str folder: Folder of dataset. This is not stored in the meta data as processing folders can be moved.
         :param str process_name: Name of the processing methot (for example, crop, resampling, deramping etc.)
         :param CoordinateSystem coordinates: Coordinate system of the output of this processing step.
+        :param CoordinateSystem in_coordinates: Coordinate system of input data of processing step if applicable
         :param dict settings: Specific settings for this processing method
         :param str polarisation: Polarisation of the input data. Leave blank if not relevant
         :param str data_id: ID of the processing step, if used in different parts of the processing. Leave blank if not
@@ -47,7 +48,8 @@ class ProcessData():
         if isinstance(process_meta, ProcessMeta):
             self.meta = process_meta
         else:
-            self.meta = ProcessMeta(folder, process_name, coordinates, settings, polarisation, data_id, json_data)
+            self.meta = ProcessMeta(folder, process_name, coordinates, in_coordinates, settings,
+                                    polarisation, data_id, json_data)
 
         self.dtype_disk, self.dtype_memory, self.dtype_size, self.dtype_gdal, self.dtype_gdal_numpy = ImageData.load_dtypes()
 
@@ -61,10 +63,12 @@ class ProcessData():
         self.data_memory = OrderedDict()
 
         self.coordinates = self.meta.coordinates
+        self.in_coordinates = self.meta.in_coordinates
         self.process_name = self.meta.process_name
         self.process_id = self.meta.process_id
         self.data_id = self.meta.data_id
         self.polarisation = self.meta.polarisation
+        self.settings = self.meta.settings
 
         # add settings to memory and disk data.
         self.add_process_images()
@@ -108,12 +112,14 @@ class ProcessData():
 
         images = []
         coordinate_systems = []
+        in_coordinate_systems = []
         if data:
             for file_type in file_types:
                 images.append(self.images[file_type])
                 coordinate_systems.append(self.coordinates)
+                in_coordinate_systems.append(self.in_coordinates)
 
-        return file_types, coordinate_systems, images
+        return file_types, coordinate_systems, in_coordinate_systems, images
 
     def check_file_type_exists(self, file_type):
         """
@@ -144,11 +150,23 @@ class ProcessData():
                                              process_name=self.process_name,
                                              coordinates=self.coordinates,
                                              polarisation=self.polarisation,
-                                             data_id=self.data_id)
+                                             data_id=self.data_id,
+                                             in_coordinates=self.in_coordinates)
                 self.data_disk[key] = self.images[key].data_disk
                 self.data_disk_meta[key] = self.images[key].json_dict
                 self.data_memory[key] = self.images[key].data_memory
                 self.data_memory_meta[key] = self.images[key].data_memory_meta
+
+    def add_input_image(self, input_image, input_type):
+        """
+        Saves the information about the input image
+
+        :param ImageData input_image: Image data from input data source. Metadata will be saved as metadata
+        :return:
+        """
+
+        if isinstance(input_image, ImageData):
+            self.input_files[input_type] = input_image.disk['meta']
 
     def add_process_images(self, file_types=[], data_types='', shapes=[], overwrite=False):
         """
@@ -192,7 +210,8 @@ class ProcessData():
                                               process_name = self.process_name,
                                               coordinates = self.coordinates,
                                               polarisation = self.polarisation,
-                                              data_id = self.data_id)
+                                              data_id = self.data_id,
+                                              in_coordinates=self.in_coordinates)
         self.data_disk_meta[file_type] = self.images[file_type].disk['meta']
         self.data_memory_meta[file_type] = self.images[file_type].memory['meta']
         self.data_disk[file_type] = self.images[file_type].disk
