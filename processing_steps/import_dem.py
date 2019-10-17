@@ -16,9 +16,9 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.resampling.coor_new_extend import CoorNewExtend
 
 
-class CreateDem(Process):  # Change this name to the one of your processing step.
+class ImportDem(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', coor_in=[], in_image_types=[], coreg_master=[],
+    def __init__(self, data_id='', in_coor=[], in_image_types=[], coreg_master=[],
                  dem_folder='', quality=False, buffer=0.2, rounding=0.2, dem_type='SRTM3', overwrite=False):
 
         """
@@ -28,38 +28,41 @@ class CreateDem(Process):  # Change this name to the one of your processing step
 
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
                     the same process.
-        :param CoordinateSystem coor_in: Coordinate system of the input radar grid for which we create a grid. An output
+        :param CoordinateSystem in_coor: Coordinate system of the input radar grid for which we create a grid. An output
                     grid will be generated in this function.
-        :param ImageProcessingData coreg_master: Image used to coregister the slave image for resampline etc.
-
+        :param ImageProcessingData coreg_master: Image used to coregister the slave image for resampling etc.
         """
 
-        # Output grid
-        self.process_name = 'create_dem'
-        self.dem_type = dem_type
-        self.quality = quality
+        # Output data information
+        self.output_info = dict()
+        self.output_info['process_name'] = 'dem'
+        self.output_info['image_type'] = 'coreg_master'
+        self.output_info['polarisation'] = ''
+        self.output_info['data_id'] = data_id
+        self.output_info['coor_type'] = 'out_coor'
         if not quality:
-            file_types = ['dem']
-            data_types = ['real4']
+            self.output_info['file_types'] = ['dem']
+            self.output_info['data_types'] = ['real4']
         else:
-            file_types = ['dem', 'dem_quality']
-            data_types = ['real4', 'int8']
+            self.output_info['file_types'] = ['dem', 'dem_quality']
+            self.output_info['data_types'] = ['real4', 'int8']
 
-        if not overwrite and self.check_output_exists(coreg_master, self.process_name, coor_in, '', data_id, file_types):
-            self.process_finished = True
-            return
-
-        # Input steps are not needed for dem creation.
-        in_image_types = []
-        in_coor_types = []
-        in_data_ids = []
-        in_polarisations = []
-        in_processes = []
-        in_file_types = []
+        # Input data information
+        self.input_info = dict()
+        self.input_info['image_types'] = []
+        self.input_info['process_types'] = []
+        self.input_info['file_types'] = []
+        self.input_info['data_types'] = []
+        self.input_info['polarisations'] = []
+        self.input_info['data_ids'] = []
+        self.input_info['coor_types'] = []
+        self.input_info['in_coor_types'] = []
+        self.input_info['type_names'] = []
 
         # Save the settings for dem generation
         self.dem_folder = dem_folder
         self.dem_type = dem_type
+        self.quality = quality
         self.settings = OrderedDict()
         self.settings['dem_folder'] = self.dem_folder
         self.settings['quality'] = self.quality
@@ -67,22 +70,35 @@ class CreateDem(Process):  # Change this name to the one of your processing step
         self.settings['rounding'] = rounding
         self.settings['srtm_type'] = dem_type
 
-        # Create the output grid coordinate system
-        orbit = coreg_master.find_best_orbit('original')
-        coor_in.orbit = orbit
-        self.coor_out = self.create_dem_coordinates(coor_in, buffer, rounding, dem_type)
+        self.overwrite = overwrite
 
-        # Call process initialization.
-        super(CreateDem, self).__init__(
-                       process_name=self.process_name,
-                       data_id=data_id,
-                       file_types=file_types,
-                       process_dtypes=data_types,
-                       coor_in=coor_in,
-                       coor_out=self.coor_out,
-                       coreg_master=coreg_master,
-                       out_processing_image='coreg_master',
-                       overwrite=overwrite)
+        # Coordinate systems
+        self.coordinate_systems = dict()
+        if in_coor != 'none':
+            orbit = coreg_master.find_best_orbit('original')
+            in_coor.orbit = orbit
+            self.out_coor = self.def_coordinates_shape(in_coor)
+        elif isinstance(in_coor, CoordinateSystem):
+            self.out_coor = in_coor
+        else:
+            self.out_coor = []
+
+        self.coordinate_systems['in_coor'] = self.out_coor
+        self.coordinate_systems['out_coor'] = self.out_coor
+
+        # image data processing
+        self.processing_images = dict()
+        self.processing_images['coreg_master'] = coreg_master
+
+    def init_super(self):
+
+        super(ImportDem, self).__init__(
+                       input_info=self.input_info,
+                       output_info=self.output_info,
+                       coordinate_systems=self.coordinate_systems,
+                       processing_images=self.processing_images,
+                       overwrite=self.overwrite,
+                       settings=self.settings)
 
     def process_calculations(self):
         """
@@ -96,35 +112,33 @@ class CreateDem(Process):  # Change this name to the one of your processing step
         # in blocks.
         self['dem'] = self.create_srtm(self.block_coor, self.dem_folder, self.dem_type, quality=False)
         if self.quality:
-            self['dem_quality'] = self.create_srtm(self.block_coor, self.dem_folder, self.dem_type, quality=True)
+            self['dem_quality_' + self.dem_type] = self.create_srtm(self.block_coor, self.dem_folder, self.dem_type, quality=True)
 
         geoid_file = os.path.join(self.dem_folder, 'egm96.dat')
-        geoid = self.create_geoid(self.coor_out, geoid_file, download=False)
+        geoid = self.create_geoid(self.out_coor, geoid_file, download=False)
         self['dem'] -= geoid
 
-    @staticmethod
-    def create_dem_coordinates(coor_in, buffer, rounding, dem_type='SRTM3'):
+    def def_coordinates_shape(self, in_coor):
         """
         Based on the buffer and rounding
 
-        :param CoordinateSystem coor_in: Input coordinate system from radar grid
-        :param float buffer: Buffer region around image to ensure full coverage
-        :param float rounding: Rounding to create nice rounded image sizes
-        :param str dem_type: dem type of input, defines the step size
+        :param CoordinateSystem in_coor: Input coordinate system from radar grid
         :return:
         """
-        coor_out = CoordinateSystem()
 
-        if dem_type == 'SRTM1':
-            coor_out.create_geographic(1.0 / 3600, 1.0 / 3600)
-        elif dem_type == 'SRTM3':
-            coor_out.create_geographic(3.0 / 3600, 3.0 / 3600)
+        # Define the in_coor based on the input data.
+
+        out_coor = CoordinateSystem()
+
+        if self.dem_type == 'SRTM1':
+            out_coor.create_geographic(1.0 / 3600, 1.0 / 3600)
+        elif self.dem_type == 'SRTM3':
+            out_coor.create_geographic(3.0 / 3600, 3.0 / 3600)
         else:
             print('dem type not supported')
 
-        new_coor = CoorNewExtend(coor_in, coor_out, buffer=buffer, rounding=rounding)
-
-        return new_coor.coor_out
+        new_coor = CoorNewExtend(in_coor, out_coor, buffer=self.settings['buffer'], rounding=self.settings['rounding'])
+        return new_coor.out_coor
 
     @staticmethod
     def create_srtm(coordinates, srtm_folder, srtm_type='SRTM3', quality=False):

@@ -115,7 +115,7 @@ class ImageProcessingData(object):
         self.load_process_data_info(process.process_name, process.process_id)
 
     def processing_image_data_exists(self, process, coordinates, in_coordinates='', data_id='', polarisation='',
-                                     file_type='', data=True, message=True):
+                                     file_type='', data=True, message=True, multiple=True):
         """
         Check if a specific image exists and load it. If more than one image is selected, give a warning.
 
@@ -134,7 +134,7 @@ class ImageProcessingData(object):
             if message:
                 print('No image data found')
             return False
-        elif len(images) > 1:
+        elif len(images) > 1 and not multiple:
             if message:
                 print('Search criterea for image selection not specific enough. More than one image selected. Note that if '
                       'data_id or polarisation should be empty use "none" as keyword.')
@@ -162,7 +162,15 @@ class ImageProcessingData(object):
         if len(processes) == 0:
             processes = list(self.data_disk_meta.keys())
 
-        coor_strs = [coordinate.short_id_str for coordinate in coordinates]
+        coor_strs = []
+        for coordinate in coordinates:
+            coordinate.create_short_coor_id()
+            coor_strs.append(coordinate.short_id_str)
+        in_coor_strs = []
+        for coordinate in in_coordinates:
+            if isinstance(coordinate, CoordinateSystem):
+                coordinate.create_short_coor_id()
+                in_coor_strs.append(coordinate.short_id_str)
 
         processes_out = []
         process_ids_out = []
@@ -182,6 +190,9 @@ class ImageProcessingData(object):
 
                 if len(coor_strs) > 0 and coor_strs != ['']:
                     if coor_str not in coor_strs:
+                        continue
+                if len(in_coor_strs) > 0 and in_coor_strs != ['']:
+                    if in_coor_str not in in_coor_strs:
                         continue
                 if len(data_ids) > 0 and data_ids != ['']:
                     if id_str not in data_ids:
@@ -263,7 +274,7 @@ class ImageProcessingData(object):
 
         :return:
         """
-        processes, process_ids, coordinates, file_types, images = self.all_data_iterator()
+        processes, process_ids, coordinates, in_coordinates, file_types, images = self.all_data_iterator()
         for image in images:
             image.load_disk_data()
 
@@ -273,9 +284,19 @@ class ImageProcessingData(object):
 
         :return:
         """
-        processes, process_ids, coordinates, file_types, images = self.all_data_iterator()
+        processes, process_ids, coordinates, in_coordinates, file_types, images = self.all_data_iterator()
         for image in images:
             image.remove_disk_data_memmap()
+
+    def remove_memory_files(self):
+        """
+        Remove all memory data of this image.
+
+        :return:
+        """
+        processes, process_ids, coordinates, in_coordinates, file_types, images = self.all_data_iterator()
+        for image in images:
+            image.remove_memory_data()
 
     # Delegate functions to image processing meta object.
     def update_json(self, json_path=''):

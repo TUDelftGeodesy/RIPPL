@@ -11,7 +11,7 @@ from rippl.meta_data.orbit import Orbit
 class CoordinateSystem():
 
     """
-    :type readfiles = Readfiles | None
+    :type readfile = Readfile | None
     :type orbit = Orbit | None
     :type geo = pyproj.Geod | None
     :type proj = pyproj.Proj | None
@@ -48,8 +48,7 @@ class CoordinateSystem():
         self.ra_step = 0
         self.center_lon = 0
         self.center_lat = 0
-        self.radar_grid_date = ''   # The origin of the master/slave or coregistration master grid and the orbits that
-                                    # come with it.
+        self.swath = 0
 
         # Characteristics for geographic type
         self.ellipse_type = ''
@@ -105,6 +104,7 @@ class CoordinateSystem():
         self.center_lat = readfile.center_lat
         self.center_lon = readfile.center_lon
         self.date = readfile.date
+        self.swath = readfile.swath
 
         if self.shape == [0, 0] and self.grid_type == 'radar_coordinates':
             self.shape = readfile.size
@@ -177,6 +177,8 @@ class CoordinateSystem():
             self.json_dict['center_lat'] = float(self.center_lat)
             self.json_dict['center_lon'] = float(self.center_lon)
             self.json_dict['multilook'] = [int(s) for s in self.multilook]
+            self.json_dict['date'] = self.date
+            self.json_dict['swath'] = int(self.swath)
         elif self.grid_type == 'geographic':
             self.json_dict['ellipse_type'] = self.ellipse_type
             self.json_dict['lat0'] = float(self.lat0)
@@ -237,6 +239,8 @@ class CoordinateSystem():
             self.center_lat = self.json_dict['center_lat']
             self.center_lon = self.json_dict['center_lon']
             self.multilook = self.json_dict['multilook']
+            self.date = self.json_dict['date']
+            self.swath = self.json_dict['swath']
         elif self.grid_type == 'geographic':
             self.ellipse_type = self.json_dict['ellipse_type']
             self.lat0 = self.json_dict['lat0']
@@ -299,15 +303,15 @@ class CoordinateSystem():
         self.interval_lines = self.ml_lines + (steps[0] - 1) / 2
         self.interval_pixels = self.ml_pixels + (steps[1] - 1) / 2
 
-    def create_geographic(self, dlat, dlon, ellipse_type='WGS84', shape='', lat0='', lon0='',
+    def create_geographic(self, dlat, dlon, ellipse_type='WGS84', shape='', lat0=0, lon0=0,
                           sparse_name='', mask_name=''):
 
         self.ellipse_type = ellipse_type
         self.shape = shape
-        self.lat0 = lat0
-        self.lon0 = lon0
-        self.dlat = dlat
-        self.dlon = dlon
+        self.lat0 = float(lat0)
+        self.lon0 = float(lon0)
+        self.dlat = float(dlat)
+        self.dlon = float(dlon)
         self.grid_type = 'geographic'
         self.sample = '_' + ellipse_type + '_stp_' + str(int(np.round(dlat * 3600))) + '_' + str(int(np.round(dlon * 3600)))
 
@@ -331,17 +335,17 @@ class CoordinateSystem():
             lon_lim, lat_lim, self.dlon, self.dlat, lon0, lat0, buf_pix)
 
     def create_projection(self, dx, dy, projection_type='', ellipse_type='WGS84', proj4_str='',
-                          shape='', x0='', y0='', sparse_name='', mask_name=''):
+                          shape='', x0=0, y0=0, sparse_name='', mask_name=''):
         # Define projection. For specific projections visit https://proj4.org
 
         self.ellipse_type = ellipse_type
         self.projection_type = projection_type
         self.proj4_str = proj4_str  # Any additional information if needed..
         self.shape = shape
-        self.x0 = x0
-        self.y0 = y0
-        self.dx = dx
-        self.dy = dy
+        self.x0 = float(x0)
+        self.y0 = float(y0)
+        self.dx = float(dx)
+        self.dy = float(dy)
         self.grid_type = 'projection'
 
         self.sample = '_' + projection_type + '_stp_' + str(dx).zfill(0) + '_' + str(dy).zfill(0)
@@ -403,8 +407,13 @@ class CoordinateSystem():
 
         return x0, y0, first_line, first_pixel, shape
 
-    def create_gdal_projection(self, readfiles):
-        # type: (CoordinateSystem, Readfile) -> (osr.SpatialReference, list)
+    def create_gdal_projection(self):
+        """
+        Create the projection characteristics to save data as .tiff file using gdal.
+        Note that the values for radar coordinates are an approximation only!
+
+        :return: osr.SpatialReference, list
+        """
 
         geo_transform = np.zeros(6)
         projection = osr.SpatialReference()
@@ -433,10 +442,10 @@ class CoordinateSystem():
 
         elif self.grid_type == 'geographic':
             # Create geo transform based on lat/lon
-            geo_transform[0] = self.lon0
+            geo_transform[0] = self.lon0 + self.dlon * self.first_pixel
             geo_transform[1] = self.dlon
             geo_transform[2] = 0
-            geo_transform[3] = self.lat0
+            geo_transform[3] = self.lat0 + self.dlat * self.first_line
             geo_transform[4] = 0
             geo_transform[5] = self.dlat
 
@@ -446,10 +455,10 @@ class CoordinateSystem():
 
         elif self.grid_type == 'projection':
             # Create geo transform based on projection steps
-            geo_transform[0] = self.x0
+            geo_transform[0] = self.x0 + self.dx * self.first_pixel
             geo_transform[1] = self.dx
             geo_transform[2] = 0
-            geo_transform[3] = self.y0
+            geo_transform[3] = self.y0 + self.dy * self.first_line
             geo_transform[4] = 0
             geo_transform[5] = self.dy
 

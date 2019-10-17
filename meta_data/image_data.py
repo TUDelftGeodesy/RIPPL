@@ -21,14 +21,14 @@ class ImageData():
         This class organizes the reading and writing of an image from and to disk.
 
         :param dict json_dict: Information about image based on information from .json data
-        :param file_type:
-        :param dtype:
-        :param shape:
-        :param folder:
-        :param process_name:
-        :param CoordinateSystem coordinates:
-        :param polarisation:
-        :param data_id:
+        :param str file_type: File type of image as part of a process
+        :param str dtype: Data type of image.
+        :param tuple shape: Shape of the image. Can be left empty if the same as the coordinates system
+        :param str folder: Path to the folder where data on disk of this image is stored
+        :param str process_name: Name of the process this image is part of
+        :param CoordinateSystem coordinates: Coordinate system for this image
+        :param str polarisation: Polarisation of dataset
+        :param str data_id: Data ID, in most cases not used, but usefull if comparable datasets are used.
         """
 
         # This information is not necessarily needed if the json dict
@@ -61,12 +61,11 @@ class ImageData():
         else:
             self.file_type = file_type
             self.dtype = dtype
-            if shape == '':
+            if not shape:
                 self.shape = self.coordinates.shape
             else:
                 self.shape = shape
             self.create_file_name()
-            self.file_path = os.path.join(self.folder, self.file_name)
             self.create_meta_data()
         
         self.key = self.file_name[:-4]
@@ -74,12 +73,10 @@ class ImageData():
         # Check if dtype exists
         if self.dtype not in list(self.dtype_disk.keys()):
             print(self.dtype + ' does not exist.')
-        
-        # Store the datasets in a dict to. To be able to link to these from other functions.
-        self.file_path = os.path.join(self.folder, self.file_name)
 
     def create_meta_data(self):
         """
+        This method creates the meta data information of this image. This will be save to the .json meta data file.
 
         :return:
         """
@@ -101,29 +98,26 @@ class ImageData():
 
     def create_file_name(self):
         """
-        Get the filename for using id/coordinates/polarisation
+        This method creates the id and filename of the data on disk. This file name is used when data is save to disk.
 
         :return:
         """
 
-        if self.coordinates.short_id_str == '':
-            short_id = ''
-        else:
-            short_id = '_' + self.coordinates.short_id_str
+        file_name = self.file_type
 
-        if not self.file_type:
-            self.file_name = self.process_name + short_id
-        else:
-            self.file_name = self.file_type + short_id
+        if self.polarisation and self.polarisation != 'none':
+            file_name += '_' + self.polarisation
+        if self.data_id and self.data_id != 'none':
+            file_name += '_' + self.data_id
 
-        if self.data_id != 'none':
-            self.file_name = self.file_name + '_' + self.data_id
-        if self.polarisation != 'none':
-            self.file_name = self.file_name + '_' + self.polarisation
-            
-        self.file_name += '.raw'
+        file_name += '@'
+        file_name += self.coordinates.short_id_str
+        if isinstance(self.in_coordinates, CoordinateSystem):
+            file_name += '_in_coor_' + self.in_coordinates.short_id_str
 
-    # Next functions are for writing/creating files and exchange between disk and memory
+        self.file_name = file_name + '.raw'
+        self.file_path = os.path.join(self.folder, self.file_name)
+
     '''
     Functions to communicate with data on disk
     - create_disk_data > create a new file on disk
@@ -133,7 +127,14 @@ class ImageData():
     '''
 
     def create_disk_data(self, overwrite=False):
-        # Check if the file exists and whether there is a valid data file already.
+        """
+        Create data on disk for this image data.
+
+        :param bool overwrite: If file already exists do we overwrite.
+        :return:
+        """
+
+        # Check if file already exist
         if not os.path.exists(os.path.dirname(self.file_path)):
             print('Folder does not exist')
             return False
@@ -145,6 +146,12 @@ class ImageData():
         return True
 
     def load_disk_data(self):
+        """
+        Load the data from disk as a memmap file.
+
+        :return:
+        """
+
         # Check if file exists and whether it is valid
         if not self.check_data_disk_valid()[1]:
             return False
@@ -154,6 +161,12 @@ class ImageData():
         return True
 
     def remove_disk_data_memmap(self):
+        """
+        Remove the memmap of the data on disk (But not the data on disk itself!)
+
+        :return:
+        """
+
         # Check if it exists
         if isinstance(self.disk['data'], np.memmap):
             self.disk['data'] = []
@@ -161,7 +174,11 @@ class ImageData():
         return True
 
     def remove_disk_data(self):
-        # Check if it exists
+        """
+        Remove the memmap and the data on disk. (This will remove the data on disk which cannot be recovered afterwards!)
+
+        :return:
+        """
 
         # If file exists
         if self.check_data_disk_valid()[0]:
@@ -173,7 +190,6 @@ class ImageData():
     Functions needed to load or remove data in memory
         - new_memory_data > Create a new empty dataset in memory
         - add_memory_data > Add new memory data with a pre-existing numpy array
-
     '''
 
     def new_memory_data(self, shape, s_lin=0, s_pix=0):
@@ -358,9 +374,51 @@ class ImageData():
         else:
             return True
 
+    def save_tiff(self, file_path='', overwrite=False):
+        """
+        Save data as geotiff. Complex data will be saved as a two layer tiff with amplitude and phase values.
+
+        :param str file_path: If a file name is defined data is saved in this file. Otherwise the name is directly
+                copied from the .raw name but replaced with a .tiff value.
+        :return:
+        """
+
+        if not file_path:
+            file_path = self.file_path[:-4] + '.tiff'
+        if not os.path.exists(os.path.dirname(file_path)):
+            raise FileExistsError('Folder to write tiff file ' + file_path + ' does not exist.')
+        if os.path.exists(file_path):
+            print('File ' + file_path + ' does already exist')
+            return
+
+        projection, geo_transform = self.coordinates.create_gdal_projection()
+        driver = gdal.GetDriverByName('GTiff')
+
+        self.load_memory_data(self.shape)
+
+        if self.dtype.startswith('complex'):
+            data = driver.Create(file_path, self.shape[1], self.shape[0], 2, self.dtype_gdal[self.dtype])
+            data.SetGeoTransform(geo_transform)
+            data.SetProjection(projection.ExportToWkt())
+            data.GetRasterBand(1).WriteArray(np.log(np.abs(self.memory['data'])))
+            data.GetRasterBand(2).WriteArray(np.angle(self.memory['data']))
+        else:
+            data = driver.Create(file_path, self.shape[1], self.shape[0], 1, self.dtype_gdal[self.dtype])
+            data.SetGeoTransform(geo_transform)
+            data.SetProjection(projection.ExportToWkt())
+            data.GetRasterBand(1).WriteArray(self.memory['data'])
+
     # Conversion between data on disk and in memory.
     @staticmethod
     def disk2memory(data, dtype):
+        """
+        For some format there is no proper numpy format. These should therefore be corrected when loaded to memory to
+        be able to do calculations.
+
+        :param np.ndarray data: Input data that should be converted from disk to memory
+        :param str dtype: Data type of dataset
+        :return:
+        """
 
         if dtype == 'complex_int':
             data = ImageData.complex_int2complex(data)
@@ -371,6 +429,14 @@ class ImageData():
 
     @staticmethod
     def memory2disk(data, dtype):
+        """
+        For some format there is no proper numpy format. These should therefore be corrected when save to disk to
+        save space on disk.
+
+        :param np.ndarray data: Input data that should be converted from disk to memory
+        :param str dtype: Data type of dataset
+        :return:
+        """
 
         if dtype == 'complex_int' or dtype == 'complex_short':
             if not data.dtype == np.complex64:
@@ -385,21 +451,45 @@ class ImageData():
 
     @staticmethod
     def complex_int2complex(data):
+        """
+        Convert complex integers to regular numpy complex64 data.
+
+        :param np.ndarray data: Input data to be converted
+        :return: data
+        """
         data = data.view(np.int16).astype('float32').view(np.complex64)
         return data
 
     @staticmethod
     def complex_short2complex(data):
+        """
+        Convert complex short values to regular numpy complex64 data.
+
+        :param np.ndarray data: Input data to be converted
+        :return: data
+        """
         data = data.view(np.float16).astype('float32').view(np.complex64)
         return data
 
     @staticmethod
     def complex2complex_int(data):
+        """
+        Convert from regular complex 64 data to complex integers.
+
+        :param np.ndarray data: Input data to be converted
+        :return: data
+        """
         data = data.view(np.float32).astype(np.int16).view(np.dtype([('re', np.int16), ('im', np.int16)]))
         return data
 
     @staticmethod
     def complex2complex_short(data):
+        """
+        Convert from regular complex 64 data to complex shorts.
+
+        :param np.ndarray data: Input data to be converted
+        :return: data
+        """
         data = data.view(np.float32).astype(np.float16).view(np.dtype([('re', np.float16), ('im', np.float16)]))
         return data
 
@@ -460,3 +550,4 @@ class ImageData():
                             'tiff': np.dtype([('re', np.int16), ('im', np.int16)])}
 
         return dtype_disk, dtype_numpy, dtype_size, dtype_gdal, dtype_gdal_numpy
+

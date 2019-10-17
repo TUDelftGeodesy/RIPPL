@@ -6,7 +6,7 @@ from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 from rippl.external_dems.srtm.srtm_download import SrtmDownload
 from rippl.processing_steps_old.import_dem import CreateSrtmDem
 from rippl.processing_steps_old.inverse_geocode import InverseGeocode
-from rippl.processing_steps_old.radar_dem import RadarDem
+from rippl.processing_steps_old.resample_dem import ResampleDem
 from rippl.processing_steps_old.geocode import Geocode
 from rippl.processing_steps_old.azimuth_elevation_angle import AzimuthElevationAngle
 
@@ -85,7 +85,7 @@ class RadarData(OrbitCoordinates, ImageData):
         radar_ref()
 
         # Now create radar dem and calculate geometry
-        radar_ref = RadarDem(meta=meta, resolution='SRTM3', interval=self.interval, buffer=self.interval)
+        radar_ref = ResampleDem(meta=meta, resolution='SRTM3', interval=self.interval, buffer=self.interval)
         radar_ref()
         self.lines = radar_ref.lines
         self.pixels = radar_ref.pixels

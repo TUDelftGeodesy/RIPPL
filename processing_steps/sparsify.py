@@ -12,14 +12,13 @@ from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 
-class ProcessTemplate(Process):     # Change this name to the one of your processing step.
-
+class ProcessTemplate(Process):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', polarisation='',
                  in_coor=[], out_coor=[], coordinate_systems=dict(),
-                 in_image_types=[], in_coor_types=[], in_processes=[], in_file_types=[], in_polarisations=[], in_data_ids=[],
-                 slave=[], master=[], coreg_master=[], ifg=[], processing_images=dict(), out_processing_image='slave',
-                 overwrite=False):
+                 in_image_types=[], in_coor_types=[], in_processes=[], in_file_types=[], in_polarisations=[],
+                 in_data_ids=[],
+                 slave=[], master=[], coreg_master=[], ifg=[], processing_images=dict(), out_processing_image='slave'):
 
         """
         In the template all options are still given. But for the final processing step it is possible to remove a part
@@ -79,11 +78,11 @@ class ProcessTemplate(Process):     # Change this name to the one of your proces
         values are given.
         """
         if len(in_image_types) == 0:
-            in_image_types = ['slave', 'slave']    # In this case only the slave is used, so the input variable master,
-                                                   # coreg_master, ifg and processing_images are not needed.
-                                                   # However, if you override the default values this could change.
+            in_image_types = ['slave', 'slave']  # In this case only the slave is used, so the input variable master,
+            # coreg_master, ifg and processing_images are not needed.
+            # However, if you override the default values this could change.
         if len(in_coor_types) == 0:
-            in_coor_types = ['in_coor', 'in_coor'] # Same here but then for the out_coor and coordinate_systems
+            in_coor_types = ['in_coor', 'in_coor']  # Same here but then for the out_coor and coordinate_systems
         if len(in_data_ids) == 0:
             in_data_ids = ['none', 'none']
         if len(in_polarisations) == 0:
@@ -106,32 +105,31 @@ class ProcessTemplate(Process):     # Change this name to the one of your proces
         initialization of this function, can be left out here too.
         For example, if you use only one coordinate system you can leave out out_coor, in_coor_types and 
         coordinate_systems.
-        
+
         In most cases most of the variables are not used, but we give them here to be complete. Check one of the basic
         processing steps like deramping or resampling for the normal need of those variables. 
         """
         super(ProcessTemplate, self).__init__(
-                       process_name=self.process_name,
-                       data_id=data_id, polarisation=polarisation,
-                       file_types=file_types,
-                       process_dtypes=data_types,
-                       in_coor=in_coor,
-                       out_coor=out_coor,
-                       in_coor_types=in_coor_types,
-                       coordinate_systems=coordinate_systems,
-                       in_type_names=in_type_names,
-                       in_image_types=in_image_types,
-                       in_processes=in_processes,
-                       in_file_types=in_file_types,
-                       in_polarisations=in_polarisations,
-                       in_data_ids=in_data_ids,
-                       slave=slave,
-                       master=master,
-                       coreg_master=coreg_master,
-                       ifg=ifg,
-                       processing_images=processing_images,
-                       out_processing_image=out_processing_image,
-                       overwrite=overwrite)
+            process_name=self.process_name,
+            data_id=data_id, polarisation=polarisation,
+            file_types=file_types,
+            process_dtypes=data_types,
+            in_coor=in_coor,
+            out_coor=out_coor,
+            in_coor_types=in_coor_types,
+            coordinate_systems=coordinate_systems,
+            in_type_names=in_type_names,
+            in_image_types=in_image_types,
+            in_processes=in_processes,
+            in_file_types=in_file_types,
+            in_polarisations=in_polarisations,
+            in_data_ids=in_data_ids,
+            slave=slave,
+            master=master,
+            coreg_master=coreg_master,
+            ifg=ifg,
+            processing_images=processing_images,
+            out_processing_image=out_processing_image)
 
     def process_calculations(self):
         """

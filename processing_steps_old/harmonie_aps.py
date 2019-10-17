@@ -7,7 +7,7 @@ import logging
 from collections import OrderedDict, defaultdict
 
 from rippl.meta_data.image_processing_data import ImageData
-from rippl.processing_steps_old.radar_dem import RadarDem
+from rippl.processing_steps_old.resample_dem import ResampleDem
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 from rippl.NWP_simulations.harmonie.harmonie_database import HarmonieDatabase
@@ -26,7 +26,7 @@ class HarmonieAps(object):
     :type s_lin = int
     """
 
-    def __init__(self, meta, cmaster_meta, coor_in, coordinates, s_lin=0, s_pix=0, lines=0,
+    def __init__(self, meta, cmaster_meta, in_coor, coordinates, s_lin=0, s_pix=0, lines=0,
                  weather_data_archive='', h_type='all', time_interp='nearest', split=False, t_step=1, t_offset=0):
         # Add master image and slave if needed. If no slave image is given it should be done later using the add_slave
         # function.
@@ -54,8 +54,8 @@ class HarmonieAps(object):
         self.t_offset = t_offset
         self.s_lin = s_lin
         self.s_pix = s_pix
-        self.coor_out = coordinates
-        self.coor_in = coor_in
+        self.out_coor = coordinates
+        self.in_coor = in_coor
         shape = coordinates.shape
         if lines != 0:
             self.line = np.minimum(lines, shape[0] - s_lin)
@@ -63,16 +63,16 @@ class HarmonieAps(object):
             self.line = shape[0] - s_lin
         self.shape = [self.line, shape[1] - s_pix]
 
-        # The coor_in grid is a course grid to find the height delay dependence of our Harmonie data.
-        # The coor_out grid is the final interpolation grid that is generated as an output.
-        # Normally the coor_in grid can be of more or less the same resolution as the Harmonie data, which is 2 km.
+        # The in_coor grid is a course grid to find the height delay dependence of our Harmonie data.
+        # The out_coor grid is the final interpolation grid that is generated as an output.
+        # Normally the in_coor grid can be of more or less the same resolution as the Harmonie data, which is 2 km.
         # For Sentinel-1 data this means a multilooking of about [50, 200]
-        self.shape_in, self.coarse_lines, self.coarse_pixels = RadarDem.find_coordinates(self.cmaster, 0, 0, 0, coor_in)
-        self.shape_out, self.lines, self.pixels = RadarDem.find_coordinates(self.cmaster, self.s_lin, self.s_pix, self.line, self.coor_out)
+        self.shape_in, self.coarse_lines, self.coarse_pixels = ResampleDem.find_coordinates(self.cmaster, 0, 0, 0, in_coor)
+        self.shape_out, self.lines, self.pixels = ResampleDem.find_coordinates(self.cmaster, self.s_lin, self.s_pix, self.line, self.out_coor)
 
         # Load data input grid
         self.lat, self.lon, self.height, self.azimuth_angle, self.elevation_angle, self.mask, self.out_height = \
-            self.load_aps_data(self.coor_in, self.coor_out, self.cmaster, self.shape_in, self.shape_out, self.s_lin, self.s_pix)
+            self.load_aps_data(self.in_coor, self.out_coor, self.cmaster, self.shape_in, self.shape_out, self.s_lin, self.s_pix)
         self.mask *= ~((self.lines == 0) * (self.pixels == 0))
 
         self.simulated_delay = np.zeros(self.shape_out)
@@ -111,16 +111,16 @@ class HarmonieAps(object):
             # new delay images on different time scales.
 
             # Save meta data
-            self.add_meta_data(self.slave, self.coor_out, self.split)
+            self.add_meta_data(self.slave, self.out_coor, self.split)
 
             # Save the data itself
             self.slave.image_new_data_memory(self.simulated_delay.astype(np.float32), 'harmonie_aps', self.s_lin, self.s_pix,
-                                             'harmonie_aps' + self.coor_out.sample)
+                                             'harmonie_aps' + self.out_coor.sample)
             if self.split:
                 self.slave.image_new_data_memory(self.hydrostatic_delay.astype(np.float32), 'harmonie_aps', self.s_lin, self.s_pix,
-                                                'harmonie_hydrostatic' + self.coor_out.sample)
+                                                'harmonie_hydrostatic' + self.out_coor.sample)
                 self.slave.image_new_data_memory(self.wet_delay.astype(np.float32), 'harmonie_aps', self.s_lin, self.s_pix,
-                                                'harmonie_wet' + self.coor_out.sample)
+                                                'harmonie_wet' + self.out_coor.sample)
 
             return True
 
@@ -174,22 +174,22 @@ class HarmonieAps(object):
         ray_delays.remove_delay(proc_date)
 
     @staticmethod
-    def load_aps_data(coor_in, coor_out, cmaster, shape_in, shape_out, s_lin, s_pix):
+    def load_aps_data(in_coor, out_coor, cmaster, shape_in, shape_out, s_lin, s_pix):
 
-        lat, lon = ProjectionCoor.load_lat_lon(coor_in, cmaster, 0, 0, shape_in)
-        height = CoorDem.load_dem(coor_in, cmaster, 0, 0, shape_in)
+        lat, lon = ProjectionCoor.load_lat_lon(in_coor, cmaster, 0, 0, shape_in)
+        height = CoorDem.load_dem(in_coor, cmaster, 0, 0, shape_in)
 
         azimuth_angle = cmaster.image_load_data_memory('azimuth_elevation_angle', 0, 0, shape_in,
-                                                                 'azimuth_angle' + coor_in.sample)
+                                                                 'azimuth_angle' + in_coor.sample)
         elevation_angle = cmaster.image_load_data_memory('azimuth_elevation_angle', 0, 0, shape_in,
-                                                                   'elevation_angle' + coor_in.sample)
+                                                                   'elevation_angle' + in_coor.sample)
 
         # Load height of multilook grid (from an interval, buffer grid, which makes it a bit complicated...)
-        out_height = CoorDem.load_dem(coor_out, cmaster, s_lin, 0, shape_out)
+        out_height = CoorDem.load_dem(out_coor, cmaster, s_lin, 0, shape_out)
 
-        if coor_out.mask_grid:
+        if out_coor.mask_grid:
             mask = cmaster.image_load_data_memory('create_sparse_grid', s_lin, 0, shape_out,
-                                                            'mask' + coor_out.sample)
+                                                            'mask' + out_coor.sample)
         else:
             mask = np.ones(out_height.shape).astype(np.bool)
 
@@ -220,23 +220,23 @@ class HarmonieAps(object):
     def processing_info(coordinates, split=False):
 
         # Fix the input coordinate system to fit the harmonie grid...
-        # TODO adapt the coor_in when the output is not in radar coordinates
-        coor_in = CoordinateSystem(over_size=True)
-        coor_in.create_radar_coordinates(multilook=[50, 200])
+        # TODO adapt the in_coor when the output is not in radar coordinates
+        in_coor = CoordinateSystem(over_size=True)
+        in_coor.create_radar_coordinates(multilook=[50, 200])
 
         recursive_dict = lambda: defaultdict(recursive_dict)
         input_dat = recursive_dict()
         input_dat = CoorDem.dem_processing_info(input_dat, coordinates, 'cmaster', False)
-        input_dat = CoorDem.dem_processing_info(input_dat, coor_in, 'cmaster', True)
-        input_dat = ProjectionCoor.lat_lon_processing_info(input_dat, coor_in, 'cmaster', True)
+        input_dat = CoorDem.dem_processing_info(input_dat, in_coor, 'cmaster', True)
+        input_dat = ProjectionCoor.lat_lon_processing_info(input_dat, in_coor, 'cmaster', True)
         input_dat = CoorGeocode.line_pixel_processing_info(input_dat, coordinates, 'cmaster', False)
 
         # For multiprocessing this information is needed to define the selected area to deramp.
         for t in ['azimuth_angle', 'elevation_angle']:
-            input_dat['cmaster']['azimuth_elevation_angle'][t + coor_in.sample]['file'] = t + coor_in.sample + '.raw'
-            input_dat['cmaster']['azimuth_elevation_angle'][t + coor_in.sample]['coordinates'] = coor_in
-            input_dat['cmaster']['azimuth_elevation_angle'][t + coor_in.sample]['slice'] = coor_in.slice
-            input_dat['cmaster']['azimuth_elevation_angle'][t + coor_in.sample]['coor_change'] = 'resample'
+            input_dat['cmaster']['azimuth_elevation_angle'][t + in_coor.sample]['file'] = t + in_coor.sample + '.raw'
+            input_dat['cmaster']['azimuth_elevation_angle'][t + in_coor.sample]['coordinates'] = in_coor
+            input_dat['cmaster']['azimuth_elevation_angle'][t + in_coor.sample]['slice'] = in_coor.slice
+            input_dat['cmaster']['azimuth_elevation_angle'][t + in_coor.sample]['coor_change'] = 'resample'
 
         if split:
             aps_types = ['harmonie_aps', 'harmonie_wet', 'harmonie_hydrostatic']

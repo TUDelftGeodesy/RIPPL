@@ -185,8 +185,6 @@ class Irregular2Regular():
         valid = ((1 - v - w) >= 0) * (v >= 0) * (w >= 0) * ((1 - v - w) <= 1) * (v <= 1) * (w <= 1)
 
         # Sometimes there are a few points that are not well approximated. We take the average of the 3 points then.
-        v[~valid] = 0.3333
-        w[~valid] = 0.3333
         new_dem_vals = (1 - v - w) * dem_vals[corner_ids[:, 0]] + v * dem_vals[corner_ids[:, 1]] + w * dem_vals[corner_ids[:, 2]]
 
         return new_dem_vals
@@ -233,5 +231,7 @@ class Irregular2Regular():
         denom[np.isinf(denom)] = -10 ** 10
         v = (dot11 * dot20 - dot01 * dot21) / denom
         w = (dot00 * dot21 - dot01 * dot20) / denom
+        v[denom == 0] = 0
+        w[denom == 0] = 0
 
         return v, w

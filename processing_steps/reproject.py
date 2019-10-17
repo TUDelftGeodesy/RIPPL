@@ -15,61 +15,93 @@ from rippl.resampling.coor_new_extend import CoorNewExtend
 from rippl.resampling.grid_transforms import GridTransforms
 
 
-class ProcessTemplate(Process):  # Change this name to the one of your processing step.
+class Reproject(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', coor_in=[], coor_out=[], slave=[], conversion_type='multilook'):
+    def __init__(self, data_id='', in_coor=[], out_coor=[], coreg_master=[], conversion_type='multilook', overwrite=False):
 
         """
-        In the template all options are still given. But for the final processing step it is possible to remove a part
-        of the inputs to make it more clear what is needed as an input.
-        The input parameters can be divided in 4 blocks:
-        1. The first block defines the data_id and polarisation of this step. For functions where no actual radar data
-                is processed, the polarisation value will be irrelevant.
-        2. The second block is about the input coordinate systems. Many functions will need the coor_in variable only
-                as there is no change in coordinate systems.
-        3. The third block is about the input data. In general it is ok to leave it open and use defaults when nothing
-                is given. It is also possible to force certain default names and leave for example only the
-                in_polarisations and in_data_ids open.
-        4. The last block is about the processing inputs that are used. In many cases only the definition of the slave
-                or the coreg_master are ok.
-
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
                     the same process.
 
-        :param CoordinateSystem coor_in: Coordinate system of the input grids.
-        :param CoordinateSystem coor_out: Coordinate system of output grids, if not defined the same as coor_in
+        :param CoordinateSystem in_coor: Coordinate system of the input grids.
+        :param CoordinateSystem out_coor: Coordinate system of output grids, if not defined the same as in_coor
 
-        :param ImageProcessingData slave: Slave image, used as the default for input and output for processing.
+        :param ImageProcessingData coreg_master: Coreg master image, used as the default for input and output for processing.
         """
 
-        """
-        First define the name and output types of this processing step.
-        1. process_name > name of process
-        2. file_types > name of process types that will be given as output
-        3. data_types > names 
-        """
         if conversion_type not in ['multilook', 'resample']:
             raise ValueError('Choose either multilook or resample as convesion type')
 
         self.conversion_type = conversion_type
-        self.process_name = 'reproject'
-        file_types = ['lines', 'pixels']
-        data_types = ['real4', 'real4']
 
         # If the boundaries of the output grid are not jet defined, define them.
-        if coor_out.shape == [0, 0]:
-            coor_out = CoorNewExtend(coor_in, coor_out)
+        if out_coor.shape == [0, 0] or out_coor.shape == '':
+            new_extend = CoorNewExtend(in_coor, out_coor)
+            out_coor = new_extend.out_coor
 
-        # There are no input grids so loading of inputs is not needed.
-        # Only thing that is calculated is how one grid projects onto another
-        super(ProcessTemplate, self).__init__(
-            process_name=self.process_name,
-            data_id=data_id,
-            file_types=file_types,
-            process_dtypes=data_types,
-            coor_in=coor_in,
-            coor_out=coor_out,
-            slave=slave)
+        # In case of multilooking we want to know the coordinates in the output grid of all the pixels of the input
+        # grid, while for resampling we want to know the coordinates in the input grid of the output pixels.
+        if conversion_type == 'multilook':
+            output_grid = in_coor
+            output_grid_coordinates = out_coor
+        elif conversion_type == 'resample':
+            output_grid = out_coor
+            output_grid_coordinates = in_coor
+
+        # Output data information
+        self.output_info = dict()
+        self.output_info['process_name'] = 'reproject'
+        self.output_info['image_type'] = 'coreg_master'
+        self.output_info['polarisation'] = ''
+        self.output_info['data_id'] = data_id
+        self.output_info['coor_type'] = 'out_coor'
+        self.output_info['file_types'] = ['in_coor_lines', 'in_coor_pixels']
+        self.output_info['data_types'] = ['real4', 'real4']
+
+        # Input data information
+        self.input_info = dict()
+        if output_grid_coordinates.grid_type == 'radar_coordinates':
+            self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master']
+            self.input_info['process_types'] = ['geocode', 'geocode', 'geocode']
+            self.input_info['file_types'] = ['X', 'Y', 'Z']
+            self.input_info['data_types'] = ['real4', 'real4', 'real4']
+            self.input_info['polarisations'] = ['', '', '']
+            self.input_info['data_ids'] = [data_id, data_id, data_id]
+            self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor']
+            self.input_info['in_coor_types'] = ['', '', '']
+            self.input_info['type_names'] = ['X', 'Y', 'Z']
+        else:
+            self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master']
+            self.input_info['process_types'] = ['dem', 'geocode', 'geocode']
+            self.input_info['file_types'] = ['dem', 'lat', 'lon']
+            self.input_info['data_types'] = ['real4', 'real4', 'real4']
+            self.input_info['polarisations'] = ['', '', '']
+            self.input_info['data_ids'] = [data_id, data_id, data_id]
+            self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor']
+            self.input_info['in_coor_types'] = ['', '', '']
+            self.input_info['type_names'] = ['dem', 'lat', 'lon']
+
+        self.overwrite = overwrite
+
+        # Coordinate systems
+        self.coordinate_systems = dict()
+        self.coordinate_systems['in_coor'] = output_grid_coordinates
+        self.coordinate_systems['out_coor'] = output_grid
+
+        # image data processing
+        self.processing_images = dict()
+        self.processing_images['coreg_master'] = coreg_master
+        self.settings = dict()
+
+    def init_super(self):
+
+        super(Reproject, self).__init__(
+            input_info=self.input_info,
+            output_info=self.output_info,
+            coordinate_systems=self.coordinate_systems,
+            processing_images=self.processing_images,
+            overwrite=self.overwrite,
+            settings=self.settings)
 
     def process_calculations(self):
         """
@@ -83,6 +115,13 @@ class ProcessTemplate(Process):  # Change this name to the one of your processin
         :return:
         """
 
-        if
-            transform = GridTransforms(self.coor_in, self.coor_out)
+        transform = GridTransforms(self.in_coor, self.out_coor)
 
+        if self.out_coor.grid_type == 'radar_coordinates':
+            if self.in_coor.grid_type == 'radar_coordinates':
+                transform.add_xyz(self['X'], self['Y'], self['Z'])
+            elif self.in_coor.grid_type in ['projection', 'geographic']:
+                transform.add_dem(self['dem'])
+                transform.add_lat_lon(self['lat'], self['lon'])
+
+        self['in_coor_lines'], self['in_coor_pixels'] = transform()

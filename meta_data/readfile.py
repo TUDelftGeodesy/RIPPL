@@ -12,6 +12,7 @@ class Readfile():
         self.satellite = ''
         self.wavelength = ''
         self.polarisation = ''
+        self.swath = ''
 
         # Main variables of  (times are all in seconds)
         self.ra_first_pix_time = ''
@@ -100,11 +101,13 @@ class Readfile():
         self.satellite = self.json_dict['SAR_processor']
         self.wavelength = self.json_dict['Radar_wavelength (m)']
         self.polarisation = self.json_dict['Polarisation']
+        self.swath = self.json_dict['Swath']
 
         # First find the azimuth and range timing
         self.first_line_str = self.json_dict['First_pixel_azimuth_time (UTC)']
         self.az_first_pix_time, self.date = self.time2seconds(self.json_dict['First_pixel_azimuth_time (UTC)'])
         self.ra_first_pix_time = self.json_dict['Range_time_to_first_pixel (2way) (ms)'] * 1e-3
+        self.datetime = datetime.datetime.strptime(self.json_dict['First_pixel_azimuth_time (UTC)'], '%Y-%m-%dT%H:%M:%S.%f')
         self.orig_az_first_pix_time, self.date = self.time2seconds(self.json_dict['Orig_first_pixel_azimuth_time (UTC)'])
         self.orig_ra_first_pix_time = self.json_dict['Orig_range_time_to_first_pixel (2way) (ms)'] * 1e-3
         self.az_time_step = self.json_dict['Azimuth_time_interval (s)']

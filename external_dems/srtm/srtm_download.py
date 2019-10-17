@@ -130,7 +130,7 @@ class SrtmDownload(object):
         self.coordinates = CoordinateSystem()
         self.coordinates.create_geographic(step, step)
         new_coor = CoorNewExtend(radar_coor, self.coordinates, buffer, rounding)
-        self.coordinates = new_coor.coor_out
+        self.coordinates = new_coor.out_coor
 
         tiles, download_tiles, [tile_lats, tile_lons], urls, tiles_zip = \
             self.select_tiles(self.filelist, self.coordinates, self.srtm_folder, self.srtm_type, self.quality)

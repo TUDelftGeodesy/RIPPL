@@ -55,7 +55,7 @@ class CoorConcatenate():
         new_coor.create_geographic(0.01, 0.01)
         new_coor.load_orbit(orbit)
         new_coverage = CoorNewExtend(self.concat_coor, new_coor)
-        coor = new_coverage.coor_out
+        coor = new_coverage.out_coor
         lat_coor = [coor.lat0 + coor.first_line * coor.dlat, coor.lat0 + (coor.first_line + coor.shape[0]) * coor.dlat]
         lon_coor = [coor.lon0 + coor.first_pixel * coor.dlon, coor.lon0 + (coor.first_pixel + coor.shape[1]) * coor.dlon]
         readfile.poly_coor = [[lat_coor[1], lon_coor[0]], [lat_coor[1], lon_coor[0]],

@@ -50,14 +50,9 @@ def write_sentinel_burst(input):
     pixels = crop_coor.shape[1]
 
     data_path = slice.readfiles['original'].json_dict['Datafile']
-    slice_file = os.path.join(folder, 'crop_' + pol + '.raw')
     slice_json = os.path.join(folder, 'info.json')
 
-    if os.path.exists(folder):
-        if os.path.exists(slice_json) and os.path.exists(slice_file):
-            print('Image already loaded. Skipping image ' + slice_code + ' with polarisation ' + pol + ' at ' + date)
-            return
-    else:
+    if not os.path.exists(folder):
         os.makedirs(folder)
 
     if os.path.exists(slice_json):
@@ -68,20 +63,28 @@ def write_sentinel_burst(input):
     else:
         new_slice = slice
 
+    new_slice.processes_data['crop'][crop_key].images['crop'].folder = folder
+    new_slice.processes_data['crop'][crop_key].images['crop'].create_file_name()
+    slice_file = new_slice.processes_data['crop'][crop_key].images['crop'].file_path
+
+    if os.path.exists(slice_json) and os.path.exists(slice_file):
+        print('Image already loaded. Skipping image ' + slice_code + ' with polarisation ' + pol + ' at ' + date)
+        return
+
     # Save datafile
     data = sentinel_read_data(data_path, first_pixel, first_line, [lines, pixels])
 
     if len(data) == 0:
         print('Unable to load .tiff file. Failed initialize ' + slice_code + ' with polarisation ' + pol + ' at ' + date)
     else:
+
+
         data_file = np.memmap(slice_file, dtype=np.dtype([('re', np.int16), ('im', np.int16)]), shape=(lines, pixels),
                               mode='w+')
         data_file[:, :] = data.view(np.float32).astype(np.int16).view(np.dtype([('re', np.int16), ('im', np.int16)]))
         data_file.flush()
 
         # Save resfile
-        new_slice.processes_data['crop'][crop_key].images['crop'].folder = folder
-        new_slice.processes_data['crop'][crop_key].images['crop'].file_name = slice_file
         new_slice.processes_data['crop'][crop_key].images['crop'].check_data_disk_valid()
         new_slice.meta.update_json(json_path=slice_json)
         print('Finished initialization of ' + slice_code + ' with polarisation ' + pol + ' at ' + date)

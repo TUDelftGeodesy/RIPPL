@@ -218,6 +218,7 @@ class CreateSwathXmlRes():
         self.burst_xml_dat['orbitTime'] = [s.second + s.hour * 3600 + s.minute * 60 + s.microsecond / 1000000.0 for s in dates]
 
         # Finally do some first calculations to get standardized values.
+        self.swath_readfiles['Swath'] = int(self.swath_readfiles['Swath'][-1])
         self.swath_readfiles['SAR_processor'] = 'Sentinel-' + self.swath_readfiles['Sensor_platform_mission_identifer'][-2:]
         self.swath_readfiles['Number_of_bursts'] = len(self.burst_xml_dat['azimuthTimeStart'])
         self.swath_readfiles['Scene_identification'] = 'Orbit: '+ self.swath_xml_update['Orbit_number']

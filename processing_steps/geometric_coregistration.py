@@ -7,7 +7,6 @@ import numpy as np
 
 # Import the parent class Process for processing steps.
 from rippl.meta_data.process import Process
-from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
@@ -15,7 +14,7 @@ from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 class GeometricCoregistration(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', coor_in=[], coor_out=[], dem_type='SRTM1',
+    def __init__(self, data_id='', in_coor=[], out_coor=[], dem_type='SRTM1',
                  in_image_types=[], in_processes=[], in_file_types=[], in_data_ids=[],
                  slave=[], coreg_master=[], overwrite=False):
 
@@ -23,7 +22,7 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
                     the same process.
 
-        :param CoordinateSystem coor_in: Coordinate system of the input grids.
+        :param CoordinateSystem in_coor: Coordinate system of the input grids.
 
         :param list[str] in_image_types: The type of the input ImageProcessingData objects (e.g. slave/master/ifg etc.)
         :param list[str] in_processes: Which process outputs are we using as an input
@@ -35,55 +34,53 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
         :param ImageProcessingData coreg_master: Image used to coregister the slave image for resampline etc.
         """
 
-        """
-        First define the name and output types of this processing step.
-        1. process_name > name of process
-        2. file_types > name of process types that will be given as output
-        3. data_types > names 
-        """
+        # Output data information
+        self.output_info = dict()
+        self.output_info['process_name'] = 'geometric_coregistration'
+        self.output_info['image_type'] = 'slave'
+        self.output_info['polarisation'] = ''
+        self.output_info['data_id'] = data_id
+        self.output_info['coor_type'] = 'out_coor'
+        self.output_info['file_types'] = ['lines', 'pixels']
+        self.output_info['data_types'] = ['real8', 'real8']
 
-        self.process_name = 'geometric_coregistration'
-        file_types = ['lines', 'pixels']
-        data_types = ['real8', 'real8']
+        # Input data information
+        self.input_info = dict()
+        self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master']
+        self.input_info['process_types'] = ['geocode', 'geocode', 'geocode']
+        self.input_info['file_types'] = ['X', 'Y', 'Z']
+        self.input_info['data_types'] = ['real8', 'real8', 'real8']
+        self.input_info['polarisations'] = ['', '', '']
+        self.input_info['data_ids'] = [data_id, data_id, data_id]
+        self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor']
+        self.input_info['in_coor_types'] = ['', '', '']
+        self.input_info['type_names'] = ['X_coreg', 'Y_coreg', 'Z_coreg']
 
-        """
-        Then give the default input steps for the processing. The given input values will be overridden when other input
-        values are given.
-        """
-        if len(in_image_types) == 0:
-            in_image_types = ['coreg_master', 'coreg_master', 'coreg_master']  # In this case only the slave is used, so the input variable master,
-            # coreg_master, ifg and processing_images are not needed.
-            # However, if you override the default values this could change.
-        in_coor_types = ['coor_out', 'coor_out', 'coor_out']  # Same here but then for the coor_out and coordinate_systems
-        if len(in_data_ids) == 0:
-            in_data_ids = ['', '', '']
-        in_polarisations = ['none', 'none', 'none']
-        if len(in_processes) == 0:
-            in_processes = ['geocode', 'geocode', 'geocode']
-        if len(in_file_types) == 0:
-            in_file_types = ['X', 'Y', 'Z']
+        # Coordinate systems
+        self.coordinate_systems = dict()
+        self.coordinate_systems['out_coor'] = out_coor
+        self.coordinate_systems['in_coor'] = in_coor
 
-        in_type_names = ['X_coreg', 'Y_coreg', 'Z_coreg']
+        self.ref_coor = in_coor
 
-        # Inititialize process
+        # image data processing
+        self.processing_images = dict()
+        self.processing_images['slave'] = slave
+        self.processing_images['coreg_master'] = coreg_master
+
+        # Finally define whether we overwrite or not
+        self.overwrite = overwrite
+        self.settings = dict()
+
+    def init_super(self):
+
         super(GeometricCoregistration, self).__init__(
-                       process_name=self.process_name,
-                       file_types=file_types,
-                       data_id=data_id,
-                       process_dtypes=data_types,
-                       coor_in=coor_in,
-                       coor_out=coor_out,
-                       in_coor_types=in_coor_types,
-                       in_type_names=in_type_names,
-                       in_image_types=in_image_types,
-                       in_processes=in_processes,
-                       in_file_types=in_file_types,
-                       in_polarisations=in_polarisations,
-                       in_data_ids=in_data_ids,
-                       slave=slave,
-                       coreg_master=coreg_master,
-                       out_processing_image='slave',
-                       overwrite=overwrite)
+            input_info=self.input_info,
+            output_info=self.output_info,
+            coordinate_systems=self.coordinate_systems,
+            processing_images=self.processing_images,
+            overwrite=self.overwrite,
+            settings=self.settings)
 
     def process_calculations(self):
         """
@@ -93,11 +90,11 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
         """
 
         # Get the orbits
-        orbit_slave = self.in_processing_images['slave'].find_best_orbit('original')
-        orbit_coreg_master = self.in_processing_images['coreg_master'].find_best_orbit('original')
+        orbit_slave = self.processing_images['slave'].find_best_orbit('original')
+        orbit_coreg_master = self.processing_images['coreg_master'].find_best_orbit('original')
 
         # Now initialize the orbit estimation.
-        orbit_interp = OrbitCoordinates(coordinates=self.coor_in, orbit=orbit_slave)
+        orbit_interp = OrbitCoordinates(coordinates=self.ref_coor, orbit=orbit_slave)
         xyz = np.vstack((np.ravel(self['X_coreg'])[None, :], np.ravel(self['Y_coreg'])[None, :], np.ravel(self['Z_coreg'])[None, :]))
         lines, pixels = orbit_interp.xyz2lp(xyz)
 

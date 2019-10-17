@@ -15,69 +15,60 @@ from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 class RadarRayAngles(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', coor_in=[],
-                 in_processes=[], in_file_types=[], in_data_ids=[],
-                 coreg_master=[], overwrite=False):
+    def __init__(self, data_id='', coordinates=[], coreg_master=[], overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
                     the same process.
 
-        :param CoordinateSystem coor_in: Coordinate system of the input grids.
-
-        :param list[str] in_processes: Which process outputs are we using as an input
-        :param list[str] in_file_types: What are the exact outputs we use from these processes
-        :param list[str] in_data_ids: If processes are used multiple times in different parts of the processing they can be
-                distinguished using an data_id. If this is the case give the correct data_id. Leave empty if not relevant
+        :param CoordinateSystem in_coor: Coordinate system of the input grids.
 
         :param ImageProcessingData coreg_master: Image used to coregister the slave image for resampline etc.
         """
 
-        """
-        First define the name and output types of this processing step.
-        1. process_name > name of process
-        2. file_types > name of process types that will be given as output
-        3. data_types > names 
-        """
+        # Output data information
+        self.output_info = dict()
+        self.output_info['process_name'] = 'radar_ray_angles'
+        self.output_info['image_type'] = 'coreg_master'
+        self.output_info['polarisation'] = ''
+        self.output_info['data_id'] = data_id
+        self.output_info['coor_type'] = 'out_coor'
+        self.output_info['file_types'] = ['off_nadir_angle', 'heading', 'incidence_angle', 'azimuth_angle']
+        self.output_info['data_types'] = ['real4', 'real4', 'real4', 'real4']
 
-        self.process_name = 'radar_ray_angles'
-        file_types = ['off_nadir_angle', 'heading', 'incidence_angle', 'azimuth_angle']
-        data_types = ['real4', 'real4', 'real4', 'real4']
+        # Input data information
+        self.input_info = dict()
+        self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master', 'coreg_master']
+        self.input_info['process_types'] = ['geocode', 'geocode', 'geocode', 'dem']
+        self.input_info['file_types'] = ['X', 'Y', 'Z', 'dem']
+        self.input_info['data_types'] = ['real4', 'real4', 'real4', 'real4']
+        self.input_info['polarisations'] = ['', '', '', '']
+        self.input_info['data_ids'] = [data_id, data_id, data_id, data_id]
+        self.input_info['coor_types'] = ['in_coor', 'in_coor', 'in_coor', 'in_coor']
+        self.input_info['in_coor_types'] = ['', '', '', '']
+        self.input_info['type_names'] = ['X', 'Y', 'Z', 'dem']
 
-        """
-        Then give the default input steps for the processing. The given input values will be overridden when other input
-        values are given.
-        """
+        self.overwrite = overwrite
 
-        in_image_types = ['coreg_master', 'coreg_master', 'coreg_master', 'coreg_master']
-        in_coor_types = ['coor_in', 'coor_in', 'coor_in', 'coor_in']
-        if len(in_data_ids) == 0:
-            in_data_ids = ['', '', '', '']
-        in_polarisations = ['none', 'none', 'none', 'none']
-        if len(in_processes) == 0:
-            in_processes = ['geocode', 'geocode', 'geocode', 'radar_dem']
-        if len(in_file_types) == 0:
-            in_file_types = ['X', 'Y', 'Z', 'radar_dem']
+        # Coordinate systems
+        self.coordinate_systems = dict()
+        self.coordinate_systems['in_coor'] = coordinates
+        self.coordinate_systems['out_coor'] = coordinates
 
-        in_type_names = ['X', 'Y', 'Z', 'dem']
+        # image data processing
+        self.processing_images = dict()
+        self.processing_images['coreg_master'] = coreg_master
+        self.settings = dict()
 
-        # Initialize processing step
+    def init_super(self):
+
         super(RadarRayAngles, self).__init__(
-                       process_name=self.process_name,
-                       data_id=data_id,
-                       file_types=file_types,
-                       process_dtypes=data_types,
-                       coor_in=coor_in,
-                       in_type_names=in_type_names,
-                       in_coor_types=in_coor_types,
-                       in_image_types=in_image_types,
-                       in_processes=in_processes,
-                       in_file_types=in_file_types,
-                       in_polarisations=in_polarisations,
-                       in_data_ids=in_data_ids,
-                       coreg_master=coreg_master,
-                       out_processing_image='coreg_master',
-                       overwrite=overwrite)
+            input_info=self.input_info,
+            output_info=self.output_info,
+            coordinate_systems=self.coordinate_systems,
+            processing_images=self.processing_images,
+            overwrite=self.overwrite,
+            settings=self.settings)
 
     def process_calculations(self):
         """
@@ -93,7 +84,7 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
         """
 
         # Get the orbit and initialize orbit coordinates
-        orbit = self.in_processing_images['coreg_master'].find_best_orbit('original')
+        orbit = self.processing_images['coreg_master'].find_best_orbit('original')
         self.block_coor.create_radar_lines()
         orbit_interp = OrbitCoordinates(coordinates=self.block_coor, orbit=orbit)
 

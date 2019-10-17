@@ -18,112 +18,112 @@ from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 class CoorNewExtend(object):
 
-    def __init__(self, coor_in, coor_out, min_height=0, max_height=500, full_coverage='in', buffer=0, rounding=0):
+    def __init__(self, in_coor, out_coor, min_height=0, max_height=500, full_coverage='in', buffer=0, rounding=0):
         # type: (CoorNewExtend, CoordinateSystem, CoordinateSystem, int, int, str) -> None
         # We assume that the x0/y0/lat0/lon0/az_time/ra_time are either 0 or already defined.
 
-        self.coor_in = coor_in
+        self.in_coor = in_coor
         self.min_height = min_height
         self.max_height = max_height
         self.full_coverage = full_coverage
 
-        if coor_in.grid_type == 'radar_coordinates':
-            self.coor_out = CoorNewExtend.radar2new(coor_in, coor_out, min_height, max_height, full_coverage, buffer,
+        if in_coor.grid_type == 'radar_coordinates':
+            self.out_coor = CoorNewExtend.radar2new(in_coor, out_coor, min_height, max_height, full_coverage, buffer,
                                                     rounding)
         else:
-            self.coor_out = CoorNewExtend.geographic_projection2new(coor_in, coor_out, min_height, max_height,
+            self.out_coor = CoorNewExtend.geographic_projection2new(in_coor, out_coor, min_height, max_height,
                                                                     full_coverage, buffer, rounding)
 
     @staticmethod
-    def radar_convex_hull(coor_in):
+    def radar_convex_hull(in_coor):
         # type: (CoordinateSystem) -> (list, list)
         # What are the line/pixel coordinates of the outside grid?
 
-        coor_in.create_radar_lines()
-        lins = np.array(coor_in.interval_lines).astype(np.int32)
-        pixs = np.array(coor_in.interval_pixels).astype(np.int32)
+        in_coor.create_radar_lines()
+        lins = np.array(in_coor.interval_lines).astype(np.int32)
+        pixs = np.array(in_coor.interval_pixels).astype(np.int32)
         lines, pixels = CoorNewExtend.concat_coors(lins, pixs)
 
         return lines, pixels
 
     @staticmethod
-    def geographic_convex_hull(coor_in):
+    def geographic_convex_hull(in_coor):
         # type: (CoordinateSystem) -> (list, list)
         # Outside lats/lons of image border
 
-        lat = (coor_in.lat0 + coor_in.first_line * coor_in.dlat) + np.arange(coor_in.shape[0]) * coor_in.dlat
-        lon = (coor_in.lon0 + coor_in.first_pixel * coor_in.dlon) + np.arange(coor_in.shape[1]) * coor_in.dlon
+        lat = (in_coor.lat0 + in_coor.first_line * in_coor.dlat) + np.arange(in_coor.shape[0]) * in_coor.dlat
+        lon = (in_coor.lon0 + in_coor.first_pixel * in_coor.dlon) + np.arange(in_coor.shape[1]) * in_coor.dlon
         lats, lons = CoorNewExtend.concat_coors(lat, lon)
 
         return lats, lons
 
     @staticmethod
-    def projection_convex_hull(coor_in):
+    def projection_convex_hull(in_coor):
         # type: (CoordinateSystem) -> (list, list)
         # Outside x/y of image border
 
-        y = (coor_in.y0 + coor_in.first_line * coor_in.dy) + np.arange(coor_in.shape[0]) * coor_in.dy
-        x = (coor_in.x0 + coor_in.first_pixel * coor_in.dx) + np.arange(coor_in.shape[1]) * coor_in.dx
+        y = (in_coor.y0 + in_coor.first_line * in_coor.dy) + np.arange(in_coor.shape[0]) * in_coor.dy
+        x = (in_coor.x0 + in_coor.first_pixel * in_coor.dx) + np.arange(in_coor.shape[1]) * in_coor.dx
         y_coors, x_coors = CoorNewExtend.concat_coors(y, x)
 
         return y_coors, x_coors
 
     @staticmethod
-    def radar2new(coor_in, coor_out, min_height=0, max_height=500, full_coverage='in', buffer=0, rounding=0):
+    def radar2new(in_coor, out_coor, min_height=0, max_height=500, full_coverage='in', buffer=0, rounding=0):
         # type: (CoordinateSystem, CoordinateSystem, int, int) -> CoordinateSystem
         # If the input coordinate system is a radar coordinate system.
 
         # We get all the pixels from the convex hull with a varying height.
-        lines, pixels = CoorNewExtend.radar_convex_hull(coor_in)
+        lines, pixels = CoorNewExtend.radar_convex_hull(in_coor)
         heights = np.concatenate((np.ones(pixels.shape) * min_height, np.ones(pixels.shape) * max_height))
         lines = np.concatenate((lines, lines))
         pixels = np.concatenate((pixels, pixels))
 
-        orbit_in = OrbitCoordinates(coor_in)
+        orbit_in = OrbitCoordinates(in_coor)
         orbit_in.manual_line_pixel_height(lines, pixels, heights)
         orbit_in.lph2xyz()
 
-        if coor_out.grid_type == 'radar':
-            orbit_out = OrbitCoordinates(coor_out)
+        if out_coor.grid_type == 'radar':
+            orbit_out = OrbitCoordinates(out_coor)
             lines_out, pixels_out = orbit_out.xyz2lp(orbit_in.xyz)
-            coor_out = CoorNewExtend.update_coor(coor_out, lines_out, pixels_out, full_coverage, buffer, rounding)
-        elif coor_out.grid_type == 'geographic':
+            out_coor = CoorNewExtend.update_coor(out_coor, lines_out, pixels_out, full_coverage, buffer, rounding)
+        elif out_coor.grid_type == 'geographic':
             orbit_in.xyz2ell()
-            coor_out = CoorNewExtend.update_coor(coor_out, orbit_in.lat, orbit_in.lon, full_coverage, buffer, rounding)
-        elif coor_out.grid_type == 'projection':
+            out_coor = CoorNewExtend.update_coor(out_coor, orbit_in.lat, orbit_in.lon, full_coverage, buffer, rounding)
+        elif out_coor.grid_type == 'projection':
             orbit_in.xyz2ell()
-            x, y = coor_out.ell2proj(orbit_in.lat, orbit_in.lon)
-            coor_out = CoorNewExtend.update_coor(coor_out, y, x, full_coverage, buffer, rounding)
+            x, y = out_coor.ell2proj(orbit_in.lat, orbit_in.lon)
+            out_coor = CoorNewExtend.update_coor(out_coor, y, x, full_coverage, buffer, rounding)
 
-        return coor_out
+        return out_coor
 
     @staticmethod
-    def geographic_projection2new(coor_in, coor_out, min_height=0, max_height=500, full_coverage='in', buffer=0, rounding=0):
+    def geographic_projection2new(in_coor, out_coor, min_height=0, max_height=500, full_coverage='in', buffer=0, rounding=0):
         # type: (CoordinateSystem, CoordinateSystem, int, int) -> CoordinateSystem
         # If the input coordinate system is a geographic coordinate system.
 
         # We get all the pixels from the convex hull with a varying height.
-        if coor_in.grid_type == 'geographic':
-            lat, lon = CoorNewExtend.geographic_convex_hull(coor_in)
-        elif coor_in.grid_type == 'projection':
-            x_coors, y_coors = CoorNewExtend.projection_convex_hull(coor_in)
-            lat, lon = coor_in.proj2ell(x_coors, y_coors)
+        if in_coor.grid_type == 'geographic':
+            lat, lon = CoorNewExtend.geographic_convex_hull(in_coor)
+        elif in_coor.grid_type == 'projection':
+            x_coors, y_coors = CoorNewExtend.projection_convex_hull(in_coor)
+            lat, lon = in_coor.proj2ell(x_coors, y_coors)
         heights = np.concatenate((np.ones(lat.shape) * min_height, np.ones(lat.shape) * max_height))
         lat_d = np.concatenate((lat, lat))
         lon_d = np.concatenate((lon, lon))
 
-        if coor_out.grid_type == 'radar':
-            orbit_out = OrbitCoordinates(coor_out)
+        if out_coor.grid_type == 'radar':
+            orbit_out = OrbitCoordinates(out_coor)
             xyz = orbit_out.ell2xyz(lat_d, lon_d, heights)
             lines_out, pixels_out = orbit_out.xyz2lp(xyz)
-            coor_out = CoorNewExtend.update_coor(coor_out, lines_out, pixels_out, full_coverage, buffer, rounding)
-        elif coor_out.grid_type == 'geographic':
-            coor_out = CoorNewExtend.update_coor(coor_out, lat, lon, full_coverage, buffer, rounding)
-        elif coor_out.grid_type == 'projection':
-            x, y = coor_out.ell2proj(lat, lon)
-            coor_out = CoorNewExtend.update_coor(coor_out, y, x, full_coverage, buffer, rounding)
+            out_coor = CoorNewExtend.update_coor(out_coor, lines_out, pixels_out, full_coverage, buffer, rounding)
+        elif out_coor.grid_type == 'geographic':
+            out_coor = CoorNewExtend.update_coor(out_coor, lat, lon, full_coverage, buffer, rounding)
+        elif out_coor.grid_type == 'projection':
+            x, y = out_coor.ell2proj(lat, lon)
+            out_coor = CoorNewExtend.update_coor(out_coor, y, x, full_coverage, buffer, rounding)
 
-        return coor_out
+        return out_coor
 
     @staticmethod
     def update_coor(coor, new_y, new_x, full_coverage='in', buffer=0, rounding=0):
@@ -194,4 +194,4 @@ class CoorNewExtend(object):
             y_orig -= np.abs(first_line) * dy
             first_line = 0
 
-        return x_orig, y_orig, first_line, first_pixel, shape
+        return y_orig, x_orig, first_line, first_pixel, shape

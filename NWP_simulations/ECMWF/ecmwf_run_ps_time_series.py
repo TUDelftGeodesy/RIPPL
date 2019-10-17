@@ -53,7 +53,7 @@ def ecmwf_run_ps(download_folder, dem_folder, reference_orbit, ps_points, dates,
                              meta.data_memory['azimuth_elevation_angle']['Elevation_angle' + int_str],
                              meta.data_memory['geocode']['Lat' + int_str],
                              meta.data_memory['geocode']['Lon' + int_str],
-                             meta.data_memory['radar_dem']['Data' + int_str])
+                             meta.data_memory['resample_dem']['Data' + int_str])
 
     # Initialize the point delays
     point_delays = ModelInterpolateDelays(radar_data.lines, radar_data.pixels, split=False)

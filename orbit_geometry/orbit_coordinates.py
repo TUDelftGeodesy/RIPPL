@@ -78,8 +78,8 @@ class OrbitCoordinates(object):
         self.ra_time = coordinates.ra_time
         self.az_step = coordinates.az_step
         self.ra_step = coordinates.ra_step
-        self.center_phi = coordinates.center_lon * self.degree2rad
-        self.center_lambda = coordinates.center_lat * self.degree2rad
+        self.center_phi = coordinates.center_lat * self.degree2rad
+        self.center_lambda = coordinates.center_lon * self.degree2rad
 
         # Line pixel coordinates
         self.lines = coordinates.interval_lines
@@ -268,18 +268,17 @@ class OrbitCoordinates(object):
         posonellz = np.ones(num) * scenecenterz
 
         # 1D id, 2D row and column ids (used to extract information
-        az = np.arange(len(self.lines)).astype(np.int32)[:, None]
-
         if self.regular:
+            az = np.arange(len(self.lines)).astype(np.int64)[:, None]
             az_id = np.ravel(az * np.ones((1, len(self.pixels)))).astype(np.int32)
             range_dist = np.ravel((self.sol * self.ra_times[None, :] / 2) ** 2 * np.ones((len(self.lines), 1)))
         else:
-            az_id = self.lines
-            range_dist = np.ravel((self.sol * self.ra_times[self.pixels] / 2)**2)
+            az_id = np.arange(len(self.lines))
+            range_dist = np.ravel((self.sol * self.ra_times / 2)**2)
 
         # Next parameter defines which points still needs another iteration to solve. If the precisions are met,
         # this point will be removed from the dataset.
-        solve_ids = np.arange(num).astype(np.int32)
+        solve_ids = np.arange(num).astype(np.int64)
 
         for iterate in range(self.maxiter):
 
@@ -524,7 +523,7 @@ class OrbitCoordinates(object):
             z['pixel'] = np.ravel(self.xyz[2, :])
             p['pixel'] = np.sqrt(np.ravel(self.xyz[0, :])**2 + np.ravel(self.xyz[1, :])**2)
             types.append('pixel')
-            self.lon = np.arctan2(self.xyz[1, :], self.xyz[0, :]).astype(np.float32).reshape([1, self.xyz.shape[1]]) / np.pi * 180
+            self.lon = np.arctan2(self.xyz[1, :], self.xyz[0, :]).astype(np.float32) / np.pi * 180
 
         for t in types:
             if method == 1:

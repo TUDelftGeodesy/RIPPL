@@ -68,10 +68,10 @@ ray_delays.load_geometry(radar_data.lines, radar_data.pixels,
                          meta.data_memory['azimuth_elevation_angle']['Elevation_angle' + int_str],
                          meta.data_memory['geocode']['Lat' + int_str],
                          meta.data_memory['geocode']['Lon' + int_str],
-                         meta.data_memory['radar_dem']['Data' + int_str])
+                         meta.data_memory['resample_dem']['Data' + int_str])
 
 # Import the ps points from csv file
-ps_height = np.ravel(meta.data_memory['radar_dem']['Data' + int_str][1:-1, 1:-1])
+ps_height = np.ravel(meta.data_memory['resample_dem']['Data' + int_str][1:-1, 1:-1])
 ps_pixel, ps_line = np.meshgrid(radar_data.pixels, radar_data.lines)
 ps_size = ps_pixel.shape - np.array([2,2])
 ps_pixel = np.ravel(ps_pixel[1:-1, 1:-1])

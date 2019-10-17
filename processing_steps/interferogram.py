@@ -11,9 +11,7 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 class Interferogram(Process):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', polarisation='',
-                 coor_in=[],
-                 in_image_types=[], in_coor_types=[], in_processes=[], in_file_types=[], in_polarisations=[],
-                 in_data_ids=[],
+                 coordinates=[],
                  slave=[], master=[], coreg_master=[], ifg=[], overwrite=False):
 
         """
@@ -21,87 +19,69 @@ class Interferogram(Process):  # Change this name to the one of your processing 
                     the same process.
         :param str polarisation: Polarisation of processing outputs
 
-        :param CoordinateSystem coor_in: Coordinate system of the input grids.
-        :param CoordinateSystem coor_out: Coordinate system of output grids, if not defined the same as coor_in
-        :param list[str] in_coor_types: The coordinate types of the input grids. Sometimes some of these grids are
-                different from the defined coor_in. Options are 'coor_in', 'coor_out' or anything else defined in the
-                coordinate system input.
-        :param dict[CoordinateSystem] coordinate_systems: Here the alternative input coordinate systems can be defined.
-                Only used in very specific cases.
-
-        :param list[str] in_image_types: The type of the input ImageProcessingData objects (e.g. slave/master/ifg etc.)
-        :param list[str] in_processes: Which process outputs are we using as an input
-        :param list[str] in_file_types: What are the exact outputs we use from these processes
-        :param list[str] in_polarisations: For which polarisation is it done. Leave empty if not relevant
-        :param list[str] in_data_ids: If processes are used multiple times in different parts of the processing they can be
-                distinguished using an data_id. If this is the case give the correct data_id. Leave empty if not relevant
+        :param CoordinateSystem coordinates: Coordinate system of the input grids.
 
         :param ImageProcessingData slave: Slave image, used as the default for input and output for processing.
         :param ImageProcessingData master: Master image, generally used when creating interferograms
         :param ImageProcessingData ifg: Interferogram of a master/slave combination
         """
 
-        """
-        First define the name and output types of this processing step.
-        1. process_name > name of process
-        2. file_types > name of process types that will be given as output
-        3. data_types > names 
-        """
+        # Output data information
+        self.output_info = dict()
+        self.output_info['process_name'] = 'interferogram'
+        self.output_info['image_type'] = 'ifg'
+        self.output_info['polarisation'] = polarisation
+        self.output_info['data_id'] = data_id
+        self.output_info['coor_type'] = 'out_coor'
+        self.output_info['file_types'] = ['interferogram']
+        self.output_info['data_types'] = ['complex_real4']
 
-        self.process_name = 'interferogram'
-        file_types = ['interferogram']
-        data_types = ['complex_real4']
-
-        """
-        Then give the default input steps for the processing. The given input values will be overridden when other input
-        values are given.
-        """
-        if len(in_image_types) == 0:
-            in_image_types = ['slave', 'master']
-        if len(in_coor_types) == 0:
-            in_coor_types = ['coor_in', 'coor_in']  # Same here but then for the coor_out and coordinate_systems
-        if len(in_data_ids) == 0:
-            in_data_ids = ['none', 'none']
-        if len(in_polarisations) == 0:
-            in_polarisations = [polarisation, polarisation]
+        # Input data information
+        self.input_info = dict()
+        self.input_info['image_types'] = ['slave', 'master']
 
         if coreg_master == slave:
-            if len(in_processes) == 0:
-                in_processes = ['crop', 'earth_topo_phase']
-            if len(in_file_types) == 0:
-                in_file_types = ['crop', 'earth_topo_phase_corrected']
+            self.input_info['process_types'] = ['crop', 'earth_topo_phase']
+            self.input_info['file_types'] = ['crop', 'earth_topo_phase_corrected']
         elif coreg_master == master:
-            if len(in_processes) == 0:
-                in_processes = ['earth_topo_phase', 'crop']
-            if len(in_file_types) == 0:
-                in_file_types = ['earth_topo_phase_corrected', 'crop']
+            self.input_info['process_types'] = ['earth_topo_phase', 'crop']
+            self.input_info['file_types'] = ['earth_topo_phase_corrected', 'crop']
         else:
-            if len(in_processes) == 0:
-                in_processes = ['earth_topo_phase', 'earth_topo_phase']
-            if len(in_file_types) == 0:
-                in_file_types = ['earth_topo_phase_corrected', 'earth_topo_phase_corrected']
+            self.input_info['process_types'] = ['earth_topo_phase', 'earth_topo_phase']
+            self.input_info['file_types'] = ['earth_topo_phase_corrected', 'earth_topo_phase_corrected']
 
-        in_type_names = ['master', 'slave']
+        self.input_info['polarisations'] = [polarisation, polarisation]
+        self.input_info['data_ids'] = [data_id, data_id]
+        self.input_info['coor_types'] = ['out_coor', 'out_coor']
+        self.input_info['in_coor_types'] = ['', '']
 
-        # Initialize
+        self.input_info['type_names'] = ['slave', 'master']
+
+        # Coordinate systems
+        self.coordinate_systems = dict()
+        self.coordinate_systems['out_coor'] = coordinates
+        self.coordinate_systems['in_coor'] = coordinates
+
+        # image data processing
+        self.processing_images = dict()
+        self.processing_images['slave'] = slave
+        self.processing_images['master'] = master
+        self.processing_images['coreg_master'] = coreg_master
+        self.processing_images['ifg'] = ifg
+
+        # Finally define whether we overwrite or not
+        self.overwrite = overwrite
+        self.settings = dict()
+
+    def init_super(self):
+
         super(Interferogram, self).__init__(
-                       process_name=self.process_name,
-                       data_id=data_id, polarisation=polarisation,
-                       file_types=file_types,
-                       process_dtypes=data_types,
-                       coor_in=coor_in,
-                       in_coor_types=in_coor_types,
-                       in_image_types=in_image_types,
-                       in_processes=in_processes,
-                       in_file_types=in_file_types,
-                       in_polarisations=in_polarisations,
-                       in_data_ids=in_data_ids,
-                       in_type_names=in_type_names,
-                       slave=slave,
-                       master=master,
-                       ifg=ifg,
-                       out_processing_image='ifg',
-                       overwrite=overwrite)
+            input_info=self.input_info,
+            output_info=self.output_info,
+            coordinate_systems=self.coordinate_systems,
+            processing_images=self.processing_images,
+            overwrite=self.overwrite,
+            settings=self.settings)
 
     def process_calculations(self):
         """

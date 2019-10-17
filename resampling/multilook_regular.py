@@ -11,14 +11,14 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 class MultilookRegular(object):
 
 
-    def __init__(self, coor_in, coor_out):
+    def __init__(self, in_coor, out_coor):
         # Check whether the two coordinate systems are compatible.
 
-        self.coor_in = coor_in
-        self.coor_out = coor_out
-        self.check_same_coordinate_system(coor_in, coor_out)
+        self.in_coor = in_coor
+        self.out_coor = out_coor
+        self.check_same_coordinate_system(in_coor, out_coor)
 
-        self.lines_in, self.pixels_in = self.pixel_line_spacing(coor_in, coor_out)
+        self.lines_in, self.pixels_in = self.pixel_line_spacing(in_coor, out_coor)
         self.coverage = self.multilook_coverage(self.lines_in, self.pixels_in)
         if self.coverage == 0:
             print('Warning: input and output of multilooking system do not overlap.')
@@ -30,46 +30,46 @@ class MultilookRegular(object):
         return data_out
 
     @staticmethod
-    def check_same_coordinate_system(coor_in, coor_out):
+    def check_same_coordinate_system(in_coor, out_coor):
         # type: (CoordinateSystem, CoordinateSystem) -> None
         # This function is to check whether the same coordinate system is used for input and output data.
 
-        if not coor_in.grid_type == coor_out.grid_type:
+        if not in_coor.grid_type == out_coor.grid_type:
             return False
-        if coor_in.grid_type in ['geographic', 'projection']:
-            if coor_in.ellipse_type != coor_out.ellipse_type:
+        if in_coor.grid_type in ['geographic', 'projection']:
+            if in_coor.ellipse_type != out_coor.ellipse_type:
                 return False
-            if coor_in.grid_type == 'projection':
-                if coor_in.proj4_str != coor_out.proj4_str:
+            if in_coor.grid_type == 'projection':
+                if in_coor.proj4_str != out_coor.proj4_str:
                     return False
-        if coor_in.grid_type == 'radar_coordinates':
-            if coor_in.radar_grid_date != coor_out.radar_grid_date:
+        if in_coor.grid_type == 'radar_coordinates':
+            if in_coor.radar_grid_date != out_coor.radar_grid_date:
                 return False
 
         # If passed all other tests return True
         return True
 
     @staticmethod
-    def pixel_line_spacing(coor_in, coor_out):
+    def pixel_line_spacing(in_coor, out_coor):
         # type: (CoordinateSystem, CoordinateSystem) -> None
         # This function is used to get the pixel and line coordinate with respect to the output image.
 
-        if coor_in.grid_type == 'radar_coordinates':
+        if in_coor.grid_type == 'radar_coordinates':
             # offset between radar grids
-            off = (coor_out.az_time - coor_in.az_time) / coor_in.az_step + coor_out.first_line - coor_in.first_line
-            lines_in = (coor_in.interval_lines - off) / coor_out.multilook[0]
-            off = (coor_out.ra_time - coor_in.ra_time) / coor_in.ra_step + coor_out.first_pixel - coor_in.first_pixel
-            pixels_in = (coor_in.interval_pixels - off) / coor_out.multilook[1]
-        elif coor_in.grid_type == 'geographic':
-            lines = coor_in.lat0 + (coor_in.first_line + np.arange(coor_in.shape)) * coor_in.dlat
-            lines_in = (lines - (coor_out.lat0 + coor_out.first_line * coor_out.dlat)) / coor_out.dlat
-            pixels = coor_in.lon0 + (coor_in.first_line + np.arange(coor_in.shape)) * coor_in.dlon
-            pixels_in = (pixels - (coor_out.lon0 + coor_out.first_line * coor_out.dlon)) / coor_out.dlon
-        elif coor_in.grid_type == 'projection':
-            lines = coor_in.y0 + (coor_in.first_line + np.arange(coor_in.shape)) * coor_in.dy
-            lines_in = (lines - (coor_out.y0 + coor_out.first_line * coor_out.dy)) / coor_out.dy
-            pixels = coor_in.x0 + (coor_in.first_line + np.arange(coor_in.shape)) * coor_in.dx
-            pixels_in = (pixels - (coor_out.x0 + coor_out.first_line * coor_out.dx)) / coor_out.dx
+            off = (out_coor.az_time - in_coor.az_time) / in_coor.az_step + out_coor.first_line - in_coor.first_line
+            lines_in = (in_coor.interval_lines - off) / out_coor.multilook[0]
+            off = (out_coor.ra_time - in_coor.ra_time) / in_coor.ra_step + out_coor.first_pixel - in_coor.first_pixel
+            pixels_in = (in_coor.interval_pixels - off) / out_coor.multilook[1]
+        elif in_coor.grid_type == 'geographic':
+            lines = in_coor.lat0 + (in_coor.first_line + np.arange(in_coor.shape)) * in_coor.dlat
+            lines_in = (lines - (out_coor.lat0 + out_coor.first_line * out_coor.dlat)) / out_coor.dlat
+            pixels = in_coor.lon0 + (in_coor.first_line + np.arange(in_coor.shape)) * in_coor.dlon
+            pixels_in = (pixels - (out_coor.lon0 + out_coor.first_line * out_coor.dlon)) / out_coor.dlon
+        elif in_coor.grid_type == 'projection':
+            lines = in_coor.y0 + (in_coor.first_line + np.arange(in_coor.shape)) * in_coor.dy
+            lines_in = (lines - (out_coor.y0 + out_coor.first_line * out_coor.dy)) / out_coor.dy
+            pixels = in_coor.x0 + (in_coor.first_line + np.arange(in_coor.shape)) * in_coor.dx
+            pixels_in = (pixels - (out_coor.x0 + out_coor.first_line * out_coor.dx)) / out_coor.dx
 
         return lines_in, pixels_in
 

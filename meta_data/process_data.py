@@ -71,7 +71,7 @@ class ProcessData():
         self.settings = self.meta.settings
 
         # add settings to memory and disk data.
-        self.add_process_images()
+        self.load_process_images()
 
     def process_data_exists(self, file_type, data_disk=True):
         """
@@ -152,10 +152,10 @@ class ProcessData():
                                              polarisation=self.polarisation,
                                              data_id=self.data_id,
                                              in_coordinates=self.in_coordinates)
-                self.data_disk[key] = self.images[key].data_disk
+                self.data_disk[key] = self.images[key].disk
                 self.data_disk_meta[key] = self.images[key].json_dict
-                self.data_memory[key] = self.images[key].data_memory
-                self.data_memory_meta[key] = self.images[key].data_memory_meta
+                self.data_memory[key] = self.images[key].memory
+                self.data_memory_meta[key] = self.images[key].memory['meta']
 
     def add_input_image(self, input_image, input_type):
         """

@@ -14,7 +14,7 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 class Amplitude(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', polarisation='', coor_in=[],
+    def __init__(self, data_id='', polarisation='', in_coor=[],
                  in_processes=[], in_file_types=[], in_polarisations=[], in_data_ids=[],
                  slave=[], overwrite=False):
 
@@ -23,7 +23,7 @@ class Amplitude(Process):  # Change this name to the one of your processing step
                     the same process.
         :param str polarisation: Polarisation of processing outputs
 
-        :param CoordinateSystem coor_in: Coordinate system of the input grids.
+        :param CoordinateSystem in_coor: Coordinate system of the input grids.
 
         :param list[str] in_processes: Which process outputs are we using as an input
         :param list[str] in_file_types: What are the exact outputs we use from these processes
@@ -51,7 +51,7 @@ class Amplitude(Process):  # Change this name to the one of your processing step
         """
 
         in_image_types = ['slave']
-        in_coor_types = ['coor_in']
+        in_coor_types = ['in_coor']
         if len(in_data_ids) == 0:
             in_data_ids = ['none']
         if len(in_polarisations) == 0:
@@ -70,7 +70,7 @@ class Amplitude(Process):  # Change this name to the one of your processing step
                        polarisation=polarisation,
                        file_types=file_types,
                        process_dtypes=data_types,
-                       coor_in=coor_in,
+                       in_coor=in_coor,
                        in_type_names=in_type_names,
                        in_image_types=in_image_types,
                        in_processes=in_processes,

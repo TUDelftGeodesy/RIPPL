@@ -50,7 +50,7 @@ class ImageConcatData(object):
 
         if not os.path.exists(self.json_path) or update_full_image:
             self.load_slice_meta()
-            self.create_concatenate()
+            self.create_concatenate_meta_data()
             self.slice_data = dict()
 
         self.load_full_meta()
@@ -73,7 +73,20 @@ class ImageConcatData(object):
 
     def concat_image_data_iterator(self, processes=[], coordinates=[], in_coordinates=[], data_ids=[], polarisations=[], file_types=[],
                                    full_image=True, slices=True, data=True):
-        # type: (ImageConcatData, List(str), List(CoordinateSystem), List(str), List(str), List(str), bool, bool, bool) -> (List(str), List(str), List(CoordinateSystem), List(str), List(ImageData))
+        """
+        From the full_image and slices images are selected that fullfill the requirements given as an input.
+
+        :param list[str] processes:
+        :param list[CoordinateSystem] coordinates:
+        :param in_coordinates:
+        :param data_ids:
+        :param polarisations:
+        :param file_types:
+        :param full_image:
+        :param slices:
+        :param data:
+        :return:
+        """
 
         process_ids_out = []
         processes_out = []
@@ -109,12 +122,12 @@ class ImageConcatData(object):
             for slice_name in self.slice_data.keys():
                 processes_slice, process_ids_slice, coordinates_slice, in_coordinates_slice, file_types_slice, images_slice = \
                     self.slice_data[slice_name].processing_image_data_iterator(processes, coordinates, in_coordinates, data_ids, polarisations, file_types)
-                process_ids_out += process_ids_full
-                file_types_out += file_types_full
+                process_ids_out += process_ids_slice
+                file_types_out += file_types_slice
                 coordinates_out += coordinates_slice
                 in_coordinates_out += in_coordinates_slice
                 processes_out += processes_slice
-                slice_names_out += [slice_name for n in range(len(process_ids_full))]
+                slice_names_out += [slice_name for n in range(len(process_ids_slice))]
                 if data:
                     images_out += images_slice
         
@@ -167,7 +180,7 @@ class ImageConcatData(object):
 
         self.reference_images_iterator('remove_slice_memmap', reference_images)
 
-    def create_concatenate(self):
+    def create_concatenate_meta_data(self):
         # This function creates a new concatenated image based on the crop information of the slices.
 
         # Create coordinate systems based on the readfiles.
@@ -204,76 +217,39 @@ class ImageConcatData(object):
 
         self.data = concat_image
 
-    def concatenate(self, process, process_type, coor, data_id='', polarisation='', overwrite=False, concat_output='disk'):
-        # Create a concatenated image for a specific
+    def create_concatenate_image(self, process, file_type, coor, data_id='', polarisation='', overwrite=False,
+                                 output_type='disk', transition_type='full_weight', cut_off=10):
+        """
+        This method is used to concatenate slices. Be sure that before this step is run the meta data is first created
+        using the create_concatenate_meta_data function.
 
-        # First find the corresponding processes for the slices. If one is missing, throw an error.
-        slice_names, process_ids, coordinates, file_types, images = self.concat_image_data_iterator(
-            [process], [coor], process_types=[process_type], data_ids=[data_id], polarisations=[polarisation], slices=True, full_image=False)
+        :param str process: The process of which the result should be concatenated
+        :param str file_type: Actual file type of the process that will be concatenated
+        :param CoordinateSystem coor: Coordinatesystem of image. If size is already defined these will be used,
+                    otherwise it will be calculated.
+        :param str data_id: Data ID of process/file_type. Normally left empty
+        :param str polarisation: Polarisation of data set
+        :param bool overwrite: If data already exist, should we overwrite?
+        :param str output_type: This is either memory or disk (Generally disk is preferred unless this dataset is not
+                    saved to disk and is part of a processing pipeline.)
+        :param str transition_type: Type of transition between burst. There are 3 types possible: 1) full weight, this
+                    simply adds all values on top of each other. 2) linear, creates a linear transition zone between
+                    the bursts. 3) cut_off, this creates a hard break between the different bursts and swaths without
+                    overlap. (Note that option 2 and 3 are only possible when working in radar coordinates!)
+        :param int cut_off: Number of pixels of the outer part of the image that will not be used because it could still
+                    contain zeros.
+        :return:
+        """
 
-        data_ids = [ProcessMeta.split_process_id(process_id)[3] for process_id in process_ids]
-        polarisations = [ProcessMeta.split_process_id(process_id)[4] for process_id in process_ids]
-        process_name = ProcessMeta.split_process_id(process_ids[0])[0]
-        process_id = process_ids[0]
+        # We do the import here to prevent a circular reference.
+        from rippl.meta_data.concatenate import Concatenate
 
-        if len(slice_names) == 0:
-            print('No slices found to concatenate!')
-            return
-        if len(coordinates) != len(self.slice_names):
-            print('Number of slices and found input data images is not the same. Aborting concatenation')
-            return
-        if not len(set(data_ids)) == 1 or not len(set(polarisations)) == 1:
-            print('Please specify polarisation and/or data id to select the right process')
-            return
-
-        data_id = data_ids[0]
-        polarisation = polarisations[0]
-
-        # Then create the new concatenated coordinate system
-        concat = CoorConcatenate(coordinates)
-        concat_coor = concat.concat_coor
-
-        # Based on the new coordinate system create a new process.
-        # Check if process already exists in
-        process_id_full = self.concat_image_data_iterator([process], [coor], process_types=[process_type],
-                                                          data_ids=[data_id], polarisations=[polarisation], slices=False, full_image=True)
-        if len(process_id_full) > 0 and overwrite == False:
-            print('Concatenated dataset already exists. If you want to overwrite set overwrite to True')
-            return
-        elif self.data.process_id_exist(process_id_full):
-            process = self.data.processes_data[process_name][process_id]
-        else:
-            process = ProcessData(process_name, concat_coor, data_id=data_id, polarisation=polarisation)
-
-        # Create an empty image for the processing
-        process.add_process_images([process_type], [images[0].dtype])
-        full_image = self.concat_image_data_iterator([process], [coor], process_types=[process_type], data_ids=[data_id],
-                                                polarisations=[polarisation], slices=False, full_image=True)[4][0]
-
-        if concat_output == 'memory':
-            full_image.new_memory_data(full_image.shape)     # type: ImageData
-        else:
-            full_image.create_disk_data()
-
-        # Check if the full images are loaded in memory, otherwise use the data on disk to move to the new image.
-        # If either of them is missing throw an error.
-
-        for image, sync_coor in zip(images, concat.sync_coors):
-
-            lin_0 = sync_coor.first_line - process.coordinates.first_line
-            pix_0 = sync_coor.first_pixel - process.coordinates.first_pixel
-            lin_size = sync_coor.shape[0]
-            pix_size = sync_coor.shape[1]
-
-            if image.data_memory_meta['shape'] == image.shape:
-                if concat_output == 'memory':
-                    full_image.data_memory[lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] = image.data_memory
-                else:
-                    full_image.data_disk[lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] = image.memory2disk(
-                        image.data_memory, image.dtype)
-            elif image.load_disk_data():
-                if concat_output == 'memory':
-                    full_image.data_memory[lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] = image.disk2memory(
-                        image.data_disk, image.dtype)
-                else:
-                    full_image.data_disk[lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] = image.data_disk
+        # Initialize the concatenate step
+        concatenate = Concatenate(self, process, file_type, coor, data_id, polarisation, overwrite, output_type)
+        # Load data from slices
+        concatenate.load_data()
+        # Create output data for full image
+        succes = concatenate.create_image()
+        # Do the actual concatenation
+        if succes:
+            concatenate.concatenate(transition_type=transition_type, cut_off=cut_off)

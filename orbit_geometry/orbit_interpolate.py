@@ -268,6 +268,7 @@ class OrbitInterpolate(ImageProcessingData):
                             acceleration[p-6, start:end] += self.orbit_spline[p, d, id] * times ** d
 
         if not sorted and len(az_times) > 1:
+            sort_ids = np.argsort(sort_ids)
             if pos:
                 position = position[:, sort_ids]
             if vel:

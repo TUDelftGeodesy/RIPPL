@@ -8,7 +8,6 @@ This is a super class for all processing step. This class manages:
 
 '''
 
-import numpy as np
 import copy
 
 from rippl.meta_data.image_processing_data import ImageProcessingData
@@ -20,94 +19,102 @@ from rippl.resampling.select_input_window import SelectInputWindow
 
 class Process():
 
-    def __init__(self, process_name='', data_id='', polarisation='', file_types=[], process_dtypes=[], shapes=[], settings=dict(),
-                 coor_in=[], coor_out=[], in_coor_types=[], coordinate_systems=dict(),
-                 in_image_types=[], in_processes=[], in_file_types=[], in_polarisations=[], in_data_ids=[], in_type_names = [],
-                 slave=[], master=[], coreg_master=[], ifg=[], processing_images=dict(), out_processing_image='slave', overwrite=False):
+    def __init__(self, input_info, output_info, coordinate_systems, processing_images, settings, overwrite):
         """
-        Define the name and output files of the processing step.
+        Input steps Process. These input steps are a summary of the inputs and outputs of every processing step.
+        The reading and writing of data and creation of metadata information is all summarized in this step.
 
-        :param str process_name: Name of the process we are creating
-        :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
-                    the same process.
-        :param str polarisation: Polarisation of processing outputs
-        :param list[str] file_types: Names of the different outputs of the specific process
-        :param list[str] process_dtypes: List of the process dtypes as defined in the ImageData class
-        :param dict[str or float or int] settings: Any additional settings for the processing step. This variable is
-                    used to store this information as meta data.
-
-        :param CoordinateSystem coor_in: Coordinate system of the input grids.
-        :param CoordinateSystem coor_out: Coordinate system of output grids, if not defined the same as coor_in
-        :param list[str] in_coor_types: The coordinate types of the input grids. Sometimes some of these grids are
-                different from the defined coor_in. Options are 'coor_in', 'coor_out' or anything else defined in the
-                coordinate system input.
-        :param dict[CoordinateSystem] coordinate_systems: Here the alternative input coordinate systems can be defined.
-                Only used in very specific cases.
-
-        :param list[str] in_image_types: The type of the input ImageProcessingData objects (e.g. slave/master/ifg etc.)
-        :param list[str] in_processes: Which process outputs are we using as an input
-        :param list[str] in_file_types: What are the exact outputs we use from these processes
-        :param list[str] in_polarisations: For which polarisation is it done. Leave empty if not relevant
-        :param list[str] in_data_ids: If processes are used multiple times in different parts of the processing they can be
-                distinguished using an data_id. If this file_types, data_types, shapesis the case give the correct data_id. Leave empty if not relevant
-        :param list[str] in_type_names: Names of the datasets used late in processing.
-
-        :param ImageProcessingData slave: Slave image, used as the default for input and output for processing.
-        :param ImageProcessingData master: Master image, generally used when creating interferograms
-        :param ImageProcessingData coreg_master: Image used to coregister the slave image for resampline etc.
-        :param ImageProcessingData ifg: Interferogram of a master/slave combination
-        :param dict[ImageProcessingData] processing_images: Include other images than the slave/master/coreg_master/ifg 
-                types. Only needed in very specific cases.
-        :param str out_processing_image: Define which of the images is the output. Defaults to 'slave' if not given.
+        :param dict[list[str]] input_info: Input data information of your processing step which consists of
+                - process_types > the names of the processes of the input data
+                - file_types > the names of the file types of the inputs
+                - image_types > the names of the images used (images should be defined in images parameter)
+                - type_names > self assigned names to call the variables during the processing. If missing it will be
+                                replaced by the file_types
+                - data_ids > possible data_ids of inputs. (empty by default)
+                - polarisation > polarisation of inputs. (only applicable for radar data, otherwises it should be none)
+                - coor_types > type of coordinate systems of the inputs. The coordinate systems themselves should be
+                                given in the coordinates input variable.
+        :param dict[str or list[str]] output_info: Information on the outputs of the processing step which consists of
+                - process_name > name of the process
+                - image_type > name of image used for output. Should be defined in the images parameter
+                - polarisation > polarisation of radar data used in process
+                - data_id > data id of process (can be anything but empty by default.)
+                - coor_type > the coordinate type of the output. Coordinate systems should be part of the coordinates
+                                list.
+                - file_types > list of file types of the output
+                - data_types > data types of outputs
+        :param dict[CoordinateSystem] coordinate_systems: Dictionary of coordinate systems. All names of coordinate systems
+                in output and input info should be defined here.
+        :param dict[ImageProcessingData] processing_images: Dictionary with image data object. The datasets defined in the input
+                and output info should be defined here.
+        :param dict[str] settings: Additional settings on the processing that should be saved to metadata file
+        :param bool overwrite: Do we process this step if it already exists or not
         """
+
+        # First check the inputs
+        self.input_info = self.check_input_info(input_info)
+        self.output_info = self.check_output_info(output_info)
+        self.processing_images = self.check_processing_images(processing_images, self.input_info, self.output_info)
+        self.coordinate_systems = self.check_coordinate_systems(coordinate_systems, self.input_info, self.output_info)
 
         # Predefine all image definitions
-        self.process_name = process_name    # type: str
-        self.process = []                   # type: ProcessData
+        self.process_name = output_info['process_name']          # type: str
+        self.process = []                                   # type: ProcessData
 
-        # Coordinate systems used.
-        self.coordinate_systems = dict()    # type: dict(CoordinateSystem)
         # Block coordinate system is the coordinate system create for processing in blocks.
-        self.block_coor = []                # type: CoordinateSystem
+        self.block_coor = self.coordinate_systems['block_coor']
 
         # Input and output image (slave/master/ifg etc.)
-        self.in_processing_images = dict()  # type: dict(ImageProcessingData)
-        self.out_processing_image = ''      # type: ImageProcessingData
+        self.out_processing_image = self.processing_images[self.output_info['image_type']]
+        self.out_coor = self.coordinate_systems[self.output_info['coor_type']]
+        in_coor_keys = list(coordinate_systems.keys())
+        if 'in_coor' in in_coor_keys:
+            self.in_coor = self.coordinate_systems['in_coor']
+        elif len(in_coor_keys) == 1:
+            self.in_coor = self.coordinate_systems[in_coor_keys[0]]
+        elif len(in_coor_keys) == 0:
+            self.in_coor = self.out_coor
+        elif len(in_coor_keys) > 1:
+            raise LookupError('Not clear what input coordinate system should be used. Give the input coordinate system'
+                              'the name "in_coor"')
 
         # Input and output image data. To load from disk to memory and save results
-        self.in_type_names = in_type_names  # type: list
-        self.in_images = dict()             # type: dict(ImageData)
-        self.out_images = dict()            # type: dict(ImageData)
-
-        # Initialize the different input/output images. These steps can be done later in the processing and inputs can
-        # therefore be left blank in initialization.
-        self.define_coordinate_systems(coor_in, coor_out, coordinate_systems)
-        self.define_processing_images(slave, master, coreg_master, ifg, processing_images, out_processing_image)
+        self.in_images = dict()                             # type: dict(ImageData)
+        self.out_images = dict()                             # type: dict(ImageData)
 
         # Create the process metadata and images. Load the input images too.
-        if not overwrite and self.check_output_exists(self.out_processing_image, self.process_name, self.coor_out,
-                                                      polarisation, data_id, file_types):
+        if not overwrite and self.check_output_exists(self.out_processing_image, self.process_name,
+                                                      self.out_coor, self.in_coor,
+                                                      self.output_info['polarisation'],
+                                                      self.output_info['data_id'],
+                                                      self.output_info['file_types']):
             print('Processing step already done.')
             self.process_finished = True
             return
         else:
             self.process_finished = False
 
-        self.create_process_metadata(polarisation, data_id, settings)
-        self.create_output_images(file_types, process_dtypes, shapes)
+        self.create_process_metadata(self.output_info['polarisation'], self.output_info['data_id'], settings)
+        self.load_input_images(self.input_info['image_types'],
+                               self.input_info['process_types'],
+                               self.input_info['file_types'],
+                               self.input_info['polarisations'],
+                               self.input_info['data_ids'],
+                               self.input_info['coor_types'],
+                               self.input_info['in_coor_types'],
+                               self.input_info['type_names']) # We load the input images only. The data is not loaded to memory yet.
 
-        n_inputs = len(in_image_types)
-        if len(in_processes) != n_inputs or len(in_file_types) != n_inputs or len(in_polarisations) != n_inputs or \
-            len(in_data_ids) != n_inputs or len(in_coor_types) != n_inputs or len(in_type_names) != n_inputs:
-            raise LookupError('Lists with input specifications are not the same. Check your process setup.')
-        self.load_input_images(in_image_types, in_processes, in_file_types, in_polarisations, in_data_ids, in_coor_types,
-                               in_type_names)        # We load the input images only. The data is not loaded to memory yet.
+        if 'shapes' in self.input_info.keys():
+            shapes = self.input_info['shapes']
+        else:
+            shapes = []
+        self.create_output_images(self.output_info['file_types'], self.output_info['data_types'], shapes)
 
         # Information for processing of dataset in blocks. If you want to do so, run the define_block method.
         self.s_lin = 0
         self.s_pix = 0
-        self.lines = self.coordinate_systems['coor_out'].shape[0]
-        self.pixels = self.coordinate_systems['coor_out'].shape[1]
+        self.lines = self.coordinate_systems['out_coor'].shape[0]
+        self.pixels = self.coordinate_systems['out_coor'].shape[1]
         self.out_irregular_grids = []
         self.in_irregular_grids = []
         self.blocks = False
@@ -126,9 +133,13 @@ class Process():
         :return:
         """
 
+        self.init_super()
         if self.process_finished:
             print('Process already finished')
             return
+
+        for image_key in self.processing_images.keys():
+            self.processing_images[image_key].load_memmap_files()
 
         self.load_input_data()
         self.create_output_data_files()
@@ -149,7 +160,7 @@ class Process():
             data = self.out_images[key].memory['data']
             return data
         else:
-            return False
+            raise LookupError('The input or output dataset ' + key + ' does not exist.')
 
     def __setitem__(self, key, data):
         # Set the data of one variable in memory.
@@ -163,7 +174,7 @@ class Process():
             return False
 
     @staticmethod
-    def check_output_exists(out_processing_image, process_name, coor_out, polarisation, data_id, file_types):
+    def check_output_exists(out_processing_image, process_name, out_coor, in_coor, polarisation, data_id, file_types):
         """
         Check if processing of this step is already done.
 
@@ -173,8 +184,11 @@ class Process():
         :return:
         """
 
+        if out_coor == in_coor:
+            in_coor = ''
+
         for file_type in file_types:
-            image = out_processing_image.processing_image_data_exists(process_name, coor_out, data_id, polarisation,
+            image = out_processing_image.processing_image_data_exists(process_name, out_coor, in_coor, data_id, polarisation,
                                                                       file_type, data=True, message=False)
             if not isinstance(image, ImageData):
                 return False
@@ -196,6 +210,15 @@ class Process():
         print('This method should be in your process function to make any sense. For now all the outputs will just '
               'be filled with zeros!')
 
+    def init_super(self):
+        """
+        This function is used to initialize the super class, so these are called from the functions individually.
+
+        :return:
+        """
+
+        print('Only call this function with a child object of Process')
+
     def create_process_metadata(self, polarisation, data_id, settings):
         """
         Create the process data object. This creates the meta data of the image and creates a link to the output data
@@ -207,13 +230,13 @@ class Process():
         :return:
         """
 
-        if self.coor_in == self.coor_out:
+        if self.in_coor == self.out_coor:
             in_coordinates = []
         else:
-            in_coordinates = self.coor_in
+            in_coordinates = self.in_coor
 
         self.process_data = ProcessData(self.out_processing_image.folder, self.process_name,
-                                        coordinates=self.coor_out, in_coordinates=in_coordinates,
+                                        coordinates=self.out_coor, in_coordinates=in_coordinates,
                                         settings=settings, polarisation=polarisation, data_id=data_id)
         self.out_processing_image.add_process(self.process_data)
         self.process = self.process_data.meta
@@ -235,76 +258,147 @@ class Process():
         # Define the output images.
         self.out_images = self.process_data.images
 
-    def define_processing_images(self, slave='', master='', coreg_master='', ifg='', processing_images='',
-                                 out_processing_image='slave'):
-        """
-        This function creates a list of the different images. A lot of functions will only need a slave image (for
-        example deramping, resampling or multilooking). Other functions will need a coregistration master too (for
-        example coregistration). Creating interferograms needs a slave and master image, but preferably also the coreg
-        master.
-        If for some reason other types of images are needed. These can be defined in the processing_images dictionary.
-        Note that the naming of the images is just to make the distinction during processinge. e.g. an image can be
-        a slave image in some cases and a master or coreg_master image in other cases.
+    @staticmethod
+    def check_input_info(input_info):
+        '''
+        Check whether there is no information missing in the output data.
 
-        :param ImageProcessingData slave: Slave image
-        :param ImageProcessingData master: Master image
-        :param ImageProcessingData coreg_master: Image where the slave image is coregistered too.
-        :param ImageProcessingData ifg: Interferogram image
-        :param dict[ImageProcessingData] processing_images: Other images. Generally not needed.
+        :param dict() input_info:
         :return:
-        """
+        '''
 
-        # Get the in images and rearrange
-        self.in_processing_images = dict()
-        if isinstance(slave, ImageProcessingData):
-            self.in_processing_images['slave'] = slave
-        if isinstance(master, ImageProcessingData):
-            self.in_processing_images['master'] = master
-        if isinstance(coreg_master, ImageProcessingData):
-            self.in_processing_images['coreg_master'] = coreg_master
-        if isinstance(ifg, ImageProcessingData):
-            self.in_processing_images['ifg'] = ifg
-        for image_key in processing_images.keys():
-            if isinstance(processing_images[image_key], ImageProcessingData):
-                self.in_processing_images[image_key] = processing_images[image_key]
-        self.out_processing_image = self.in_processing_images[out_processing_image]
+        if not isinstance(input_info, dict):
+            raise TypeError('Output info should be a dictionary')
 
-    def define_coordinate_systems(self, coor_in='', coor_out='', coordinate_systems=''):
-        """
-        This function defines a list of coordinate systems relevant for processing. When no multilooking or resampling
-        is involved the coordinate system is the same for all input images. If not, also an output coordinate system
-        is defined. In very rare cases where even a third coordinate system is involved also these coordinate systems
-        can be loaded using the coordinate_systems variable.
+        input_keys = set(input_info.keys())
+        needed_keys = set({'process_types', 'coor_types', 'file_types'})
+        if len(needed_keys - input_keys) > 0:
+            raise LookupError(
+                'One of the needed processes, coor_types, file_types or data_types is missing in the input_info')
+        n = len(input_info['file_types'])
+        if n != len(input_info['image_types']) or n != len(input_info['process_types']):
+            raise LookupError('Number of image types or process types is not correct.')
+        if not 'polarisations' in input_keys:
+            input_info['polarisation'] = ['' for i in range(n)]
+        elif n != len(input_info['polarisations']):
+            raise LookupError('Number of polarisations is not the same as other parameters')
+        if not 'data_ids' in input_keys:
+            input_info['data_id'] = ['' for i in range(n)]
+        elif n != len(input_info['data_ids']):
+            raise LookupError('Number of data_ids is not the same as other parameters')
+        if not 'in_coor_types' in input_keys:
+            input_info['in_coor_types'] = ['' for i in range(n)]
+        elif n != len(input_info['in_coor_types']):
+            raise LookupError('Number of in_coor_types is not the same as other parameters')
+        if not 'name_types' in input_keys:
+            input_info['name_types'] = input_info['file_types']
+        elif n != len(input_info['file_types']):
+            raise LookupError('Number of file_types is not the same as other parameters')
 
-        :param CoordinateSystem coor_in: Input coordinate system (if output coordinate system is left blank, output
-                    coordinate system will be the same.
-        :param CoordinateSystem coor_out: Output coordinate system
-        :param dict[CoordinateSystem] coordinate_systems: Other coordinate systems used in this process.
+        return input_info
+
+    @staticmethod
+    def check_output_info(output_info):
+        '''
+        Check whether there is no information missing in the output data.
+
+        :param dict() output_info:
         :return:
-        """
+        '''
 
-        if isinstance(coor_in, CoordinateSystem):
-            self.coor_in = coor_in
-        else:
-            print('input should be a CoordinateSystem object')
-            return
-        if not coor_out:
-            self.coor_out = coor_in
-        else:
-            if isinstance(coor_out, CoordinateSystem):
-                self.coor_out = coor_out
+        if not isinstance(output_info, dict):
+            raise TypeError('Output info should be a dictionary')
+
+        output_keys = set(output_info.keys())
+        needed_keys = set({'process_name', 'coor_type', 'file_types', 'data_types'})
+        if len(needed_keys - output_keys) > 0:
+            raise LookupError('One of the needed process, coor_type, file_types or data_types is missing in the output_info')
+        if len(output_info['file_types']) != len(output_info['data_types']):
+            raise LookupError('data_types and file_types are not the same length. Both should be lists')
+        if not 'polarisation' in output_keys:
+            output_info['polarisation'] = ''
+        if not 'data_id' in output_keys:
+            output_info['data_id'] = ''
+        if not 'name_type' in output_keys:
+            output_info['type_names'] = output_info['file_types']
+
+        return output_info
+
+    @staticmethod
+    def check_processing_images(images, input_info, output_info):
+        '''
+        This function is to check whether the input images and the input_info and output_info are aligned. It checks
+        for two things:
+        1. Whether there are images missing which are mentioned in the input_info or output_info
+        2. Whether there are images that are superfluous, these will be removed.
+
+        :param dict[ImageProcessingData] images:
+        :param list[list[str] or str] input_info:
+        :param list[list[str]] output_info:
+        :return:
+        '''
+
+        # Check which image types are needed.
+        needed_image_types = set()
+        for image_type in input_info['image_types']:
+            needed_image_types.add(image_type)
+        needed_image_types.add(output_info['image_type'])
+
+        # Cleanup not used images.
+        image_types = set()
+        for key in images.keys():
+            if not isinstance(images[key], ImageProcessingData):
+                images.pop(key)
             else:
-                print('input should be a CoordinateSystem object')
-                return
+                image_types.add(key)
 
-        # Create a list of coordinate systems. Generally only coor_in and sometimes also coor_out is used. However, in
-        # specific cases a third or fourth coordinate system can be added...
-        self.coordinate_systems = coordinate_systems
-        self.coordinate_systems['coor_in'] = self.coor_in
-        self.coordinate_systems['coor_out'] = self.coor_out
-        # Define the block coordinate system the same as the output coordinate system. In first instance they are the
-        # same but if you define a processing block they will change. By default therefore the whole image is processed.
-        self.block_coor = copy.deepcopy(self.coor_out)
+        # Check if images are missing and throw an error if so
+        if len(needed_image_types - image_types) > 0:
+            raise LookupError('Needed image type for input or output does not exist')
+
+        # Remove not needed images
+        for image_type in (image_types - needed_image_types):
+            images.pop(image_type)
+
+        return images
+
+    @staticmethod
+    def check_coordinate_systems(coordinates, input_info, output_info):
+        '''
+        This function is to check whether the input images and the input_info and output_info are aligned. It checks
+        for two things:
+        1. Whether there are coordinate sytems missing which are mentioned in the input_info or output_info
+        2. Whether there are coordinate systems that are superfluous, these will be removed.
+        Finally the block coor coordinate system is added.
+
+        :param dict[CoordinateSystem] coordinates:
+        :param list[list[str] or str] input_info:
+        :param list[list[str]] output_info:
+        :return:
+        '''
+
+        needed_coordinate_systems = set()
+        for coordinate_system in input_info['coor_types']:
+            needed_coordinate_systems.add(coordinate_system)
+        needed_coordinate_systems.add(output_info['coor_type'])
+
+        # Cleanup not used images.
+        coordinate_systems = set()
+        for key in list(coordinates.keys()):
+            if not isinstance(coordinates[key], CoordinateSystem):
+                coordinates.pop(key)
+            else:
+                coordinate_systems.add(key)
+
+        # Check if images are missing and throw an error if so
+        if len(needed_coordinate_systems - coordinate_systems) > 0:
+            raise LookupError('Needed image type for input or output does not exist')
+
+        coordinates['block_coor'] = copy.copy(coordinates[output_info['coor_type']])
+        if 'in_coor' not in coordinates.keys():
+            coordinates['in_coor'] = coordinates['out_coor']
+
+        return coordinates
 
     def define_processing_block(self, s_lin=0, s_pix=0, lines=0, pixels=0, in_irregular_grids=[], out_irregular_grids=[]):
         """
@@ -332,28 +426,28 @@ class Process():
         self.blocks = True
 
         # Check the overlap and limit the number of lines if needed.
-        if self.s_lin >= self.coor_out.shape[0] or self.s_pix >= self.coor_out.shape[1]:
+        if self.s_lin >= self.out_coor.shape[0] or self.s_pix >= self.out_coor.shape[1]:
             print('Start line and pixel are too high')
             return False
-        if self.lines > (self.coor_out.shape[0] - self.s_lin) or self.lines == 0:
-            self.lines = self.coor_out.shape[0] - self.s_lin
-        if self.pixels > (self.coor_out.shape[1] - self.s_pix) or self.pixels == 0:
-            self.pixels = self.coor_out.shape[1] - self.s_pix
+        if self.lines > (self.out_coor.shape[0] - self.s_lin) or self.lines == 0:
+            self.lines = self.out_coor.shape[0] - self.s_lin
+        if self.pixels > (self.out_coor.shape[1] - self.s_pix) or self.pixels == 0:
+            self.pixels = self.out_coor.shape[1] - self.s_pix
 
         self.block_coor.first_line += self.s_lin
         self.block_coor.first_pixel += self.s_pix
         self.block_coor.shape = [self.lines, self.pixels]
 
         # Check if the input irregular/regular grid is given to select the right inputs.
-        if not self.coor_in.same_coordinates(self.coor_out, strict=False):
+        if not self.in_coor.same_coordinates(self.out_coor, strict=False):
             if len(list(self.in_images.keys())) == 0:
                 # If there are no input images it is fine too.
                 return True
             if isinstance(in_irregular_grids[0], ImageData):
-                if in_irregular_grids[0].shape == self.coor_in.shape:
+                if in_irregular_grids[0].shape == self.in_coor.shape:
                     return True
             if isinstance(out_irregular_grids[0], ImageData):
-                if out_irregular_grids[0].shape == self.coor_out.shape:
+                if out_irregular_grids[0].shape == self.out_coor.shape:
                     return True
             # in the case we have to change coordinate system the coordinates of the input/output grid have to be cal-
             # culated beforehand to apply the calculation.
@@ -361,7 +455,8 @@ class Process():
         return True
 
     # Handling of in and output data. This is the main
-    def load_input_images(self, image_types, processes, file_types, polarisations, data_ids, coor_types, type_names):
+    def load_input_images(self, image_types, processes, file_types, polarisations, data_ids, coor_types, in_coor_types,
+                          type_names):
         """
         This function loads the input data needed to do the processing. To do so, the exact source of the input data 
         should be defined using the given variables.
@@ -375,6 +470,8 @@ class Process():
                     a processing chain. Generally empty.
         :param list[str] coor_types: The type of coordinate systems used. If not specified we assume that all inputs
                     are of the input coordinate system type.
+        :param list[str] in_coor_types: The input coordinate system of the the needed input data. For example if you
+                    want a specific conversion grid from one projection to another.
         :return:
         """
 
@@ -386,12 +483,12 @@ class Process():
         if image_types == []:
             image_types = [self.out_processing_image for i in range(n_inputs)]
         else:
-            check_image_types = [image_type in list(self.in_processing_images.keys()) for image_type in image_types]
+            check_image_types = [image_type in list(self.processing_images.keys()) for image_type in image_types]
             if False in check_image_types:
                 TypeError('Specified image type does not exist in loaded input image types.')
 
         if coor_types == []:
-            coor_types = ['coor_in' for i in range(n_inputs)]
+            coor_types = ['in_coor' for i in range(n_inputs)]
         else:
             check_coor_types = [coor_type in list(self.coordinate_systems.keys()) for coor_type in coor_types]
             if False in check_coor_types:
@@ -403,15 +500,19 @@ class Process():
             data_ids = ['' for i in range(n_inputs)]
 
         # Check of they exist and get the images.
-        for i, [image_type, process, file_type, polarisation, data_id, coor, name] in enumerate(zip(image_types,
+        for i, [image_type, process, file_type, polarisation, data_id, coor, in_coor, name] in enumerate(zip(image_types,
                                                                                             processes,
                                                                                             file_types,
                                                                                             polarisations,
                                                                                             data_ids,
                                                                                             coor_types,
+                                                                                            in_coor_types,
                                                                                             type_names)):
-            image_data = self.in_processing_images[image_type].\
-                processing_image_data_exists(process, self.coordinate_systems[coor], data_id, polarisation, file_type)
+            if in_coor != '':
+                in_coor = self.coordinate_systems[in_coor]
+
+            image_data = self.processing_images[image_type].\
+                processing_image_data_exists(process, self.coordinate_systems[coor], in_coor, data_id, polarisation, file_type)
             if image_data == False:
                 raise TypeError('No processing information for ' + process + ' file type ' + file_type + ' found.')
             elif image_data.check_data_disk_valid() != (True, True):
@@ -446,16 +547,16 @@ class Process():
         else:
             s_lin = 0
             s_pix = 0
-            shape = self.coor_in.shape
+            shape = self.in_coor.shape
 
-        self.coordinate_systems['coor_in'].create_coor_id()
-        self.coordinate_systems['coor_out'].create_coor_id()
+        self.coordinate_systems['in_coor'].create_coor_id()
+        self.coordinate_systems['out_coor'].create_coor_id()
 
         for key in self.in_images.keys():
             self.in_images[key].coordinates.create_coor_id()
-            if self.in_images[key].coordinates.id_str == self.coordinate_systems['coor_in'].id_str:
+            if self.in_images[key].coordinates.id_str == self.coordinate_systems['in_coor'].id_str:
                 success = self.in_images[key].load_memory_data(shape, s_lin, s_pix)
-            elif self.in_images[key].coordinates.id_str == self.coordinate_systems['coor_out'].id_str:
+            elif self.in_images[key].coordinates.id_str == self.coordinate_systems['out_coor'].id_str:
                 success = self.in_images[key].load_memory_data([self.lines, self.pixels], self.s_lin, self.s_pix)
             else:
                 success = False

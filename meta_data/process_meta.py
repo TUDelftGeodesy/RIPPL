@@ -57,13 +57,17 @@ class ProcessMeta():
         # Create the processing ID
         self.coordinates.create_short_coor_id()
         self.coordinates.create_coor_id()
+        if isinstance(self.in_coordinates, CoordinateSystem):
+            self.in_coordinates.create_short_coor_id()
+            self.in_coordinates.create_coor_id()
         self.coor_id = self.coordinates.id_str
         self.process_id = self.create_process_id(self.process_name, self.coordinates, self.in_coordinates, self.data_id,
                                                  self.polarisation)
 
     @staticmethod
     def create_process_id(process_name, coordinates, in_coordinates, data_id, polarisation):
-        process_id = ''
+
+        process_id = process_name
         if len(coordinates.short_id_str) > 0:
             process_id += ('_#coor#_' + coordinates.short_id_str)
         if isinstance(in_coordinates, CoordinateSystem):
@@ -141,26 +145,30 @@ class ProcessMeta():
             self.readfiles[readfile_key] = Orbit(json_data=self.json_dict['orbits'][orbit_key])
 
         self.coordinates = CoordinateSystem(json_data=self.json_dict['coordinates'])
+        self.coordinates.create_short_coor_id()
+        self.coordinates.create_coor_id()
         if len(self.json_dict['in_coordinates']) > 0:
             self.in_coordinates = CoordinateSystem(json_data=self.json_dict['in_coordinates'])
+            self.in_coordinates.create_short_coor_id()
+            self.in_coordinates.create_coor_id()
 
     @staticmethod
     def split_process_id(process_id):
 
-        strs = process_id.split('#')
+        strs = (process_id + '_').split('#')
 
         process_name = strs[0][:-1]
-        coordinates_str = strs[strs.index['coor'] + 1][1:-1]
+        coordinates_str = strs[strs.index('coor') + 1][1:-1]
         if 'in_coor' in strs:
-            in_coordinates_str = strs[strs.index['in_coor'] + 1][1:-1]
+            in_coordinates_str = strs[strs.index('in_coor') + 1][1:-1]
         else:
             in_coordinates_str = 'none'
         if 'id' in strs:
-            data_id = strs[strs.index['id'] + 1][1:-1]
+            data_id = strs[strs.index('id') + 1][1:-1]
         else:
             data_id = 'none'
         if 'pol' in strs:
-            polarisation = strs[strs.index['pol'] + 1][1:-1]
+            polarisation = strs[strs.index('pol') + 1][1:-1]
         else:
             polarisation = 'none'
 
