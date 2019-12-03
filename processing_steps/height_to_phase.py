@@ -19,7 +19,7 @@ class HeightToPhase(Process):  # Change this name to the one of your processing 
                  in_coor=[], radar_coor=[],
                  in_image_types=[], in_processes=[], in_file_types=[],
                  in_data_ids=[],
-                 slave=[], coreg_master=[], overwrite=False):
+                 slave='slave', coreg_master='coreg_master', overwrite=False):
 
         """
 
@@ -118,10 +118,10 @@ class HeightToPhase(Process):  # Change this name to the one of your processing 
 
         sol = 299792458
 
-        if self.in_coor.grid_type == 'radar_coordinates':
+        if self.coordinate_systems['in_coor'].grid_type == 'radar_coordinates':
 
-            self.in_coor.create_radar_lines()
-            R = (self.in_coor.ra_time + self.in_coor.interval_pixels * self.in_coor.ra_step) / 2 * sol
+            self.coordinate_systems['in_coor'].create_radar_lines()
+            R = (self.coordinate_systems['in_coor'].ra_time + self.coordinate_systems['in_coor'].interval_pixels * self.coordinate_systems['in_coor'].ra_step) / 2 * sol
 
             self['height_to_phase'] = self['baseline'] / (R[None, :] * np.sin(self['incidence'] / 180 * np.pi))
 

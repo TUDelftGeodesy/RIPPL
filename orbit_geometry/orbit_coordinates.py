@@ -50,7 +50,7 @@ class OrbitCoordinates(object):
         # constants
         self.sol = 299792458                        # speed of light [m/s]
         self.ellipsoid = [6378137.0, 6356752.3141]  # lenght of axis of ellips [m]
-        self.maxiter = 10                           # maximum number of iterations radar to xyz calculations
+        self.maxiter = 20                           # maximum number of iterations radar to xyz calculations
         self.maxiter_coor = 1                       # maximum number of iterations lat/lon calculations
         self.criterpos = 0.00000001                 # iteration accuracy [m]
 
@@ -386,7 +386,7 @@ class OrbitCoordinates(object):
 
         # Make a first guess of the azimuth times:
         if len(az_times) == 0:
-            az_times = self.az_time * np.ones(xyz.shape[1])
+            az_times = np.mean(self.orbit.t) * np.ones(xyz.shape[1])
 
         solve_ids = np.arange(n).astype(np.int32)
 
@@ -437,6 +437,8 @@ class OrbitCoordinates(object):
         dist_diff = []
         ra_times = range_dist / self.sol * 2
 
+        if np.mean(az_times) - self.az_time > 43200:
+            az_times -= 86400
         lines = (az_times - self.az_time) / self.az_step
         pixels = (ra_times - self.ra_time) / self.ra_step
 

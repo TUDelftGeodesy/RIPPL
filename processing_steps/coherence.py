@@ -15,8 +15,8 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 class Coherence(Process):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', polarisation='',
-                 coordinates=[],
-                 slave=[], master=[], ifg=[], out_processing_image='slave', overwrite=False):
+                 out_coor=[],
+                 slave='slave', master='master', ifg='ifg', out_processing_image='ifg', overwrite=False):
 
         """
         In the template all options are still given. But for the final processing step it is possible to remove a part
@@ -36,7 +36,7 @@ class Coherence(Process):  # Change this name to the one of your processing step
                     the same process.
         :param str polarisation: Polarisation of processing outputs
 
-        :param CoordinateSystem coordinates: Coordinate system of the input grids.
+        :param CoordinateSystem out_coor: Coordinate system of the input grids.
 
         :param ImageProcessingData slave: Slave image, used as the default for input and output for processing.
         :param ImageProcessingData master: Master image, generally used when creating interferograms
@@ -66,8 +66,7 @@ class Coherence(Process):  # Change this name to the one of your processing step
 
         # Coordinate systems
         self.coordinate_systems = dict()
-        self.coordinate_systems['out_coor'] = coordinates
-        self.coordinate_systems['in_coor'] = coordinates
+        self.coordinate_systems['out_coor'] = out_coor
 
         # image data processing
         self.processing_images = dict()
@@ -81,6 +80,7 @@ class Coherence(Process):  # Change this name to the one of your processing step
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(Coherence, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,

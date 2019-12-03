@@ -152,6 +152,8 @@ class SentinelStack(SentinelDatabase, Stack):
 
                     b_t = datetime.datetime.strptime(slice_time, '%Y-%m-%dT%H:%M:%S.%f')
                     b_time = float(b_t.hour * 3600 + b_t.minute * 60 + b_t.second) + float(b_t.microsecond) / 1000000
+                    if interp_orbit.t[-1] > 86400:
+                        b_time += 86400
 
                     if master_start < b_t < master_end:
                         if self.master_shape.intersects(slice_coverage):

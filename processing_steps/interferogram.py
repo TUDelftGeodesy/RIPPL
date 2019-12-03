@@ -11,15 +11,15 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 class Interferogram(Process):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', polarisation='',
-                 coordinates=[],
-                 slave=[], master=[], coreg_master=[], ifg=[], overwrite=False):
+                 out_coor=[],
+                 slave='slave', master='master', coreg_master='coreg_master', ifg='ifg', overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
                     the same process.
         :param str polarisation: Polarisation of processing outputs
 
-        :param CoordinateSystem coordinates: Coordinate system of the input grids.
+        :param CoordinateSystem out_coor: Coordinate system of the input grids.
 
         :param ImageProcessingData slave: Slave image, used as the default for input and output for processing.
         :param ImageProcessingData master: Master image, generally used when creating interferograms
@@ -55,12 +55,13 @@ class Interferogram(Process):  # Change this name to the one of your processing 
         self.input_info['coor_types'] = ['out_coor', 'out_coor']
         self.input_info['in_coor_types'] = ['', '']
 
+
+
         self.input_info['type_names'] = ['slave', 'master']
 
         # Coordinate systems
         self.coordinate_systems = dict()
-        self.coordinate_systems['out_coor'] = coordinates
-        self.coordinate_systems['in_coor'] = coordinates
+        self.coordinate_systems['out_coor'] = out_coor
 
         # image data processing
         self.processing_images = dict()
@@ -75,6 +76,7 @@ class Interferogram(Process):  # Change this name to the one of your processing 
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(Interferogram, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,

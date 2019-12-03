@@ -14,7 +14,7 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
 
     def __init__(self, data_id='', polarisation='', resample_type='4p_cubic',
                  in_coor=[], out_coor=[],
-                 slave=[], overwrite=False):
+                 slave='slave', overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -23,9 +23,6 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
 
         :param CoordinateSystem in_coor: Coordinate system of the input grids.
         :param CoordinateSystem out_coor: Coordinate system of output grids, if not defined the same as in_coor
-        :param list[str] in_coor_types: The coordinate types of the input grids. Sometimes some of these grids are
-                different from the defined in_coor. Options are 'in_coor', 'out_coor' or anything else defined in the
-                coordinate system input.
 
         :param ImageProcessingData slave: Slave image, used as the default for input and output for processing.
         """
@@ -44,12 +41,12 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
         self.input_info = dict()
         self.input_info['image_types'] = ['slave', 'slave', 'slave']
         self.input_info['process_types'] = ['deramp', 'geometric_coregistration', 'geometric_coregistration']
-        self.input_info['file_types'] = ['deramped', 'lines', 'pixels']
+        self.input_info['file_types'] = ['deramped', 'coreg_lines', 'coreg_pixels']
         self.input_info['polarisations'] = [polarisation, '', '']
         self.input_info['data_ids'] = [data_id, data_id, data_id]
         self.input_info['coor_types'] = ['in_coor', 'out_coor', 'out_coor']
         self.input_info['in_coor_types'] = ['', '', '']
-        self.input_info['type_names'] = ['input_data', 'lines', 'pixels']
+        self.input_info['type_names'] = ['input_data', 'coreg_lines', 'coreg_pixels']
 
         # Coordinate systems
         self.coordinate_systems = dict()
@@ -67,6 +64,7 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(ResampleRadarGrid, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
@@ -75,12 +73,28 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
             overwrite=self.overwrite,
             settings=self.settings)
 
-        if self.process_finished:
-            return
+    def load_irregular_grids(self):
+        """
+        Load the coordinates the grid has to be resampled to.
+
+        :return:
+        """
 
         # Define the irregular grid for output. This is needed if you want to calculate in blocks.
-        self.out_irregular_grids = [self.in_images['lines'].disk['data'],
-                                   self.in_images['pixels'].disk['data']]
+        if len(self.in_images['coreg_lines'].disk['data']) > 0:
+            s_lin = self.block_coor.first_line - self.coordinate_systems['out_coor'].first_line
+            s_pix = self.block_coor.first_pixel - self.block_coor.first_pixel
+            e_lin = s_lin + self.block_coor.shape[0]
+            e_pix = s_pix + self.block_coor.shape[1]
+
+            self.out_irregular_grids = [self.in_images['coreg_lines'].disk['data'][s_lin:e_lin, s_pix:e_pix],
+                                        self.in_images['coreg_pixels'].disk['data'][s_lin:e_lin, s_pix:e_pix]]
+        elif len(self.in_images['coreg_lines'].memory['data']) > 0:
+            self.out_irregular_grids = [self.in_images['coreg_lines'].memory['data'],
+                                        self.in_images['coreg_pixels'].memory['data']]
+        else:
+            raise FileNotFoundError('Data for irregular grids not available.')
+        self.in_irregular_grids = [None]
 
     def process_calculations(self):
         """
@@ -91,11 +105,12 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
 
         # Init resampling
         resample = Resample(self.settings['resample_type'])
+        in_block_coor = self.coordinate_systems['in_block_coor']
 
         # Change line/pixel coordinates to right value
-        lines = (self['lines'] + (self.out_coor.first_line - self.in_coor.first_line) - self.block_coor.first_line) / \
+        lines = (self['coreg_lines'] - in_block_coor.first_line) / \
                                (self.block_coor.multilook[0] / self.block_coor.oversample[0])
-        pixels = (self['pixels'] + (self.out_coor.first_pixel - self.in_coor.first_pixel) - self.block_coor.first_pixel) / \
+        pixels = (self['coreg_pixels'] - in_block_coor.first_pixel) / \
                                (self.block_coor.multilook[1] / self.block_coor.oversample[1])
 
         self['resampled'] = resample(self['input_data'], lines, pixels)

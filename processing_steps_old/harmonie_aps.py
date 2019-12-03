@@ -54,8 +54,8 @@ class HarmonieAps(object):
         self.t_offset = t_offset
         self.s_lin = s_lin
         self.s_pix = s_pix
-        self.out_coor = coordinates
-        self.in_coor = in_coor
+        self.coordinate_systems['out_coor'] = coordinates
+        self.coordinate_systems['in_coor'] = in_coor
         shape = coordinates.shape
         if lines != 0:
             self.line = np.minimum(lines, shape[0] - s_lin)
@@ -68,11 +68,11 @@ class HarmonieAps(object):
         # Normally the in_coor grid can be of more or less the same resolution as the Harmonie data, which is 2 km.
         # For Sentinel-1 data this means a multilooking of about [50, 200]
         self.shape_in, self.coarse_lines, self.coarse_pixels = ResampleDem.find_coordinates(self.cmaster, 0, 0, 0, in_coor)
-        self.shape_out, self.lines, self.pixels = ResampleDem.find_coordinates(self.cmaster, self.s_lin, self.s_pix, self.line, self.out_coor)
+        self.shape_out, self.lines, self.pixels = ResampleDem.find_coordinates(self.cmaster, self.s_lin, self.s_pix, self.line, self.coordinate_systems['out_coor'])
 
         # Load data input grid
         self.lat, self.lon, self.height, self.azimuth_angle, self.elevation_angle, self.mask, self.out_height = \
-            self.load_aps_data(self.in_coor, self.out_coor, self.cmaster, self.shape_in, self.shape_out, self.s_lin, self.s_pix)
+            self.load_aps_data(self.coordinate_systems['in_coor'], self.coordinate_systems['out_coor'], self.cmaster, self.shape_in, self.shape_out, self.s_lin, self.s_pix)
         self.mask *= ~((self.lines == 0) * (self.pixels == 0))
 
         self.simulated_delay = np.zeros(self.shape_out)
@@ -111,16 +111,16 @@ class HarmonieAps(object):
             # new delay images on different time scales.
 
             # Save meta data
-            self.add_meta_data(self.slave, self.out_coor, self.split)
+            self.add_meta_data(self.slave, self.coordinate_systems['out_coor'], self.split)
 
             # Save the data itself
             self.slave.image_new_data_memory(self.simulated_delay.astype(np.float32), 'harmonie_aps', self.s_lin, self.s_pix,
-                                             'harmonie_aps' + self.out_coor.sample)
+                                             'harmonie_aps' + self.coordinate_systems['out_coor'].sample)
             if self.split:
                 self.slave.image_new_data_memory(self.hydrostatic_delay.astype(np.float32), 'harmonie_aps', self.s_lin, self.s_pix,
-                                                'harmonie_hydrostatic' + self.out_coor.sample)
+                                                'harmonie_hydrostatic' + self.coordinate_systems['out_coor'].sample)
                 self.slave.image_new_data_memory(self.wet_delay.astype(np.float32), 'harmonie_aps', self.s_lin, self.s_pix,
-                                                'harmonie_wet' + self.out_coor.sample)
+                                                'harmonie_wet' + self.coordinate_systems['out_coor'].sample)
 
             return True
 

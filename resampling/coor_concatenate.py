@@ -227,15 +227,15 @@ class CoorConcatenate():
             coor.first_pixel = int(np.round(coor.first_pixel + ra_diff * (coor.multilook[1] / coor.oversample[1])))
 
         elif coor.grid_type == 'geographic':
-            coor.first_line = coor.first_line + (orig_line - coor.lat0) / coor.dlat
-            coor.first_pixel = coor.first_pixel + (orig_pix - coor.lon0) / coor.dlon
+            coor.first_line = int(coor.first_line + (coor.lat0 - orig_line) / coor.dlat)
+            coor.first_pixel = int(coor.first_pixel + (coor.lon0 - orig_pix) / coor.dlon)
 
             coor.lat0 = orig_line
             coor.lon0 = orig_pix
 
         elif coor.grid_type == 'projection':
-            coor.first_line = coor.first_line + (orig_line - coor.y0) / coor.dy
-            coor.first_pixel = coor.first_pixel + (orig_pix - coor.x0) / coor.dx
+            coor.first_line = int(coor.first_line + (coor.y0 - orig_line) / coor.dy)
+            coor.first_pixel = int(coor.first_pixel + (coor.x0 - orig_pix) / coor.dx)
 
             coor.y0 = orig_line
             coor.x0 = orig_pix

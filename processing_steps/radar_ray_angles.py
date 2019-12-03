@@ -15,7 +15,7 @@ from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 class RadarRayAngles(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', coordinates=[], coreg_master=[], overwrite=False):
+    def __init__(self, data_id='', out_coor=[], coreg_master='coreg_master', overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -44,7 +44,7 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
         self.input_info['data_types'] = ['real4', 'real4', 'real4', 'real4']
         self.input_info['polarisations'] = ['', '', '', '']
         self.input_info['data_ids'] = [data_id, data_id, data_id, data_id]
-        self.input_info['coor_types'] = ['in_coor', 'in_coor', 'in_coor', 'in_coor']
+        self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor', 'out_coor']
         self.input_info['in_coor_types'] = ['', '', '', '']
         self.input_info['type_names'] = ['X', 'Y', 'Z', 'dem']
 
@@ -52,8 +52,7 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
 
         # Coordinate systems
         self.coordinate_systems = dict()
-        self.coordinate_systems['in_coor'] = coordinates
-        self.coordinate_systems['out_coor'] = coordinates
+        self.coordinate_systems['out_coor'] = out_coor
 
         # image data processing
         self.processing_images = dict()
@@ -62,6 +61,7 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(RadarRayAngles, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
@@ -99,5 +99,5 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
 
         self['off_nadir_angle'] = np.reshape(orbit_interp.off_nadir_angle, self.block_coor.shape)
         self['heading'] = np.reshape(orbit_interp.heading, self.block_coor.shape)
-        self['incidence_angle'] = np.reshape((0.5 * np.pi) - orbit_interp.elevation_angle, self.block_coor.shape)
+        self['incidence_angle'] = np.reshape(90 - orbit_interp.elevation_angle, self.block_coor.shape)
         self['azimuth_angle'] = np.reshape(orbit_interp.azimuth_angle, self.block_coor.shape)

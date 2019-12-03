@@ -15,7 +15,7 @@ from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 
 class Deramp(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', polarisation='', coordinates=[], slave=[], overwrite=False):
+    def __init__(self, data_id='', polarisation='', out_coor=[], slave='slave', overwrite=False):
         """
         This function deramps the ramped data from TOPS mode to a deramped data. Input data of this function should
         be a radar coordinates grid.
@@ -50,8 +50,7 @@ class Deramp(Process):  # Change this name to the one of your processing step.
 
         # Coordinate systems
         self.coordinate_systems = dict()
-        self.coordinate_systems['out_coor'] = coordinates
-        self.coordinate_systems['in_coor'] = coordinates
+        self.coordinate_systems['out_coor'] = out_coor
 
         # image data processing
         self.processing_images = dict()
@@ -63,6 +62,7 @@ class Deramp(Process):  # Change this name to the one of your processing step.
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(Deramp, self).__init__(
                        input_info=self.input_info,
                        output_info=self.output_info,
@@ -86,7 +86,7 @@ class Deramp(Process):  # Change this name to the one of your processing step.
         if not isinstance(processing_data, ImageProcessingData):
             print('Input data missing')
 
-        coordinates = self.in_coor
+        coordinates = self.coordinate_systems['in_block_coor']
         readfile = processing_data.readfiles['original']      
         orbit = processing_data.find_best_orbit('original')
 

@@ -15,8 +15,8 @@ from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 class InverseGeocode(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', coordinates=[], coor_ref=[], dem_type='SRTM1',
-                 in_processes=[], in_file_types=[], in_data_ids=[], coreg_master=[], overwrite=False):
+    def __init__(self, data_id='', out_coor=[], in_coor=[], dem_type='SRTM1',
+                 in_processes=[], in_file_types=[], in_data_ids=[], coreg_master='coreg_master', overwrite=False):
 
         """
         This function is used to find the line/pixel coordinates of the dem grid. These can later on be used to
@@ -25,9 +25,9 @@ class InverseGeocode(Process):  # Change this name to the one of your processing
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
                     the same process.
 
-        :param CoordinateSystem coordinates: Coordinate system of the input grids. If dem_type is given this parameter can
+        :param CoordinateSystem out_coor: Coordinate system of the input grids. If dem_type is given this parameter can
                 be left empty!
-        :param CoordinateSystem coor_ref: Coordinate system of the radar grid we should convert to
+        :param CoordinateSystem in_coor: Coordinate system of the radar grid we should convert to
         :param str dem_type: In the case we want to use an imported DEM a dem_type should be defined. At the moment
                 automatic generation of SRTM1 and SRTM3 are implemented, but also other DEMs can be imported manually.
 
@@ -59,33 +59,30 @@ class InverseGeocode(Process):  # Change this name to the one of your processing
         # Input data information
         if dem_type:
             self.input_info = dict()
-            self.input_info['image_types'] = ['coreg_master']
-            self.input_info['process_types'] = ['dem']
-            self.input_info['file_types'] = ['dem']
-            self.input_info['data_types'] = ['real4']
-            self.input_info['polarisations'] = ['']
-            self.input_info['data_ids'] = [data_id]
-            self.input_info['coor_types'] = ['out_coor']
-            self.input_info['in_coor_types'] = ['']
-            self.input_info['type_names'] = ['dem']
+            self.input_info['image_types'] = ['coreg_master', 'coreg_master']
+            self.input_info['process_types'] = ['dem', 'crop']
+            self.input_info['file_types'] = ['dem', 'crop']
+            self.input_info['polarisations'] = ['', '']
+            self.input_info['data_ids'] = [data_id, '']
+            self.input_info['coor_types'] = ['out_coor', 'in_coor']
+            self.input_info['in_coor_types'] = ['', '']
+            self.input_info['type_names'] = ['dem', 'in_coor_grid']
         else:
             self.input_info = dict()
-            self.input_info['image_types'] = ['coreg_master']
-            self.input_info['process_types'] = ['dem', 'geocode', 'geocode', 'geocode']
-            self.input_info['file_types'] = ['dem', 'X', 'Y', 'Z']
-            self.input_info['data_types'] = ['real4', 'real4', 'real4', 'real4']
-            self.input_info['polarisations'] = ['', '', '', '']
-            self.input_info['data_ids'] = [data_id, data_id, data_id, data_id]
-            self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor', 'out_coor']
-            self.input_info['in_coor_types'] = ['', '', '', '']
-            self.input_info['type_names'] = ['dem', 'X', 'Y', 'Z']
+            self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master', 'coreg_master', 'coreg_master']
+            self.input_info['process_types'] = ['dem', 'geocode', 'geocode', 'geocode', 'crop']
+            self.input_info['file_types'] = ['dem', 'X', 'Y', 'Z', 'crop']
+            self.input_info['polarisations'] = ['', '', '', '', '']
+            self.input_info['data_ids'] = [data_id, data_id, data_id, data_id, '']
+            self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor', 'out_coor', 'in_coor']
+            self.input_info['in_coor_types'] = ['', '', '', '', '']
+            self.input_info['type_names'] = ['dem', 'X', 'Y', 'Z', 'in_coor_grid']
 
         # Coordinate systems
         self.coordinate_systems = dict()
-        self.coordinate_systems['out_coor'] = coordinates
-        self.coordinate_systems['in_coor'] = coordinates
-        self.coor_ref = coor_ref
-
+        self.coordinate_systems['out_coor'] = out_coor
+        self.coordinate_systems['in_coor'] = in_coor
+        
         # image data processing
         self.processing_images = dict()
         self.processing_images['coreg_master'] = coreg_master
@@ -97,6 +94,7 @@ class InverseGeocode(Process):  # Change this name to the one of your processing
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(InverseGeocode, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
@@ -115,12 +113,14 @@ class InverseGeocode(Process):  # Change this name to the one of your processing
         processing_data = self.processing_images['coreg_master']
 
         # Evaluate the orbit and create orbit coordinates object.
-        orbit_interp = OrbitCoordinates(self.coor_ref)
-
+        in_coor = self.coordinate_systems['in_coor']
+        out_coor = self.coordinate_systems['out_coor']
+        orbit_interp = OrbitCoordinates(in_coor)
+        
         if self.dem_type:
-            if self.in_coor.grid_type == 'geographic':
+            if out_coor.grid_type == 'geographic':
                 lats, lons = self.block_coor.create_latlon_grid()
-            elif self.in_coor.grid_type == 'projection':
+            elif out_coor.grid_type == 'projection':
                 x, y = self.block_coor.create_xy_grid()
                 lats, lons = self.block_coor.proj2ell(x, y)
 
@@ -128,9 +128,9 @@ class InverseGeocode(Process):  # Change this name to the one of your processing
         else:
             xyz = np.vstack((np.ravel(self['X'])[None, :], np.ravel(self['Y'])[None, :], np.ravel(self['Z'])[None, :]))
 
-        self.ml_step = np.array(self.coor_ref.multilook) / np.array(self.coor_ref.oversample)
+        self.ml_step = np.array(in_coor.multilook) / np.array(in_coor.oversample)
 
         lines, pixels = orbit_interp.xyz2lp(xyz)
-        self['lines'] = np.reshape((lines - self.coor_ref.first_line) / self.ml_step[0], self.block_coor.shape)
-        self['pixels'] = np.reshape((pixels  - self.coor_ref.first_pixel) / self.ml_step[1], self.block_coor.shape)
+        self['lines'] = np.reshape(lines, self.block_coor.shape)
+        self['pixels'] = np.reshape(pixels, self.block_coor.shape)
         

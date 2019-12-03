@@ -7,7 +7,7 @@ datastack_disk = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/'
 database_folder = data_disk + 'radar_database/sentinel-1'
 shapefile = data_disk + 'GIS/shapes/Stereoid_cases/East_greenland_small.shp'
 orbit_folder = data_disk + 'orbits/sentinel-1'
-stack_folder = datastack_disk + 'radar_datastacks/RIPPL_v2.0/Sentinel_1/east_greenland_small'
+stack_folder = datastack_disk + 'radar_datastacks/RIPPL_v2.0/Sentinel_1/east_greenland'
 dem_folder = data_disk + 'DEM/Tandem_X'
 
 # Track and data type of Sentinel data

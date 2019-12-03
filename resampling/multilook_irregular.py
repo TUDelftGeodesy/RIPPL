@@ -34,7 +34,9 @@ class MultilookIrregular(object):
             self.output_ids = output_ids
 
         self.multilooked = []
-    
+        self.looks = []
+
+
     def create_conversion_grid(self, lines=[], pixels=[]):
         # type: (MultilookIrregular) -> None
         # Create the conversion factors using sort_ids, sum_ids, output_ids
@@ -52,12 +54,14 @@ class MultilookIrregular(object):
         # type: (MultilookIrregular, np.ndarray) -> None
         # Do the actual multilooking.
 
-        # Preassign data.
+        # Pre-assign data.
         self.multilooked = np.zeros(shape=self.out_coor.shape).astype(data.dtype)
+        self.looks = np.zeros(shape=self.out_coor.shape).astype(np.int32)
 
         # Add to output grids.
         self.multilooked[np.unravel_index(self.output_ids, self.multilooked.shape)] = \
             np.add.reduceat(np.ravel(data)[np.ravel(self.sort_ids)], np.ravel(self.sum_ids))
+        self.looks[np.unravel_index(self.output_ids, self.multilooked.shape)] = np.diff(np.concatenate((np.ravel(self.sum_ids), np.array([len(self.sort_ids)]))))
 
     @staticmethod
     def conversion_grid(lines, pixels, shape):

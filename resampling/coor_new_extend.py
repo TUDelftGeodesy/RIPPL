@@ -184,7 +184,7 @@ class CoorNewExtend(object):
         # Based on the minimum find the first/line pixel and determine the shape.
         # If the first/pixel line is less than 0 the origin is shifted.
         first_pixel = np.int(np.floor((min_x - x_orig) / dx))
-        shape[1] = int(np.round((max_x - x_orig) / dx) - first_pixel + 1)        # Both begin and end point are included.
+        shape[1] = int(np.round((max_x - x_orig) / dx) - first_pixel + 1)      # Both begin and end point are included.
         if first_pixel < 0:
             x_orig -= np.abs(first_pixel) * dx
             first_pixel = 0

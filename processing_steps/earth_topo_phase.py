@@ -14,7 +14,7 @@ from rippl.processing_steps.deramp import Deramp
 
 class EarthTopoPhase(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', polarisation='', coordinates=[], in_image_types=[], slave=[], overwrite=False):
+    def __init__(self, data_id='', polarisation='', out_coor=[], in_image_types=[], slave='slave', overwrite=False):
         """
         This function deramps the ramped data from TOPS mode to a deramped data. Input data of this function should
         be a radar coordinates grid.
@@ -23,7 +23,7 @@ class EarthTopoPhase(Process):  # Change this name to the one of your processing
                     the same process.
         :param str polarisation: Polarisation of processing outputs
 
-        :param CoordinateSystem coordinates: Coordinate system of the input grids.
+        :param CoordinateSystem out_coor: Coordinate system of the input grids.
 
         :param list[str] in_image_types: The type of the input ImageProcessingData objects (e.g. slave/master/ifg etc.)
 
@@ -38,23 +38,22 @@ class EarthTopoPhase(Process):  # Change this name to the one of your processing
         self.output_info['data_id'] = data_id
         self.output_info['coor_type'] = 'out_coor'
         self.output_info['file_types'] = ['earth_topo_phase_corrected']
-        self.output_info['data_types'] = ['complex_real4']
+        self.output_info['data_types'] = ['complex_short']
 
         # Input data information
         self.input_info = dict()
         self.input_info['image_types'] = ['slave', 'slave']
         self.input_info['process_types'] = ['reramp', 'geometric_coregistration']
-        self.input_info['file_types'] = ['reramped', 'pixels']
+        self.input_info['file_types'] = ['reramped', 'coreg_pixels']
         self.input_info['polarisations'] = [polarisation, '']
         self.input_info['data_ids'] = [data_id, '']
-        self.input_info['coor_types'] = ['in_coor', 'in_coor']
+        self.input_info['coor_types'] = ['out_coor', 'out_coor']
         self.input_info['in_coor_types'] = ['', '']
         self.input_info['type_names'] = ['input_data', 'pixels']
 
         # Coordinate systems
         self.coordinate_systems = dict()
-        self.coordinate_systems['out_coor'] = coordinates
-        self.coordinate_systems['in_coor'] = coordinates
+        self.coordinate_systems['out_coor'] = out_coor
 
         # image data processing
         self.processing_images = dict()
@@ -66,6 +65,7 @@ class EarthTopoPhase(Process):  # Change this name to the one of your processing
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(EarthTopoPhase, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
@@ -92,10 +92,10 @@ class EarthTopoPhase(Process):  # Change this name to the one of your processing
         in_coor = self.in_images['pixels'].in_coordinates
 
         # Calculate azimuth/range grid and ramp.
-        ra_in = np.tile(((np.arange(self.out_coor.shape[1]) + in_coor.first_pixel) * in_coor.ra_step + in_coor.ra_time)
-                        [None, :], (self.out_coor.shape[0], 1))
+        ra_in = np.tile(((np.arange(self.coordinate_systems['block_coor'].shape[1]) + in_coor.first_pixel) * in_coor.ra_step + in_coor.ra_time)
+                        [None, :], (self.coordinate_systems['block_coor'].shape[0], 1))
 
-        ra_shift = (self['pixels']  * self.out_coor.ra_step) + self.out_coor.ra_time - ra_in
+        ra_shift = (self['pixels']  * self.coordinate_systems['block_coor'].ra_step) + self.coordinate_systems['block_coor'].ra_time - ra_in
         c = 299792458
         ramp = np.exp(-1j * (ra_shift * c / readfile.wavelength) * 2 * np.pi).astype(np.complex64)
 

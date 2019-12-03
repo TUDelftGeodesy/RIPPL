@@ -218,7 +218,7 @@ class ImageConcatData(object):
         self.data = concat_image
 
     def create_concatenate_image(self, process, file_type, coor, data_id='', polarisation='', overwrite=False,
-                                 output_type='disk', transition_type='full_weight', cut_off=10):
+                                 output_type='disk', transition_type='full_weight', replace=False, cut_off=10):
         """
         This method is used to concatenate slices. Be sure that before this step is run the meta data is first created
         using the create_concatenate_meta_data function.
@@ -252,4 +252,5 @@ class ImageConcatData(object):
         succes = concatenate.create_image()
         # Do the actual concatenation
         if succes:
-            concatenate.concatenate(transition_type=transition_type, cut_off=cut_off)
+            concatenate.concatenate(transition_type=transition_type, cut_off=cut_off, replace=replace)
+

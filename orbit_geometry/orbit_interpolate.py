@@ -117,6 +117,9 @@ class OrbitInterpolate(ImageProcessingData):
 
         orbit_xyz = np.zeros(shape=(len(az_times), 6))
 
+        if np.max(self.t) > 86400:
+            az_times += 86400
+
         deg = self.orbit_fit.shape[1]
         par = self.orbit_fit.shape[0]
 
@@ -197,6 +200,10 @@ class OrbitInterpolate(ImageProcessingData):
             return
 
         deg = self.orbit_spline.shape[1]
+
+        # In case we have a date barrier in the orbits.
+        if np.max(self.t) > 86400 and np.max(az_times) < 43200:
+            az_times += 86400
 
         if isinstance(az_times, list):
             az_times = np.array(az_times)

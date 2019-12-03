@@ -18,7 +18,7 @@ class ProcessTemplate(Process):     # Change this name to the one of your proces
     def __init__(self, data_id='', polarisation='',
                  in_coor=[], out_coor=[], coordinate_systems=dict(),
                  in_image_types=[], in_coor_types=[], in_processes=[], in_file_types=[], in_polarisations=[], in_data_ids=[],
-                 slave=[], master=[], coreg_master=[], ifg=[], processing_images=dict(), out_processing_image='slave',
+                 slave='slave', master='master', coreg_master='coreg_master', ifg='ifg', processing_images=dict(), out_processing_image='slave',
                  overwrite=False):
 
         """

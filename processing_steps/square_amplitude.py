@@ -14,16 +14,16 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 class SquareAmplitude(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', polarisation='', coordinates=[], master_image=False, slave=[], overwrite=False):
+    def __init__(self, data_id='', polarisation='', out_coor='', master_image=False, slave='slave', overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
                     the same process.
         :param str polarisation: Polarisation of processing outputs
 
-        :param CoordinateSystem coordinates: Coordinate system of the input grids.
+        :param CoordinateSystem out_coor: Coordinate system of the input grids.
 
-        :param ImageProcessingData slave: Slave image, used as the default for input and output for processing.
+        :param ImageProcessingData or str slave: Slave image, used as the default for input and output for processing.
         """
 
         # Output data information
@@ -54,8 +54,7 @@ class SquareAmplitude(Process):  # Change this name to the one of your processin
 
         # Coordinate systems
         self.coordinate_systems = dict()
-        self.coordinate_systems['out_coor'] = coordinates
-        self.coordinate_systems['in_coor'] = coordinates
+        self.coordinate_systems['out_coor'] = out_coor
 
         # image data processing
         self.processing_images = dict()
@@ -67,6 +66,7 @@ class SquareAmplitude(Process):  # Change this name to the one of your processin
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(SquareAmplitude, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,

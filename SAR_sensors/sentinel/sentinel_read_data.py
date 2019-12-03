@@ -57,7 +57,7 @@ def write_sentinel_burst(input):
 
     if os.path.exists(slice_json):
         # In the case the processing already exists but for a different polarisation.
-        new_slice = ImageProcessingData(json_path=slice_json)
+        new_slice = ImageProcessingData(os.path.dirname(slice_json))
         new_slice.readfiles['original'].json_dict['Polarisation'] += (',' + pol)
         new_slice.add_process(slice.processes['crop'][crop_key])
     else:

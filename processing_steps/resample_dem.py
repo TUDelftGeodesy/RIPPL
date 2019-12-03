@@ -12,9 +12,7 @@ from rippl.resampling.resample_irregular2regular import Irregular2Regular
 
 class ResampleDem(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', in_coor=[], out_coor=[], resample_type='delaunay',
-                 in_coor_types=[], in_processes=[], in_file_types=[], in_data_ids=[],
-                 coreg_master=[], overwrite=False):
+    def __init__(self, data_id='', in_coor=[], out_coor=[], resample_type='delaunay', coreg_master='coreg_master', overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -22,16 +20,8 @@ class ResampleDem(Process):  # Change this name to the one of your processing st
 
         :param CoordinateSystem in_coor: Coordinate system of the input grids.
         :param CoordinateSystem out_coor: Coordinate system of output grids, if not defined the same as in_coor
-        :param list[str] in_coor_types: The coordinate types of the input grids. Sometimes some of these grids are
-                different from the defined in_coor. Options are 'in_coor', 'out_coor' or anything else defined in the
-                coordinate system input.
 
-        :param list[str] in_processes: Which process outputs are we using as an input
-        :param list[str] in_file_types: What are the exact outputs we use from these processes
-        :param list[str] in_data_ids: If processes are used multiple times in different parts of the processing they can be
-                distinguished using an data_id. If this is the case give the correct data_id. Leave empty if not relevant
-
-        :param ImageProcessingData coreg_master: Image used to coregister the slave image for resampline etc.
+        :param ImageProcessingData coreg_master: Image used to coregister the slave image for resampling etc.
         """
 
         """
@@ -54,16 +44,15 @@ class ResampleDem(Process):  # Change this name to the one of your processing st
         # Input data information
         if resample_type == 'delaunay':
             self.input_info = dict()
-            self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master']
-            self.input_info['process_types'] = ['dem', 'inverse_geocode', 'inverse_geocode']
-            self.input_info['file_types'] = ['dem', 'lines', 'pixels']
-            self.input_info['data_types'] = ['real4', 'real4', 'real4']
-            self.input_info['polarisations'] = ['', '', '']
-            self.input_info['data_ids'] = [data_id, data_id, data_id]
-            self.input_info['coor_types'] = ['in_coor', 'in_coor', 'in_coor']
-            self.input_info['in_coor_types'] = ['', '', '']
-            self.input_info['type_names'] = ['input_dem', 'lines', 'pixels']
-        else:
+            self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master', 'coreg_master']
+            self.input_info['process_types'] = ['dem', 'inverse_geocode', 'inverse_geocode', 'crop']
+            self.input_info['file_types'] = ['dem', 'lines', 'pixels', 'crop']
+            self.input_info['polarisations'] = ['', '', '', '']
+            self.input_info['data_ids'] = [data_id, data_id, data_id, '']
+            self.input_info['coor_types'] = ['in_coor', 'in_coor', 'in_coor', 'out_coor']
+            self.input_info['in_coor_types'] = ['', '', '', '']
+            self.input_info['type_names'] = ['input_dem', 'lines', 'pixels', 'out_coor_grid']
+        elif in_coor.grid_type == 'radar_coordinates' or out_coor.grid_type == 'radar_coordinates':
             self.input_info = dict()
             self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master']
             self.input_info['process_types'] = ['dem', 'reproject', 'reproject']
@@ -74,6 +63,16 @@ class ResampleDem(Process):  # Change this name to the one of your processing st
             self.input_info['coor_types'] = ['in_coor', 'out_coor', 'out_coor']
             self.input_info['in_coor_types'] = ['', 'in_coor', 'in_coor']
             self.input_info['type_names'] = ['input_dem', 'lines', 'pixels']
+        else:
+            self.input_info = dict()
+            self.input_info['image_types'] = ['coreg_master', 'coreg_master']
+            self.input_info['process_types'] = ['dem', 'crop']
+            self.input_info['file_types'] = ['dem', 'crop']
+            self.input_info['polarisations'] = ['', '']
+            self.input_info['data_ids'] = [data_id, '']
+            self.input_info['coor_types'] = ['in_coor', 'out_coor']
+            self.input_info['in_coor_types'] = ['', '']
+            self.input_info['type_names'] = ['input_dem', 'out_coor_grid']
 
         # Coordinate systems
         self.coordinate_systems = dict()
@@ -90,6 +89,7 @@ class ResampleDem(Process):  # Change this name to the one of your processing st
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(ResampleDem, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
@@ -98,12 +98,16 @@ class ResampleDem(Process):  # Change this name to the one of your processing st
             overwrite=self.overwrite,
             settings=self.settings)
 
-        if self.process_finished:
-            return
+    def load_irregular_grids(self):
 
         # Define the irregular grid for input. This is needed if you want to calculate in blocks.
-        self.in_irregular_grids = [self.in_images['lines'].disk['data'],
-                                   self.in_images['pixels'].disk['data']]
+        if len(self.in_images['lines'].disk['data']) > 0:
+            self.in_irregular_grids = [self.in_images['lines'].disk['data'],
+                                       self.in_images['pixels'].disk['data']]
+        else:
+            raise FileNotFoundError('Data for input irregular grid not found on disk. First do the prepare resample '
+                                    'or inverse geocode step.')
+        self.out_irregular_grids = [None]
 
     def process_calculations(self):
         """
@@ -112,12 +116,14 @@ class ResampleDem(Process):  # Change this name to the one of your processing st
         :return:
         """
 
-        if self.out_coor.grid_type == 'radar_coordinates':
-            resample = Irregular2Regular(self['lines'], self['pixels'], self['input_dem'], coordinates=self.block_coor)
+        block_coor = self.coordinate_systems['block_coor']
+
+        if self.coordinate_systems['out_coor'].grid_type == 'radar_coordinates':
+            resample = Irregular2Regular(self['lines'], self['pixels'], self['input_dem'], coordinates=block_coor)
             self['dem'] = resample()
         else:
-            x_coor = np.arange(self.block_coor.shape[1]) - (self.block_coor.first_pixel - self.out_coor.first_pixel)
-            y_coor = np.arange(self.block_coor.shape[0]) - (self.block_coor.first_line - self.out_coor.first_line)
+            x_coor = np.arange(block_coor.shape[1]) + block_coor.first_pixel
+            y_coor = np.arange(block_coor.shape[0]) + block_coor.first_line
 
             bilinear_interp = RectBivariateSpline(x_coor, y_coor, self['input_dem'])
             self['dem'] = bilinear_interp.ev(self['pixels'], self['lines'])

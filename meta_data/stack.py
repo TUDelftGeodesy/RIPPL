@@ -18,6 +18,7 @@ import numpy as np
 from rippl.meta_data.slc import SLC
 from rippl.meta_data.interferogram import Interferogram
 from rippl.external_dems.srtm.srtm_download import SrtmDownload
+from rippl.external_dems.tandem_x.tandem_x_download import TandemXDownload
 from rippl.meta_data.interferogram_network import InterferogramNetwork
 
 
@@ -113,13 +114,14 @@ class Stack(object):
         # Load individual images.
         for image_dir in image_dirs:
             if image_dir not in self.slc_dates:
-                self.slcs[os.path.basename(image_dir)] = SLC(image_dir, slice_list=self.master_slice_names)
+                image_key = os.path.basename(image_dir)
+                self.slcs[image_key] = SLC(image_dir, slice_list=self.master_slice_names)
+                self.slcs[image_key].load_full_meta()
+                self.slcs[image_key].load_slice_meta()
                 self.slc_dates.append(os.path.basename(image_dir))
 
         # Load master date information.
         cmaster_image = self.slcs[self.master_date]
-        cmaster_image.load_full_meta()
-        cmaster_image.load_slice_meta()
 
         # Load ifgs
         for ifg_dir in ifg_dirs:
@@ -140,6 +142,23 @@ class Stack(object):
 
         # combine the ifg and image dates
         self.dates = sorted(set(self.ifg_dates) - set(self.slc_dates))
+
+    def reload_stack(self):
+        """
+        Reload the metadata for the full stack
+
+        :return:
+        """
+
+        for slc_key in self.slcs.keys():
+            slc = self.slcs[slc_key]            # type: SLC
+            slc.load_full_meta()
+            slc.load_slice_meta()
+
+        for ifg_key in self.ifgs.keys():
+            ifg = self.ifgs[ifg_key]            # type: Interferogram
+            ifg.load_full_meta()
+            ifg.load_slice_meta()
 
     def create_interferogram_network(self, image_baselines=[], network_type='temp_baseline',
                                      temporal_baseline=60, temporal_no=3, spatial_baseline=2000):
@@ -218,7 +237,7 @@ class Stack(object):
 
             for date in ifg_dates:
                 slice_names_ifg, processes_ifg, process_ids_ifg, coordinates_ifg, in_coordinates_ifg, file_types_ifg, images_ifg \
-                    = self.ifgs[date].concat_image_data_iterator(processes, coordinates, data_ids, polarisations,
+                    = self.ifgs[date].concat_image_data_iterator(processes, coordinates, in_coordinates, data_ids, polarisations,
                                                                  process_types, full_image, slices, data)
                 process_ids_out += process_ids_ifg
                 file_types_out += file_types_ifg
@@ -233,16 +252,47 @@ class Stack(object):
                in_coordinates_out, file_types_out, images_out
 
     def download_SRTM_dem(self, srtm_folder, username, password, buffer=0.5, rounding=0.5, srtm_type='SRTM3', parallel=True):
-        # Downloads the needed srtm data for this datastack. srtm_folder is the folder the downloaded srtm tiles are
-        # stored.
-        # Username and password can be obtained at https://lpdaac.usgs.gov
-        # Documentation: https://lpdaac.usgs.gov/sites/default/files/public/measures/docs/NASA_SRTM_V3.pdf
+        """
+        Downloads the needed srtm data for this datastack. srtm_folder is the folder the downloaded srtm tiles are
+        stored.
+        Username and password can be obtained at https://lpdaac.usgs.gov
+        Documentation: https://lpdaac.usgs.gov/sites/default/files/public/measures/docs/NASA_SRTM_V3.pdf
 
-        # Description srtm data: https://lpdaac.usgs.gov/dataset_discovery/measures/measures_products_table/SRTMGL1_v003
-        # Description srtm q data: https://lpdaac.usgs.gov/node/505
+        Description srtm data: https://lpdaac.usgs.gov/dataset_discovery/measures/measures_products_table/SRTMGL1_v003
+        Description srtm q data: https://lpdaac.usgs.gov/node/505
+
+        :param srtm_folder:
+        :param username:
+        :param password:
+        :param buffer:
+        :param rounding:
+        :param srtm_type:
+        :param parallel:
+        :return:
+        """
 
         download = SrtmDownload(srtm_folder, username, password, srtm_type)
         download(self.slcs[self.master_date].data.meta, buffer=buffer, rounding=rounding, parallel=parallel)
+
+    def download_Tandem_X_dem(self, tandem_x_folder, username, password, buffer=0.5, rounding=0.5, lon_resolution=3,
+                              parallel=True, n_processes=1):
+        """
+        Downloads the needed tandem_x data for this datastack. srtm_folder is the folder the downloaded srtm tiles are
+        stored. Details on the product and login can be found under: https://geoservice.dlr.de/web/dataguide/tdm90/
+
+        :param tandem_x_folder:
+        :param username:
+        :param password:
+        :param buffer:
+        :param rounding:
+        :param lon_resolution:
+        :param parallel:
+        :param n_processes:
+        :return:
+        """
+
+        download = TandemXDownload(tandem_x_folder, username, password, lon_resolution=lon_resolution, n_processes=n_processes)
+        download(self.slcs[self.master_date].data.meta, buffer=buffer, rounding=rounding)
 
     def download_ECMWF_data(self, dat_type, ecmwf_data_folder, latlim='', lonlim= '', processes=6, parallel=True):
         # Download ECMWF data for whole dataset at once. This makes this process much faster.

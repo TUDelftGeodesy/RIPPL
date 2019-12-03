@@ -15,15 +15,15 @@ from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 
 class Baseline(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', coordinates=[],
+    def __init__(self, data_id='', out_coor=[],
                  in_processes=[], in_file_types=[], in_data_ids=[],
-                 slave=[], coreg_master=[], overwrite=False):
+                 slave='slave', coreg_master='coreg_master', overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
                     the same process.
 
-        :param CoordinateSystem coordinates: Coordinate system of the input grids.
+        :param CoordinateSystem out_coor: Coordinate system of the input grids.
 
         :param list[str] in_processes: Which process outputs are we using as an input
         :param list[str] in_file_types: What are the exact outputs we use from these processes
@@ -48,7 +48,7 @@ class Baseline(Process):  # Change this name to the one of your processing step.
         self.input_info = dict()
         self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master', 'slave']
         self.input_info['process_types'] = ['geocode', 'geocode', 'geocode', 'geometric_coregistration']
-        self.input_info['file_types'] = ['X', 'Y', 'Z', 'lines']
+        self.input_info['file_types'] = ['X', 'Y', 'Z', 'coreg_lines']
         self.input_info['polarisations'] = ['', '', '', '']
         self.input_info['data_ids'] = [data_id, data_id, data_id, data_id]
         self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor', 'out_coor']
@@ -57,8 +57,7 @@ class Baseline(Process):  # Change this name to the one of your processing step.
 
         # Coordinate systems
         self.coordinate_systems = dict()
-        self.coordinate_systems['out_coor'] = coordinates
-        self.coordinate_systems['in_coor'] = coordinates
+        self.coordinate_systems['out_coor'] = out_coor
 
         # image data processing
         self.processing_images = dict()
@@ -71,6 +70,7 @@ class Baseline(Process):  # Change this name to the one of your processing step.
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(Baseline, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,

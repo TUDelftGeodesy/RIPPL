@@ -15,12 +15,12 @@ from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 class Geocode(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', coordinates=[], coreg_master=[], overwrite=False):
+    def __init__(self, data_id='', out_coor=[], coreg_master='coreg_master', overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
                     the same process.
-        :param CoordinateSystem coordinates: Coordinate system of the input grids.
+        :param CoordinateSystem out_coor: Coordinate system of the input grids.
         :param ImageProcessingData coreg_master: Image used to coregister the slave image for resampline etc.
         """
 
@@ -50,8 +50,7 @@ class Geocode(Process):  # Change this name to the one of your processing step.
 
         # Coordinate systems
         self.coordinate_systems = dict()
-        self.coordinate_systems['in_coor'] = coordinates
-        self.coordinate_systems['out_coor'] = coordinates
+        self.coordinate_systems['out_coor'] = out_coor
 
         # image data processing
         self.processing_images = dict()
@@ -60,6 +59,7 @@ class Geocode(Process):  # Change this name to the one of your processing step.
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(Geocode, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
@@ -76,7 +76,7 @@ class Geocode(Process):  # Change this name to the one of your processing step.
         :return:
         """
 
-        if self.out_coor.grid_type == 'radar_coordinates':
+        if self.coordinate_systems['out_coor'].grid_type == 'radar_coordinates':
             # Get orbit
             orbit = self.processing_images['coreg_master'].find_best_orbit('original')
             self.block_coor.create_radar_lines()
@@ -99,14 +99,14 @@ class Geocode(Process):  # Change this name to the one of your processing step.
 
         else:
 
-            if self.out_coor.grid_type == 'projection':
+            if self.coordinate_systems['out_coor'].grid_type == 'projection':
 
                 X, Y = self.block_coor.create_xy_grid()
                 lat, lon = self.block_coor.proj2ell(np.ravel(X), np.ravel(Y))
 
                 self['lat'] = np.reshape(lat, self.block_coor.shape)
                 self['lon'] = np.reshape(lon, self.block_coor.shape)
-            elif self.out_coor.grid_type == 'geographic':
+            elif self.coordinate_systems['out_coor'].grid_type == 'geographic':
 
                 self['lat'], self['lon'] = self.block_coor.create_latlon_grid()
 

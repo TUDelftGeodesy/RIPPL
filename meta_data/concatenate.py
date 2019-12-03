@@ -1,4 +1,5 @@
 import numpy as np
+import copy
 
 from rippl.meta_data.image_processing_concatenate import ImageConcatData
 from rippl.meta_data.image_processing_data import ImageProcessingMeta, ImageProcessingData
@@ -148,7 +149,7 @@ class Concatenate():
 
         return True
 
-    def concatenate(self, transition_type='full_weight', cut_off=10):
+    def concatenate(self, transition_type='full_weight', replace=True, cut_off=10):
         """
         Here the actual concatenation is done.
 
@@ -174,6 +175,10 @@ class Concatenate():
             pix_size = coordinates.shape[1]
 
             if tuple(image.memory['meta']['shape']) == tuple(image.shape):
+                if replace:
+                    # Set data that is going to be filled to zero.
+                    self.concat_data.memory['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] = 0
+
                 if self.output_type == 'memory':
                     self.concat_data.memory['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] += \
                         image.memory['data'] * line_weight[:, None] * pixel_weight[None, :]
@@ -181,14 +186,18 @@ class Concatenate():
                     self.concat_data.memory['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] += \
                         image.memory2disk(image.memory['data'] * line_weight[:, None] * pixel_weight[None, :], image.dtype)
             elif image.load_disk_data():
+                if replace:
+                    # Set data that is going to be filled to zero.
+                    self.concat_data.disk['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] = 0
+
                 if self.output_type == 'memory':
-                    self.concat_data.disk['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] += \
+                    self.concat_data.memory['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] += \
                         image.disk2memory(image.disk['data'], image.dtype)  * line_weight[:, None] * pixel_weight[None, :]
                 else:
                     if image.dtype in ['complex_short', 'complex_int']:
-                        self.concat_data.disk['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] += \
-                            image.memory2disk(image.disk2memory(image.disk['data'], image.dtype) *
-                                          line_weight[:, None] * pixel_weight[None, :], image.dtype)
+                        self.concat_data.disk['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] = \
+                            image.memory2disk((image.disk2memory(image.disk['data'], image.dtype) * line_weight[:, None] * pixel_weight[None, :]).astype(np.complex64) +
+                                              image.disk2memory(copy.copy(self.concat_data.disk['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size]), image.dtype).astype(np.complex64), image.dtype)
                     else:
                         self.concat_data.disk['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] += \
                             image.disk['data'] * line_weight[:, None] * pixel_weight[None, :]

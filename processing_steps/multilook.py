@@ -4,6 +4,7 @@
 
 # Try to do all calculations using numpy functions.
 import numpy as np
+import copy
 
 # Import the parent class Process for processing steps.
 from rippl.meta_data.process import Process
@@ -18,11 +19,9 @@ from rippl.resampling.coor_new_extend import CoorNewExtend
 
 class Multilook(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self,
-                 in_coor=[], out_coor=[],
-                 in_image_type='', in_process='', in_file_type='', in_polarisation='', in_data_type='',
-                 in_data_id='',
-                 slave=[], coreg_master=[], overwrite=False):
+    def __init__(self, in_coor=[], out_coor=[],
+                 in_image_type='', in_process='', in_file_type='', in_polarisation='', in_data_id='', in_data_type='real4',
+                 slave='slave', coreg_master='coreg_master', overwrite=False, batch_size=1000000):
 
         """
         :param CoordinateSystem in_coor: Coordinate system of the input grids.
@@ -43,9 +42,6 @@ class Multilook(Process):  # Change this name to the one of your processing step
         # Check whether we need to do regular or irregular multilooking
         self.regular = MultilookRegular.check_same_coordinate_system(in_coor, out_coor)
         # If the grid size of the output grid are not defined yet, they are calculated here.
-        if not out_coor.shape:
-            new_coor = CoorNewExtend(in_coor, out_coor)
-            out_coor = new_coor.out_coor
 
         self.output_info = dict()
         if not in_image_type:
@@ -59,32 +55,39 @@ class Multilook(Process):  # Change this name to the one of your processing step
         self.output_info['polarisation'] = in_polarisation
         self.output_info['data_id'] = in_data_id
         self.output_info['coor_type'] = 'out_coor'
-        self.output_info['file_types'] = [in_file_type]
-        if not in_data_type:
-            self.output_info['data_types'] = ['real4']
-        else:
-            self.output_info['data_types'] = [in_data_type]
+        if isinstance(in_file_type, str):
+            self.output_info['file_types'] = [in_file_type]
+            num_types = 1
+        elif isinstance(in_file_type, list):
+            self.output_info['file_types'] = in_file_type
+            num_types = len(in_file_type)
+        if isinstance(in_data_type, str):
+            self.output_info['data_types'] = [in_data_type for n in range(num_types)]
+        elif isinstance(in_data_type, list):
+            self.output_info['data_types'] = in_data_type
+
+        self.file_types = self.output_info['file_types']
 
         # Input data information
         self.input_info = dict()
-        if self.regular:
-            self.input_info['image_types'] = self.output_info['image_type']
-            self.input_info['process_types'] = [in_process]
-            self.input_info['file_types'] = [in_file_type]
-            self.input_info['polarisations'] = [in_polarisation]
-            self.input_info['data_ids'] = [in_data_id]
-            self.input_info['coor_types'] = ['in_coor']
-            self.input_info['in_coor_types'] = ['']
-            self.input_info['type_names'] = ['input_data']
-        else:
-            self.input_info['image_types'] = [self.output_info['image_type'], 'coreg_master', 'coreg_master']
-            self.input_info['process_types'] = [in_process, 'reproject', 'reproject']
-            self.input_info['file_types'] = [in_file_type, 'in_coor_lines', 'in_coor_pixels']
-            self.input_info['polarisations'] = [in_polarisation, '', '']
-            self.input_info['data_ids'] = [in_data_id, '', '']
-            self.input_info['coor_types'] = ['in_coor', 'in_coor', 'in_coor']
-            self.input_info['in_coor_types'] = ['', 'out_coor', 'out_coor']
-            self.input_info['type_names'] = ['input_data', 'lines', 'pixels']
+        self.input_info['image_types'] = [self.output_info['image_type'] for n in range(num_types)]
+        self.input_info['process_types'] = [in_process for n in range(num_types)]
+        self.input_info['file_types'] = copy.copy(self.output_info['file_types'])
+        self.input_info['polarisations'] = [in_polarisation for n in range(num_types)]
+        self.input_info['data_ids'] = [in_data_id for n in range(num_types)]
+        self.input_info['coor_types'] = ['in_coor' for n in range(num_types)]
+        self.input_info['in_coor_types'] = ['' for n in range(num_types)]
+        self.input_info['type_names'] = [file_type + '_input_data' for file_type in self.output_info['file_types']]
+
+        if not self.regular:
+            self.input_info['image_types'].extend(['coreg_master', 'coreg_master'])
+            self.input_info['process_types'].extend(['reproject', 'reproject'])
+            self.input_info['file_types'].extend(['in_coor_lines', 'in_coor_pixels'])
+            self.input_info['polarisations'].extend(['', ''])
+            self.input_info['data_ids'].extend(['', ''])
+            self.input_info['coor_types'].extend(['in_coor', 'in_coor'])
+            self.input_info['in_coor_types'].extend(['out_coor', 'out_coor'])
+            self.input_info['type_names'].extend(['lines', 'pixels'])
 
         self.overwrite = overwrite
 
@@ -97,10 +100,12 @@ class Multilook(Process):  # Change this name to the one of your processing step
         self.processing_images = dict()
         self.processing_images['coreg_master'] = coreg_master
         self.processing_images['slave'] = slave
+        self.batch_size = batch_size
         self.settings = dict()
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(Multilook, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
@@ -109,10 +114,9 @@ class Multilook(Process):  # Change this name to the one of your processing step
             overwrite=self.overwrite,
             settings=self.settings)
 
-        # Define the irregular grid for output. This is needed if you want to calculate in blocks.
-        if not self.regular and not self.process_finished:
-            self.in_irregular_grids = [self.in_images['lines'].disk['data'],
-                                       self.in_images['pixels'].disk['data']]
+    def __call__(self):
+
+        super(Multilook, self).__call__(memory_in=False)
 
     def process_calculations(self):
         """
@@ -126,14 +130,46 @@ class Multilook(Process):  # Change this name to the one of your processing step
         :return:
         """
 
-        self.out_coor.create_radar_lines()
-        self.in_coor.create_radar_lines()
+        for file_type in self.file_types:
+            shape = self.in_images[file_type + '_input_data'].coordinates.shape
+            no_lines = int(np.ceil(self.batch_size / shape[1]))
+            no_blocks = int(np.ceil(shape[0] / no_lines))
+            pixels = self.in_images['pixels'].disk['data']
+            lines = self.in_images['lines'].disk['data']
+            input_data = self.in_images[file_type + '_input_data'].disk['data']
+            input_dtype = self.in_images[file_type + '_input_data'].disk['meta']['dtype']
 
-        if self.regular:
-            multilook = MultilookRegular(self.in_coor, self.out_coor)
-            self[self.output_info['file_types'][0]] = multilook(self['input_data'])
-        else:
-            multilook = MultilookIrregular(self.in_coor, self.out_coor)
-            multilook.create_conversion_grid(self['lines'], self['pixels'])
-            multilook.apply_multilooking(self['input_data'])
-            self[self.output_info['file_types'][0]] = multilook.multilooked
+            self.coordinate_systems['out_coor'].create_radar_lines()
+            self.coordinate_systems['in_coor'].create_radar_lines()
+            looks = np.zeros(self[file_type].shape)
+
+            for block in range(no_blocks):
+                coordinates = copy.deepcopy(self.coordinate_systems['in_coor'])
+                coordinates.first_line += block * no_lines
+                coordinates.shape[0] = np.minimum(shape[0] - block * no_lines, no_lines)
+
+                print('Processing ' + str(block) + ' out of ' + str(no_blocks))
+
+                if self.regular:
+                    multilook = MultilookRegular(coordinates, self.coordinate_systems['out_coor'])
+                    self[file_type] += multilook(input_data[block * no_lines: (block + 1) * no_lines, :])
+                else:
+                    multilook = MultilookIrregular(coordinates, self.coordinate_systems['out_coor'])
+                    multilook.create_conversion_grid(lines[block * no_lines: (block + 1) * no_lines, :],
+                                                     pixels[block * no_lines: (block + 1) * no_lines, :])
+                    in_data = ImageData.disk2memory(input_data[block * no_lines: (block + 1) * no_lines, :], input_dtype)
+                    multilook.apply_multilooking(in_data)
+                    self[file_type] += ImageData.memory2disk(multilook.multilooked, input_dtype)
+                    looks += multilook.looks
+            valid_pixels = self[file_type] != 0
+            self[file_type][valid_pixels] /= looks[valid_pixels]
+
+    def def_out_coor(self):
+        """
+        Calculate extend of output coordinates.
+
+        :return:
+        """
+
+        new_coor = CoorNewExtend(self.coordinate_systems['in_coor'], self.coordinate_systems['out_coor'])
+        self.coordinate_systems['out_coor'] = new_coor.out_coor

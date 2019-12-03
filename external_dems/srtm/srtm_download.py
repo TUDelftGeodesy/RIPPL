@@ -129,7 +129,7 @@ class SrtmDownload(object):
         radar_coor.orbit = self.meta.find_best_orbit('original')
         self.coordinates = CoordinateSystem()
         self.coordinates.create_geographic(step, step)
-        new_coor = CoorNewExtend(radar_coor, self.coordinates, buffer, rounding)
+        new_coor = CoorNewExtend(radar_coor, self.coordinates, buffer=buffer, rounding=rounding)
         self.coordinates = new_coor.out_coor
 
         tiles, download_tiles, [tile_lats, tile_lons], urls, tiles_zip = \

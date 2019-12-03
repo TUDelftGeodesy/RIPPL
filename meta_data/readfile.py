@@ -20,6 +20,7 @@ class Readfile():
         self.ra_time_step = ''
         self.az_time_step = ''
         self.date = ''
+        self.datetime = ''
 
         # Polygon and image size
         self.polygon = ''

@@ -18,7 +18,7 @@ class ProcessTemplate(Process):  # Change this name to the one of your processin
                  in_coor=[], out_coor=[], coordinate_systems=dict(),
                  in_image_types=[], in_coor_types=[], in_processes=[], in_file_types=[], in_polarisations=[],
                  in_data_ids=[],
-                 slave=[], master=[], coreg_master=[], ifg=[], processing_images=dict(), out_processing_image='slave'):
+                 slave='slave', master='master', coreg_master='coreg_master', ifg='ifg', processing_images=dict(), out_processing_image='slave'):
 
         """
         In the template all options are still given. But for the final processing step it is possible to remove a part

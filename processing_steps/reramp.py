@@ -14,8 +14,8 @@ from rippl.processing_steps.deramp import Deramp
 
 class Reramp(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', polarisation='', coordinates=[],
-                 slave=[], overwrite=False):
+    def __init__(self, data_id='', polarisation='', out_coor=[],
+                 slave='slave', overwrite=False):
         """
         This function deramps the ramped data from TOPS mode to a deramped data. Input data of this function should
         be a radar coordinates grid.
@@ -24,7 +24,7 @@ class Reramp(Process):  # Change this name to the one of your processing step.
                     the same process.
         :param str polarisation: Polarisation of processing outputs
 
-        :param CoordinateSystem coordinates: Coordinate system of the input grids.
+        :param CoordinateSystem out_coor: Coordinate system of the input grids.
 
         :param ImageProcessingData slave: Slave image, used as the default for input and output for processing.
         """
@@ -43,7 +43,7 @@ class Reramp(Process):  # Change this name to the one of your processing step.
         self.input_info = dict()
         self.input_info['image_types'] = ['slave', 'slave', 'slave']
         self.input_info['process_types'] = ['resample', 'geometric_coregistration', 'geometric_coregistration']
-        self.input_info['file_types'] = ['resampled', 'lines', 'pixels']
+        self.input_info['file_types'] = ['resampled', 'coreg_lines', 'coreg_pixels']
         self.input_info['polarisations'] = [polarisation, '', '']
         self.input_info['data_ids'] = [data_id, data_id, data_id]
         self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor']
@@ -52,8 +52,7 @@ class Reramp(Process):  # Change this name to the one of your processing step.
 
         # Coordinate systems
         self.coordinate_systems = dict()
-        self.coordinate_systems['out_coor'] = coordinates
-        self.coordinate_systems['in_coor'] = coordinates
+        self.coordinate_systems['out_coor'] = out_coor
 
         # image data processing
         self.processing_images = dict()
@@ -65,6 +64,7 @@ class Reramp(Process):  # Change this name to the one of your processing step.
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(Reramp, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
@@ -90,7 +90,8 @@ class Reramp(Process):  # Change this name to the one of your processing step.
 
         readfile = processing_data.readfiles['original']
         orbit = processing_data.find_best_orbit('original')
-        in_coor = self.in_images['input_data'].in_coordinates
+        in_coor = self.in_images['input_data'].in_coordinates       # type: CoordinateSystem
+        in_coor.load_readfile(readfile)
 
         # Calculate azimuth/range grid and ramp.
         az_grid = self['lines'] * in_coor.az_step + in_coor.az_time

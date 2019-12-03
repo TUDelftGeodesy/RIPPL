@@ -23,13 +23,13 @@ class InterferogramNetwork(object):
         self.ifg_pairs = []
 
         if self.type == 'temp_baseline':
-            self.temp_baseline()
+            self.temporal_baseline()
         elif self.type == 'daisy_chain':
             self.daisy_chain()
         elif self.type == 'single_master':
             self.single_master()
 
-    def temp_baseline(self):
+    def temporal_baseline(self):
 
         days = np.array([diff.days for diff in self.dates - np.min(self.dates)])
 

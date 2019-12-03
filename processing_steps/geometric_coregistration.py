@@ -16,7 +16,7 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
 
     def __init__(self, data_id='', in_coor=[], out_coor=[], dem_type='SRTM1',
                  in_image_types=[], in_processes=[], in_file_types=[], in_data_ids=[],
-                 slave=[], coreg_master=[], overwrite=False):
+                 slave='slave', coreg_master='coreg_master', overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -41,27 +41,24 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
         self.output_info['polarisation'] = ''
         self.output_info['data_id'] = data_id
         self.output_info['coor_type'] = 'out_coor'
-        self.output_info['file_types'] = ['lines', 'pixels']
+        self.output_info['file_types'] = ['coreg_lines', 'coreg_pixels']
         self.output_info['data_types'] = ['real8', 'real8']
 
         # Input data information
         self.input_info = dict()
-        self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master']
-        self.input_info['process_types'] = ['geocode', 'geocode', 'geocode']
-        self.input_info['file_types'] = ['X', 'Y', 'Z']
-        self.input_info['data_types'] = ['real8', 'real8', 'real8']
-        self.input_info['polarisations'] = ['', '', '']
-        self.input_info['data_ids'] = [data_id, data_id, data_id]
-        self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor']
-        self.input_info['in_coor_types'] = ['', '', '']
-        self.input_info['type_names'] = ['X_coreg', 'Y_coreg', 'Z_coreg']
+        self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master', 'slave']
+        self.input_info['process_types'] = ['geocode', 'geocode', 'geocode', 'crop']
+        self.input_info['file_types'] = ['X', 'Y', 'Z', 'crop']
+        self.input_info['polarisations'] = ['', '', '', '']
+        self.input_info['data_ids'] = [data_id, data_id, data_id, '']
+        self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor', 'in_coor']
+        self.input_info['in_coor_types'] = ['', '', '', '']
+        self.input_info['type_names'] = ['X_coreg', 'Y_coreg', 'Z_coreg', 'in_coor_grid']
 
         # Coordinate systems
         self.coordinate_systems = dict()
         self.coordinate_systems['out_coor'] = out_coor
         self.coordinate_systems['in_coor'] = in_coor
-
-        self.ref_coor = in_coor
 
         # image data processing
         self.processing_images = dict()
@@ -74,6 +71,7 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
 
     def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(GeometricCoregistration, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
@@ -94,9 +92,9 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
         orbit_coreg_master = self.processing_images['coreg_master'].find_best_orbit('original')
 
         # Now initialize the orbit estimation.
-        orbit_interp = OrbitCoordinates(coordinates=self.ref_coor, orbit=orbit_slave)
+        orbit_interp = OrbitCoordinates(coordinates=self.coordinate_systems['in_coor'], orbit=orbit_slave)
         xyz = np.vstack((np.ravel(self['X_coreg'])[None, :], np.ravel(self['Y_coreg'])[None, :], np.ravel(self['Z_coreg'])[None, :]))
         lines, pixels = orbit_interp.xyz2lp(xyz)
 
-        self['lines'] = np.reshape(lines, self.block_coor.shape)
-        self['pixels'] = np.reshape(pixels, self.block_coor.shape)
+        self['coreg_lines'] = np.reshape(lines, self.block_coor.shape)
+        self['coreg_pixels'] = np.reshape(pixels, self.block_coor.shape)

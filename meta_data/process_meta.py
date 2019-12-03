@@ -56,11 +56,8 @@ class ProcessMeta():
 
         # Create the processing ID
         self.coordinates.create_short_coor_id()
-        self.coordinates.create_coor_id()
         if isinstance(self.in_coordinates, CoordinateSystem):
             self.in_coordinates.create_short_coor_id()
-            self.in_coordinates.create_coor_id()
-        self.coor_id = self.coordinates.id_str
         self.process_id = self.create_process_id(self.process_name, self.coordinates, self.in_coordinates, self.data_id,
                                                  self.polarisation)
 

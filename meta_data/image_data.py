@@ -374,7 +374,7 @@ class ImageData():
         else:
             return True
 
-    def save_tiff(self, file_path='', overwrite=False):
+    def save_tiff(self, file_path='', main_folder=False, overwrite=False):
         """
         Save data as geotiff. Complex data will be saved as a two layer tiff with amplitude and phase values.
 
@@ -384,7 +384,18 @@ class ImageData():
         """
 
         if not file_path:
-            file_path = self.file_path[:-4] + '.tiff'
+            if main_folder:
+
+                basename = os.path.basename(self.file_path)[:-4] + '.tiff'
+                folder_name = os.path.basename(os.path.dirname(self.file_path))
+                if folder_name.startswith('slice'):
+                    date_name = os.path.dirname(os.path.dirname(self.file_path))
+                    file_path = date_name + '_' + folder_name + '_' + basename
+                else:
+                    date_name = os.path.dirname(self.file_path)
+                    file_path = date_name + '_' + basename
+            else:
+                file_path = self.file_path[:-4] + '.tiff'
         if not os.path.exists(os.path.dirname(file_path)):
             raise FileExistsError('Folder to write tiff file ' + file_path + ' does not exist.')
         if os.path.exists(file_path):
@@ -550,4 +561,3 @@ class ImageData():
                             'tiff': np.dtype([('re', np.int16), ('im', np.int16)])}
 
         return dtype_disk, dtype_numpy, dtype_size, dtype_gdal, dtype_gdal_numpy
-

@@ -163,8 +163,12 @@ class ImageProcessingMeta(object):
             file = open(json_path, 'r+')
         else:
             file = open(os.path.join(self.folder, 'info.json'), 'r+')
-        self.json_dict = json.load(file, object_pairs_hook=OrderedDict)
-        file.close()
+
+        try:
+            self.json_dict = json.load(file, object_pairs_hook=OrderedDict)
+            file.close()
+        except:
+            raise ImportError('Not able to load ' + os.path.join(self.folder, 'info.json') + ' as .json info file.')
 
         # Load processes, readfiles and orbits
         self.header = self.json_dict['header']
@@ -203,8 +207,11 @@ class ImageProcessingMeta(object):
         keys = [key for key in self.orbits.keys() if orbit_type in key]
 
         precise = [key for key in keys if 'precise' in key]
-        if len(precise) > 0:
+        if len(precise) == 1:
             return self.orbits[precise[0]]
+        elif len(precise) > 1:
+            precise_coreg = [key for key in precise if 'coreg' in key]
+            return self.orbits[precise_coreg[0]]
         else:
             restituted = [key for key in keys if 'restituted' in key]
             if len(restituted) > 0:

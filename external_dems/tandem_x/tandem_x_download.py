@@ -1,16 +1,29 @@
-# Function created by Gert Mulder
-# Institute TU Delft
-# Date 9-11-2016
-# Part of Doris 5.0
+"""
+Function created by Gert Mulder
+Institute TU Delft
+Date 29-10-2019
+Part of RIPPL SAR processing software
 
-# This function creates a dem based on either a shape/kml file or a given bounding box. If a shape/kml file is given a
-# minimum offset of about 0.1 degrees is used.
-# All grids are based on the WGS84 projection.
-# Downloaded data is based on SRTM void filled data:
-# Documentation: https://lpdaac.usgs.gov/sites/default/files/public/measures/docs/NASA_SRTM_V3.pdf
+This class download tandem-x data to create DEMs for InSAR processing. This data is freely available worldwide and can
+be found at:
+https://geoservice.dlr.de/web/dataguide/tdm90/#access
 
-# Description srtm data: https://lpdaac.usgs.gov/dataset_discovery/measures/measures_products_table/SRTMGL1_v003
-# Description srtm q data: https://lpdaac.usgs.gov/node/505
+The data itself is given in a geographic grid that changes based on latitude. Therefore, to create consistent DEM's
+a part of the data has to be resampled. It is left to the user to decide the resolution in arc seconds in the longitu-
+donal direction. The resolution in latitude is always 3 arc seconds on a WGS84 ellipsoid.
+
+As a guideline it is best to use the native resolution for the largest part of your area of interest, which is:
+3 arc-seconds for lat < 50
+4.5 arc-seconds for lat < 60
+6 arc-seconds for lat < 70
+9 arc-seconds for lat < 80
+15 arc-seconds for lat < 85
+30 arc-seconds for lat < 90
+These resolutions hold only for the longitude direction. For example, if you want to look at an area around the equator
+you should go for a 3 arc-seconds resolution, but at mid latitudes around for example 55 degrees north, go for the 4.5
+arc-seconds resolution. If your region overlaps different regions, it is better to go for the highest resolution in your
+region of interest to prevent information loss.
+"""
 
 import os
 import pickle
@@ -18,22 +31,25 @@ import shutil
 import zipfile
 import numpy as np
 import requests
+import ftplib
+from scipy.interpolate import RectBivariateSpline
 from multiprocessing import Pool
+import gdal
 
-from rippl.external_dems.srtm.srtm_dir_listing import ParseHTMLDirectoryListing
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.meta_data.image_processing_meta import ImageProcessingMeta
 from rippl.resampling.coor_new_extend import CoorNewExtend
+from rippl.external_dems.geoid import GeoidInterp
 
 
-class SrtmDownloadTile(object):
+class TandemXDownloadTile(object):
     # To enable parallel processing we create another class for the actual processing.
 
-    def __init__(self, srtm_folder, username, password, srtm_type):
+    def __init__(self, tandem_x_folder, username, password, lon_resolution):
 
-        self.srtm_folder = srtm_folder
-        self.srtm_type = srtm_type
+        self.tandem_x_folder = tandem_x_folder
+        self.lon_resolution = lon_resolution
         self.username = username
         self.password = password
 
@@ -46,45 +62,133 @@ class SrtmDownloadTile(object):
         lon = input[4]
 
         if not os.path.exists(file_unzip):
-            success = self.download_dem_file(url, file_zip, file_unzip)
-        else:
-            return
+            self.download_dem_file(url, file_zip, file_unzip)
+        self.resize_dem_file(file_unzip, self.lon_resolution)
 
-    def download_dem_file(self, url, file_zip, file_unzip):
+    def download_dem_file(self, ftp_path, file_zip, file_unzip):
         # This function downloads data for 1 or 3 arc second dem.
 
         # Download and unzip
         try:
+            if not os.path.exists(file_zip):
+                # Make FTP connection
+                server = 'tandemx-90m.dlr.de'
+                ftp = ftplib.FTP_TLS(server, self.username, self.password)
+                ftp.prot_p()
+
+                # Download file
+                ftp.cwd(os.path.dirname(ftp_path))
+                with open(file_zip, 'wb') as file:
+                    ftp.retrbinary('RETR %s' % os.path.basename(ftp_path), file.write)
+
             if not os.path.exists(file_unzip):
-                command = 'wget ' + url + ' --user ' + self.username + ' --password ' \
-                          + self.password + ' -O ' + file_zip
-                os.system(command)
                 zip_data = zipfile.ZipFile(file_zip)
-                source = zip_data.open(zip_data.namelist()[0])
+                source = zip_data.open([path for path in zip_data.namelist() if
+                                        os.path.basename(os.path.dirname(path)) == 'DEM' and path.endswith('.tif')][0])
                 target = open(file_unzip, 'wb')
-                shutil.copyfileobj(source, target, length=-1)
+                shutil.copyfileobj(source, target)
                 target.close()
-                os.remove(file_zip)
         except:
-            print('Failed to download ' + url)
-            return False
+            raise ConnectionError('Failed to download ' + ftp_path)
 
-        return True
+    def resize_dem_file(self, file_unzip, lon_resolution=3):
+        """
+        Here we resize the DEM file to get 3arc seconds grids in both latitude and longitude direction.
+        For larger latitudes this will result in very high sampling in the longitudonal direction but this will not
+        affect the final product results.
+        If we would like to process data over the poles directly, this approach maybe sub-optimal but other implemen-
+        tation would be very cumbersome. In those cases we would advise to use a different projection.
 
+        :return:
+        """
 
-class SrtmDownload(object):
+        if not lon_resolution in [3, 4.5, 6, 9, 15, 30]:
+            raise TypeError('Lon size is not one of the default resolutions 3, 4.5, 6, 9, 15 or 30 arc seconds. '
+                            'Aborting...')
 
-    def __init__(self, srtm_folder, username, password, srtm_type='SRTM3', quality=False, n_processes=4):
-        # srtm_folder
-        self.srtm_folder = srtm_folder
-        self.quality = quality
+        dem_size_folder = os.path.join(self.tandem_x_folder, str(lon_resolution).zfill(2) + '_arc_seconds')
+
+        # Load the data using gdal
+        data_file = gdal.Open(file_unzip)
+        band = data_file.GetRasterBand(1)
+        data = band.ReadAsArray()
+
+        # Check how the data should be split in 1 by 1 degree tiles.
+        size = data.shape
+        geo_transform = data_file.GetGeoTransform()
+        lons = (np.arange(size[1]) + 0.5) * geo_transform[1] + geo_transform[0]
+        lats = (np.arange(size[0]) + 0.5) * geo_transform[5] + geo_transform[3]
+
+        # Fill empty values with geoid values (most likely water/sea)
+        coor = CoordinateSystem()
+        coor.create_geographic(shape=size, geo_transform=geo_transform)
+        egm96_file = os.path.join(self.tandem_x_folder, 'egm96.dat')
+        egm96 = GeoidInterp.create_geoid(coor, egm96_file, True)
+        data[data == -32767] = - egm96[data == -32767]
+
+        int_lons = np.arange(int(np.round(lons[0])), int(np.round(lons[-1])))
+        degree_size = (size[1] - 1) / len(int_lons) + 1
+
+        # Resample if needed and write the data to disk.
+        new_file_names = []
+        new_int_lons = []
+        lat = np.round(lats[-1])
+        if lat < 0:
+            lat_str = 'S' + str(np.abs(int(lat))).zfill(2)
+        else:
+            lat_str = 'N' + str(int(lat)).zfill(2)
+
+        for lon in int_lons:
+            if lon < 0:
+                lon_str = 'W' + str(np.abs(int(lon))).zfill(3)
+            else:
+                lon_str = 'E' + str(int(lon)).zfill(3)
+
+            new_file_name = os.path.join(dem_size_folder, 'TDM_DEM_' + lat_str + lon_str + '.raw')
+            if not os.path.exists(new_file_name):
+                new_file_names.append(new_file_name)
+                new_int_lons.append(lon)
+
+        lats = np.flip(lats)
+        data = np.flipud(data)
+
+        tdx_dem_interp = RectBivariateSpline(lats, lons, data)
+
+        for new_int_lon, new_file_name in zip(new_int_lons, new_file_names):
+            new_lons = new_int_lon + np.arange(np.int(np.round(3600.0 / lon_resolution)) + 1) * (lon_resolution / 3600.0)
+            print('Saved DEM file ' + new_file_name)
+            new_data = np.memmap(new_file_name, np.float32, 'w+', shape=(size[0], len(new_lons)))
+            new_data[:, :] = np.flipud(tdx_dem_interp(lats, new_lons))
+            new_data.flush()
+
+class TandemXDownload(object):
+
+    def __init__(self, tandem_x_folder, username, password, lon_resolution=3, n_processes=4):
+        # tandem_x_folder
+        self.tandem_x_folder = tandem_x_folder
+
+        if not os.path.exists(tandem_x_folder):
+            raise FileExistsError('Path to tandem-x folder does not exist')
+        zip_data_folder = os.path.join(tandem_x_folder, 'orig_data')
+        tiff_data_folder = os.path.join(tandem_x_folder, 'geotiff_data')
+        if not os.path.exists(zip_data_folder):
+            os.mkdir(zip_data_folder)
+        if not os.path.exists(tiff_data_folder):
+            os.mkdir(tiff_data_folder)
+
+        if not lon_resolution in [3, 4.5, 6, 9, 15, 30]:
+            raise TypeError('Lon size is not one of the default resolutions 3, 4.5, 6, 9, 15 or 30 arc seconds. '
+                            'Aborting...')
+        resolution_folder = os.path.join(tandem_x_folder, str(lon_resolution).zfill(2) + '_arc_seconds')
+        if not os.path.exists(resolution_folder):
+            os.mkdir(resolution_folder)
 
         # credentials
         self.username = username
         self.password = password
 
         # List of files to be downloaded
-        self.filelist = self.srtm_listing(srtm_folder, username, password)
+        self.filelist = self.tandem_x_listing(tandem_x_folder, username, password)
 
         # shapes and limits of these shapes
         self.shapes = []
@@ -96,16 +200,13 @@ class SrtmDownload(object):
         self.polygon = ''
         self.shapefile = ''
 
-        # Resolution of files (either SRTM1, SRTM3 or STRM30)
-        self.srtm_type = srtm_type
-
-        # EGM96
-        self.egm96_interp = []
+        # Resolution of files (either tandem_x1, tandem_x3 or STRM30)
+        self.lon_resolution = lon_resolution
 
         # processes
         self.n_processes = n_processes
 
-    def __call__(self, meta, buffer=1.0, rounding=1.0, parallel=True):
+    def __call__(self, meta, buffer=1.0, rounding=1.0):
 
         if isinstance(meta, ImageProcessingData):
             self.meta = meta.meta
@@ -114,13 +215,10 @@ class SrtmDownload(object):
         else:
             raise TypeError('Input meta data should be an ImageProcessingData or ImageProcessingMeta object.')
 
-        if self.srtm_type == 'SRTM3':
-            step = 1.0 / 3600 * 3
-        elif self.srtm_type == 'SRTM1':
-            step = 1.0 / 3600
-        else:
-            print('Unkown SRTM type' + self.srtm_type)
-            return
+        # In first instance we assume a step size of 3 seconds in both latitude and longitude direction.
+        # The step size in longitude will be updates later on.
+        lat_step = 1.0 / 3600 * 3
+        lon_step = 1.0 / 3600 * self.lon_resolution
 
         # Create output coordinates.
         radar_coor = CoordinateSystem()
@@ -128,21 +226,21 @@ class SrtmDownload(object):
         radar_coor.load_readfile(self.meta.readfiles['original'])
         radar_coor.orbit = self.meta.find_best_orbit('original')
         self.coordinates = CoordinateSystem()
-        self.coordinates.create_geographic(step, step)
-        new_coor = CoorNewExtend(radar_coor, self.coordinates, buffer, rounding)
+        self.coordinates.create_geographic(dlat=lat_step, dlon=lon_step)
+        new_coor = CoorNewExtend(radar_coor, self.coordinates, buffer=buffer, rounding=rounding)
         self.coordinates = new_coor.out_coor
 
-        tiles, download_tiles, [tile_lats, tile_lons], urls, tiles_zip = \
-            self.select_tiles(self.filelist, self.coordinates, self.srtm_folder, self.srtm_type, self.quality)
+        resampled_tiles, tiles, download_tiles, [tile_lats, tile_lons], ftp_paths, tiles_zip = \
+            self.select_tiles(self.filelist, self.coordinates, self.tandem_x_folder, lon_resolution=self.lon_resolution)
 
         # First create a download class.
-        tile_download = SrtmDownloadTile(self.srtm_folder, self.username, self.password, self.srtm_type)
+        tile_download = TandemXDownloadTile(self.tandem_x_folder, self.username, self.password, self.lon_resolution)
 
         # Loop over all images
-        download_dat = [[url, file_zip, file_unzip, lat, lon] for
-                     url, file_zip, file_unzip, lat, lon in
-                     zip(urls, tiles_zip, download_tiles, tile_lats, tile_lons)]
-        if parallel:
+        download_dat = [[ftp_path, file_zip, file_unzip, lat, lon] for
+                     ftp_path, file_zip, file_unzip, lat, lon in
+                     zip(ftp_paths, tiles_zip, download_tiles, tile_lats, tile_lons)]
+        if self.n_processes > 1:
             pool = Pool(self.n_processes)
             pool.map(tile_download, download_dat)
         else:
@@ -150,15 +248,15 @@ class SrtmDownload(object):
                 tile_download(download_info)
 
     @staticmethod
-    def select_tiles(filelist, coordinates, srtm_folder, srtm_type='SRTM3', quality=True, download=True):
-        # Adds SRTM files to the list of files to be downloaded
+    def select_tiles(filelist, coordinates, tandem_x_folder, lon_resolution=3):
+        # Adds tandem_x files to the list of files to be downloaded
 
         # Check coordinates
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
             return
         elif coordinates.grid_type != 'geographic':
-            print('only geographic coordinate systems can be used to download SRTM data')
+            print('only geographic coordinate systems can be used to download tandem_x data')
             return
 
         tiles_zip = []
@@ -166,14 +264,21 @@ class SrtmDownload(object):
         download_tiles = []
         tile_lats = []
         tile_lons = []
-        url = []
+        ftp_path = []
+        resampled_tiles = []
 
         lat0 = coordinates.lat0 + coordinates.dlat * coordinates.first_line
         lon0 = coordinates.lon0 + coordinates.dlon * coordinates.first_pixel
         lats = np.arange(np.floor(lat0), np.ceil(lat0 + coordinates.shape[0] * coordinates.dlat)).astype(np.int32)
-        lons = np.arange(np.floor(lon0), np.ceil(lon0 + coordinates.shape[1] * coordinates.dlon)).astype(np.int32)
+        resolution_folder = os.path.join(tandem_x_folder, str(lon_resolution).zfill(2) + '_arc_seconds')
 
         for lat in lats:
+            # Depending on latitude there is a different spacing.
+            lon_lim = [int(np.floor(lon0)), int(np.ceil(lon0 + coordinates.shape[1] * coordinates.dlon))]
+            grid_size, possible_lons = TandemXDownload.get_lon_spacing(lat)
+            tile_size = possible_lons[1] - possible_lons[0]
+            lons = possible_lons[(possible_lons + 2 >= np.min(lon_lim)) * (possible_lons <= np.max(lon_lim))]
+
             for lon in lons:
 
                 lat = int(lat)
@@ -189,112 +294,106 @@ class SrtmDownload(object):
                     lonstr = 'E' + str(lon).zfill(3)
 
                 # Check if file exists in filelist
-                if str(lat) not in filelist[srtm_type]:
+                if latstr not in filelist.keys():
                     continue
-                elif str(lon) not in filelist[srtm_type][str(lat)]:
+                elif lonstr not in filelist[latstr].keys():
                     continue
-                
-                if os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.hgt.zip') not in tiles_zip or not download:
-                    unzip = os.path.join(srtm_folder, srtm_type + '__' + latstr + lonstr + '.hgt')
-                    tiles.append(unzip)
 
-                    if not os.path.exists(unzip) or not download:
-                        tiles_zip.append(os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.hgt.zip'))
+                for lon_tile_val in np.arange(tile_size) + lon:
 
-                        download_tiles.append(unzip)
-                        tile_lats.append(lat)
-                        tile_lons.append(lon)
-                        url.append(filelist[srtm_type][str(lat)][str(lon)])
+                    if lon_tile_val < 0:
+                        tile_lonstr = 'W' + str(abs(lon_tile_val)).zfill(3)
+                    else:
+                        tile_lonstr = 'E' + str(lon_tile_val).zfill(3)
 
-                    if quality:
-                        unzip = os.path.join(srtm_folder, srtm_type + '__' + latstr + lonstr + '.q')
-                        tiles.append(unzip)
+                    if lon_lim[0] < (lon_tile_val + 1) and lon_lim[1] > lon_tile_val:
+                        resampled_tile = os.path.join(resolution_folder, 'TDM_DEM_' + latstr + tile_lonstr + '.raw')
+                        resampled_tiles.append(resampled_tile)
 
-                        if not os.path.exists(unzip) or not download:
-                            tiles_zip.append(os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.q.zip'))
+                unzip = os.path.join(tandem_x_folder, 'geotiff_data', 'TDM_DEM_' + latstr + lonstr + '.tiff')
+                tiles.append(unzip)
 
-                            download_tiles.append(unzip)
-                            tile_lats.append(lat)
-                            tile_lons.append(lon)
-                            url.append(filelist[srtm_type][str(lat)][str(lon)][:-7] + 'num.zip')
+                tiles_zip.append(os.path.join(tandem_x_folder, 'orig_data', 'TDM_DEM_' + latstr + lonstr + '.zip'))
 
-        return tiles, download_tiles, [tile_lats, tile_lons], url, tiles_zip
+                download_tiles.append(unzip)
+                tile_lats.append(lat)
+                tile_lons.append(lon)
+                ftp_path.append(filelist[latstr][lonstr])
+
+        return resampled_tiles, tiles, download_tiles, [tile_lats, tile_lons], ftp_path, tiles_zip
 
     @staticmethod
-    def srtm_listing(srtm_folder, username='', password=''):
+    def tandem_x_listing(tandem_x_folder, username='', password=''):
         # This script makes a list of all the available 1,3 and 30 arc second datafiles.
         # This makes it easier to detect whether files do or don't exist.
 
-        data_file = os.path.join(srtm_folder, 'filelist')
+        data_file = os.path.join(tandem_x_folder, 'filelist')
         if os.path.exists(data_file):
             dat = open(data_file, 'rb')
             filelist = pickle.load(dat)
             dat.close()
             return filelist
 
-        server = "http://e4ftl01.cr.usgs.gov"
+        server = 'tandemx-90m.dlr.de'
+        ftp = ftplib.FTP_TLS(server, username, password)
+        ftp.prot_p()
 
-        folder = ['MEASURES/SRTMGL1.003/2000.02.11/', 'MEASURES/SRTMGL3.003/2000.02.11/', 'MEASURES/SRTMGL30.002/2000.02.11/']
-        sub_folder = ['SRTMGL1_page_', 'SRTMGL3_page_', 'SRTMGL30_page_']
-        key = ['SRTM1', 'SRTM3', 'SRTM30']
-        folders = []
-        keys = []
+        dem_folders = ftp.nlst('90mdem/DEM')
+        dem_files = []
+        for dem_folder in dem_folders:
+            sub_dem_folders = ftp.nlst(dem_folder)
+            print('indexing ' + dem_folder)
+            for sub_dem_folder in sub_dem_folders:
+                dem_files.extend(ftp.nlst(sub_dem_folder))
 
-        for f, s_f, k in zip(folder[:2], sub_folder[:2], key[:2]):
-            for i in range(1, 7):
-                folders.append(f + s_f + str(i) + '.html')
-                keys.append(k)
-
-        folders.append(folder[2] + sub_folder[2] + str(1) + '.html')
-        keys.append(key[2])
-
+        # Index based on latitude and longitude values
         filelist = dict()
-        filelist['SRTM1'] = dict()
-        filelist['SRTM3'] = dict()
-        filelist['SRTM30'] = dict()
+        for dem_file in dem_files:
+            lon_str = dem_file[-8:-4]
+            lat_str = dem_file[-11:-8]
 
-        for folder, key_value in zip(folders, keys):
+            if lat_str not in filelist.keys():
+                filelist[lat_str] = dict()
+            filelist[lat_str][lon_str] = dem_file
 
-            if len(username) == 0 or len(password) == 0:
-                print('username and or password is missing for downloading. If you get this message when processing an '
-                      'InSAR stack, be sure you download the SRTM files first to solve this. (download_srtm function in '
-                      'stack class)')
-
-            conn = requests.get(server + '/' + folder, auth=(username, password))
-            if conn.status_code == 200:
-                print("status200 received ok")
-            else:
-                print("an error occurred during connection")
-
-            data = conn.text
-            parser = ParseHTMLDirectoryListing()
-            parser.feed(data)
-            files = parser.getDirListing()
-
-            if key_value == 'SRTM1' or key_value == 'SRTM3':
-                files = [str(os.path.basename(f)) for f in files if f.endswith('hgt.zip')]
-                north = [int(filename[1:3]) for filename in files]
-                east = [int(filename[4:7]) for filename in files]
-                for i in [i for i, filename in enumerate(files) if filename[0] == 'S']:
-                    north[i] *= -1
-                for i in [i for i, filename in enumerate(files) if filename[3] == 'W']:
-                    east[i] *= -1
-            else:
-                files = [str(os.path.basename(f)) for f in files if f.endswith('dem.zip')]
-                north = [int(filename[5:7]) for filename in files]
-                east = [int(filename[1:4]) for filename in files]
-                for i in [i for i, filename in enumerate(files) if filename[4] == 's']:
-                    north[i] *= -1
-                for i in [i for i, filename in enumerate(files) if filename[0] == 'w']:
-                    east[i] *= -1
-
-            for filename, n, e in zip(files, north, east):
-                if not str(n) in filelist[key_value]:
-                    filelist[key_value][str(n)] = dict()
-                filelist[key_value][str(n)][str(e)] = server + '/' + os.path.dirname(folder) + '/' + filename
-
-        file_list = open(os.path.join(srtm_folder, 'filelist'), 'wb')
+        # Get the tiff file path in the zip
+        file_list = open(os.path.join(tandem_x_folder, 'filelist'), 'wb')
         pickle.dump(filelist, file_list)
         file_list.close()
 
         return filelist
+
+    @staticmethod
+    def get_lon_spacing(lat):
+        """
+        This function gets the spacing and coordinates of tandem_x tiles based on latitude value.
+
+        :param int lat: Latitude coordinate of DEM
+        :return:
+        """
+
+        if lat < 0:
+            abs_lat = np.abs(lat) - 1
+        else:
+            abs_lat = lat
+
+        if abs_lat < 50:
+            lons = np.arange(-180, 180, 1)
+            grid_size = 3
+        elif abs_lat < 60:
+            lons = np.arange(-180, 180, 1)
+            grid_size = 4.5
+        elif abs_lat < 70:
+            lons = np.arange(-180, 180, 2)
+            grid_size = 6
+        elif abs_lat < 80:
+            lons = np.arange(-180, 180, 2)
+            grid_size = 9
+        elif abs_lat < 85:
+            lons = np.arange(-180, 180, 4)
+            grid_size = 15
+        elif abs_lat < 90:
+            lons = np.arange(-180, 180, 4)
+            grid_size = 30
+
+        return grid_size, lons

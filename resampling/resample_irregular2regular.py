@@ -37,8 +37,8 @@ class Irregular2Regular():
         self.buf = buf
 
         # We correct for an output grid starting at 0 and steps of 1.
-        self.lines = (input_lines - s_lin) / self.ml_step[0]
-        self.pixels = (input_pixels - s_pix) / self.ml_step[1]
+        self.lines = (input_lines - self.s_lin) / self.ml_step[0]
+        self.pixels = (input_pixels - self.s_pix) / self.ml_step[1]
         
         # Data values
         self.input_values = input_val

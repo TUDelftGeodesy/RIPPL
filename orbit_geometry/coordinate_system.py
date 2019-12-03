@@ -106,7 +106,7 @@ class CoordinateSystem():
         self.date = readfile.date
         self.swath = readfile.swath
 
-        if self.shape == [0, 0] and self.grid_type == 'radar_coordinates':
+        if self.shape == '' and self.grid_type == 'radar_coordinates':
             self.shape = readfile.size
         # To define the origin of the readfile we assume it is always from the same track. So it can be defined using
         # the date only.
@@ -274,7 +274,7 @@ class CoordinateSystem():
             self.mask_name = mask_name
             self.sample = self.sample + '_' + self.mask_name
 
-    def create_radar_coordinates(self, multilook='', oversample='', shape=[0, 0], first_line=0, first_pixel=0,
+    def create_radar_coordinates(self, multilook='', oversample='', shape='', first_line=0, first_pixel=0,
                                  sparse_name='', mask_name=''):
 
         self.grid_type = 'radar_coordinates'
@@ -288,7 +288,8 @@ class CoordinateSystem():
         if oversample == '':
             self.oversample = [1, 1]
 
-        self.create_radar_lines()
+        if shape:
+            self.create_radar_lines()
 
         self.add_mask_name(mask_name)
         self.add_sparse_name(sparse_name)
@@ -303,17 +304,26 @@ class CoordinateSystem():
         self.interval_lines = self.ml_lines + (steps[0] - 1) / 2
         self.interval_pixels = self.ml_pixels + (steps[1] - 1) / 2
 
-    def create_geographic(self, dlat, dlon, ellipse_type='WGS84', shape='', lat0=0, lon0=0,
-                          sparse_name='', mask_name=''):
+    def create_geographic(self, dlat='', dlon='', ellipse_type='WGS84', shape='', lat0=0, lon0=0,
+                          sparse_name='', mask_name='', geo_transform=[]):
 
         self.ellipse_type = ellipse_type
         self.shape = shape
-        self.lat0 = float(lat0)
-        self.lon0 = float(lon0)
-        self.dlat = float(dlat)
-        self.dlon = float(dlon)
+        if not geo_transform:
+            self.lat0 = float(lat0)
+            self.lon0 = float(lon0)
+            if dlat == '' or dlon == '':
+                raise TypeError('dlat and dlon should be given as an input to create a geographic grid.')
+            self.dlat = float(dlat)
+            self.dlon = float(dlon)
+        else:
+            self.dlat = float(geo_transform[5])
+            self.dlon = float(geo_transform[1])
+            self.lat0 = float(geo_transform[3]) + 0.5 * self.dlat
+            self.lon0 = float(geo_transform[0]) + 0.5 * self.dlon
+
         self.grid_type = 'geographic'
-        self.sample = '_' + ellipse_type + '_stp_' + str(int(np.round(dlat * 3600))) + '_' + str(int(np.round(dlon * 3600)))
+        self.sample = '_' + ellipse_type + '_stp_' + str(int(np.round(self.dlat * 3600))) + '_' + str(int(np.round(self.dlon * 3600)))
 
         self.add_mask_name(mask_name)
         self.add_sparse_name(sparse_name)
@@ -564,7 +574,7 @@ class CoordinateSystem():
             if self.date:
                 date_str = self.date[:4] + self.date[5:7] + self.date[8:10] + '_'
 
-            self.short_id_str = 'radar_' + (date_str + ml_str + ovr_str + self.sparse_name + self.mask_name)
+            self.short_id_str = 'radar_' + (ml_str + ovr_str + self.sparse_name + self.mask_name)
         elif self.grid_type == 'geographic':
             self.short_id_str = 'geo_' + (self.ellipse_type + '_' + str(int(self.dlon * 3600)) + '_' + str(int(self.dlat * 3600))) + '_' + self.sparse_name + self.mask_name
         elif self.grid_type == 'projection':

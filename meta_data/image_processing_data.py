@@ -107,8 +107,13 @@ class ImageProcessingData(object):
             self.meta.add_process(process)
         elif isinstance(process, ProcessData):
             self.meta.add_process(process.meta)
-            if process.process_name not in self.processes_data.keys():
-                self.processes_data[process.process_name] = OrderedDict()
+
+        if process.process_name not in self.processes_data.keys():
+            self.processes_data[process.process_name] = OrderedDict()
+
+        if isinstance(process, ProcessMeta):
+            self.processes_data[process.process_name][process.process_id] = ProcessData(process.folder, process_meta=process)
+        elif isinstance(process, ProcessData):
             self.processes_data[process.process_name][process.process_id] = process
 
         # Synchronize the image oversight

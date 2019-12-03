@@ -142,7 +142,11 @@ class SentinelOrbitsDatabase(object):
             time = datetime.strptime(times[1].text[4:], '%Y-%m-%dT%H:%M:%S.%f')
 
             if min_time < time < max_time:
-                orbit_dat['orbitTime'].append(float(time.hour * 3600 + time.minute * 60 + time.second) + float(time.microsecond) / 1000000)
+                if time.day != min_time.day:
+                    days = 1
+                else:
+                    days = 0
+                orbit_dat['orbitTime'].append(float(time.hour * 3600 + time.minute * 60 + time.second) + float(time.microsecond) / 1000000 + 86400 * days)
                 orbit_dat['orbitX'].append(float(times[4].text))
                 orbit_dat['orbitY'].append(float(times[5].text))
                 orbit_dat['orbitZ'].append(float(times[6].text))
