@@ -18,7 +18,7 @@ from rippl.meta_data.process import Process
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.processing_steps.deramp import Deramp
-from rippl.resampling.resample_regular2irregular import Resample
+from rippl.resampling.resample_regular2irregular import Regural2irregular
 
 
 class DerampResampleRadarGrid(Process):  # Change this name to the one of your processing step.
@@ -132,7 +132,7 @@ class DerampResampleRadarGrid(Process):  # Change this name to the one of your p
 
         # Now apply the resampling
         # Init resampling
-        resample = Resample(self.settings['resample_type'])
+        resample = Regural2irregular(self.settings['resample_type'])
 
         in_coor = self.coordinate_systems['in_coor']
         out_coor = self.coordinate_systems['out_coor']

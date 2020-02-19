@@ -427,6 +427,7 @@ class CoordinateSystem():
 
         geo_transform = np.zeros(6)
         projection = osr.SpatialReference()
+        flipped = False
 
         if self.grid_type == 'radar_coordinates':
             # Get the coordinates from the .res file
@@ -455,9 +456,15 @@ class CoordinateSystem():
             geo_transform[0] = self.lon0 + self.dlon * self.first_pixel
             geo_transform[1] = self.dlon
             geo_transform[2] = 0
-            geo_transform[3] = self.lat0 + self.dlat * self.first_line
-            geo_transform[4] = 0
-            geo_transform[5] = self.dlat
+            if self.dlat < 0:
+                geo_transform[3] = self.lat0 + self.dlat * self.first_line
+                geo_transform[4] = 0
+                geo_transform[5] = self.dlat
+            else:
+                geo_transform[3] = self.lat0 + self.dlat * (self.first_line + self.shape[0])
+                geo_transform[4] = 0
+                geo_transform[5] = -self.dlat
+                flipped = True
 
             # Import projection from pyproj
             projection = osr.SpatialReference()
@@ -479,7 +486,7 @@ class CoordinateSystem():
         else:
             print('Grid type ' + self.grid_type + ' is an unknown type.')
 
-        return projection, geo_transform
+        return projection, geo_transform, flipped
 
     def get_offset(self, offset_coor):
         # type: (CoordinateSystem, CoordinateSystem) -> (int, int)

@@ -7,13 +7,13 @@ from rippl.meta_data.process import Process
 from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
-from rippl.resampling.resample_regular2irregular import Resample
+from rippl.resampling.resample_regular2irregular import Regural2irregular
 from rippl.resampling.multilook_regular import MultilookRegular
 
 
 class Resample(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, in_coor=[], out_coor=[], resample_type='4p_cubic',
+    def __init__(self, in_coor=[], out_coor=[], resample_type='linear',
                  in_image_type='', in_process='', in_file_type='', in_polarisation='', in_data_id='',
                  slave='slave', coreg_master='coreg_master', overwrite=False):
 
@@ -33,7 +33,7 @@ class Resample(Process):  # Change this name to the one of your processing step.
         """
 
         # Check whether we need to do regular or irregular multilooking
-        self.regular = MultilookRegular.check_same_coordinate_system(in_coor, out_coor)
+        self.regular = False # MultilookRegular.check_same_coordinate_system(in_coor, out_coor)
 
         # Output data information
         self.output_info = dict()
@@ -54,7 +54,7 @@ class Resample(Process):  # Change this name to the one of your processing step.
         # Input data information
         self.input_info = dict()
         if self.regular:
-            self.input_info['image_types'] = self.output_info['image_type']
+            self.input_info['image_types'] = [self.output_info['image_type']]
             self.input_info['process_types'] = [in_process]
             self.input_info['file_types'] = [in_file_type]
             self.input_info['polarisations'] = [in_polarisation]
@@ -65,11 +65,11 @@ class Resample(Process):  # Change this name to the one of your processing step.
         else:
             self.input_info['image_types'] = [self.output_info['image_type'], 'coreg_master', 'coreg_master']
             self.input_info['process_types'] = [in_process, 'reproject', 'reproject']
-            self.input_info['file_types'] = [in_file_type, 'in_coor_lines', 'in_coor_pixels']
+            self.input_info['file_types'] = [in_file_type, 'out_coor_lines', 'out_coor_pixels']
             self.input_info['polarisations'] = [in_polarisation, '', '']
             self.input_info['data_ids'] = [in_data_id, '', '']
-            self.input_info['coor_types'] = ['in_coor', 'in_coor', 'in_coor']
-            self.input_info['in_coor_types'] = ['', 'out_coor', 'out_coor']
+            self.input_info['coor_types'] = ['in_coor', 'out_coor', 'out_coor']
+            self.input_info['in_coor_types'] = ['', 'in_coor', 'in_coor']
             self.input_info['type_names'] = ['input_data', 'lines', 'pixels']
 
         self.overwrite = overwrite
@@ -105,17 +105,17 @@ class Resample(Process):  # Change this name to the one of your processing step.
         """
 
         # Define the irregular grid for output. This is needed if you want to calculate in blocks.
-        if len(self.in_images['coreg_lines'].disk['data']) > 0:
+        if len(self.in_images['lines'].disk['data']) > 0:
             s_lin = self.block_coor.first_line - self.coordinate_systems['out_coor'].first_line
             s_pix = self.block_coor.first_pixel - self.block_coor.first_pixel
             e_lin = s_lin + self.block_coor.shape[0]
             e_pix = s_pix + self.block_coor.shape[1]
 
-            self.out_irregular_grids = [self.in_images['coreg_lines'].disk['data'][s_lin:e_lin, s_pix:e_pix],
-                                        self.in_images['coreg_pixels'].disk['data'][s_lin:e_lin, s_pix:e_pix]]
+            self.out_irregular_grids = [self.in_images['lines'].disk['data'][s_lin:e_lin, s_pix:e_pix],
+                                        self.in_images['pixels'].disk['data'][s_lin:e_lin, s_pix:e_pix]]
         elif len(self.in_images['coreg_lines'].memory['data']) > 0:
-            self.out_irregular_grids = [self.in_images['coreg_lines'].memory['data'],
-                                        self.in_images['coreg_pixels'].memory['data']]
+            self.out_irregular_grids = [self.in_images['lines'].memory['data'],
+                                        self.in_images['pixels'].memory['data']]
         else:
             raise FileNotFoundError('Data for irregular grids not available.')
         self.in_irregular_grids = [None]
@@ -127,13 +127,9 @@ class Resample(Process):  # Change this name to the one of your processing step.
         :return:
         """
 
+        s_lin = self.in_images['input_data'].memory['meta']['s_lin']
+        s_pix = self.in_images['input_data'].memory['meta']['s_pix']
+
         # Init resampling
-        resample = Resample(self.settings['resample_type'])
-
-        # Change line/pixel coordinates to right value
-        lines = (self['coreg_lines'] + (self.coordinate_systems['out_coor'].first_line - self.coordinate_systems['in_coor'].first_line) - self.block_coor.first_line) / \
-                               (self.block_coor.multilook[0] / self.block_coor.oversample[0])
-        pixels = (self['coreg_pixels'] + (self.coordinate_systems['out_coor'].first_pixel - self.coordinate_systems['in_coor'].first_pixel) - self.block_coor.first_pixel) / \
-                               (self.block_coor.multilook[1] / self.block_coor.oversample[1])
-
-        self['resampled'] = resample(self['input_data'], lines, pixels)
+        resample = Regural2irregular(self.settings['resample_type'])
+        self[self.output_info['file_types'][0]] = resample(self['input_data'], self['lines'] - s_lin, self['pixels'] - s_pix)

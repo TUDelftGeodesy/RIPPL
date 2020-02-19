@@ -7,7 +7,7 @@ from rippl.meta_data.process import Process
 from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
-from rippl.resampling.resample_regular2irregular import Resample
+from rippl.resampling.resample_regular2irregular import Regural2irregular
 
 
 class ResampleRadarGrid(Process):  # Change this name to the one of your processing step.
@@ -104,7 +104,7 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
         """
 
         # Init resampling
-        resample = Resample(self.settings['resample_type'])
+        resample = Regural2irregular(self.settings['resample_type'])
         in_block_coor = self.coordinate_systems['in_block_coor']
 
         # Change line/pixel coordinates to right value

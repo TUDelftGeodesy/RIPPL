@@ -29,9 +29,12 @@ def write_sentinel_burst(input):
     number = input[2]
     swath_no = input[3]
     date = input[4]
+    [no, n] = input[5]
 
     slice_code = 'slice_' + str(number) + '_swath_' + str(swath_no)
     folder_date = date[:4] + date[5:7] + date[8:]
+
+    print('Loading from original SLC, burst ' + str(no) + ' out of ' + str(n))
 
     if slice == 'NoData':
         print('Image already loaded. Skipping image ' + slice_code + ' at ' + date)

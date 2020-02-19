@@ -161,22 +161,8 @@ class OrbitCoordinates(object):
 
         self.regular = regular
 
-        if not regular and grid_type == 'radar_coordinates':
-            if len(lines) != len(pixels) or len(pixels) == 0 or len(lines) == 0:
-                print('For irregular lines/pixels arrays both arrays should be equal length and not empty')
-
-            all_lines = np.arange(np.min(lines), np.max(lines) + 1)
-            all_pixels = np.arange(np.min(pixels), np.max(pixels) + 1)
-
-            self.az_times = self.az_time + self.az_step * all_lines
-            self.ra_times = self.ra_time + self.ra_step * all_pixels
-
-            # Reduce the line number to create right az/ra ids
-            self.lines = lines - np.min(lines)
-            self.pixels = pixels - np.min(pixels)
-        else:
-            self.az_times = self.az_time + self.az_step * lines
-            self.ra_times = self.ra_time + self.ra_step * pixels
+        self.az_times = self.az_time + self.az_step * lines
+        self.ra_times = self.ra_time + self.ra_step * pixels
 
         # Evaluate the orbit based on the given az_times
         self.xyz_orbit, self.vel_orbit, self.acc_orbit = self.orbit.evaluate_orbit_spline(self.az_times, vel=True, acc=True)

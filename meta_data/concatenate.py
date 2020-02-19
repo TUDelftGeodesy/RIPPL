@@ -149,7 +149,7 @@ class Concatenate():
 
         return True
 
-    def concatenate(self, transition_type='full_weight', replace=True, cut_off=10):
+    def concatenate(self, transition_type='full_weight', replace=False, cut_off=10):
         """
         Here the actual concatenation is done.
 
@@ -206,6 +206,7 @@ class Concatenate():
 
         # Finally save the .json data.
         self.concat_image.data.update_json()
+        print('Finished concatenation ' + self.concat_data.process_name + ' of ' + self.concat_data.folder)
 
     def full_weight(self):
         """

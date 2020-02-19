@@ -141,15 +141,10 @@ class ImportDem(Process):  # Change this name to the one of your processing step
         :return:
         """
 
-        # Define the in_coor based on the input data.
-        radar_coor = self.coordinate_systems['in_coor']
-        orbit = self.processing_images['coreg_master'].find_best_orbit('original')
-        in_coor = self.processing_images['coreg_master'].processing_image_data_exists('crop', radar_coor, '', '', '', 'crop')
-        in_coor.orbit = orbit
-
         new_coor = CoorNewExtend(self.coordinate_systems['in_coor'], self.coordinate_systems['out_coor'],
                                  buffer=self.settings['buffer'], rounding=self.settings['rounding'])
         self.coordinate_systems['out_coor'] = new_coor.out_coor
+        self.coordinate_systems['in_coor'] = self.coordinate_systems['out_coor']
 
     @staticmethod
     def create_dem(coordinates, dem_folder, dem_type='SRTM3', quality=False, lon_resolution=3):

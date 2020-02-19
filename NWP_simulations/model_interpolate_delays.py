@@ -1,5 +1,5 @@
 import numpy as np
-from rippl.resampling.resample_regular2irregular import Resample
+from rippl.resampling.resample_regular2irregular import Regural2irregular
 
 
 class ModelInterpolateDelays(object):
@@ -131,7 +131,7 @@ class ModelInterpolateDelays(object):
                     grid_delay = self.splines[run_type][t].evaluate_splines(np.asarray([i])).reshape(size)
 
                     # Resample to new grid
-                    delays = Resample.resample_grid(grid_delay, coor_l, coor_p, w_type='linear', table_size=[50, 50])
+                    delays = Regural2irregular.resample_grid(grid_delay, coor_l, coor_p, w_type='linear', table_size=[50, 50])
                     self.interp_delays[run_type][t][self.dh_bins[str(i)]] = delays
 
     def remove_delay(self, time):

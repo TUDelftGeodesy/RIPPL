@@ -402,7 +402,7 @@ class ImageData():
             print('File ' + file_path + ' does already exist')
             return
 
-        projection, geo_transform = self.coordinates.create_gdal_projection()
+        projection, geo_transform, flipped = self.coordinates.create_gdal_projection()
         driver = gdal.GetDriverByName('GTiff')
 
         self.load_memory_data(self.shape)
@@ -411,13 +411,24 @@ class ImageData():
             data = driver.Create(file_path, self.shape[1], self.shape[0], 2, self.dtype_gdal[self.dtype])
             data.SetGeoTransform(geo_transform)
             data.SetProjection(projection.ExportToWkt())
-            data.GetRasterBand(1).WriteArray(np.log(np.abs(self.memory['data'])))
-            data.GetRasterBand(2).WriteArray(np.angle(self.memory['data']))
+            if flipped:
+                data.GetRasterBand(1).WriteArray(np.flipud(np.log(np.abs(self.memory['data']))))
+                data.GetRasterBand(2).WriteArray(np.flipud(np.angle(self.memory['data'])))
+            else:
+                data.GetRasterBand(1).WriteArray(np.log(np.abs(self.memory['data'])))
+                data.GetRasterBand(2).WriteArray(np.angle(self.memory['data']))
         else:
             data = driver.Create(file_path, self.shape[1], self.shape[0], 1, self.dtype_gdal[self.dtype])
             data.SetGeoTransform(geo_transform)
             data.SetProjection(projection.ExportToWkt())
-            data.GetRasterBand(1).WriteArray(self.memory['data'])
+            if flipped:
+                data.GetRasterBand(1).WriteArray(np.flipud(self.memory['data']))
+            else:
+                data.GetRasterBand(1).WriteArray(self.memory['data'])
+
+        data.FlushCache()
+        data = None
+        self.remove_memory_data()
 
     # Conversion between data on disk and in memory.
     @staticmethod

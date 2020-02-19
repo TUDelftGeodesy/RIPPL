@@ -8,6 +8,7 @@ This is a super class for all processing step. This class manages:
 
 '''
 
+import numpy as np
 import copy
 
 from rippl.meta_data.image_processing_data import ImageProcessingData
@@ -508,6 +509,13 @@ class Process():
 
         self.s_lin = s_lin
         self.s_pix = s_pix
+
+        if self.coordinate_systems['out_coor'].grid_type == 'radar_coordinates':
+            ml_step = np.array(self.coordinate_systems['out_coor'].multilook) / \
+                      np.array(self.coordinate_systems['out_coor'].oversample)
+            s_lin = s_lin * ml_step[0]
+            s_pix = s_pix * ml_step[1]
+
         self.lines = lines
         self.pixels = pixels
         self.blocks = True
@@ -522,8 +530,8 @@ class Process():
             self.pixels = self.coordinate_systems['out_coor'].shape[1] - self.s_pix
 
         self.coordinate_systems['block_coor'] = copy.deepcopy(self.coordinate_systems['out_coor'])
-        self.coordinate_systems['block_coor'].first_line += self.s_lin
-        self.coordinate_systems['block_coor'].first_pixel += self.s_pix
+        self.coordinate_systems['block_coor'].first_line += s_lin
+        self.coordinate_systems['block_coor'].first_pixel += s_pix
         self.coordinate_systems['block_coor'].shape = [self.lines, self.pixels]
         self.block_coor = self.coordinate_systems['block_coor']
 
@@ -624,15 +632,31 @@ class Process():
         if self.blocks:
             if len(self.in_irregular_grids) == 2:
                 coor = self.block_coor
+                if coor.grid_type == 'radar_coordinates':
+                    self.ml_step = np.array(coor.multilook) / np.array(coor.oversample)
+                    shape = coor.shape * self.ml_step
+                else:
+                    shape = coor.shape
+                first_line = coor.first_line
+                first_pixel = coor.first_pixel
+
                 s_lin, s_pix, shape = SelectInputWindow.input_irregular_rectangle(self.in_irregular_grids[0], self.in_irregular_grids[1],
-                                                            coor.first_line, coor.first_pixel, coor.shape, buf)
+                                                            first_line, first_pixel, shape, buf)
             elif len(self.out_irregular_grids) == 2:
-                s_lin, s_pix, shape = SelectInputWindow.output_irregular_rectangle(self.out_irregular_grids[0] - self.coordinate_systems['in_coor'].first_line,
-                                                                                   self.out_irregular_grids[1] - self.coordinate_systems['in_coor'].first_pixel,
-                                                                                   self.coordinate_systems['in_coor'].shape, buf)
-                self.coordinate_systems['in_block_coor'].shape = shape
-                self.coordinate_systems['in_block_coor'].first_line += s_lin + self.coordinate_systems['in_coor'].first_line
-                self.coordinate_systems['in_block_coor'].first_pixel += s_pix + self.coordinate_systems['in_coor'].first_pixel
+                if self.coordinate_systems['in_coor'].grid_type == 'radar_coordinates':
+                    s_lin, s_pix, shape = SelectInputWindow.output_irregular_rectangle(self.out_irregular_grids[0] - self.coordinate_systems['in_coor'].first_line,
+                                                                                       self.out_irregular_grids[1] - self.coordinate_systems['in_coor'].first_pixel,
+                                                                                       self.coordinate_systems['in_coor'].shape, buf)
+                    self.coordinate_systems['in_block_coor'].shape = shape
+                    self.coordinate_systems['in_block_coor'].first_line += s_lin + self.coordinate_systems['in_coor'].first_line
+                    self.coordinate_systems['in_block_coor'].first_pixel += s_pix + self.coordinate_systems['in_coor'].first_pixel
+                else:
+                    s_lin, s_pix, shape = SelectInputWindow.output_irregular_rectangle(self.out_irregular_grids[0],
+                                                                                       self.out_irregular_grids[1],
+                                                                                       self.coordinate_systems['in_coor'].shape, buf)
+                    self.coordinate_systems['in_block_coor'].shape = shape
+                    self.coordinate_systems['in_block_coor'].first_line += s_lin
+                    self.coordinate_systems['in_block_coor'].first_pixel += s_pix
             else:
                 s_lin = self.s_lin
                 s_pix = self.s_pix
@@ -642,15 +666,15 @@ class Process():
             s_pix = 0
             shape = self.coordinate_systems['in_coor'].shape
 
-        self.coordinate_systems['in_coor'].create_coor_id()
-        self.coordinate_systems['out_coor'].create_coor_id()
+        #self.coordinate_systems['in_coor'].create_coor_id()
+        #self.coordinate_systems['out_coor'].create_coor_id()
 
         for key, input_coor in zip(self.in_images.keys(), self.input_info['coor_types']):
-            self.in_images[key].coordinates.create_coor_id()
+            #self.in_images[key].coordinates.create_coor_id()
             if input_coor == 'in_coor':
                 success = self.in_images[key].load_memory_data(shape, s_lin, s_pix)
             elif input_coor == 'out_coor':
-                success = self.in_images[key].load_memory_data([self.lines, self.pixels], self.s_lin, self.s_pix)
+                success = self.in_images[key].load_memory_data((self.lines, self.pixels), self.s_lin, self.s_pix)
             else:
                 success = False
             if not success:

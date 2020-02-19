@@ -53,7 +53,7 @@ class ResamplePrepare(Process):  # Change this name to the one of your processin
                 self.input_info['polarisations'] = ['', '', '', in_polarisation]
                 self.input_info['data_ids'] = [data_id, data_id, data_id, in_data_id]
                 self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor', 'in_coor']
-                self.input_info['in_coor_types'] = ['', '', '', '']
+                self.input_info['in_coor_types'] = ['', '', '', '', '']
                 self.input_info['type_names'] = ['X', 'Y', 'Z', 'in_coor_grid']
             else:
                 self.input_info['image_types'] = ['coreg_master', in_image_type]

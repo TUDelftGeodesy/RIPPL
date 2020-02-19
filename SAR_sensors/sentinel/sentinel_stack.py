@@ -13,6 +13,7 @@ The code works in the following way.
 import datetime
 import os
 import zipfile
+from random import shuffle
 
 import numpy as np
 from multiprocessing import Pool
@@ -277,7 +278,8 @@ class SentinelStack(SentinelDatabase, Stack):
         # Calculate the burst availability
         s_dates = np.unique(np.array(self.slice_date))
         m_names = np.array(self.master_slice_names)
-        self.burst_availability = np.zeros((len(self.master_slice_names), len(s_dates)))
+        n_burst = len(self.master_slice_names)
+        self.burst_availability = np.zeros((n_burst, len(s_dates)))
 
         for s_name, s_date in zip(self.slice_names, self.slice_date):
             date_id = np.where((s_dates == s_date))
@@ -314,19 +316,28 @@ class SentinelStack(SentinelDatabase, Stack):
         if num_cores > 1:
             pool = Pool(num_cores)
 
-        master_dat = [[self.datastack_folder, slice, number, swath_no, date]
-                     for slice, number, swath_no, date
-                      in zip(self.master_slices, self.master_slice_number, self.master_slice_swath_no,
-                      self.master_slice_date)]
+        n = len(self.master_slices)
+        id_num = np.arange(n)
+        id = np.arange(n)
+        shuffle(id)
+        master_dat = [[self.datastack_folder, slice, number, swath_no, date, [no, n]]
+                     for slice, number, swath_no, date, no
+                      in zip(np.array(self.master_slices)[id], np.array(self.master_slice_number)[id],
+                             np.array(self.master_slice_swath_no)[id], np.array(self.master_slice_date)[id], id_num)]
         if num_cores > 1:
             res = pool.map(write_sentinel_burst, master_dat)
         else:
             for m_dat in master_dat:
                 write_sentinel_burst(m_dat)
 
-        slave_dat = [[self.datastack_folder, slice, number, swath_no, date]
-                     for slice, number, swath_no, date
-                     in zip(self.slices, self.slice_number, self.slice_swath_no, self.slice_date)]
+        n = len(self.slices)
+        id_num = np.arange(n)
+        id = np.arange(n)
+        shuffle(id)
+        slave_dat = [[self.datastack_folder, slice, number, swath_no, date, [no, n]]
+                     for slice, number, swath_no, date, no
+                     in zip(np.array(self.slices)[id], np.array(self.slice_number)[id],
+                            np.array(self.slice_swath_no)[id], np.array(self.slice_date)[id], id_num)]
         if num_cores > 1:
             res = pool.map(write_sentinel_burst, slave_dat)
         else:

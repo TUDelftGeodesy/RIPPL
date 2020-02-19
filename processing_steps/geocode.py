@@ -110,7 +110,7 @@ class Geocode(Process):  # Change this name to the one of your processing step.
 
                 self['lat'], self['lon'] = self.block_coor.create_latlon_grid()
 
-            xyz = OrbitCoordinates.ell2xyz(self['lat'], self['lon'])
+            xyz = OrbitCoordinates.ell2xyz(self['lat'], self['lon'], self['dem'])
 
             self['X'] = np.reshape(xyz[0, :], self.block_coor.shape)
             self['Y'] = np.reshape(xyz[1, :], self.block_coor.shape)

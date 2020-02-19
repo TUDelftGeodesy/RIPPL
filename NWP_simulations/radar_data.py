@@ -1,17 +1,9 @@
 import datetime
 import numpy as np
 import locale
-from rippl.meta_data.image_processing_data import ImageData
 from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
-from rippl.external_dems.srtm.srtm_download import SrtmDownload
-from rippl.processing_steps_old.import_dem import CreateSrtmDem
-from rippl.processing_steps_old.inverse_geocode import InverseGeocode
-from rippl.processing_steps_old.resample_dem import ResampleDem
-from rippl.processing_steps_old.geocode import Geocode
-from rippl.processing_steps_old.azimuth_elevation_angle import AzimuthElevationAngle
 
-
-class RadarData(OrbitCoordinates, ImageData):
+class RadarData(OrbitCoordinates):
 
     """
     :type t_step = float
@@ -66,32 +58,3 @@ class RadarData(OrbitCoordinates, ImageData):
         for t in self.model_times[key_date]:
             if t not in self.date_times:
                 self.date_times.append(t)
-
-    def calc_geometry(self, dem_folder, meta):
-        # This is the main function to create a delay grid from weather data. As long as this weather model data follows
-        # the Grib standards, it should work (This will be tested for Harmonie and ECMWF data).
-
-        if isinstance(meta, str):
-            if len(meta) != 0:
-                meta = ImageData(meta, 'single')
-            else:
-                meta = self.meta[0]
-
-        radar_ref = SrtmDownload(dem_folder, 'gertmulder', 'Radar2016', resolution='SRTM3', n_processes=4)
-        radar_ref(meta)
-        radar_ref = CreateSrtmDem(dem_folder, dem_data_folder=dem_folder, meta=meta, resolution='SRTM3')
-        radar_ref()
-        radar_ref = InverseGeocode(meta=meta, resolution='SRTM3')
-        radar_ref()
-
-        # Now create radar dem and calculate geometry
-        radar_ref = ResampleDem(meta=meta, resolution='SRTM3', interval=self.interval, buffer=self.interval)
-        radar_ref()
-        self.lines = radar_ref.lines
-        self.pixels = radar_ref.pixels
-
-        radar_ref = Geocode(meta=meta, interval=self.interval, buffer=self.interval)
-        radar_ref()
-        radar_ref = AzimuthElevationAngle(meta=meta, interval=self.interval, buffer=self.interval)
-        radar_ref()
-        radar_ref.create_output_files()

@@ -2,7 +2,7 @@
 import numpy as np
 
 
-class Resample(object):
+class Regural2irregular(object):
 
     def __init__(self, w_type='4p_cubic', table_size=None):
         # Both the resampling and interp table scripts are staticmethod which makes them usable outside this class.

@@ -89,11 +89,16 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
         orbit_interp = OrbitCoordinates(coordinates=self.block_coor, orbit=orbit)
 
         # Calc xyz and velocity vector of satellite orbit.
-        orbit_interp.lp_time()
         orbit_interp.height = self['dem']
+        orbit_interp.xyz = np.vstack((np.ravel(self['X'])[None, :], np.ravel(self['Y'])[None, :], np.ravel(self['Z'])[None, :]))
+
+        if self.block_coor.grid_type != 'radar_coordinates':
+            lines, pixels = orbit_interp.xyz2lp(orbit_interp.xyz)
+            orbit_interp.lp_time(lines, pixels, regular=False)
+        else:
+            orbit_interp.lp_time()
 
         # Calc angles based on xyz information from geocoding
-        orbit_interp.xyz = np.vstack((np.ravel(self['X'])[None, :], np.ravel(self['Y'])[None, :], np.ravel(self['Z'])[None, :]))
         orbit_interp.xyz2scatterer_azimuth_elevation()
         orbit_interp.xyz2orbit_heading_off_nadir()
 

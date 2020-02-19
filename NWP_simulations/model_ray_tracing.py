@@ -2,7 +2,7 @@
 import numpy as np
 
 from rippl.NWP_simulations.massive_spline import MassiveSpline
-from rippl.resampling.resample_regular2irregular import Resample
+from rippl.resampling.resample_regular2irregular import Regural2irregular
 import copy
 
 class ModelRayTracing(object):
@@ -171,19 +171,19 @@ class ModelRayTracing(object):
             # Interpolate the values at these points for different delay types and levels.
 
             for l in range(self.lev):
-                self.slice_delays['total'][t][l, :, :] = Resample.resample_grid(self.delay_data[t]['total_delay'][l, :, :],
+                self.slice_delays['total'][t][l, :, :] = Regural2irregular.resample_grid(self.delay_data[t]['total_delay'][l, :, :],
                                                               lat_id, lon_id, 'linear', table_size=[50, 50])
                 if self.split_signal:
-                    self.slice_delays['wet'][t][l, :, :] = Resample.resample_grid(self.delay_data[t]['wet_delay'][l, :, :],
+                    self.slice_delays['wet'][t][l, :, :] = Regural2irregular.resample_grid(self.delay_data[t]['wet_delay'][l, :, :],
                                                                   lat_id, lon_id, 'linear', table_size=[50, 50])
-                    self.slice_delays['hydrostatic'][t][l, :, :] = Resample.resample_grid(self.delay_data[t]['hydrostatic_delay'][l, :, :],
+                    self.slice_delays['hydrostatic'][t][l, :, :] = Regural2irregular.resample_grid(self.delay_data[t]['hydrostatic_delay'][l, :, :],
                                                                   lat_id, lon_id, 'linear', table_size=[50, 50])
-                    self.slice_delays['liquid'][t][l, :, :] = Resample.resample_grid(self.delay_data[t]['liquid_delay'][l, :, :],
+                    self.slice_delays['liquid'][t][l, :, :] = Regural2irregular.resample_grid(self.delay_data[t]['liquid_delay'][l, :, :],
                                                                   lat_id, lon_id, 'linear', table_size=[50, 50])
 
             # Also find the heights at these points.
             for l in range(self.lev + 1):
-                self.slice_heights[t][l, :, :] = Resample.resample_grid(self.delay_data[t]['heights'][l, :, :],
+                self.slice_heights[t][l, :, :] = Regural2irregular.resample_grid(self.delay_data[t]['heights'][l, :, :],
                                                      lat_id, lon_id, 'linear', table_size=[50, 50])
 
     def find_point_delays(self, spline_num=10, time_key=''):

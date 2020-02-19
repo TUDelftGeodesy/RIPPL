@@ -102,18 +102,21 @@ class Pipeline():
         image_types = list(self.processing_data.keys())
         n_datasets = len(self.processing_data[image_types[0]])
 
-        # Finally write the output resfile to disk.
-        self.processing_datasets = []
-        self.json_files = []
-
         blocks = int(np.ceil(n_datasets / self.run_no_datasets))
 
         for block in range(blocks):
+            # Print which block we are processing.
+            print('Processing pipeline block ' + str(block) + ' out of ' + str(blocks))
+
             # Then assign the processing data and coordinate systems.
             self.assign_coordinate_systems_processing_data(block)
 
             # Finally create the block sizes.
             self.divide_processing_blocks(block)
+
+            # The output resfile to disk.
+            self.processing_datasets = []
+            self.json_files = []
 
             # Create the output files. This is not done using multiprocessing, as it only assigns disk space which is
             # generally fast.
@@ -162,7 +165,7 @@ class Pipeline():
                     self.processing_datasets.append(processing)
                     self.json_files.append(processing.folder)
 
-        self.save_processing_results()
+            self.save_processing_results()
 
     def save_processing_results(self):
         # Write away the .json files.
@@ -298,6 +301,8 @@ class Pipeline():
 
             if save_anything:
                 self.pipelines.append(pipeline)
+            else:
+                print('Skipping processing. Process already finished')
 
     def divide_processing_blocks(self, run_block=0):
         """

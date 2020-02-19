@@ -122,8 +122,15 @@ class ResampleDem(Process):  # Change this name to the one of your processing st
             resample = Irregular2Regular(self['lines'], self['pixels'], self['input_dem'], coordinates=block_coor)
             self['dem'] = resample()
         else:
-            x_coor = np.arange(block_coor.shape[1]) + block_coor.first_pixel
-            y_coor = np.arange(block_coor.shape[0]) + block_coor.first_line
+            if block_coor.grid_type == 'geographic':
+                lats, lons = block_coor.create_latlon_grid()
+            elif block_coor.grid_type == 'projection':
+                x, y = block_coor.create_xy_grid()
+                lats, lons = block_coor.proj2ell(x, y)
 
-            bilinear_interp = RectBivariateSpline(x_coor, y_coor, self['input_dem'])
-            self['dem'] = bilinear_interp.ev(self['pixels'], self['lines'])
+            in_coor = self.coordinate_systems['in_block_coor']
+            lats_in = in_coor.lat0 + (in_coor.first_line + np.arange(in_coor.shape[0])) * in_coor.dlat
+            lons_in = in_coor.lon0 + (in_coor.first_pixel + np.arange(in_coor.shape[1])) * in_coor.dlon
+
+            bilinear_interp = RectBivariateSpline(lats_in, lons_in, self['input_dem'])
+            self['dem'] = bilinear_interp.ev(lats, lons)

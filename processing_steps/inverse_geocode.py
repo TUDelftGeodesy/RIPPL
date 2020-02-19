@@ -128,9 +128,8 @@ class InverseGeocode(Process):  # Change this name to the one of your processing
         else:
             xyz = np.vstack((np.ravel(self['X'])[None, :], np.ravel(self['Y'])[None, :], np.ravel(self['Z'])[None, :]))
 
-        self.ml_step = np.array(in_coor.multilook) / np.array(in_coor.oversample)
-
         lines, pixels = orbit_interp.xyz2lp(xyz)
+
         self['lines'] = np.reshape(lines, self.block_coor.shape)
         self['pixels'] = np.reshape(pixels, self.block_coor.shape)
         

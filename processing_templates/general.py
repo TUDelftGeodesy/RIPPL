@@ -9,6 +9,7 @@ import os
 import numpy as np
 import copy
 
+from rippl.processing_steps.resample import Resample
 from rippl.processing_steps.import_dem import ImportDem
 from rippl.processing_steps.inverse_geocode import InverseGeocode
 from rippl.processing_steps.resample_dem import ResampleDem
@@ -27,6 +28,7 @@ from rippl.processing_steps.calibrated_amplitude_multilook import CalibratedAmpl
 from rippl.processing_steps.multilook_prepare import MultilookPrepare
 from rippl.processing_steps.resample_prepare import ResamplePrepare
 from rippl.processing_steps.unwrap import Unwrap
+from rippl.processing_steps.nesz_harmony_sentinel import NeszHarmonySentinel
 
 from rippl.processing_steps.multilook import Multilook
 from rippl.pipeline import Pipeline
@@ -71,7 +73,8 @@ class GeneralPipelines():
             if slice:
                 for slc_name in slc_names:
                     for slice_name in slice_names:
-                        images.append(self.stack.slcs[slc_name].slice_data[slice_name])
+                        if slice_name in self.stack.slcs[slc_name].slice_data.keys():
+                            images.append(self.stack.slcs[slc_name].slice_data[slice_name])
             else:
                 for slc_name in slc_names:
                     if concat_meta:
@@ -94,10 +97,13 @@ class GeneralPipelines():
             if slice:
                 for ifg_name, master_name, slave_name in zip(ifg_names, master_names, slave_names):
                     for slice_name in slice_names:
-                        ifg.append(self.stack.ifgs[ifg_name].slice_data[slice_name])
-                        master.append(self.stack.slcs[master_name].slice_data[slice_name])
-                        slave.append(self.stack.slcs[slave_name].slice_data[slice_name])
-                        coreg_master.append(self.stack.slcs[coreg_master_name].slice_data[slice_name])
+                        if slice_name in self.stack.slcs[master_name].slice_data.keys() and \
+                            slice_name in self.stack.slcs[slave_name].slice_data.keys():
+
+                            ifg.append(self.stack.ifgs[ifg_name].slice_data[slice_name])
+                            master.append(self.stack.slcs[master_name].slice_data[slice_name])
+                            slave.append(self.stack.slcs[slave_name].slice_data[slice_name])
+                            coreg_master.append(self.stack.slcs[coreg_master_name].slice_data[slice_name])
             else:
                 for ifg_name, master_name, slave_name in zip(ifg_names, master_names, slave_names):
                     if concat_meta:
@@ -134,8 +140,9 @@ class GeneralPipelines():
             if slice:
                 for slave_name in slave_names:
                     for slice_name in slice_names:
-                        slave.append(self.stack.slcs[slave_name].slice_data[slice_name])
-                        master.append(self.stack.slcs[coreg_master_name].slice_data[slice_name])
+                        if slice_name in self.stack.slcs[slave_name].slice_data.keys():
+                            slave.append(self.stack.slcs[slave_name].slice_data[slice_name])
+                            master.append(self.stack.slcs[coreg_master_name].slice_data[slice_name])
             else:
                 for slave_name in slave_names:
                     if concat_meta:
@@ -294,12 +301,16 @@ class GeneralPipelines():
 
         coreg_image = self.get_data('coreg_master', slice=False, concat_meta=False)[0]  # type: ImageProcessingData
         orbit = coreg_image.find_best_orbit()
+        readfile = coreg_image.readfiles['original']
         self.full_radar_coor.load_orbit(orbit)
 
         # Define the full image multilooked image.
         if shape == [0, 0] or shape == '':
             new_coor = CoorNewExtend(self.full_radar_coor, self.full_ml_coor)
             self.full_ml_coor = new_coor.out_coor
+
+        self.full_ml_coor.load_orbit(orbit)
+        self.full_ml_coor.load_readfile(readfile)
 
     def create_radar_coordinates(self):
         """
@@ -600,17 +611,28 @@ class GeneralPipelines():
             create_unwrapped_image.add_processing_step(Unwrap(polarisation=pol, out_coor=self.full_ml_coor, ifg='ifg'), True)
             create_unwrapped_image()
 
-    def create_geometry_mulitlooked(self, polarisation):
+    def create_geometry_mulitlooked(self, dem_folder='', dem_type='', dem_buffer='', dem_rounding='', lon_resolution=''):
         """
         Create the geometry for a geographic grid used for multilooking
 
-        :param polarisation:
         :return:
         """
 
+        # Load parameters to import DEM
+        if dem_folder:
+            self.dem_folder = dem_folder
+        if dem_type:
+            self.dem_type = dem_type
+        if dem_buffer:
+            self.dem_buffer = dem_buffer
+        if dem_rounding:
+            self.dem_rounding = dem_rounding
+        if lon_resolution:
+            self.lon_resolution = lon_resolution
+
         # Create the first multiprocessing pipeline.
         self.reload_stack()
-        coreg_slices = self.get_data('coreg_master', slice=True)
+        coreg_slices = self.get_data('coreg_master', slice=False)
 
         dem_pipeline = Pipeline(pixel_no=5000000, processes=self.processes)
         dem_pipeline.add_processing_data(coreg_slices, 'coreg_master')
@@ -618,18 +640,80 @@ class GeneralPipelines():
                                                    dem_type=self.dem_type, dem_folder=self.dem_folder,
                                                    buffer=self.dem_buffer, rounding=self.dem_rounding,
                                                    lon_resolution=self.lon_resolution), True)
-        dem_pipeline.add_processing_step(InverseGeocode(in_coor=self.full_ml_coor, out_coor=self.dem_coor,
-                                                        coreg_master='coreg_master', dem_type=self.dem_type), True)
         dem_pipeline()
+
+        self.reload_stack()
+        coreg_image = self.get_data('coreg_master', slice=False)
+        create_resample_grid = Pipeline(pixel_no=5000000, processes=self.processes)
+        create_resample_grid.add_processing_data(coreg_image, 'coreg_master')
+        create_resample_grid.add_processing_step(
+            ResamplePrepare(in_coor=self.dem_coor, out_coor=self.full_ml_coor,
+                             in_file_type='dem', in_process='dem',
+                             slave='coreg_master', coreg_master='coreg_master'), True)
+        create_resample_grid()
 
         # Then create the radar DEM, geocoding, incidence angles for the master grid
         self.reload_stack()
-        coreg_slices = self.get_data('coreg_master', slice=True)
+        coreg_slices = self.get_data('coreg_master', slice=False)
 
         geocode_pipeline = Pipeline(pixel_no=3000000, processes=self.processes)
         geocode_pipeline.add_processing_data(coreg_slices, 'coreg_master')
-        geocode_pipeline.add_processing_step(ResampleDem(out_coor=self.full_ml_coor, in_coor=self.dem_coor,
-                                                         coreg_master='coreg_master'), True)
+        geocode_pipeline.add_processing_step(Resample(in_coor=self.dem_coor, out_coor=self.full_ml_coor,
+                                                             in_file_type='dem', in_process='dem',
+                                                             slave='coreg_master', coreg_master='coreg_master'), True)
         geocode_pipeline.add_processing_step(Geocode(out_coor=self.full_ml_coor, coreg_master='coreg_master'), True)
         geocode_pipeline.add_processing_step(RadarRayAngles(out_coor=self.full_ml_coor, coreg_master='coreg_master'), True)
         geocode_pipeline()
+
+    def calculate_nesz_multilooked(self, nesz_main_dir):
+        """
+        Calculate the NESZ for the master image.
+        Possible to add AASR and RASR (but that is actually not entirely correct)
+
+        :return:
+        """
+
+        self.reload_stack()
+        coreg_slices = self.get_data('coreg_master', slice=True)
+
+        nesz_pipeline = Pipeline(pixel_no=10000000, processes=self.processes)
+        nesz_pipeline.add_processing_data(coreg_slices, 'coreg_master')
+        nesz_pipeline.add_processing_step(NeszHarmonySentinel(out_coor=self.radar_coor, coreg_master='coreg_master', nesz_main_dir=nesz_main_dir), True)
+        nesz_pipeline()
+
+        replace = True
+
+        self.reload_stack()
+        coreg_image = self.get_data('coreg_master', slice=False, concat_meta=True)[0]
+        coreg_image.create_concatenate_image(process='nesz', file_type='nesz_harmony_ati', coor=self.radar_coor, transition_type='cut_off')
+        coreg_image.create_concatenate_image(process='nesz', file_type='nesz_harmony_dual', coor=self.radar_coor, transition_type='cut_off')
+        coreg_image.create_concatenate_image(process='nesz', file_type='nesz_sentinel', coor=self.radar_coor, transition_type='cut_off')
+
+        self.reload_stack()
+        coreg_image = self.get_data('coreg_master', slice=False, concat_meta=False)
+
+        # First create the multilooked square amplitudes.
+        create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes)
+        create_multilooked_amp.add_processing_data(coreg_image, 'coreg_master')
+        create_multilooked_amp.add_processing_step(
+            Multilook(in_coor=self.radar_coor, out_coor=self.full_ml_coor, slave='coreg_master', coreg_master='coreg_master', batch_size=10000000,
+                      in_file_type=['nesz_harmony_ati', 'nesz_harmony_dual', 'nesz_sentinel'], in_process='nesz'), True, True)
+        create_multilooked_amp()
+        create_multilooked_amp.save_processing_results()
+
+    def create_output_tiffs_nesz(self):
+        """
+        Create the geotiff images
+
+        :return:
+        """
+
+        self.reload_stack()
+        geometry_datasets = self.stack.stack_data_iterator(['nesz'], coordinates=[self.full_ml_coor],
+                                                           process_types=['nesz_harmony_ati', 'nesz_harmony_dual', 'nesz_sentinel'])[-1]
+        coreg_master = self.get_data('coreg_master', slice=False)[0]
+        readfile = coreg_master.readfiles['original']
+
+        for geometry_dataset in geometry_datasets:  # type: ImageData
+            geometry_dataset.coordinates.load_readfile(readfile)
+            geometry_dataset.save_tiff(main_folder=True)

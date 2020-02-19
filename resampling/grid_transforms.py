@@ -207,10 +207,13 @@ class GridTransforms(object):
         if not GridTransforms.check_ellipsoid(in_coor, out_coor):
             return
 
-        line_vals = ((in_coor.lat0 - out_coor.lat0) + np.arange(out_coor.shape[0]) * out_coor.dlat) / in_coor.dlat
-        pixel_vals = ((in_coor.lon0 - out_coor.lon0) + np.arange(out_coor.shape[1]) * out_coor.dlon) / in_coor.dlon
+        start_lat_diff = - ((in_coor.lat0 - out_coor.lat0) - out_coor.dlat * out_coor.first_line + in_coor.dlat * in_coor.first_line)
+        start_lon_diff = - ((in_coor.lon0 - out_coor.lon0) - out_coor.dlon * out_coor.first_pixel + in_coor.dlon * in_coor.first_pixel)
 
-        pixels, lines = np.meshgrid((pixel_vals, line_vals))
+        line_vals = (start_lat_diff + np.arange(out_coor.shape[0]) * out_coor.dlat) / in_coor.dlat
+        pixel_vals = (start_lon_diff + np.arange(out_coor.shape[1]) * out_coor.dlon) / in_coor.dlon
+
+        pixels, lines = np.meshgrid(pixel_vals, line_vals)
 
         return lines, pixels
 
