@@ -281,7 +281,7 @@ class GeneralPipelines():
 
     def create_ml_coordinates(self, coor_type, multilook=[1,1], oversample=[1,1], shape=[0,0],
                               dlat=0.001, dlon=0.001, lat0=-90, lon0=180,
-                              dx=1, dy=1, x0=0, y0=0, projection_string='',
+                              dx=1, dy=1, x0=0, y0=0, projection_string='', projection_type='',
                               reference_processing_step='crop'):
         """
         Create the coordinate system for multilooking. This can either be in radar coordinates, geographic or projected.
@@ -297,7 +297,7 @@ class GeneralPipelines():
         elif coor_type == 'geographic':
             self.full_ml_coor.create_geographic(dlat, dlon, shape=shape, lon0=lon0, lat0=lat0)
         elif coor_type == 'projection':
-            self.full_ml_coor.create_projection(dx, dy, projection_string, x0=x0, y0=y0)
+            self.full_ml_coor.create_projection(dx, dy, projection_type=projection_type, proj4_str=projection_string, x0=x0, y0=y0)
 
         coreg_image = self.get_data('coreg_master', slice=False, concat_meta=False)[0]  # type: ImageProcessingData
         orbit = coreg_image.find_best_orbit()
