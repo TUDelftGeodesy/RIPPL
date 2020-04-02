@@ -1,0 +1,59 @@
+# Function to run parallel package. For further details inspect the pipeline class.
+from rippl.meta_data.process import Process
+
+
+def run_parallel(dat):
+    """
+    This function runs a parallel package for image processing.
+
+    :param dict[list[Process] or list[bool]] dat:
+
+    :return:
+    """
+
+    # Get all processing image datasets
+    processing_images = []
+    image_keys = []
+
+    # Load data as memmaps
+    for process in dat['processes']:
+        for key in process.processing_images.keys():
+            if key not in image_keys:
+                processing_images.append(process.processing_images[key])
+                image_keys.append(key)
+
+    for processing_image in processing_images:
+        processing_image.load_memmap_files()
+
+    # Loop over all processes.
+    for process, save, memory_in in zip(dat['processes'], dat['save_processes'], dat['memory_in']):
+        try:
+            # Load needed input shapes
+            process.load_coordinate_system_sizes(find_out_coor=False)
+            # First init the process inputs and outputs.
+            process.load_input_info()
+            # Allocate the irregular grids for resampling/multilooking
+            process.load_irregular_grids()
+            # Start with loading the inputs. If they are already loaded in memory then this step is not needed.
+            if memory_in == False:
+                process.load_input_data()
+            # Then create the output memory files to write the output data
+            process.create_memory()
+            # Print processing
+            print('Start processing ' + process.process_name + ' block ' + str(dat['block'] + 1) + ' out of ' +
+                  str(dat['total_blocks']) + ' [' + str(dat['process_block_no']) + ' of total ' +
+                  str(dat['total_process_block_no']) + '] for ' + process.out_processing_image.folder)
+            # Then do the final calculation
+            process.process_calculations()
+        except:
+            raise BrokenPipeError('Pipeline processing for ' + process.out_processing_image.folder + ' failed.')
+
+        # Finally, if this step is saved to disk. Save the data from memory to disk.
+        if save:
+            process.save_to_disk()
+
+    for processing_image in processing_images:
+        processing_image.remove_memmap_files()
+        processing_image.remove_memory_files()
+
+    return [process.processing_images[key] for key in list(process.processing_images.keys())]
