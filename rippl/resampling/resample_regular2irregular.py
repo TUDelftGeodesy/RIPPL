@@ -1,5 +1,6 @@
 # This function does the resampling of a radar grid based on different kernels.
 import numpy as np
+from scipy.interpolate import RectBivariateSpline
 
 
 class Regural2irregular(object):
@@ -26,7 +27,7 @@ class Regural2irregular(object):
             table_size = [1000, 100]
         # If you use the same resampling window many times, you can also pass it with the function
         if len(window) == 0:
-            window = Resample.create_interp_table(w_type, table_size=table_size)
+            window = Regural2irregular.create_interp_table(w_type, table_size=table_size)
         w_steps = [1.0 / table_size[0], 1.0 / table_size[1]]
         window_size = [window.shape[2], window.shape[3]]
 
@@ -93,13 +94,20 @@ class Regural2irregular(object):
         return out_grid
 
     @staticmethod
-    def create_interp_table(w_type, table_size=None):
+    def create_interp_table(w_type, custom_kernel=None, kernel_size=None, table_size=None):
         # This function creates a lookup table for radar image interpolation.
         # Possible types are nearest neighbour, linear, cubic convolution kernel, knab window, raised cosine kernel or
         # a truncated sinc.
+        # If we use custom the input kernel should be a RectBivariateSpline (scipy)
 
         if not table_size:
             table_size = [1000, 100]
+
+        if w_type == 'custom':
+            if kernel_size == None:
+                kernel_size = [5, 5]
+            if not isinstance(custom_kernel, RectBivariateSpline):
+                raise TypeError('The custom kernel should be a scipy.interpolate.RectBivariateSpline!')
 
         az_coor = np.arange(table_size[0] + 1).astype('float32') / table_size[0]
         ra_coor = np.arange(table_size[1] + 1).astype('float32') / table_size[1]
@@ -139,6 +147,14 @@ class Regural2irregular(object):
                                 4 * a - 2 * b),
                                 b * ra_coor_3 ** 3 - 8 * b * ra_coor_3 ** 2 + 21 * b * ra_coor_3 - 18 * b))
             d_ra = np.vstack((np.fliplr(np.flipud(d_ra_r)), d_ra_r))
+        elif w_type == 'custom':
+            az_values = np.arange(np.ceil(-kernel_size[0] / 2), np.ceil(kernel_size[0] / 2))[:, None] * np.ones((1, kernel_size[1]))
+            ra_values = np.arange(np.ceil(-kernel_size[1] / 2), np.ceil(kernel_size[1] / 2))[None, :] * np.ones((kernel_size[0], 1))
+
+            az_wind_vals = np.ravel(az_values[:, :, None, None] + az_coor[None, None, :, None] + np.ones(ra_coor.shape)[None, None, None, :])
+            ra_wind_vals = np.ravel(ra_values[:, :, None, None] + np.ones(az_coor.shape)[None, None, :, None] + ra_coor[None, None, None, :])
+
+            window = custom_kernel(az_wind_vals, ra_wind_vals).reshape([kernel_size[0], kernel_size[1], len(az_coor), len(ra_coor)])
         else:
             print('Use nearest_neighbour, linear, 4p_cubic or 6p_cubic as kernel.')
             return
@@ -146,6 +162,7 @@ class Regural2irregular(object):
         # TODO Add the 6, 8 and 16 point truncated sinc + raised cosine interpolation
 
         # Calculate the 2d window
-        window = np.einsum('ij,kl->jlik', d_az, d_ra)
+        if w_type != 'custom':
+            window = np.einsum('ij,kl->jlik', d_az, d_ra)
 
         return window
