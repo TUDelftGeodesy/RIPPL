@@ -36,14 +36,14 @@ class Reramp(Process):  # Change this name to the one of your processing step.
         self.output_info['polarisation'] = polarisation
         self.output_info['data_id'] = data_id
         self.output_info['coor_type'] = 'out_coor'
-        self.output_info['file_types'] = ['reramped']
-        self.output_info['data_types'] = ['complex_real4']
+        self.output_info['file_types'] = ['reramped', 'ramp']
+        self.output_info['data_types'] = ['complex_short', 'real2']
 
         # Input data information
         self.input_info = dict()
         self.input_info['image_types'] = ['slave', 'slave', 'slave']
-        self.input_info['process_types'] = ['resample', 'geometric_coregistration', 'geometric_coregistration']
-        self.input_info['file_types'] = ['resampled', 'coreg_lines', 'coreg_pixels']
+        self.input_info['process_types'] = ['earth_topo_phase', 'geometric_coregistration', 'geometric_coregistration']
+        self.input_info['file_types'] = ['earth_topo_phase_corrected', 'coreg_lines', 'coreg_pixels']
         self.input_info['polarisations'] = [polarisation, '', '']
         self.input_info['data_ids'] = [data_id, data_id, data_id]
         self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor']
@@ -99,6 +99,7 @@ class Reramp(Process):  # Change this name to the one of your processing step.
         ramp = Deramp.calc_ramp(readfile, orbit, az_grid, ra_grid)
 
         # Finally calced the deramped image.
+        self['ramp'] = np.angle(ramp)
         self['reramped'] = self['input_data'] * np.conj(ramp)
 
         if test:

@@ -10,11 +10,9 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.resampling.resample_regular2irregular import Regural2irregular
 
 
-class ResampleRadarGrid(Process):  # Change this name to the one of your processing step.
+class combined_ambiguities(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', polarisation='', resample_type='4p_cubic',
-                 in_coor=[], out_coor=[],
-                 slave='slave', overwrite=False):
+    def __init__(self, data_id='', polarisation='', amb_no=2, out_coor=[], slave='slave', master_image=False, overwrite=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -29,29 +27,45 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
 
         # Output data information
         self.output_info = dict()
-        self.output_info['process_name'] = 'resample'
+        self.output_info['process_name'] = 'combined_ambiguities'
         self.output_info['image_type'] = 'slave'
         self.output_info['polarisation'] = polarisation
         self.output_info['data_id'] = data_id
         self.output_info['coor_type'] = 'out_coor'
-        self.output_info['file_types'] = ['resampled']
+        self.output_info['file_types'] = ['combined_ambiguities']
         self.output_info['data_types'] = ['complex_real4']
 
         # Input data information
         self.input_info = dict()
-        self.input_info['image_types'] = ['slave', 'slave', 'slave']
-        self.input_info['process_types'] = ['deramp', 'geometric_coregistration', 'geometric_coregistration']
-        self.input_info['file_types'] = ['deramped', 'coreg_lines', 'coreg_pixels']
-        self.input_info['polarisations'] = [polarisation, '', '']
-        self.input_info['data_ids'] = [data_id, data_id, data_id]
-        self.input_info['coor_types'] = ['in_coor', 'out_coor', 'out_coor']
-        self.input_info['in_coor_types'] = ['', '', '']
-        self.input_info['type_names'] = ['input_data', 'coreg_lines', 'coreg_pixels']
+        self.input_info['image_types'] = ['slave']
+        if master_image:
+            self.input_info['process_types'] = ['crop']
+            self.input_info['file_types'] = ['crop']
+        else:
+            self.input_info['process_types'] = ['earth_topo_phase']
+            self.input_info['file_types'] = ['earth_topo_phase_corrected']
+
+        self.input_info['polarisations'] = [polarisation]
+        self.input_info['data_ids'] = [data_id]
+        self.input_info['coor_types'] = ['in_coor']
+        self.input_info['in_coor_types'] = ['']
+        self.input_info['type_names'] = ['orig_data']
+
+        for amb_loc in ['left', 'right']:
+            for amb_num in range(amb_no):
+                self.input_info['image_types'].append('slave')
+                self.input_info['file_types'].append('ambiguity_' + amb_loc + '_no_' + str(amb_num))
+                self.input_info['process_types'].extend('azimuth_ambiguities')
+                self.input_info['polarisations'].append(polarisation)
+                self.input_info['data_ids'].append(data_id)
+                self.input_info['coor_types'].append('in_coor')
+                self.input_info['in_coor_types'].append('')
+                self.input_info['type_names'].append('ambiguity_' + amb_loc + '_no_' + str(amb_num))
 
         # Coordinate systems
         self.coordinate_systems = dict()
         self.coordinate_systems['out_coor'] = out_coor
-        self.coordinate_systems['in_coor'] = in_coor
+        self.coordinate_systems['in_coor'] = out_coor
 
         # image data processing
         self.processing_images = dict()
@@ -60,14 +74,12 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
         # Finally define whether we overwrite or not
         self.overwrite = overwrite
         self.settings = dict()
-        self.settings['resample_type'] = resample_type
-        self.settings['buf'] = 4
-        self.settings['out_irregular_grids'] = ['coreg_lines', 'coreg_pixels']
+        self.settings['ambiguity_no'] = amb_no
 
     def init_super(self):
 
         self.load_coordinate_system_sizes()
-        super(ResampleRadarGrid, self).__init__(
+        super(AASR, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
             coordinate_systems=self.coordinate_systems,
@@ -82,14 +94,13 @@ class ResampleRadarGrid(Process):  # Change this name to the one of your process
         :return:
         """
 
-        # Init resampling
-        resample = Regural2irregular(self.settings['resample_type'])
-        in_block_coor = self.coordinate_systems['in_block_coor']
+        # Add all ambiguities
+        orig_power = np.abs(self['in_data'])**2
+        ambiguities_power = np.zeros(orig_power.shape, np.comlex_float32)
 
-        # Change line/pixel coordinates to right value
-        lines = (self['coreg_lines'] - in_block_coor.first_line) / \
-                               (self.block_coor.multilook[0] / self.block_coor.oversample[0])
-        pixels = (self['coreg_pixels'] - in_block_coor.first_pixel) / \
-                               (self.block_coor.multilook[1] / self.block_coor.oversample[1])
+        for amb_loc in ['left', 'right']:
+            for amb_num in range(self.settings['ambiguity_no']):
+                amb_str = 'ambiguity_' + amb_loc + '_no_' + str(amb_num)
+                ambiguities_power += self[amb_str]
 
-        self['resampled'] = resample(self['input_data'], lines, pixels)
+        self['AASR'] = ambiguities_power / orig_power

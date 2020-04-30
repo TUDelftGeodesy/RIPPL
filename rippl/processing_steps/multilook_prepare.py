@@ -141,11 +141,21 @@ class MultilookPrepare(Process):  # Change this name to the one of your processi
         if self.coordinate_systems['out_coor'].grid_type == 'radar_coordinates':
             if self.coordinate_systems['in_coor'].grid_type == 'radar_coordinates':
                 transform.add_xyz(self['X'], self['Y'], self['Z'])
+                valid = (self['X'] != 0) * (self['Y'] != 0) * (self['Z'] != 0)
             elif self.coordinate_systems['in_coor'].grid_type in ['projection', 'geographic']:
                 transform.add_dem(self['dem'])
                 transform.add_lat_lon(self['lat'], self['lon'])
+                valid = (self['lat'] != 0) * (self['lon'] != 0) * (self['dem'] != 0)
+            else:
+                raise TypeError('Only radar_coordinates, projection or geographic is possible')
+        else:
+            valid = ''
 
-        self['in_coor_lines'], self['in_coor_pixels'] = transform()
+        lines, pixels = transform()
+        if len(valid) == 0:
+            valid = np.ones(lines.shape, dtype=bool)
+        self['in_coor_lines'][valid] = lines[valid]
+        self['in_coor_pixels'][valid] = pixels[valid]
 
     def def_out_coor(self):
         """

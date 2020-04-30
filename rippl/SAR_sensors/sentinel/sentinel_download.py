@@ -9,9 +9,11 @@ import os, sys
 import datetime
 import base64
 import subprocess
-from fiona import collection
 from lxml import etree
 from shapely.geometry import Polygon
+
+from rippl.user_settings import UserSettings
+from rippl.orbit_geometry.read_write_shapes import ReadWriteShapes
 
 
 class DownloadSentinel(object):
@@ -26,11 +28,18 @@ class DownloadSentinel(object):
         # polarisation > which polarisation will be used. (default all)
     
         # string is the field we enter as url
+        self.settings = UserSettings()
+        self.settings.load_settings()
         self.products = []
         self.links = []
         self.dates = []
         self.string = ''
-        self.shape = shape
+
+        shape_data = ReadWriteShapes()
+        shape_data(shape)
+        self.shape = shape_data.shape       # type:Polygon
+        self.shape_string = ''
+        self.create_shape_str()
 
         self.valid_files = []
         self.invalid_files = []
@@ -63,7 +72,6 @@ class DownloadSentinel(object):
         if polarisation:
             self.string = self.string + ' AND ' + 'polarisationmode:' + polarisation
         if shape:
-            self.load_shape_info()
             self.string = self.string + ' AND footprint:"Intersects(POLYGON(' + self.shape_string + '))"'
     
         date_string = 'beginposition:[' + start.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z TO ' + \
@@ -72,9 +80,13 @@ class DownloadSentinel(object):
         self.string = self.string + ' AND ' + date_string
         self.string = self.string[5:]
     
-    def sentinel_available(self, username, password):
+    def sentinel_available(self, username='', password=''):
         # All available sentinel 1 images are detected and printed on screen.
 
+        if not username:
+            username = self.settings.ESA_username
+        if not password:
+            password = self.settings.ESA_password
         self.products = []
         self.links = []
         self.dates = []
@@ -116,9 +128,31 @@ class DownloadSentinel(object):
             self.links.extend([data.find('link').attrib for data in tree.iter(tag='entry')])
             self.dates.extend([data.findall('date')[1].text for data in tree.iter(tag='entry')])
 
-    def sentinel_download_ESA(self, database_folder, username, password):
+        # Provide a link to the Sentinel Hub search that visualizes the search.
+
+
+        # Make a list with the different tracks and coverage of the different tracks.
+
+
+        # Create geojsons of the different tracks. Overlay all SLC images for the different tracks.
+
+
+        # Show geojsons for the different tracks if visualization on.
+
+
+        # Raise error if
+
+
+    def sentinel_download_ESA(self, database_folder='', username='', password=''):
         # Download the files which are found by the sentinel_available script.
-    
+
+        if not username:
+            username = self.settings.ESA_username
+        if not password:
+            password = self.settings.ESA_password
+        if not database_folder:
+            database_folder = os.path.join(self.settings.radar_database, 'Sentinel-1')
+
         if not self.products:
             print('No files to project_functions')
             return
@@ -139,6 +173,13 @@ class DownloadSentinel(object):
     def sentinel_download_ASF(self, database_folder, username, password):
         # Download data from ASF (Generally easier and much faster to download from this platform.)
 
+        if not username:
+            username = self.settings.NASA_username
+        if not password:
+            password = self.settings.NASA_password
+        if not database_folder:
+            database_folder = os.path.join(self.settings.radar_database, 'Sentinel-1')
+
         if not self.products:
             print('No files to project_functions')
             return
@@ -158,6 +199,13 @@ class DownloadSentinel(object):
 
     def sentinel_check_validity(self, database_folder, username, password):
         # Check whether the zip files can be unpacked or not. This is part of the project_functions procedure.
+
+        if not username:
+            username = self.settings.ESA_username
+        if not password:
+            password = self.settings.ESA_password
+        if not database_folder:
+            database_folder = os.path.join(self.settings.radar_database, 'Sentinel-1')
 
         for product in self.products:
             uuid = product.find('id').text
@@ -188,7 +236,7 @@ class DownloadSentinel(object):
                 return False
 
             if md5 != html_dat.lower():
-                os.remove(file_dir)
+                raise FileNotFoundError('md5 check sum failed for ' + file_dir)
 
         return True
 
@@ -224,43 +272,19 @@ class DownloadSentinel(object):
 
         return file_dir
 
-    def load_shape_info(self):
-        # This script converts .kml, .shp and .txt files to the right format. If multiple shapes are available the script
+    def create_shape_str(self):
+        # This script converts .shp files to the right format. If multiple shapes are available the script
         # will select the first one.
 
-        if isinstance(self.shape, str):
-            if not os.path.exists(self.shape):
-                raise FileExistsError('Defined shapefile does not exist')
+        dat = self.shape.exterior.coords
 
-            if self.shape.endswith('.shp'):
-                with collection(self.shape, "r") as inputshape:
-                    for shape in inputshape:
-                        # only first shape
-                        dat = shape['geometry']['coordinates']
+        if not isinstance(self.shape, Polygon):
+           raise TypeError('Shape type should be Polygon (no Point, MultiPolygon etc..)')
 
-                        if shape['geometry']['type'] != 'Polygon':
-                           raise TypeError('Shape type should be Polygon (no Point, MultiPolygon etc..)')
-
-                        self.shape_string = '('
-                        shape_len = len(dat[0])
-                        for p in dat[0]:
-                            self.shape_string = self.shape_string + str(p[0]) + ' ' + str(p[1]) + ','
-                        self.shape_string = self.shape_string[:-1] + ')'
-
-                        break
-            else:
-                print('format not recognized! Pleas creat either a .kml or .shp file.')
-                return []
-            if shape_len > 100:
-                print('The shapesize is larger than 100 points, this could cause problems with the download')
-        elif isinstance(self.shape, Polygon):
-            dat = self.shape.exterior.coords
-
-            self.shape_string = '('
-            shape_len = len(dat)
-            for p in dat:
-                self.shape_string = self.shape_string + str(p[0]) + ' ' + str(p[1]) + ','
-            self.shape_string = self.shape_string[:-1] + ')'
+        self.shape_string = '('
+        for p in dat:
+            self.shape_string = self.shape_string + str(p[0]) + ' ' + str(p[1]) + ','
+        self.shape_string = self.shape_string[:-1] + ')'
 
 
 class DownloadSentinelOrbit(object):
@@ -269,6 +293,13 @@ class DownloadSentinelOrbit(object):
         # This script downloads all orbits files from the precise orbits website, when pages is set to a very high number.
         # By default only the first page for the last two days (restituted) is checked.
 
+        settings = UserSettings()
+        settings.load_settings()
+
+        if not restituted_folder:
+            restituted_folder = os.path.join(settings.orbit_database, 'Sentinel-1', 'restituted')
+        if not precise_folder:
+            precise_folder = os.path.join(settings.orbit_database, 'Sentinel-1', 'precise')
         self.precise_folder = precise_folder
         self.restituted_folder = restituted_folder
 

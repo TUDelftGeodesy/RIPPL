@@ -89,6 +89,16 @@ class Process():
 
         # Information for processing of dataset in blocks. If you want to do so, run the define_block method.
         self.settings = settings
+        if 'memory_data' in self.settings.keys():
+            self.memory_data = self.settings['memory_data']
+        else:
+            self.memory_data = True
+        if not 'multilook_grids' in self.settings.keys():
+            self.settings['multilook_grids'] = []
+        if 'buf' in self.settings.keys():
+            self.buf = self.settings['buf']
+        else:
+            self.buf = 5
         self.s_lin = 0
         self.s_pix = 0
         self.lines = self.coordinate_systems['out_coor'].shape[0]
@@ -96,6 +106,14 @@ class Process():
         self.out_irregular_grids = [None]
         self.in_irregular_grids = [None]
         self.blocks = False
+
+        # Finally set a few variables for the multilooking case.
+        self.no_block = 0
+        self.no_blocks = 0
+        self.no_lines = 1
+        self.block_shape = (0, 0)
+        self.ml_in_data = dict()
+        self.ml_out_data = dict()
 
     def __call__(self, memory_in=True):
         """
@@ -122,7 +140,6 @@ class Process():
         for image_key in self.processing_images.keys():
             self.processing_images[image_key].load_memmap_files()
 
-        self.load_irregular_grids()
         if memory_in:  # For the multilooking we do not work with parts of files, but the whole file at once.
             self.load_input_data()
         self.create_output_data_files()
@@ -150,12 +167,10 @@ class Process():
         # Set the data of one variable in memory.
         if key in list(self.in_images.keys()):
             self.in_images[key].memory['data'] = data
-            return True
         elif key in list(self.out_images.keys()):
             self.out_images[key].memory['data'] = data
-            return True
         else:
-            return False
+            raise LookupError('The input or output dataset ' + key + ' does not exist.')
 
     def load_input_info(self):
         """
@@ -217,17 +232,6 @@ class Process():
 
         :return:
         """
-
-    def load_irregular_grids(self):
-        """
-        This function loads irregular grids for different functions. Should be specified in the according functions
-        themselves. Not always needed....
-
-        :return:
-        """
-
-        self.in_irregular_grids = [None]
-        self.out_irregular_grids = [None]
 
     def init_super(self):
         """
@@ -507,6 +511,9 @@ class Process():
         :return:
         """
 
+        if not self.memory_data:
+            raise AssertionError('Creating blocks for data that is not loaded in memory is not possible! Aborting.')
+
         self.s_lin = s_lin
         self.s_pix = s_pix
 
@@ -530,9 +537,9 @@ class Process():
             self.pixels = self.coordinate_systems['out_coor'].shape[1] - self.s_pix
 
         self.coordinate_systems['block_coor'] = copy.deepcopy(self.coordinate_systems['out_coor'])
-        self.coordinate_systems['block_coor'].first_line += s_lin
-        self.coordinate_systems['block_coor'].first_pixel += s_pix
-        self.coordinate_systems['block_coor'].shape = [self.lines, self.pixels]
+        self.coordinate_systems['block_coor'].first_line += int(s_lin)
+        self.coordinate_systems['block_coor'].first_pixel += int(s_pix)
+        self.coordinate_systems['block_coor'].shape = [int(self.lines), int(self.pixels)]
         self.block_coor = self.coordinate_systems['block_coor']
 
         # Check if the input irregular/regular grid is given to select the right inputs.
@@ -621,62 +628,99 @@ class Process():
 
         return True
 
-    def load_input_data(self, buf=3):
+    def load_input_data(self):
         """
         Here we actually load the needed input data. The images should already be loaded
 
-        :param int buf: The buffer we need for the correct resampling/multilooking of the data
         :return:
         """
 
-        if self.blocks:
-            if len(self.in_irregular_grids) == 2:
-                coor = self.block_coor
-                if coor.grid_type == 'radar_coordinates':
-                    self.ml_step = np.array(coor.multilook) / np.array(coor.oversample)
-                    shape = coor.shape * self.ml_step
-                else:
-                    shape = coor.shape
-                first_line = coor.first_line
-                first_pixel = coor.first_pixel
+        if not self.memory_data:
+            return
 
-                s_lin, s_pix, shape = SelectInputWindow.input_irregular_rectangle(self.in_irregular_grids[0], self.in_irregular_grids[1],
-                                                            first_line, first_pixel, shape, buf)
-            elif len(self.out_irregular_grids) == 2:
-                if self.coordinate_systems['in_coor'].grid_type == 'radar_coordinates':
-                    s_lin, s_pix, shape = SelectInputWindow.output_irregular_rectangle(self.out_irregular_grids[0] - self.coordinate_systems['in_coor'].first_line,
-                                                                                       self.out_irregular_grids[1] - self.coordinate_systems['in_coor'].first_pixel,
-                                                                                       self.coordinate_systems['in_coor'].shape, buf)
-                    self.coordinate_systems['in_block_coor'].shape = shape
-                    self.coordinate_systems['in_block_coor'].first_line += s_lin + self.coordinate_systems['in_coor'].first_line
-                    self.coordinate_systems['in_block_coor'].first_pixel += s_pix + self.coordinate_systems['in_coor'].first_pixel
-                else:
-                    s_lin, s_pix, shape = SelectInputWindow.output_irregular_rectangle(self.out_irregular_grids[0],
-                                                                                       self.out_irregular_grids[1],
-                                                                                       self.coordinate_systems['in_coor'].shape, buf)
-                    self.coordinate_systems['in_block_coor'].shape = shape
-                    self.coordinate_systems['in_block_coor'].first_line += s_lin
-                    self.coordinate_systems['in_block_coor'].first_pixel += s_pix
-            else:
-                s_lin = self.s_lin
-                s_pix = self.s_pix
-                shape = [self.lines, self.pixels]
-        else:
+        # We first load the output data grids. Because they can contain information for loading the input grids.
+        self.load_out_coor_input_data()
+        self.load_in_coor_input_data()
+
+    def load_in_coor_input_data(self):
+        """
+        This function is used to load the input data of a function with the input coordinate system.
+
+        """
+
+        if not self.blocks:
             s_lin = 0
             s_pix = 0
             shape = self.coordinate_systems['in_coor'].shape
 
-        #self.coordinate_systems['in_coor'].create_coor_id()
-        #self.coordinate_systems['out_coor'].create_coor_id()
+        elif 'out_irregular_grids' not in self.settings.keys() and 'in_irregular_grids' not in self.settings.keys():
+            # Assuming that the input grid and output grid have the same coordinate system.
+            s_lin = self.s_lin
+            s_pix = self.s_pix
+            shape = [self.lines, self.pixels]
 
-        for key, input_coor in zip(self.in_images.keys(), self.input_info['coor_types']):
-            #self.in_images[key].coordinates.create_coor_id()
-            if input_coor == 'in_coor':
-                success = self.in_images[key].load_memory_data(shape, s_lin, s_pix)
-            elif input_coor == 'out_coor':
-                success = self.in_images[key].load_memory_data((self.lines, self.pixels), self.s_lin, self.s_pix)
-            else:
-                success = False
+        elif 'out_irregular_grids' in self.settings.keys():
+            out_grids = self.settings['out_irregular_grids']
+            first_line, first_pixel, shape = \
+                SelectInputWindow.output_irregular_rectangle(np.copy(self[out_grids[0]]),
+                                                             np.copy(self[out_grids[1]]),
+                                                             max_shape=self.coordinate_systems['in_coor'].shape,
+                                                             min_line=self.coordinate_systems['in_coor'].first_line,
+                                                             min_pixel=self.coordinate_systems['in_coor'].first_pixel,
+                                                             buf=self.buf)
+
+            self.coordinate_systems['in_block_coor'].shape = shape
+            self.coordinate_systems['in_block_coor'].first_line = first_line
+            self.coordinate_systems['in_block_coor'].first_pixel = first_pixel
+            s_lin = first_line - self.coordinate_systems['in_coor'].first_line
+            s_pix = first_pixel - self.coordinate_systems['in_coor'].first_pixel
+
+        elif 'in_irregular_grids' in self.settings.keys():
+            in_grids = self.settings['in_irregular_grids']
+            first_line, first_pixel, shape = \
+                SelectInputWindow.input_irregular_rectangle(self.in_images[in_grids[0]].disk['data'],
+                                                             self.in_images[in_grids[1]].disk['data'],
+                                                             shape=self.coordinate_systems['block_coor'].shape,
+                                                             s_lin=self.coordinate_systems['block_coor'].first_line,
+                                                             s_pix=self.coordinate_systems['block_coor'].first_pixel,
+                                                             buf=self.buf)
+
+            self.coordinate_systems['in_block_coor'].shape = shape
+            self.coordinate_systems['in_block_coor'].first_line = first_line
+            self.coordinate_systems['in_block_coor'].first_pixel = first_pixel
+            s_lin = first_line
+            s_pix = first_pixel
+
+        else:
+            raise AttributeError('Not possible to load needed input range for in coordinate system. Aborting.')
+
+        keys = [key for key, input_type in zip(self.in_images.keys(), self.input_info['coor_types']) if input_type == 'in_coor']
+        for key in keys:
+            success = self.in_images[key].load_memory_data(shape, s_lin, s_pix)
+            if not success:
+                raise ValueError('Input data ' + key + ' for ' + self.process_name + ' from image ' +
+                                 self.in_images[key].folder + ' cannot be loaded.')
+
+    def load_out_coor_input_data(self):
+        """
+        This function is used to load the input data of a function with the output coordinate system.
+
+        """
+
+        if not self.blocks:
+            s_lin = 0
+            s_pix = 0
+            shape = self.coordinate_systems['out_coor'].shape
+
+        else:
+            s_lin = self.s_lin
+            s_pix = self.s_pix
+            shape = [self.lines, self.pixels]
+
+        keys = [key for key, input_type in zip(self.in_images.keys(), self.input_info['coor_types']) if
+                input_type == 'out_coor']
+        for key in keys:
+            success = self.in_images[key].load_memory_data(shape, s_lin, s_pix)
             if not success:
                 raise ValueError('Input data ' + key + ' for ' + self.process_name + ' from image ' +
                                  self.in_images[key].folder + ' cannot be loaded.')

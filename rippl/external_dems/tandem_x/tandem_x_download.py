@@ -41,17 +41,34 @@ from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.meta_data.image_processing_meta import ImageProcessingMeta
 from rippl.resampling.coor_new_extend import CoorNewExtend
 from rippl.external_dems.geoid import GeoidInterp
+from rippl.user_settings import UserSettings
 
 
 class TandemXDownloadTile(object):
     # To enable parallel processing we create another class for the actual processing.
 
-    def __init__(self, tandem_x_folder, username, password, lon_resolution):
+    def __init__(self, tandem_x_folder='', username='', password='', lon_resolution=3):
 
-        self.tandem_x_folder = tandem_x_folder
+        settings = UserSettings()
+        settings.load_settings()
+
+        # TanDEM-X folder
+        if not tandem_x_folder:
+            self.tandem_x_folder = os.path.join(settings.DEM_database, 'TanDEM-X')
+        else:
+            self.tandem_x_folder = tandem_x_folder
+
+        # credentials
+        if not username:
+            self.username = settings.DLR_username
+        else:
+            self.username = username
+        if not password:
+            self.password = settings.DLR_password
+        else:
+            self.password = password
+
         self.lon_resolution = lon_resolution
-        self.username = username
-        self.password = password
 
     def __call__(self, input):
 
@@ -73,7 +90,10 @@ class TandemXDownloadTile(object):
             if not os.path.exists(file_zip):
                 # Make FTP connection
                 server = 'tandemx-90m.dlr.de'
-                ftp = ftplib.FTP_TLS(server, self.username, self.password)
+
+                ftp = ftplib.FTP_TLS()
+                ftp.connect(host=server)
+                ftp.login(user=self.username, passwd=self.password)
                 ftp.prot_p()
 
                 # Download file
@@ -122,7 +142,7 @@ class TandemXDownloadTile(object):
         # Fill empty values with geoid values (most likely water/sea)
         coor = CoordinateSystem()
         coor.create_geographic(shape=size, geo_transform=geo_transform)
-        egm96_file = os.path.join(self.tandem_x_folder, 'egm96.dat')
+        egm96_file = os.path.join(os.path.dirname(self.tandem_x_folder), 'geoid', 'egm96.dat')
         egm96 = GeoidInterp.create_geoid(coor, egm96_file, True)
         data[data == -32767] = - egm96[data == -32767]
 
@@ -163,14 +183,32 @@ class TandemXDownloadTile(object):
 
 class TandemXDownload(object):
 
-    def __init__(self, tandem_x_folder, username, password, lon_resolution=3, n_processes=4):
+    def __init__(self, tandem_x_folder=None, username=None, password=None, lon_resolution=3, n_processes=4):
         # tandem_x_folder
-        self.tandem_x_folder = tandem_x_folder
 
-        if not os.path.exists(tandem_x_folder):
+        settings = UserSettings()
+        settings.load_settings()
+
+        # TanDEM-X folderƒ
+        if not tandem_x_folder:
+            self.tandem_x_folder = os.path.join(settings.DEM_database, 'TanDEM-X')
+        else:
+            self.tandem_x_folder = tandem_x_folder
+
+        # credentials
+        if not username:
+            self.username = settings.DLR_username
+        else:
+            self.username = username
+        if not password:
+            self.password = settings.DLR_password
+        else:
+            self.password = password
+
+        if not os.path.exists(self.tandem_x_folder):
             raise FileExistsError('Path to tandem-x folder does not exist')
-        zip_data_folder = os.path.join(tandem_x_folder, 'orig_data')
-        tiff_data_folder = os.path.join(tandem_x_folder, 'geotiff_data')
+        zip_data_folder = os.path.join(self.tandem_x_folder, 'orig_data')
+        tiff_data_folder = os.path.join(self.tandem_x_folder, 'geotiff_data')
         if not os.path.exists(zip_data_folder):
             os.mkdir(zip_data_folder)
         if not os.path.exists(tiff_data_folder):
@@ -179,16 +217,12 @@ class TandemXDownload(object):
         if not lon_resolution in [3, 4.5, 6, 9, 15, 30]:
             raise TypeError('Lon size is not one of the default resolutions 3, 4.5, 6, 9, 15 or 30 arc seconds. '
                             'Aborting...')
-        resolution_folder = os.path.join(tandem_x_folder, str(lon_resolution).zfill(2) + '_arc_seconds')
+        resolution_folder = os.path.join(self.tandem_x_folder, str(lon_resolution).zfill(2) + '_arc_seconds')
         if not os.path.exists(resolution_folder):
             os.mkdir(resolution_folder)
 
-        # credentials
-        self.username = username
-        self.password = password
-
         # List of files to be downloaded
-        self.filelist = self.tandem_x_listing(tandem_x_folder, username, password)
+        self.filelist = self.tandem_x_listing(self.tandem_x_folder, username, password)
 
         # shapes and limits of these shapes
         self.shapes = []
@@ -198,7 +232,6 @@ class TandemXDownload(object):
         # meta and polygons
         self.meta = ''
         self.polygon = ''
-        self.shapefile = ''
 
         # Resolution of files (either tandem_x1, tandem_x3 or STRM30)
         self.lon_resolution = lon_resolution
@@ -251,12 +284,19 @@ class TandemXDownload(object):
     def select_tiles(filelist, coordinates, tandem_x_folder, lon_resolution=3):
         # Adds tandem_x files to the list of files to be downloaded
 
+        settings = UserSettings()
+        settings.load_settings()
+
+        # TanDEM-X folder
+        if not tandem_x_folder:
+            tandem_x_folder = os.path.join(settings.DEM_database, 'TanDEM-X')
+
         # Check coordinates
         if not isinstance(coordinates, CoordinateSystem):
             print('coordinates should be an CoordinateSystem object')
             return
         elif coordinates.grid_type != 'geographic':
-            print('only geographic coordinate systems can be used to download tandem_x data')
+            print('only geographic coordinate systems can be used to download TanDEM-X data')
             return
 
         tiles_zip = []
@@ -327,6 +367,19 @@ class TandemXDownload(object):
         # This script makes a list of all the available 1,3 and 30 arc second datafiles.
         # This makes it easier to detect whether files do or don't exist.
 
+        settings = UserSettings()
+        settings.load_settings()
+
+        # TanDEM-X folder
+        if not tandem_x_folder:
+            tandem_x_folder = os.path.join(settings.DEM_database, 'TanDEM-X')
+
+        # credentials
+        if not username:
+            username = settings.DLR_username
+        if not password:
+            password = settings.DLR_password
+
         data_file = os.path.join(tandem_x_folder, 'filelist')
         if os.path.exists(data_file):
             dat = open(data_file, 'rb')
@@ -335,7 +388,9 @@ class TandemXDownload(object):
             return filelist
 
         server = 'tandemx-90m.dlr.de'
-        ftp = ftplib.FTP_TLS(server, username, password)
+        ftp = ftplib.FTP_TLS()
+        ftp.connect(host=server)
+        ftp.login(user=username, passwd=password)
         ftp.prot_p()
 
         dem_folders = ftp.nlst('90mdem/DEM')
@@ -366,7 +421,7 @@ class TandemXDownload(object):
     @staticmethod
     def get_lon_spacing(lat):
         """
-        This function gets the spacing and coordinates of tandem_x tiles based on latitude value.
+        This function gets the spacing and coordinates of TanDEM-X tiles based on latitude value.
 
         :param int lat: Latitude coordinate of DEM
         :return:

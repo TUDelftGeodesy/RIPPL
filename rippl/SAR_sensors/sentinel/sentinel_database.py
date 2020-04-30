@@ -17,14 +17,15 @@ you can create a new master burst file.
 Finally we can check the overlap with the individual swaths too and unzip if needed.
 """
 
-from shapely.geometry import Polygon, shape
-import fiona
+from shapely.geometry import Polygon
 import copy
 import datetime
 from lxml import etree
 import os
 import zipfile
-import warnings
+
+from rippl.user_settings import UserSettings
+from rippl.orbit_geometry.read_write_shapes import ReadWriteShapes
 
 
 class SentinelDatabase(object):
@@ -54,11 +55,18 @@ class SentinelDatabase(object):
         self.master_shape = Polygon
         self.selected_images = dict()
 
-    def __call__(self, database_folder, shapefile, track_no, start_date='2010-01-01', end_date='2030-01-01', mode='IW', product_type='SLC', polarisation='VV'):
+    def __call__(self, database_folder='', shapefile='', track_no='', start_date='2010-01-01', end_date='2030-01-01', mode='IW', product_type='SLC', polarisation='VV'):
         # Run the different commands step by step
 
+
         # Select based on dates and read manifest files
+        if not database_folder:
+            settings = UserSettings()
+            settings.load_settings()
+            self.folder = os.path.join(settings.radar_database, 'Sentinel-1')
+
         self.folder = database_folder
+
         self.index_folder()
         self.extract_manifest_files()
         self.select_date_track(track_no, start_date, end_date, mode, product_type, polarisation)
@@ -168,26 +176,16 @@ class SentinelDatabase(object):
 
     def select_overlapping(self, shapefile, buffer=0.02):
 
-        self.read_shapefile(shapefile, buffer=buffer)
+        shape = ReadWriteShapes()
+        shape(shapefile)
+        shape.simplify_shape(buffer / 2)
+        shape.extend_shape(buffer)
+
+        self.master_shape = copy.deepcopy(shape.shape)
+        shape.extend_shape(0.05)
+        self.shape = copy.deepcopy(shape.shape)
 
         for key in list(self.selected_images.keys()):
             if not self.shape.intersects(self.selected_images[key]['coverage']):
 
                 self.selected_images.pop(key)
-
-    def read_shapefile(self, shapefile, buffer=0.02):
-        # This function creates a shape to make a selection of usable bursts later on. Buffer around shape is in
-        # degrees.
-
-        try:
-            # It should be a shape file. We always select the first shape.
-            sh = next(fiona.open(shapefile))
-            self.shape = shape(sh['geometry'])
-
-            # Now we have the shape we add a buffer and simplify first to save computation time.
-            self.shape = self.shape.simplify(buffer / 2)
-            self.master_shape = self.shape.buffer(buffer)
-            self.shape = self.shape.buffer(buffer + 0.05)
-        except:
-            warnings.warn('Unrecognized shape')
-            return

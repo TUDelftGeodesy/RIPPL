@@ -67,9 +67,9 @@ from rippl.processing_steps.resample_dem import ResampleDem
 from rippl.processing_steps.geocode import Geocode
 from rippl.processing_steps.resample_radar_grid import ResampleRadarGrid
 from rippl.processing_steps.geometric_coregistration import GeometricCoregistration
-from rippl.processing_steps.earth_topo_phase import EarthTopoPhase
+from rippl.processing_steps.calc_earth_topo_phase import EarthTopoPhase
 from rippl.processing_steps.square_amplitude import SquareAmplitude
-from rippl.processing_steps.reramp import Reramp
+from rippl.processing_steps.calc_reramp import Reramp
 from rippl.processing_steps.radar_ray_angles import RadarRayAngles
 from rippl.processing_steps.baseline import Baseline
 from rippl.processing_steps.interferogram_multilook import InterferogramMultilook
@@ -118,10 +118,10 @@ for slice in slices:
         geometric_coreg()
         resample = ResampleRadarGrid(polarisation='VV', in_coor=radar_coor, out_coor=radar_coor, slave=image, overwrite=False)
         resample()
-        reramp = Reramp(polarisation='VV', out_coor=radar_coor, slave=image, overwrite=False)
-        reramp()
         earth_topo_phase = EarthTopoPhase(polarisation='VV', out_coor=radar_coor, slave=image, overwrite=False)
         earth_topo_phase()
+        reramp = Reramp(polarisation='VV', out_coor=radar_coor, slave=image, overwrite=False)
+        reramp()
 
         square_amplitude_slave = SquareAmplitude(polarisation='VV', out_coor=radar_coor, slave=image, overwrite=False)
         square_amplitude_slave()

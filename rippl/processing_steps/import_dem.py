@@ -15,12 +15,13 @@ from rippl.external_dems.tandem_x.tandem_x_download import TandemXDownload
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.resampling.coor_new_extend import CoorNewExtend
+from rippl.user_settings import UserSettings
 
 
 class ImportDem(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', in_coor='', coreg_master='coreg_master',
-                 dem_folder='', quality=False, buffer=0.2, rounding=0.2, dem_type='SRTM3', lon_resolution=3, overwrite=False):
+    def __init__(self, data_id='', in_coor='', coreg_master='coreg_master', dem_folder=None, quality=False,
+                 buffer=0.2, rounding=0.2, dem_type='SRTM3', lon_resolution=3, geoid_file=None, overwrite=False):
 
         """
         This function creates a dem. Current options are SRTM1 and SRTM3. This could be extended in the future.
@@ -60,7 +61,17 @@ class ImportDem(Process):  # Change this name to the one of your processing step
         self.input_info['type_names'] = ['in_coor_grid']
 
         # Save the settings for dem generation
-        self.dem_folder = dem_folder
+        settings = UserSettings()
+        settings.load_settings()
+        if not dem_folder:
+            self.dem_folder = os.path.join(settings.DEM_database, dem_type)
+        else:
+            self.dem_folder = dem_folder
+        if not geoid_file:
+            self.geoid_file = os.path.join(settings.DEM_database, 'geoid', 'egm96.dat')
+        else:
+            self.geoid_file = geoid_file
+
         if not os.path.exists(self.dem_folder):
             raise FileExistsError('Path to DEM folder does not exist. Enter valid path for DEM data.')
         self.dem_type = dem_type
@@ -93,10 +104,10 @@ class ImportDem(Process):  # Change this name to the one of your processing step
             out_coor.create_geographic(1.0 / 3600, 1.0 / 3600)
         elif dem_type == 'SRTM3':
             out_coor.create_geographic(3.0 / 3600, 3.0 / 3600)
-        elif dem_type == 'Tandem_X':
+        elif dem_type == 'TanDEM-X':
             out_coor.create_geographic(3 / 3600.0, lon_resolution / 3600.0)
         else:
-            print('dem type not supported. Options are SRTM1, SRTM3 and Tandem_X')
+            print('dem type not supported. Options are SRTM1, SRTM3 and TanDEM-X')
 
         return out_coor
 
@@ -121,8 +132,7 @@ class ImportDem(Process):  # Change this name to the one of your processing step
 
         # Because there is no input coordinate system we have to give the block coordinate system if the dem is loaded
         # in blocks.
-        geoid_file = os.path.join(self.dem_folder, 'egm96.dat')
-        geoid = GeoidInterp.create_geoid(self.block_coor, geoid_file, download=False)
+        geoid = GeoidInterp.create_geoid(self.block_coor, self.geoid_file, download=False)
 
         if self.settings['dem_type'] in ['SRTM1', 'SRTM3']:
             self['dem'] = np.flipud(self.create_dem(self.block_coor, self.dem_folder, self.dem_type, quality=False))
@@ -130,7 +140,7 @@ class ImportDem(Process):  # Change this name to the one of your processing step
                 self['dem_quality_' + self.dem_type] = np.flipud(self.create_dem(self.block_coor, self.dem_folder, self.dem_type, quality=True))
 
             self['dem'] -= geoid
-        elif self.settings['dem_type'] == 'Tandem_X':
+        elif self.settings['dem_type'] == 'TanDEM-X':
             self['dem'] = np.flipud(self.create_dem(self.block_coor, self.dem_folder, self.dem_type, lon_resolution=self.settings['lon_resolution']))
             self['dem'][self['dem'] == -99999] = -geoid[self['dem'] == -99999]
 
@@ -152,12 +162,17 @@ class ImportDem(Process):  # Change this name to the one of your processing step
         Create a grid for SRTM
 
         :param CoordinateSystem coordinates:
-        :param str dem_folder: Folder where downloaded SRTM data is stored
-        :param str dem_type: Type of SRTM data (SRTM1 or SRTM3)
+        :param str dem_folder: Folder where downloaded DEM data is stored
+        :param str dem_type: Type of DEM data (SRTM1, SRTM3 or TanDEM-X)
         :param bool quality: Defines whether we create a quality or regular dem grid
         :return: dem or quality grid
         :rtype: np.ndarray
         """
+
+        if not dem_folder:
+            settings = UserSettings()
+            settings.load_settings()
+            dem_folder = os.path.join(settings.DEM_database, dem_type)
 
         if dem_type.startswith('SRTM'):
             filelist = SrtmDownload.srtm_listing(dem_folder)
@@ -166,17 +181,17 @@ class ImportDem(Process):  # Change this name to the one of your processing step
                 tiles = [tile[:-4] for tile in tiles if tile.endswith('.hgt')]
             else:
                 tiles = [tile[:-4] for tile in tiles if tile.endswith('.hgt')]
-        elif dem_type == 'Tandem_X':
+        elif dem_type == 'TanDEM-X':
             filelist = TandemXDownload.tandem_x_listing(dem_folder)
             tiles = TandemXDownload.select_tiles(filelist, coordinates, dem_folder, lon_resolution=lon_resolution)[0]
 
         if quality:
-            if dem_type == 'Tandem_X':
+            if dem_type == 'TanDEM-X':
                 raise TypeError('No quality files available for Tandem-x data.')
             outputdata = np.zeros(coordinates.shape, dtype=np.int8)
             dat_type = '.q'
         else:
-            if dem_type == 'Tandem_X':
+            if dem_type == 'TanDEM-X':
                 outputdata = np.ones(coordinates.shape, dtype=np.float32) * -99999
                 dat_type = ''
             else:
@@ -185,7 +200,7 @@ class ImportDem(Process):  # Change this name to the one of your processing step
 
         if dem_type == 'SRTM3':
             tile_shape = (1201, 1201)
-        elif dem_type == 'Tandem_X':
+        elif dem_type == 'TanDEM-X':
             tile_shape = (1201, int(np.round(3600 / lon_resolution + 1)))
         elif dem_type == 'SRTM1':
             tile_shape = (3601, 3601)
@@ -203,12 +218,12 @@ class ImportDem(Process):  # Change this name to the one of your processing step
                 image = np.fromfile(tile + dat_type, dtype='>u1').reshape(tile_shape)
             elif dat_type == '.hgt':
                 image = np.fromfile(tile + dat_type, dtype='>i2').reshape(tile_shape)
-            elif dat_type == '' and dem_type == 'Tandem_X':
+            elif dat_type == '' and dem_type == 'TanDEM-X':
                 image = np.fromfile(tile + dat_type, dtype=np.float32).reshape(tile_shape)
             else:
                 raise TypeError('images type should be ".q, .raw or .hgt"')
 
-            if dem_type == 'Tandem_X':
+            if dem_type == 'TanDEM-X':
                 s_id = 8
             elif dem_type.startswith('SRTM'):
                 s_id = 7

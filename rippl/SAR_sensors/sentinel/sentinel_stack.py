@@ -25,11 +25,20 @@ from rippl.SAR_sensors.sentinel.sentinel_precise_orbit import SentinelOrbitsData
 from rippl.SAR_sensors.sentinel.sentinel_read_data import write_sentinel_burst
 from rippl.SAR_sensors.sentinel.sentinel_swath_metadata import CreateSwathXmlRes
 from rippl.meta_data.stack import Stack
+from rippl.user_settings import UserSettings
 
 
 class SentinelStack(SentinelDatabase, Stack):
 
-    def __init__(self, datastack_folder):
+    def __init__(self, datastack_folder='', datastack_name=''):
+
+        self.settings = UserSettings()
+        self.settings.load_settings()
+
+        if not datastack_folder:
+            if not datastack_name:
+                raise NotADirectoryError('The datastack name is empty, so directory cannot be created!')
+            datastack_folder = os.path.join(self.settings.radar_datastacks, 'Sentinel-1', datastack_name)
 
         # Loads the class to read from the sentinel database
         SentinelDatabase.__init__(self)
@@ -60,8 +69,17 @@ class SentinelStack(SentinelDatabase, Stack):
         # Availability of the master/slave bursts in image
         self.burst_availability = []
 
-    def read_from_database(self, database_folder, shapefile, track_no, orbit_folder='', start_date='2010-01-01',
+    def read_from_database(self, database_folder='', shapefile=None, track_no=None, orbit_folder=None, start_date='2010-01-01',
                  end_date='2030-01-01', master_date='', mode='IW', product_type='SLC', polarisation='VV', cores=4):
+
+        if not database_folder:
+            database_folder = os.path.join(self.settings.radar_database, 'Sentinel-1')
+        if not shapefile:
+            raise FileExistsError('Shapefile entry is empty!')
+        if not track_no:
+            raise ValueError('Track_no is missing!')
+        if not orbit_folder:
+            orbit_folder = os.path.join(self.settings.orbit_database, 'Sentinel-1')
 
         # Select data products
         SentinelDatabase.__call__(self, database_folder, shapefile, track_no, start_date, end_date, mode, product_type, polarisation)

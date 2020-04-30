@@ -126,6 +126,7 @@ class CreateSwathXmlRes():
             ('Pulse_repetition_frequency_raw_data (TOPSAR)' , './/generalAnnotation/downlinkInformationList/downlinkInformation/prf'),
             ('Orig_first_pixel_azimuth_time (UTC)'          , 'burst_specific'),
             ('First_pixel_azimuth_time (UTC)'               , 'burst_specific'),
+            ('First_pixel_azimuth_time (UTC, TOPSAR)'       , 'burst_specific'),
             ('Pulse_repetition_frequency (computed, Hz)'    , './/imageAnnotation/imageInformation/azimuthFrequency'),
             ('Azimuth_time_interval (s)'                    , './/imageAnnotation/imageInformation/azimuthTimeInterval'),
             ('Total_azimuth_band_width (Hz)'                , './/imageAnnotation/processingInformation/swathProcParamsList/swathProcParams/azimuthProcessing/totalBandwidth'),
@@ -185,6 +186,7 @@ class CreateSwathXmlRes():
             ('velY'                                 , './/generalAnnotation/orbitList/orbit/velocity/y'),
             ('velZ'                                 , './/generalAnnotation/orbitList/orbit/velocity/z'),
             ('azimuthTimeStart'                     , './/swathTiming/burstList/burst/azimuthTime'),
+            ('azimuthTimeStart (TOPSAR)'            , './/swathTiming/burstList/burst/sensingTime'),
             ('doppler_azimuth_Time'                 , './/dopplerCentroid/dcEstimateList/dcEstimate/azimuthTime'),
             ('doppler_range_Time'                   , './/dopplerCentroid/dcEstimateList/dcEstimate/t0'),
             ('dopplerCoeff'                         , './/dopplerCentroid/dcEstimateList/dcEstimate/dataDcPolynomial'),
@@ -326,6 +328,8 @@ class CreateSwathXmlRes():
                                       self.burst_xml_dat['azimuthFmRate_reference_Azimuth_time']])
         burst_start_time = np.asarray([datetime.strptime(i, '%Y-%m-%dT%H:%M:%S.%f') for i in
                                        self.burst_xml_dat['azimuthTimeStart']])
+        burst_start_time_topsar = np.asarray([datetime.strptime(i, '%Y-%m-%dT%H:%M:%S.%f') for i in
+                                       self.burst_xml_dat['azimuthTimeStart (TOPSAR)']])
 
         for n in np.arange(self.swath_readfiles['Number_of_bursts']):
 
@@ -347,6 +351,7 @@ class CreateSwathXmlRes():
             readfiles['Scene_ll_corner_longitude'] = float(self.burst_coors[n][3][0])
 
             # Find doppler centroid frequency and azimuth reference time
+            readfiles['First_pixel_azimuth_time (UTC, TOPSAR)'] = burst_start_time_topsar[n].strftime('%Y-%m-%dT%H:%M:%S.%f')
             readfiles['First_pixel_azimuth_time (UTC)'] = burst_start_time[n].strftime('%Y-%m-%dT%H:%M:%S.%f')
             readfiles['Orig_first_pixel_azimuth_time (UTC)'] = burst_start_time[n].strftime('%Y-%m-%dT%H:%M:%S.%f')
 

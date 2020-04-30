@@ -43,8 +43,8 @@ class SquareAmplitude(Process):  # Change this name to the one of your processin
             self.input_info['process_types'] = ['crop']
             self.input_info['file_types'] = ['crop']
         else:
-            self.input_info['process_types'] = ['earth_topo_phase']
-            self.input_info['file_types'] = ['earth_topo_phase_corrected']
+            self.input_info['process_types'] = ['correct_phases']
+            self.input_info['file_types'] = ['phase_corrected']
 
         self.input_info['polarisations'] = [polarisation]
         self.input_info['data_ids'] = [data_id]

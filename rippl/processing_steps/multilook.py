@@ -7,7 +7,7 @@ import numpy as np
 import copy
 
 # Import the parent class Process for processing steps.
-from rippl.meta_data.process import Process
+from rippl.meta_data.multilook_process import MultilookProcess
 from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
@@ -17,7 +17,7 @@ from rippl.resampling.multilook_regular import MultilookRegular
 from rippl.resampling.coor_new_extend import CoorNewExtend
 
 
-class Multilook(Process):  # Change this name to the one of your processing step.
+class Multilook(MultilookProcess):  # Change this name to the one of your processing step.
 
     def __init__(self, in_coor=[], out_coor=[],
                  in_image_type='', in_process='', in_file_type='', in_polarisation='', in_data_id='', in_data_type='real4',
@@ -100,8 +100,10 @@ class Multilook(Process):  # Change this name to the one of your processing step
         self.processing_images = dict()
         self.processing_images['coreg_master'] = coreg_master
         self.processing_images['slave'] = slave
+
         self.batch_size = batch_size
         self.settings = dict()
+        self.settings['out_irregular_grids'] = ['lines', 'pixels']
 
     def init_super(self):
 
@@ -113,10 +115,6 @@ class Multilook(Process):  # Change this name to the one of your processing step
             processing_images=self.processing_images,
             overwrite=self.overwrite,
             settings=self.settings)
-
-    def __call__(self):
-
-        super(Multilook, self).__call__(memory_in=False)
 
     def process_calculations(self):
         """
@@ -130,46 +128,5 @@ class Multilook(Process):  # Change this name to the one of your processing step
         :return:
         """
 
-        for file_type in self.file_types:
-            shape = self.in_images[file_type + '_input_data'].coordinates.shape
-            no_lines = int(np.ceil(self.batch_size / shape[1]))
-            no_blocks = int(np.ceil(shape[0] / no_lines))
-            pixels = self.in_images['pixels'].disk['data']
-            lines = self.in_images['lines'].disk['data']
-            input_data = self.in_images[file_type + '_input_data'].disk['data']
-            input_dtype = self.in_images[file_type + '_input_data'].disk['meta']['dtype']
-
-            self.coordinate_systems['out_coor'].create_radar_lines()
-            self.coordinate_systems['in_coor'].create_radar_lines()
-            looks = np.zeros(self[file_type].shape)
-
-            for block in range(no_blocks):
-                coordinates = copy.deepcopy(self.coordinate_systems['in_coor'])
-                coordinates.first_line += block * no_lines
-                coordinates.shape[0] = np.minimum(shape[0] - block * no_lines, no_lines)
-
-                print('Processing ' + str(block) + ' out of ' + str(no_blocks))
-
-                if self.regular:
-                    multilook = MultilookRegular(coordinates, self.coordinate_systems['out_coor'])
-                    self[file_type] += multilook(input_data[block * no_lines: (block + 1) * no_lines, :])
-                else:
-                    multilook = MultilookIrregular(coordinates, self.coordinate_systems['out_coor'])
-                    multilook.create_conversion_grid(lines[block * no_lines: (block + 1) * no_lines, :],
-                                                     pixels[block * no_lines: (block + 1) * no_lines, :])
-                    in_data = ImageData.disk2memory(input_data[block * no_lines: (block + 1) * no_lines, :], input_dtype)
-                    multilook.apply_multilooking(in_data)
-                    self[file_type] += ImageData.memory2disk(multilook.multilooked, input_dtype)
-                    looks += multilook.looks
-            valid_pixels = self[file_type] != 0
-            self[file_type][valid_pixels] /= looks[valid_pixels]
-
-    def def_out_coor(self):
-        """
-        Calculate extend of output coordinates.
-
-        :return:
-        """
-
-        new_coor = CoorNewExtend(self.coordinate_systems['in_coor'], self.coordinate_systems['out_coor'])
-        self.coordinate_systems['out_coor'] = new_coor.out_coor
+        for file_type in self.output_info['file_types']:
+            self[file_type] = self[file_type + '_input_data']

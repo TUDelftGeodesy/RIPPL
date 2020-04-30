@@ -43,8 +43,8 @@ class EarthTopoPhase(Process):  # Change this name to the one of your processing
         # Input data information
         self.input_info = dict()
         self.input_info['image_types'] = ['slave', 'slave']
-        self.input_info['process_types'] = ['reramp', 'geometric_coregistration']
-        self.input_info['file_types'] = ['reramped', 'coreg_pixels']
+        self.input_info['process_types'] = ['resample', 'geometric_coregistration']
+        self.input_info['file_types'] = ['resampled', 'coreg_pixels']
         self.input_info['polarisations'] = [polarisation, '']
         self.input_info['data_ids'] = [data_id, '']
         self.input_info['coor_types'] = ['out_coor', 'out_coor']

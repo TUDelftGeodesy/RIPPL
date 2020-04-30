@@ -25,14 +25,9 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 from rippl.processing_steps.deramp import Deramp
 
-import drama.geo.sar as geo
 from drama.performance.sar import calc_aasr, calc_nesz, RASR, pattern, AASRdata, RASRdata, NESZdata, SARModeFromCfg
 from drama.performance.sar.azimuth_performance import mode_from_conf
-from drama.geo.sar.geo_history import GeoHistory
 from drama.io import cfg
-
-import stereoid.sar_performance as strsarperf
-import stereoid.oceans as strocs
 
 
 class NeszHarmonySentinel(Process):  # Change this name to the one of your processing step.

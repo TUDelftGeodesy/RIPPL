@@ -15,7 +15,7 @@ from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 class RadarRayAngles(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', out_coor=[], coreg_master='coreg_master', overwrite=False):
+    def __init__(self, data_id='', out_coor=[], coreg_master='coreg_master', overwrite=False, squint=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -35,6 +35,9 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
         self.output_info['coor_type'] = 'out_coor'
         self.output_info['file_types'] = ['off_nadir_angle', 'heading', 'incidence_angle', 'azimuth_angle']
         self.output_info['data_types'] = ['real4', 'real4', 'real4', 'real4']
+        if squint:
+            self.output_info['file_types'].append('squint_angle')
+            self.output_info['data_types'].append('real2')
 
         # Input data information
         self.input_info = dict()
@@ -58,6 +61,7 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
         self.processing_images = dict()
         self.processing_images['coreg_master'] = coreg_master
         self.settings = dict()
+        self.settings['squint'] = squint
 
     def init_super(self):
 
@@ -101,8 +105,12 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
         # Calc angles based on xyz information from geocoding
         orbit_interp.xyz2scatterer_azimuth_elevation()
         orbit_interp.xyz2orbit_heading_off_nadir()
+        if self.settings['squint']:
+            orbit_interp.xyz2squint()
 
         self['off_nadir_angle'] = np.reshape(orbit_interp.off_nadir_angle, self.block_coor.shape)
         self['heading'] = np.reshape(orbit_interp.heading, self.block_coor.shape)
         self['incidence_angle'] = np.reshape(90 - orbit_interp.elevation_angle, self.block_coor.shape)
         self['azimuth_angle'] = np.reshape(orbit_interp.azimuth_angle, self.block_coor.shape)
+        if self.settings['squint']:
+            orbit_interp.xyz2squint()

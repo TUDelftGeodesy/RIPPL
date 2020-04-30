@@ -20,12 +20,24 @@ from rippl.meta_data.interferogram import Interferogram
 from rippl.external_dems.srtm.srtm_download import SrtmDownload
 from rippl.external_dems.tandem_x.tandem_x_download import TandemXDownload
 from rippl.meta_data.interferogram_network import InterferogramNetwork
+from rippl.user_settings import UserSettings
 
 
 class Stack(object):
 
-    def __init__(self, datastack_folder):
-        self.datastack_folder = datastack_folder
+    def __init__(self, datastack_folder='', SAR_type='Sentinel-1', datastack_name=''):
+
+        if not datastack_folder:
+            settings = UserSettings()
+            settings.load_settings()
+
+            if not datastack_name:
+                raise NotADirectoryError('The datastack name is empty, so directory cannot be created!')
+            if SAR_type not in ['Sentinel-1', 'TanDEM-X', 'Radarsat']:
+                raise ValueError('SAR_type should be Sentinel-1, TanDEM-X or Radarsat')
+            self.datastack_folder = os.path.join(settings.radar_datastacks, SAR_type, datastack_name)
+        else:
+            self.datastack_folder = datastack_folder
 
         # List of images and interferograms
         self.slcs = dict()
@@ -251,7 +263,7 @@ class Stack(object):
         return image_types_out, image_dates_out, slice_names_out, processes_out, process_ids_out, coordinates_out, \
                in_coordinates_out, file_types_out, images_out
 
-    def download_SRTM_dem(self, srtm_folder, username, password, buffer=0.5, rounding=0.5, srtm_type='SRTM3', parallel=True):
+    def download_SRTM_dem(self, srtm_folder=None, username=None, password=None, buffer=0.5, rounding=0.5, srtm_type='SRTM3', parallel=True):
         """
         Downloads the needed srtm data for this datastack. srtm_folder is the folder the downloaded srtm tiles are
         stored.
@@ -271,16 +283,25 @@ class Stack(object):
         :return:
         """
 
+        settings = UserSettings()
+        settings.load_settings()
+        if not srtm_folder:
+            srtm_folder = os.path.join(settings.DEM_database, 'SRTM')
+        if not username:
+            username = settings.NASA_username
+        if not password:
+            password = settings.NASA_password
+
         download = SrtmDownload(srtm_folder, username, password, srtm_type)
         download(self.slcs[self.master_date].data.meta, buffer=buffer, rounding=rounding, parallel=parallel)
 
-    def download_Tandem_X_dem(self, tandem_x_folder, username, password, buffer=0.5, rounding=0.5, lon_resolution=3,
+    def download_Tandem_X_dem(self, tandem_x_folder=None, username=None, password=None, buffer=0.5, rounding=0.5, lon_resolution=3,
                               parallel=True, n_processes=1):
         """
-        Downloads the needed tandem_x data for this datastack. srtm_folder is the folder the downloaded srtm tiles are
+        Downloads the needed TanDEM-X data for this datastack. srtm_folder is the folder the downloaded srtm tiles are
         stored. Details on the product and login can be found under: https://geoservice.dlr.de/web/dataguide/tdm90/
 
-        :param tandem_x_folder:
+        :param TanDEM-X_folder:
         :param username:
         :param password:
         :param buffer:
@@ -290,6 +311,15 @@ class Stack(object):
         :param n_processes:
         :return:
         """
+
+        settings = UserSettings()
+        settings.load_settings()
+        if not tandem_x_folder:
+            tandem_x_folder = os.path.join(settings.DEM_database, 'TanDEM-X')
+        if not username:
+            username = settings.DLR_username
+        if not password:
+            password = settings.DLR_password
 
         download = TandemXDownload(tandem_x_folder, username, password, lon_resolution=lon_resolution, n_processes=n_processes)
         download(self.slcs[self.master_date].data.meta, buffer=buffer, rounding=rounding)

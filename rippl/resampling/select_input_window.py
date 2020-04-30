@@ -21,21 +21,25 @@ from skimage.morphology.binary import binary_dilation
 class SelectInputWindow():
 
     @staticmethod
-    def input_irregular_rectangle(input_lines, input_pixels, s_lin=0, s_pix=0, shape=[0, 0], buf=3):
+    def input_irregular_rectangle(lines, pixels, s_lin=0, s_pix=0, shape=[0, 0], buf=3):
         # Calculate the needed rectangle area for the input, given the needed output line and pixels.
 
-        line_min_y = np.min(input_lines, 1)
-        line_max_y = np.max(input_lines, 1)
-        line_min_x = np.min(input_lines, 0)
-        line_max_x = np.max(input_lines, 0)
+        # First mask out the 0 values
+        input_lines = np.ma.masked_equal(lines, 0.0, copy=False)
+        input_pixels = np.ma.masked_equal(pixels, 0.0, copy=False)
+
+        line_min_y = np.nanmin(input_lines, 1)
+        line_max_y = np.nanmax(input_lines, 1)
+        line_min_x = np.nanmin(input_lines, 0)
+        line_max_x = np.nanmax(input_lines, 0)
 
         lines_inside_y = (line_max_y > (s_lin - buf)) * (line_min_y < (s_lin + shape[0] + buf))
         lines_inside_x = (line_max_x > (s_lin - buf)) * (line_min_x < (s_lin + shape[0] + buf))
 
-        pixel_min_y = np.min(input_pixels, 1)
-        pixel_max_y = np.max(input_pixels, 1)
-        pixel_min_x = np.min(input_pixels, 0)
-        pixel_max_x = np.max(input_pixels, 0)
+        pixel_min_y = np.nanmin(input_pixels, 1)
+        pixel_max_y = np.nanmax(input_pixels, 1)
+        pixel_min_x = np.nanmin(input_pixels, 0)
+        pixel_max_x = np.nanmax(input_pixels, 0)
 
         pixels_inside_y = (pixel_max_y > (s_pix - buf)) * (pixel_min_y < (s_pix + shape[1] + buf))
         pixels_inside_x = (pixel_max_x > (s_pix - buf)) * (pixel_min_x < (s_pix + shape[1] + buf))
@@ -71,36 +75,40 @@ class SelectInputWindow():
         return bool_grid, in_s_lin, in_s_pix, in_shape
 
     @staticmethod
-    def output_irregular_rectangle(output_lines, output_pixels, max_shape=[], buf=3):
+    def output_irregular_rectangle(lines, pixels, max_shape=[], min_line=0, min_pixel=0, buf=3):
 
-        in_s_lin = int(np.floor(np.maximum(np.min(output_lines) - buf, 0)))
-        in_s_pix = int(np.floor(np.maximum(np.min(output_pixels) - buf, 0)))
+        # First mask out the 0 values
+        output_lines = np.ma.masked_equal(lines, 0.0, copy=False)
+        output_pixels = np.ma.masked_equal(pixels, 0.0, copy=False)
+
+        in_s_lin = int(np.floor(np.maximum(np.nanmin(output_lines) - buf, min_line)))
+        in_s_pix = int(np.floor(np.maximum(np.nanmin(output_pixels) - buf, min_pixel)))
         if len(max_shape) == 0:
-            in_e_lin = int(np.ceil(np.max(output_lines) + buf))
-            in_e_pix = int(np.ceil(np.max(output_pixels) + buf))
+            in_e_lin = int(np.ceil(np.nanmax(output_lines) + buf))
+            in_e_pix = int(np.ceil(np.nanmax(output_pixels) + buf))
         else:
-            in_e_lin = int(np.ceil(np.minimum(np.max(output_lines) + buf, max_shape[0])))
-            in_e_pix = int(np.ceil(np.minimum(np.max(output_pixels) + buf, max_shape[1])))
+            in_e_lin = int(np.ceil(np.minimum(np.nanmax(output_lines) + buf, min_line + max_shape[0])))
+            in_e_pix = int(np.ceil(np.minimum(np.nanmax(output_pixels) + buf, min_pixel + max_shape[1])))
 
         in_shape = [in_e_lin - in_s_lin, in_e_pix - in_s_pix]
 
         return in_s_lin, in_s_pix, in_shape
 
     @staticmethod
-    def output_irregular_bool_grid(output_lines, output_pixels, max_shape=[], buf=3):
+    def output_irregular_bool_grid(output_lines, output_pixels, max_shape=[], min_line=0, min_pixel=0, buf=3):
         # A rectangular selection is sometimes much larger than the actual area needed because the area of interest is
         # rotated.
 
-        in_s_lin, in_s_pix, in_shape = SelectInputWindow(output_lines, output_pixels, max_shape, buf)
+        in_s_lin, in_s_pix, in_shape = SelectInputWindow.output_irregular_rectangle(output_lines, output_pixels, max_shape, min_line, min_pixel, buf)
 
         lines = np.arange(in_s_lin, in_shape[0])
         pixels = np.arange(in_s_pix, in_shape[1])
 
         # This method check for every input row what the max and min line and pixel values are.
-        row_max_lin = np.int(np.max(output_lines, 1))
-        row_min_lin = np.int(np.min(output_lines, 1))
-        row_max_pix = np.int(np.max(output_pixels, 1))
-        row_min_pix = np.int(np.min(output_pixels, 1))
+        row_max_lin = np.int(np.nanmax(output_lines, 1))
+        row_min_lin = np.int(np.nanmin(output_lines, 1))
+        row_max_pix = np.int(np.nanmax(output_pixels, 1))
+        row_min_pix = np.int(np.nanmin(output_pixels, 1))
 
         # the line values are now used to check which rows cross certain columns of the image
         in_between_matrix = (row_max_lin[None, :] - lines[:, None] > 0) * (row_min_lin[None, :] - lines[:, None] < 0)

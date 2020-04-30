@@ -50,8 +50,8 @@ class CalibratedAmplitude(Process):  # Change this name to the one of your proce
             self.input_info['process_types'] = ['crop', 'radar_ray_angles']
             self.input_info['file_types'] = ['crop', 'incidence_angle']
         else:
-            self.input_info['process_types'] = ['earth_topo_phase', 'radar_ray_angles']
-            self.input_info['file_types'] = ['earth_topo_phase_corrected', 'incidence_angle']
+            self.input_info['process_types'] = ['correct_phases', 'radar_ray_angles']
+            self.input_info['file_types'] = ['phase_corrected', 'incidence_angle']
 
         self.input_info['polarisations'] = [polarisation, '']
         self.input_info['data_ids'] = [data_id, '']
@@ -94,6 +94,7 @@ class CalibratedAmplitude(Process):  # Change this name to the one of your proce
         if self.db_only:
             cal_amplitude = np.abs(self['complex_data'])**2 * np.sin(self['incidence_angle'] / 180 * np.pi) / beta_0**2
             valid_pixels = (cal_amplitude != 0)
+            self['calibrated_amplitude_db'] = np.zeros(cal_amplitude)
             self['calibrated_amplitude_db'][valid_pixels] = 10 * np.log10(cal_amplitude[valid_pixels])
         else:
             self['calibrated_amplitude'] = np.abs(self['complex_data'])**2 * np.sin(self['incidence_angle'] / 180 * np.pi) / beta_0**2

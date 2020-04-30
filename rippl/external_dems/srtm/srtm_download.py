@@ -25,17 +25,25 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.meta_data.image_processing_meta import ImageProcessingMeta
 from rippl.resampling.coor_new_extend import CoorNewExtend
+from rippl.user_settings import UserSettings
 
 
 class SrtmDownloadTile(object):
     # To enable parallel processing we create another class for the actual processing.
 
-    def __init__(self, srtm_folder, username, password, srtm_type):
+    def __init__(self, username='', password=''):
 
-        self.srtm_folder = srtm_folder
-        self.srtm_type = srtm_type
-        self.username = username
-        self.password = password
+        settings = UserSettings()
+        settings.load_settings()
+
+        if not username:
+            self.username = settings.NASA_username
+        else:
+            self.username = username
+        if not password:
+            self.password = settings.NASA_password
+        else:
+            self.password = password
 
     def __call__(self, input):
 
@@ -74,17 +82,31 @@ class SrtmDownloadTile(object):
 
 class SrtmDownload(object):
 
-    def __init__(self, srtm_folder, username, password, srtm_type='SRTM3', quality=False, n_processes=4):
+    def __init__(self, srtm_folder='', username='', password='', srtm_type='SRTM3', quality=False, n_processes=4):
         # srtm_folder
+
+        settings = UserSettings()
+        settings.load_settings()
+
+        # SRTM folder
+        if not srtm_folder:
+            self.srtm_folder = os.path.join(settings.DEM_database, 'SRTM')
+
+        # credentials
+        if not username:
+            self.username = settings.NASA_username
+        else:
+            self.username = username
+        if not password:
+            self.password = settings.NASA_password
+        else:
+            self.password = password
+
         self.srtm_folder = srtm_folder
         self.quality = quality
 
-        # credentials
-        self.username = username
-        self.password = password
-
         # List of files to be downloaded
-        self.filelist = self.srtm_listing(srtm_folder, username, password)
+        self.filelist = self.srtm_listing(self.srtm_folder, self.username, self.password)
 
         # shapes and limits of these shapes
         self.shapes = []
@@ -94,7 +116,6 @@ class SrtmDownload(object):
         # meta and polygons
         self.meta = ''
         self.polygon = ''
-        self.shapefile = ''
 
         # Resolution of files (either SRTM1, SRTM3 or STRM30)
         self.srtm_type = srtm_type
@@ -136,7 +157,7 @@ class SrtmDownload(object):
             self.select_tiles(self.filelist, self.coordinates, self.srtm_folder, self.srtm_type, self.quality)
 
         # First create a download class.
-        tile_download = SrtmDownloadTile(self.srtm_folder, self.username, self.password, self.srtm_type)
+        tile_download = SrtmDownloadTile(self.username, self.password)
 
         # Loop over all images
         download_dat = [[url, file_zip, file_unzip, lat, lon] for
@@ -224,6 +245,19 @@ class SrtmDownload(object):
     def srtm_listing(srtm_folder, username='', password=''):
         # This script makes a list of all the available 1,3 and 30 arc second datafiles.
         # This makes it easier to detect whether files do or don't exist.
+
+        settings = UserSettings()
+        settings.load_settings()
+
+        # SRTM folder
+        if not srtm_folder:
+            srtm_folder = os.path.join(settings.DEM_database, 'SRTM')
+
+        # credentials
+        if not username:
+            username = settings.NASA_username
+        if not password:
+            password = settings.NASA_password
 
         data_file = os.path.join(srtm_folder, 'filelist')
         if os.path.exists(data_file):

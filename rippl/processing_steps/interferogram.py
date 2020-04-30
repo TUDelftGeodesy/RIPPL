@@ -41,22 +41,19 @@ class Interferogram(Process):  # Change this name to the one of your processing 
         self.input_info['image_types'] = ['slave', 'master']
 
         if coreg_master == slave:
-            self.input_info['process_types'] = ['crop', 'earth_topo_phase']
-            self.input_info['file_types'] = ['crop', 'earth_topo_phase_corrected']
+            self.input_info['process_types'] = ['crop', 'correct_phases']
+            self.input_info['file_types'] = ['crop', 'phase_corrected']
         elif coreg_master == master:
-            self.input_info['process_types'] = ['earth_topo_phase', 'crop']
-            self.input_info['file_types'] = ['earth_topo_phase_corrected', 'crop']
+            self.input_info['process_types'] = ['correct_phases', 'crop']
+            self.input_info['file_types'] = ['phase_corrected', 'crop']
         else:
-            self.input_info['process_types'] = ['earth_topo_phase', 'earth_topo_phase']
-            self.input_info['file_types'] = ['earth_topo_phase_corrected', 'earth_topo_phase_corrected']
+            self.input_info['process_types'] = ['correct_phases', 'correct_phases']
+            self.input_info['file_types'] = ['phase_corrected', 'phase_corrected']
 
         self.input_info['polarisations'] = [polarisation, polarisation]
         self.input_info['data_ids'] = [data_id, data_id]
         self.input_info['coor_types'] = ['out_coor', 'out_coor']
         self.input_info['in_coor_types'] = ['', '']
-
-
-
         self.input_info['type_names'] = ['slave', 'master']
 
         # Coordinate systems

@@ -3,6 +3,8 @@
 # later on.
 
 # Import the parent class Process for processing steps.
+import numpy as np
+
 from rippl.meta_data.process import Process
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
@@ -130,16 +132,26 @@ class ResamplePrepare(Process):  # Change this name to the one of your processin
         :return:
         """
 
-        transform = GridTransforms(self.coordinate_systems['in_block_coor'], self.coordinate_systems['block_coor'])
+        transform = GridTransforms(self.coordinate_systems['in_coor'], self.coordinate_systems['block_coor'])
 
         if self.coordinate_systems['out_coor'].grid_type == 'radar_coordinates':
             if self.coordinate_systems['in_coor'].grid_type == 'radar_coordinates':
                 transform.add_xyz(self['X'], self['Y'], self['Z'])
+                valid = (self['X'] != 0) * (self['Y'] != 0) * (self['Z'] != 0)
             elif self.coordinate_systems['in_coor'].grid_type in ['projection', 'geographic']:
                 transform.add_dem(self['dem'])
                 transform.add_lat_lon(self['lat'], self['lon'])
+                valid = (self['lat'] != 0) * (self['lon'] != 0) * (self['dem'] != 0)
+            else:
+                raise TypeError('Only radar_coordinates, projection or geographic is possible')
+        else:
+            valid = ''
 
-        self['out_coor_lines'], self['out_coor_pixels'] = transform()
+        lines, pixels = transform()
+        if len(valid) == 0:
+            valid = np.ones(lines.shape, dtype=bool)
+        self['out_coor_lines'][valid] = lines[valid]
+        self['out_coor_pixels'][valid] = pixels[valid]
 
     def def_out_coor(self):
         """

@@ -304,7 +304,7 @@ class CoordinateSystem():
         self.interval_lines = self.ml_lines + (steps[0] - 1) / 2
         self.interval_pixels = self.ml_pixels + (steps[1] - 1) / 2
 
-    def create_geographic(self, dlat='', dlon='', ellipse_type='WGS84', shape='', lat0=0, lon0=0,
+    def create_geographic(self, dlat='', dlon='', ellipse_type='WGS84', shape='', lat0=-90, lon0=-180,
                           sparse_name='', mask_name='', geo_transform=[]):
 
         self.ellipse_type = ellipse_type

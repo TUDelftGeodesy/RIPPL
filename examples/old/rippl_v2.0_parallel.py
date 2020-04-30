@@ -64,9 +64,9 @@ from rippl.processing_steps.inverse_geocode import InverseGeocode
 from rippl.processing_steps.resample_dem import ResampleDem
 from rippl.processing_steps.geocode import Geocode
 from rippl.processing_steps.geometric_coregistration import GeometricCoregistration
-from rippl.processing_steps.earth_topo_phase import EarthTopoPhase
+from rippl.processing_steps.calc_earth_topo_phase import EarthTopoPhase
 from rippl.processing_steps.square_amplitude import SquareAmplitude
-from rippl.processing_steps.reramp import Reramp
+from rippl.processing_steps.calc_reramp import Reramp
 from rippl.processing_steps.radar_ray_angles import RadarRayAngles
 from rippl.processing_steps.baseline import Baseline
 from rippl.processing_steps.coherence import Coherence
@@ -147,7 +147,7 @@ slave_keys = [key for key in s1_stack.slcs.keys() if key != master_date]
 for slave_key in slave_keys:
     slave = s1_stack.slcs[slave_key]
     slave.create_concatenate_image(process='square_amplitude', file_type='square_amplitude', coor=radar_coor, transition_type='cut_off')
-    slave.create_concatenate_image(process='earth_topo_phase', file_type='earth_topo_phase_corrected', coor=radar_coor, transition_type='cut_off')
+    slave.create_concatenate_image(process='correct_phases', file_type='phase_corrected', coor=radar_coor, transition_type='cut_off')
 
 # Concatenate to full images
 coreg_image = s1_stack.slcs[master_date]

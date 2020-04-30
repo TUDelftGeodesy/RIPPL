@@ -101,5 +101,5 @@ class Coherence(Process):  # Change this name to the one of your processing step
         :return:
         """
 
-        valid_id = (self['slave'] != 0) * (self['master'] != 0)
+        valid_id = (self['slave'] != 0) * (self['master'] != 0) * (self['ifg'] != 0)
         self['coherence'][valid_id] = np.abs(self['ifg'][valid_id]) / np.sqrt(self['slave'][valid_id] * self['master'][valid_id])

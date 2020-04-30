@@ -1,4 +1,4 @@
-from rippl.processing_templates.general import GeneralPipelines
+from rippl.processing_templates.general_sentinel_1 import GeneralPipelines
 from rippl.processing_templates.land_ice import LandIce
 
 # Settings where the data is stored
@@ -8,7 +8,7 @@ database_folder = data_disk + 'radar_database/sentinel-1'
 shapefile = data_disk + 'GIS/shapes/Stereoid_cases/NEGIS.shp'
 orbit_folder = data_disk + 'orbits/sentinel-1'
 stack_folder = datastack_disk + 'radar_datastacks/RIPPL_v2.0/Sentinel_1/negis_greenland'
-dem_folder = data_disk + 'DEM/Tandem_X'
+dem_folder = data_disk + 'DEM/TanDEM-X'
 
 # Track and data type of Sentinel data
 track = 74
@@ -32,7 +32,7 @@ DLR_username = 'g.mulder-1@tudelft.nl'
 DLR_password = 'Radar_2016'
 
 # DEM type
-dem_type = 'Tandem_X'
+dem_type = 'TanDEM-X'
 dem_buffer = 1
 dem_rounding = 1
 lon_resolution = 6

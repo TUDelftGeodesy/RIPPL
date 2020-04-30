@@ -207,11 +207,11 @@ class GridTransforms(object):
         if not GridTransforms.check_ellipsoid(in_coor, out_coor):
             return
 
-        start_lat_diff = - ((in_coor.lat0 - out_coor.lat0) - out_coor.dlat * out_coor.first_line + in_coor.dlat * in_coor.first_line)
-        start_lon_diff = - ((in_coor.lon0 - out_coor.lon0) - out_coor.dlon * out_coor.first_pixel + in_coor.dlon * in_coor.first_pixel)
+        start_lat_diff = -(in_coor.lat0 - out_coor.lat0)
+        start_lon_diff = -(in_coor.lon0 - out_coor.lon0)
 
-        line_vals = (start_lat_diff + np.arange(out_coor.shape[0]) * out_coor.dlat) / in_coor.dlat
-        pixel_vals = (start_lon_diff + np.arange(out_coor.shape[1]) * out_coor.dlon) / in_coor.dlon
+        line_vals = (start_lat_diff + (np.arange(out_coor.shape[0]) + out_coor.first_line) * out_coor.dlat) / in_coor.dlat
+        pixel_vals = (start_lon_diff + (np.arange(out_coor.shape[1]) + out_coor.first_pixel) * out_coor.dlon) / in_coor.dlon
 
         pixels, lines = np.meshgrid(pixel_vals, line_vals)
 
@@ -240,8 +240,8 @@ class GridTransforms(object):
             out_lat = orbit_out.lat
             out_lon = orbit_out.lon
 
-        lines = (out_lat - (in_coor.lat0 + in_coor.first_line * in_coor.dlat)) / in_coor.dlat
-        pixels = (out_lon - (in_coor.lon0 + in_coor.first_pixel * in_coor.dlon)) / in_coor.dlon
+        lines = (out_lat - in_coor.lat0) / in_coor.dlat
+        pixels = (out_lon - in_coor.lon0) / in_coor.dlon
 
         return lines, pixels
 
@@ -257,8 +257,8 @@ class GridTransforms(object):
             out_lat, out_lon = out_coor.proj2ell(x, y)
 
         # Now calculate the line and pixel coordinates with respect to the input dataset
-        lines = (out_lat - (in_coor.lat0 + in_coor.first_line * in_coor.dlat)) / in_coor.dlat
-        pixels = (out_lon - (in_coor.lon0 + in_coor.first_pixel * in_coor.dlon)) / in_coor.dlon
+        lines = (out_lat - in_coor.lat0) / in_coor.dlat
+        pixels = (out_lon - in_coor.lon0) / in_coor.dlon
 
         return lines, pixels
 
@@ -279,8 +279,8 @@ class GridTransforms(object):
         out_x, out_y = in_coor.ell2proj(out_lat, out_lon)
 
         # Now calculate the line and pixel coordinates with respect to the input dataset
-        lines = (out_y - (in_coor.y0 + in_coor.first_line * in_coor.dy)) / in_coor.dy
-        pixels = (out_x - (in_coor.x0 + in_coor.first_pixel * in_coor.dx)) / in_coor.dx
+        lines = (out_y - in_coor.y0) / in_coor.dy
+        pixels = (out_x - in_coor.x0) / in_coor.dx
 
         return lines, pixels
 
@@ -310,8 +310,8 @@ class GridTransforms(object):
 
         # Calculate the coordinates using the derived lat/lon values.
         out_x, out_y = in_coor.ell2proj(out_lat, out_lon)
-        lines = (out_y - (in_coor.y0 + in_coor.first_line * in_coor.dy)) / in_coor.dy
-        pixels = (out_x - (in_coor.x0 + in_coor.first_pixel * in_coor.dx)) / in_coor.dx
+        lines = (out_y - in_coor.y0) / in_coor.dy
+        pixels = (out_x - in_coor.x0) / in_coor.dx
 
         return lines, pixels
 
@@ -326,8 +326,8 @@ class GridTransforms(object):
 
         # Calculate the coordinates using the derived lat/lon values.
         out_x, out_y = in_coor.ell2proj(out_lat, out_lon)
-        lines = (out_y - (in_coor.y0 + in_coor.first_line * in_coor.dy)) / in_coor.dy
-        pixels = (out_x - (in_coor.x0 + in_coor.first_pixel * in_coor.dx)) / in_coor.dx
+        lines = (out_y - in_coor.y0) / in_coor.dy
+        pixels = (out_x - in_coor.x0) / in_coor.dx
 
         return lines, pixels
 

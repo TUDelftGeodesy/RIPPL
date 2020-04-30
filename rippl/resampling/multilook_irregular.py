@@ -58,15 +58,20 @@ class MultilookIrregular(object):
         self.multilooked = np.zeros(shape=self.out_coor.shape).astype(data.dtype)
         self.looks = np.zeros(shape=self.out_coor.shape).astype(np.int32)
 
+        # Select valid pixels
+        data[np.isnan(data)] = 0
+
         # Add to output grids.
         self.multilooked[np.unravel_index(self.output_ids, self.multilooked.shape)] = \
             np.add.reduceat(np.ravel(data)[np.ravel(self.sort_ids)], np.ravel(self.sum_ids))
         self.looks[np.unravel_index(self.output_ids, self.multilooked.shape)] = np.diff(np.concatenate((np.ravel(self.sum_ids), np.array([len(self.sort_ids)]))))
 
-    @staticmethod
-    def conversion_grid(lines, pixels, shape):
+    def conversion_grid(self, lines, pixels, shape):
         # type: (np.ndarray, np.ndarray, list) -> (np.ndarray, np.ndarray, np.ndarray)
         # This step finds the id of the input grids
+
+        lines -= self.out_coor.first_line
+        pixels -= self.out_coor.first_pixel
         inside = (lines > 0) * (pixels > 0) * (lines < shape[0]) * (lines < shape[1])
 
         # Select all pixels inside boundaries.

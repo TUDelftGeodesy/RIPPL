@@ -43,7 +43,7 @@ class DerampResampleRadarGrid(Process):  # Change this name to the one of your p
         self.output_info['data_id'] = data_id
         self.output_info['coor_type'] = 'out_coor'
         self.output_info['file_types'] = ['resampled']
-        self.output_info['data_types'] = ['complex_real4']
+        self.output_info['data_types'] = ['complex_short']
 
         # Input data information
         self.input_info = dict()
@@ -70,38 +70,19 @@ class DerampResampleRadarGrid(Process):  # Change this name to the one of your p
         self.settings = dict()
         self.settings['resample_type'] = resample_type
         self.deramped = []
+        self.settings['buf'] = 4
+        self.settings['out_irregular_grids'] = ['coreg_lines', 'coreg_pixels']
 
     def init_super(self):
 
         self.load_coordinate_system_sizes()
-        super(Deramp, self).__init__(
+        super(DerampResampleRadarGrid, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
             coordinate_systems=self.coordinate_systems,
             processing_images=self.processing_images,
             overwrite=self.overwrite,
             settings=self.settings)
-
-    def load_irregular_grids(self):
-        """
-        Load coordinates of input grids.
-        """
-
-        # Define the irregular grid for output. This is needed if you want to calculate in blocks.
-        if len(self.in_images['coreg_lines'].disk['data']) > 0:
-            s_lin = self.block_coor.first_line - self.coordinate_systems['out_coor'].first_line
-            s_pix = self.block_coor.first_pixel - self.block_coor.first_pixel
-            e_lin = s_lin + self.block_coor.shape[0]
-            e_pix = s_pix + self.block_coor.shape[1]
-
-            self.out_irregular_grids = [self.in_images['coreg_lines'].disk['data'][s_lin:e_lin, s_pix:e_pix],
-                                       self.in_images['coreg_pixels'].disk['data'][s_lin:e_lin, s_pix:e_pix]]
-        elif len(self.in_images['coreg_lines'].memory['data']) > 0:
-            self.out_irregular_grids = [self.in_images['coreg_lines'].memory['data'],
-                                       self.in_images['coreg_pixels'].memory['data']]
-        else:
-            raise FileNotFoundError('Data for irregular grids not available.')
-        self.in_irregular_grids = [None]
 
     def process_calculations(self, test=False):
         """

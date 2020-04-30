@@ -1,4 +1,4 @@
-from rippl.processing_templates.general import GeneralPipelines
+from rippl.processing_templates.general_sentinel_1 import GeneralPipelines
 from rippl.processing_templates.troposphere import Troposphere
 
 # Settings where the data is stored

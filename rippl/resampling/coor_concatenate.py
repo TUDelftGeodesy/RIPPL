@@ -6,7 +6,6 @@ The main steps are:
 - Align all coordinate system, using the same lat0/lon0/x0/y0/ra_time/az_time
 
 '''
-from typing import List
 import numpy as np
 import copy
 
@@ -83,7 +82,7 @@ class CoorConcatenate():
 
     @staticmethod
     def check_same_coordinates(coor_systems):
-        # type: (List[CoordinateSystem]) -> bool
+        # type:
 
         for coor_system in coor_systems:
             coor_system.create_coor_id()
@@ -95,7 +94,7 @@ class CoorConcatenate():
 
     @staticmethod
     def coordinates_alignment(coor_systems):
-        # type: (List[CoordinateSystem]) -> List[list]
+        # type:
 
         if not CoorConcatenate.check_same_coordinates(coor_systems):
             return False
@@ -151,7 +150,7 @@ class CoorConcatenate():
 
     @staticmethod
     def create_concat_coordinates(coor_systems):
-        # type: (List(CoordinateSystem)) -> CoordinateSystem
+        # type:
         # first synchronize all coordinate systems.
         sync_coors = CoorConcatenate.synchronize_coordinates(coor_systems)
 
@@ -178,7 +177,7 @@ class CoorConcatenate():
 
     @staticmethod
     def get_alignment(coor):
-        # type: (CoordinateSystem) -> (float, float, float, float)
+        # type:
 
         if coor.grid_type == 'radar_coordinates':
             orig_line = coor.az_time / coor.az_step
@@ -214,7 +213,7 @@ class CoorConcatenate():
 
     @staticmethod
     def adjust_orig_vals(coor, orig_line, orig_pix):
-        # type: (CoordinateSystem, float, float) -> CoordinateSystem
+        # type:
         # Adjust the original line/pixel by changing the first line/pixel
 
         if coor.grid_type == 'radar_coordinates':

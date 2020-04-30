@@ -15,9 +15,10 @@ from rippl.processing_steps.inverse_geocode import InverseGeocode
 from rippl.processing_steps.resample_dem import ResampleDem
 from rippl.processing_steps.geocode import Geocode
 from rippl.processing_steps.geometric_coregistration import GeometricCoregistration
-from rippl.processing_steps.earth_topo_phase import EarthTopoPhase
+from rippl.processing_steps.calc_earth_topo_phase import CalcEarthTopoPhase
 from rippl.processing_steps.square_amplitude import SquareAmplitude
-from rippl.processing_steps.reramp import Reramp
+from rippl.processing_steps.calc_reramp import CalcReramp
+from rippl.processing_steps.correct_phases import CorrectPhases
 from rippl.processing_steps.radar_ray_angles import RadarRayAngles
 from rippl.processing_steps.baseline import Baseline
 from rippl.processing_steps.coherence import Coherence
@@ -29,6 +30,10 @@ from rippl.processing_steps.multilook_prepare import MultilookPrepare
 from rippl.processing_steps.resample_prepare import ResamplePrepare
 from rippl.processing_steps.unwrap import Unwrap
 from rippl.processing_steps.nesz_harmony_sentinel import NeszHarmonySentinel
+from rippl.processing_steps.combined_ambiguities import CombinedAmbiguities
+from rippl.processing_steps.azimuth_ambiguities import CalcAzimuthAmbiguities
+from rippl.processing_steps.azimuth_ambiguities_locations import AzimuthAmbiguitiesLocations
+from rippl.processing_steps.AASR_amplitude_multilook import AASRAmplitudeMultilook
 
 from rippl.processing_steps.multilook import Multilook
 from rippl.pipeline import Pipeline
@@ -166,8 +171,8 @@ class GeneralPipelines():
         print('Working on this!')
 
     def download_sentinel_data(self, start_date, end_date, track, polarisation,
-                              shapefile, radar_database_folder, orbit_folder,
-                              ESA_username, ESA_password, ASF_username, ASF_password):
+                              shapefile, radar_database_folder=None, orbit_folder=None,
+                              ESA_username=None, ESA_password=None, ASF_username=None, ASF_password=None, data=True, orbit=True):
         """
         Creation of datastack of Sentinel-1 images including the orbits.
 
@@ -185,23 +190,25 @@ class GeneralPipelines():
         :return:
         """
 
-        if polarisation is str:
-            polarisation = [polarisation]
+        if data:
+            if polarisation is str:
+                polarisation = [polarisation]
 
-        # Download data and orbit
-        for pol in polarisation:
-            download_data = DownloadSentinel(start_date, end_date, shapefile, track, polarisation=pol)
-            download_data.sentinel_available(ESA_username, ESA_password)
-            download_data.sentinel_download_ASF(radar_database_folder, ASF_username, ASF_password)
-            download_data.sentinel_check_validity(radar_database_folder, ESA_username, ESA_password)
+            # Download data and orbit
+            for pol in polarisation:
+                download_data = DownloadSentinel(start_date, end_date, shapefile, track, polarisation=pol)
+                download_data.sentinel_available(ESA_username, ESA_password)
+                download_data.sentinel_download_ASF(radar_database_folder, ASF_username, ASF_password)
+                download_data.sentinel_check_validity(radar_database_folder, ESA_username, ESA_password)
 
         # Orbits
-        precise_folder = os.path.join(orbit_folder, 'precise')
-        download_orbit = DownloadSentinelOrbit(start_date, end_date, precise_folder)
-        download_orbit.download_orbits()
+        if orbit:
+            precise_folder = os.path.join(orbit_folder, 'precise')
+            download_orbit = DownloadSentinelOrbit(start_date, end_date, precise_folder)
+            download_orbit.download_orbits()
 
     def create_sentinel_stack(self, start_date, end_date, master_date, track, polarisation,
-                              shapefile, radar_database_folder, orbit_folder, stack_folder,
+                              shapefile, stack_name=None, radar_database_folder=None, orbit_folder=None, stack_folder=None,
                               mode='IW', product_type='SLC'):
         """
         Creation of datastack of Sentinel-1 images including the orbits.
@@ -228,7 +235,7 @@ class GeneralPipelines():
 
         # Prepare processing
         for pol in polarisation:
-            self.stack = SentinelStack(stack_folder)
+            self.stack = SentinelStack(datastack_folder=stack_folder, datastack_name=stack_name)
             self.stack.read_from_database(radar_database_folder, shapefile, track, orbit_folder, start_date, end_date,
                                           master_date, mode, product_type, pol, cores=cores)
             self.read_stack(stack_folder, start_date, end_date)
@@ -281,8 +288,7 @@ class GeneralPipelines():
 
     def create_ml_coordinates(self, coor_type, multilook=[1,1], oversample=[1,1], shape=[0,0],
                               dlat=0.001, dlon=0.001, lat0=-90, lon0=180,
-                              dx=1, dy=1, x0=0, y0=0, projection_string='', projection_type='',
-                              reference_processing_step='crop'):
+                              dx=1, dy=1, x0=0, y0=0, projection_string='', projection_type=''):
         """
         Create the coordinate system for multilooking. This can either be in radar coordinates, geographic or projected.
 
@@ -340,7 +346,7 @@ class GeneralPipelines():
         self.stack.create_interferogram_network(image_baselines, network_type, temporal_baseline, temporal_no,
                                                 spatial_baseline)
 
-    def download_external_dem(self, dem_folder, dem_type, NASA_username='', NASA_password='', DLR_username='', DLR_password='',
+    def download_external_dem(self, dem_folder=None, dem_type='SRTM3', NASA_username=None, NASA_password=None, DLR_username=None, DLR_password=None,
                               lon_resolution=3, buffer=1, rounding=1):
         """
 
@@ -368,7 +374,7 @@ class GeneralPipelines():
             self.stack.download_Tandem_X_dem(dem_folder, DLR_username, DLR_password, buffer=buffer, rounding=rounding,
                                            lon_resolution=lon_resolution)
 
-    def geocoding(self, dem_folder='', dem_type='', dem_buffer='', dem_rounding='', lon_resolution=''):
+    def geocoding(self, dem_folder=None, dem_type=None, dem_buffer=None, dem_rounding=None, lon_resolution=None):
         """
         :param dem_folder:
         :param dem_type:
@@ -439,31 +445,39 @@ class GeneralPipelines():
             polarisation = [polarisation]
 
         # Allow the processing of two polarisation at the same time.
+        self.reload_stack()
+        [slave_slices, coreg_slices] = self.get_data('coreg_slave', slice=True)
+
+        resampling_pipeline = Pipeline(pixel_no=5000000, processes=self.processes)
+        resampling_pipeline.add_processing_data(coreg_slices, 'coreg_master')
+        resampling_pipeline.add_processing_data(slave_slices, 'slave')
+        resampling_pipeline.add_processing_step(GeometricCoregistration(out_coor=self.radar_coor,
+                                                                        in_coor=self.radar_coor,
+                                                                        coreg_master='coreg_master',
+                                                                        slave='slave'), False)
+        resampling_pipeline.add_processing_step(CalcEarthTopoPhase(out_coor=self.radar_coor, slave='slave'), False)
+        resampling_pipeline.add_processing_step(CalcReramp(out_coor=self.radar_coor, slave='slave'), True)
+
         for pol in polarisation:
-            self.reload_stack()
-            [slave_slices, coreg_slices] = self.get_data('coreg_slave', slice=True)
+            resampling_pipeline.add_processing_step(DerampResampleRadarGrid(out_coor=self.radar_coor, in_coor=self.radar_coor,
+                                                                            polarisation=pol, slave='slave'), False)
+            resampling_pipeline.add_processing_step(CorrectPhases(out_coor=self.radar_coor, polarisation=pol, slave='slave'), True)
 
-            resampling_pipeline = Pipeline(pixel_no=5000000, processes=self.processes)
-            resampling_pipeline.add_processing_data(coreg_slices, 'coreg_master')
-            resampling_pipeline.add_processing_data(slave_slices, 'slave')
-            resampling_pipeline.add_processing_step(
-                GeometricCoregistration(out_coor=self.radar_coor, in_coor=self.radar_coor, coreg_master='coreg_master',
-                                        slave='slave'), False)
-
-            resampling_pipeline.add_processing_step(DerampResampleRadarGrid(out_coor=self.radar_coor, in_coor=self.radar_coor, polarisation=pol, slave='slave'), False)
-            resampling_pipeline.add_processing_step(Reramp(out_coor=self.radar_coor, polarisation=pol, slave='slave'), False)
-            resampling_pipeline.add_processing_step(EarthTopoPhase(out_coor=self.radar_coor, polarisation=pol, slave='slave'), True)
-            resampling_pipeline()
+        resampling_pipeline()
 
         # Concatenate the images
-        for pol in polarisation:
-            self.reload_stack()
-            [slave_images, coreg_image] = self.get_data('coreg_slave', slice=False, concat_meta=True)
 
-            for slave in slave_images:
-                slave.create_concatenate_image(process='earth_topo_phase', file_type='earth_topo_phase_corrected',
+        self.reload_stack()
+        [slave_images, coreg_image] = self.get_data('coreg_slave', slice=False, concat_meta=True)
+
+        for slave in slave_images:
+            slave.create_concatenate_image(process='calc_reramp', file_type='ramp',
+                                           coor=self.radar_coor, transition_type='cut_off')
+            for pol in polarisation:
+                slave.create_concatenate_image(process='correct_phases', file_type='phase_corrected',
                                                coor=self.radar_coor, transition_type='cut_off', polarisation=pol)
 
+        for pol in polarisation:
             # Concatenate the files from the main folder
             coreg_image[0].create_concatenate_image(process='crop', file_type='crop', coor=self.radar_coor,
                                                     transition_type='cut_off', polarisation=pol)
@@ -611,7 +625,7 @@ class GeneralPipelines():
             create_unwrapped_image.add_processing_step(Unwrap(polarisation=pol, out_coor=self.full_ml_coor, ifg='ifg'), True)
             create_unwrapped_image()
 
-    def create_geometry_mulitlooked(self, dem_folder='', dem_type='', dem_buffer='', dem_rounding='', lon_resolution=''):
+    def create_geometry_mulitlooked(self, dem_folder=None, dem_type=None, dem_buffer=None, dem_rounding=None, lon_resolution=None):
         """
         Create the geometry for a geographic grid used for multilooking
 
@@ -717,3 +731,73 @@ class GeneralPipelines():
         for geometry_dataset in geometry_datasets:  # type: ImageData
             geometry_dataset.coordinates.load_readfile(readfile)
             geometry_dataset.save_tiff(main_folder=True)
+
+    def calc_AASR_amplitude_multilooked(self, polarisation, amb_no, gaussian_spread=1, kernel_size=5):
+        """
+        Calculate the effect of the ambiguities in amplitude.
+
+        """
+
+        self.reload_stack()
+
+        if polarisation is str:
+            polarisation = [polarisation]
+
+        self.reload_stack()
+        [slave_images, coreg_images] = self.get_data('coreg_slave', slice=False)
+
+        calc_ambiguities = Pipeline(pixel_no=5000000, processes=self.processes)
+        calc_ambiguities.add_processing_data(coreg_images, 'coreg_master')
+        calc_ambiguities.add_processing_step(AzimuthAmbiguitiesLocations(coreg_master='coreg_master', no_ambiguities=2, out_coor=self.radar_coor), True)
+        calc_ambiguities()
+        calc_ambiguities.save_processing_results()
+
+        # After calculating the coordinates do the resampling.
+        self.reload_stack()
+        [slave_images, coreg_images] = self.get_data('coreg_slave', slice=False)
+        calc_ambiguities = Pipeline(pixel_no=5000000, processes=self.processes)
+        calc_ambiguities.add_processing_data(slave_images, 'slave')
+        calc_ambiguities.add_processing_data(coreg_images, 'coreg_master')
+
+        for pol in polarisation:
+            for loc in ['left', 'right']:
+                for amb_num in np.array(range(amb_no)) + 1:
+                    calc_ambiguities.add_processing_step(CalcAzimuthAmbiguities(coreg_master='coreg_master',
+                                                                                slave='slave',
+                                                                                out_coor=self.radar_coor,
+                                                                                amb_loc=loc,
+                                                                                amb_num=amb_num,
+                                                                                polarisation=pol,
+                                                                                gaussian_spread=gaussian_spread,
+                                                                                kernel_size=kernel_size), False)
+            calc_ambiguities.add_processing_step(CombinedAmbiguities(out_coor=self.radar_coor, polarisation=pol, slave='slave'), True)
+        calc_ambiguities()
+        calc_ambiguities.save_processing_results()
+
+        # Finally do the AASR multilooking to find the resulting AASR values in a regular geographic grid.
+        for pol in polarisation:
+            self.reload_stack()
+            [coreg_slave, coreg_master] = self.get_data('coreg_slave', slice=False)
+
+            # First create the multilooked square amplitudes.
+            multilook_ambiguties = Pipeline(pixel_no=0, processes=self.processes)
+            multilook_ambiguties.add_processing_data(coreg_master, 'coreg_master')
+            multilook_ambiguties.add_processing_data(coreg_slave, 'slave')
+            multilook_ambiguties.add_processing_step(
+                AASRAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
+                                       slave='slave', coreg_master='coreg_master', batch_size=10000000), True, True)
+            multilook_ambiguties()
+            multilook_ambiguties.save_processing_results()
+
+    def create_output_tiffs_AASR(self):
+        """
+        Create the geotiff images
+
+        :return:
+        """
+
+        AASR_datasets = self.stack.stack_data_iterator(['AASR_amplitude_multilook'], coordinates=[self.full_ml_coor],
+                                                           process_types=['ambiguities_calibrated_amplitude', 'ambiguities_calibrated_amplitude_db', 'AASR_db'])[-1]
+
+        for AASR_dataset in AASR_datasets:  # type: ImageData
+            AASR_dataset.save_tiff(main_folder=True)

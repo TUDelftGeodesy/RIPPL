@@ -2,7 +2,6 @@
 This is a parent class for different types of images like SLC and interferogram
 '''
 import os
-from typing import List
 
 from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData

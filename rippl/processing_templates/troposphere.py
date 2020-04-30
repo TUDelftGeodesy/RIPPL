@@ -5,7 +5,7 @@ Code to calculate atmospheric delays
 
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.meta_data.image_data import ImageData
-from rippl.processing_templates.general import GeneralPipelines
+from rippl.processing_templates.general_sentinel_1 import GeneralPipelines
 import numpy as np
 import copy
 

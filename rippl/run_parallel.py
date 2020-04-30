@@ -1,5 +1,6 @@
 # Function to run parallel package. For further details inspect the pipeline class.
 from rippl.meta_data.process import Process
+from rippl.meta_data.multilook_process import MultilookProcess
 
 
 def run_parallel(dat):
@@ -32,24 +33,28 @@ def run_parallel(dat):
             process.load_coordinate_system_sizes(find_out_coor=False)
             # First init the process inputs and outputs.
             process.load_input_info()
-            # Allocate the irregular grids for resampling/multilooking
-            process.load_irregular_grids()
-            # Start with loading the inputs. If they are already loaded in memory then this step is not needed.
-            if memory_in == False:
+
+            # Only load or create files in memory if it is a normal Process type. Multilooking always works from disk.
+            if not isinstance(process, MultilookProcess):
+                # Start with loading the inputs. If they are already loaded in memory then this step is not needed.
                 process.load_input_data()
-            # Then create the output memory files to write the output data
-            process.create_memory()
+                # Then create the output memory files to write the output data
+                process.create_memory()
+
             # Print processing
             print('Start processing ' + process.process_name + ' block ' + str(dat['block'] + 1) + ' out of ' +
                   str(dat['total_blocks']) + ' [' + str(dat['process_block_no']) + ' of total ' +
                   str(dat['total_process_block_no']) + '] for ' + process.out_processing_image.folder)
-            # Then do the final calculation
-            process.process_calculations()
+            # Then do the final calculations. (For multilooking apply the multilooking calculation)
+            if isinstance(process, MultilookProcess):
+                process.multilook_calculations()
+            else:
+                process.process_calculations()
         except:
             raise BrokenPipeError('Pipeline processing for ' + process.out_processing_image.folder + ' failed.')
 
         # Finally, if this step is saved to disk. Save the data from memory to disk.
-        if save:
+        if save and not isinstance(process, MultilookProcess):
             process.save_to_disk()
 
     for processing_image in processing_images:

@@ -41,6 +41,9 @@ class ResampleDem(Process):  # Change this name to the one of your processing st
         self.output_info['file_types'] = ['dem']
         self.output_info['data_types'] = ['real4']
 
+        self.settings = dict()
+        self.settings['buf'] = 3
+
         # Input data information
         if resample_type == 'delaunay':
             self.input_info = dict()
@@ -52,6 +55,7 @@ class ResampleDem(Process):  # Change this name to the one of your processing st
             self.input_info['coor_types'] = ['in_coor', 'in_coor', 'in_coor', 'out_coor']
             self.input_info['in_coor_types'] = ['', '', '', '']
             self.input_info['type_names'] = ['input_dem', 'lines', 'pixels', 'out_coor_grid']
+            self.settings['in_irregular_grids'] = ['lines', 'pixels']
         elif in_coor.grid_type == 'radar_coordinates' or out_coor.grid_type == 'radar_coordinates':
             self.input_info = dict()
             self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master']
@@ -63,6 +67,7 @@ class ResampleDem(Process):  # Change this name to the one of your processing st
             self.input_info['coor_types'] = ['in_coor', 'out_coor', 'out_coor']
             self.input_info['in_coor_types'] = ['', 'in_coor', 'in_coor']
             self.input_info['type_names'] = ['input_dem', 'lines', 'pixels']
+            self.settings['out_irregular_grids'] = ['lines', 'pixels']
         else:
             self.input_info = dict()
             self.input_info['image_types'] = ['coreg_master', 'coreg_master']
@@ -85,7 +90,6 @@ class ResampleDem(Process):  # Change this name to the one of your processing st
 
         # Finally define whether we overwrite or not
         self.overwrite = overwrite
-        self.settings = dict()
 
     def init_super(self):
 
@@ -97,17 +101,6 @@ class ResampleDem(Process):  # Change this name to the one of your processing st
             processing_images=self.processing_images,
             overwrite=self.overwrite,
             settings=self.settings)
-
-    def load_irregular_grids(self):
-
-        # Define the irregular grid for input. This is needed if you want to calculate in blocks.
-        if len(self.in_images['lines'].disk['data']) > 0:
-            self.in_irregular_grids = [self.in_images['lines'].disk['data'],
-                                       self.in_images['pixels'].disk['data']]
-        else:
-            raise FileNotFoundError('Data for input irregular grid not found on disk. First do the prepare resample '
-                                    'or inverse geocode step.')
-        self.out_irregular_grids = [None]
 
     def process_calculations(self):
         """

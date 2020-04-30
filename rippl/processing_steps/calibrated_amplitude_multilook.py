@@ -3,7 +3,7 @@ import numpy as np
 import copy
 
 # Import the parent class Process for processing steps.
-from rippl.meta_data.process import Process
+from rippl.meta_data.multilook_process import MultilookProcess
 from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
@@ -11,7 +11,7 @@ from rippl.resampling.coor_new_extend import CoorNewExtend
 from rippl.resampling.multilook_irregular import MultilookIrregular
 from rippl.resampling.multilook_regular import MultilookRegular
 
-class CalibratedAmplitudeMultilook(Process):  # Change this name to the one of your processing step.
+class CalibratedAmplitudeMultilook(MultilookProcess):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', polarisation='',
                  in_coor=[], out_coor=[], master_image=False, db_only=True, resampled=True,
@@ -55,8 +55,8 @@ class CalibratedAmplitudeMultilook(Process):  # Change this name to the one of y
             self.input_info['process_types'] = ['crop', 'radar_ray_angles']
             self.input_info['file_types'] = ['crop', 'incidence_angle']
         else:
-            self.input_info['process_types'] = ['earth_topo_phase', 'radar_ray_angles']
-            self.input_info['file_types'] = ['earth_topo_phase_corrected', 'incidence_angle']
+            self.input_info['process_types'] = ['correct_phases', 'radar_ray_angles']
+            self.input_info['file_types'] = ['phase_corrected', 'incidence_angle']
 
         self.input_info['polarisations'] = [polarisation, '']
         self.input_info['data_ids'] = [data_id, '']
@@ -87,6 +87,10 @@ class CalibratedAmplitudeMultilook(Process):  # Change this name to the one of y
         # Finally define whether we overwrite or not
         self.overwrite = overwrite
         self.settings = dict()
+        self.settings['out_irregular_grids'] = ['lines', 'pixels']
+        self.settings['multilooked_grids'] = ['calibrated_amplitude']
+        self.settings['memory_data'] = False
+        self.settings['buf'] = 0
         self.batch_size = batch_size
 
     def init_super(self):
@@ -100,69 +104,21 @@ class CalibratedAmplitudeMultilook(Process):  # Change this name to the one of y
             overwrite=self.overwrite,
             settings=self.settings)
 
-    def __call__(self):
-
-        super(CalibratedAmplitudeMultilook, self).__call__(memory_in=False)
-
-    def process_calculations(self):
+    def before_multilook_calculations(self):
         """
         This function creates an interferogram without additional multilooking.
 
         :return:
         """
 
-        shape = self.in_images['complex_data'].coordinates.shape
-        no_lines = int(np.ceil(self.batch_size / shape[1]))
-        no_blocks = int(np.ceil(shape[0] / no_lines))
-        pixels = self.in_images['pixels'].disk['data']
-        lines = self.in_images['lines'].disk['data']
-        data = self.in_images['complex_data'].disk['data']
-        data_type = self.in_images['complex_data'].disk['meta']['dtype']
-        incidence = self.in_images['incidence_angle'].disk['data']
-        incidence_type = self.in_images['incidence_angle'].disk['meta']['dtype']
+        beta_0 = 237.0  # TODO Read in from meta data files.
 
-        self.coordinate_systems['out_coor'].create_radar_lines()
-        self.coordinate_systems['in_coor'].create_radar_lines()
-        looks = np.zeros(self[self.output_info['file_types'][0]].shape)
+        self['calibrated_amplitude'] = np.abs(self['complex_data'])**2 * np.sin(self['incidence_angle'] / 180 * np.pi) \
+                                                   / (beta_0 ** 2)
 
-        beta_0 = 237.0    # TODO Read in from meta data files.
+    def after_multilook_calculations(self):
 
-        for block in range(no_blocks):
-            coordinates = copy.deepcopy(self.coordinate_systems['in_coor'])
-            coordinates.first_line += block * no_lines
-            coordinates.shape[0] = np.minimum(shape[0] - block * no_lines, no_lines)
-
-            amplitude_data = np.abs(ImageData.disk2memory(data[block * no_lines: (block + 1) * no_lines, :], data_type))**2 * \
-                             np.sin(ImageData.disk2memory(incidence[block * no_lines: (block + 1) * no_lines, :], incidence_type) / 180 * np.pi) / (beta_0 ** 2)
-
-            print('Processing ' + str(block) + ' out of ' + str(no_blocks))
-
-            if self.regular:
-                multilook = MultilookRegular(coordinates, self.coordinate_systems['out_coor'])
-                self['calibrated_amplitude_db'] += multilook(amplitude_data)
-            else:
-                multilook = MultilookIrregular(coordinates, self.coordinate_systems['out_coor'])
-                multilook.create_conversion_grid(lines[block * no_lines: (block + 1) * no_lines, :],
-                                                 pixels[block * no_lines: (block + 1) * no_lines, :])
-                multilook.apply_multilooking(amplitude_data)
-                self['calibrated_amplitude_db'] += ImageData.memory2disk(multilook.multilooked, self.output_info['data_types'][0])
-                looks += multilook.looks
-
-        valid_pixels = self[self.output_info['file_types'][0]] != 0
-        self['calibrated_amplitude_db'][valid_pixels] /= looks[valid_pixels]
-
-        if not self.db_only:
-            self['calibrated_amplitude'][valid_pixels] = self['calibrated_amplitude_db'][valid_pixels]
+        valid_pixels = self['calibrated_amplitude'] != 0
 
         # Calculate the db values.
-        self['calibrated_amplitude_db'][valid_pixels] = 10 * np.log10(self['calibrated_amplitude_db'][valid_pixels])
-
-    def def_out_coor(self):
-        """
-        Calculate extend of output coordinates.
-
-        :return:
-        """
-
-        new_coor = CoorNewExtend(self.coordinate_systems['in_coor'], self.coordinate_systems['out_coor'])
-        self.coordinate_systems['out_coor'] = new_coor.out_coor
+        self['calibrated_amplitude_db'][valid_pixels] = 10 * np.log10(self['calibrated_amplitude'][valid_pixels])

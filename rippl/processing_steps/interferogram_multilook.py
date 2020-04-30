@@ -3,7 +3,7 @@ import numpy as np
 import copy
 
 # Import the parent class Process for processing steps.
-from rippl.meta_data.process import Process
+from rippl.meta_data.multilook_process import MultilookProcess
 from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
@@ -11,7 +11,7 @@ from rippl.resampling.coor_new_extend import CoorNewExtend
 from rippl.resampling.multilook_irregular import MultilookIrregular
 from rippl.resampling.multilook_regular import MultilookRegular
 
-class InterferogramMultilook(Process):  # Change this name to the one of your processing step.
+class InterferogramMultilook(MultilookProcess):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', polarisation='',
                  in_coor=[], out_coor=[],
@@ -48,14 +48,14 @@ class InterferogramMultilook(Process):  # Change this name to the one of your pr
         self.input_info['image_types'] = ['slave', 'master']
 
         if coreg_master == slave:
-            self.input_info['process_types'] = ['crop', 'earth_topo_phase']
-            self.input_info['file_types'] = ['crop', 'earth_topo_phase_corrected']
+            self.input_info['process_types'] = ['crop', 'correct_phases']
+            self.input_info['file_types'] = ['crop', 'phase_corrected']
         elif coreg_master == master:
-            self.input_info['process_types'] = ['earth_topo_phase', 'crop']
-            self.input_info['file_types'] = ['earth_topo_phase_corrected', 'crop']
+            self.input_info['process_types'] = ['correct_phases', 'crop']
+            self.input_info['file_types'] = ['phase_corrected', 'crop']
         else:
-            self.input_info['process_types'] = ['earth_topo_phase', 'earth_topo_phase']
-            self.input_info['file_types'] = ['earth_topo_phase_corrected', 'earth_topo_phase_corrected']
+            self.input_info['process_types'] = ['correct_phases', 'correct_phases']
+            self.input_info['file_types'] = ['phase_corrected', 'phase_corrected']
 
         self.input_info['polarisations'] = [polarisation, polarisation]
         self.input_info['data_ids'] = [data_id, data_id]
@@ -88,6 +88,10 @@ class InterferogramMultilook(Process):  # Change this name to the one of your pr
         # Finally define whether we overwrite or not
         self.overwrite = overwrite
         self.settings = dict()
+        self.settings['out_irregular_grids'] = ['lines', 'pixels']
+        self.settings['multilooked_grids'] = ['interferogram']
+        self.settings['memory_data'] = False
+        self.settings['buf'] = 0
         self.batch_size = batch_size
 
     def init_super(self):
@@ -101,61 +105,11 @@ class InterferogramMultilook(Process):  # Change this name to the one of your pr
             overwrite=self.overwrite,
             settings=self.settings)
 
-    def __call__(self):
-
-        super(InterferogramMultilook, self).__call__(memory_in=False)
-
-    def process_calculations(self):
+    def before_multilook_calculations(self):
         """
         This function creates an interferogram without additional multilooking.
 
         :return:
         """
 
-        shape = self.in_images['master'].coordinates.shape
-        no_lines = int(np.ceil(self.batch_size / shape[1]))
-        no_blocks = int(np.ceil(shape[0] / no_lines))
-        pixels = self.in_images['pixels'].disk['data']
-        lines = self.in_images['lines'].disk['data']
-        slave_data = self.in_images['slave'].disk['data']
-        slave_type = self.in_images['slave'].disk['meta']['dtype']
-        master_data = self.in_images['master'].disk['data']
-        master_type = self.in_images['master'].disk['meta']['dtype']
-
-        self.coordinate_systems['out_coor'].create_radar_lines()
-        self.coordinate_systems['in_coor'].create_radar_lines()
-        looks = np.zeros(self[self.output_info['file_types'][0]].shape)
-
-        for block in range(no_blocks):
-            coordinates = copy.deepcopy(self.coordinate_systems['in_coor'])
-            coordinates.first_line += block * no_lines
-            coordinates.shape[0] = np.minimum(shape[0] - block * no_lines, no_lines)
-
-            ifg_data = ImageData.disk2memory(master_data[block * no_lines: (block + 1) * no_lines, :], master_type) * \
-                       np.conjugate(ImageData.disk2memory(slave_data[block * no_lines: (block + 1) * no_lines, :], slave_type))
-
-            print('Processing ' + str(block) + ' out of ' + str(no_blocks))
-
-            if self.regular:
-                multilook = MultilookRegular(coordinates, self.coordinate_systems['out_coor'])
-                self['interferogram'] += multilook(ifg_data)
-            else:
-                multilook = MultilookIrregular(coordinates, self.coordinate_systems['out_coor'])
-                multilook.create_conversion_grid(lines[block * no_lines: (block + 1) * no_lines, :],
-                                                 pixels[block * no_lines: (block + 1) * no_lines, :])
-                multilook.apply_multilooking(ifg_data)
-                self['interferogram'] += ImageData.memory2disk(multilook.multilooked, self.output_info['data_types'][0])
-                looks += multilook.looks
-
-        valid_pixels = self['interferogram'] != 0
-        self['interferogram'][valid_pixels] /= looks[valid_pixels]
-
-    def def_out_coor(self):
-        """
-        Calculate extend of output coordinates.
-
-        :return:
-        """
-
-        new_coor = CoorNewExtend(self.coordinate_systems['in_coor'], self.coordinate_systems['out_coor'])
-        self.coordinate_systems['out_coor'] = new_coor.out_coor
+        self['interferogram'] = self['master'] * np.conjugate(self['slave'])

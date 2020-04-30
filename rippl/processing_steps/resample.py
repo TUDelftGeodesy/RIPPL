@@ -85,6 +85,8 @@ class Resample(Process):  # Change this name to the one of your processing step.
         self.processing_images['slave'] = slave
         self.settings = dict()
         self.settings['resample_type'] = resample_type
+        self.settings['buf'] = 3
+        self.settings['out_irregular_grids'] = ['lines', 'pixels']
 
     def init_super(self):
 
@@ -97,29 +99,6 @@ class Resample(Process):  # Change this name to the one of your processing step.
             overwrite=self.overwrite,
             settings=self.settings)
 
-    def load_irregular_grids(self):
-        """
-        Load irregular grids for resampling.
-
-        :return:
-        """
-
-        # Define the irregular grid for output. This is needed if you want to calculate in blocks.
-        if len(self.in_images['lines'].disk['data']) > 0:
-            s_lin = self.block_coor.first_line - self.coordinate_systems['out_coor'].first_line
-            s_pix = self.block_coor.first_pixel - self.block_coor.first_pixel
-            e_lin = s_lin + self.block_coor.shape[0]
-            e_pix = s_pix + self.block_coor.shape[1]
-
-            self.out_irregular_grids = [self.in_images['lines'].disk['data'][s_lin:e_lin, s_pix:e_pix],
-                                        self.in_images['pixels'].disk['data'][s_lin:e_lin, s_pix:e_pix]]
-        elif len(self.in_images['coreg_lines'].memory['data']) > 0:
-            self.out_irregular_grids = [self.in_images['lines'].memory['data'],
-                                        self.in_images['pixels'].memory['data']]
-        else:
-            raise FileNotFoundError('Data for irregular grids not available.')
-        self.in_irregular_grids = [None]
-
     def process_calculations(self):
         """
         Resampling of radar grid. For non radar grid this function is not advised as it uses
@@ -127,9 +106,18 @@ class Resample(Process):  # Change this name to the one of your processing step.
         :return:
         """
 
-        s_lin = self.in_images['input_data'].memory['meta']['s_lin']
-        s_pix = self.in_images['input_data'].memory['meta']['s_pix']
+        in_block_coor = self.coordinate_systems['in_block_coor']
+
+        # Change line/pixel coordinates to right value
+        if in_block_coor.grid_type == 'radar_coordinates':
+            lines = (self['lines'] - in_block_coor.first_line) / \
+                                   (self.block_coor.multilook[0] / self.block_coor.oversample[0])
+            pixels = (self['pixels'] - in_block_coor.first_pixel) / \
+                                   (self.block_coor.multilook[1] / self.block_coor.oversample[1])
+        else:
+            lines = (self['lines'] - in_block_coor.first_line)
+            pixels = (self['pixels'] - in_block_coor.first_pixel)
 
         # Init resampling
         resample = Regural2irregular(self.settings['resample_type'])
-        self[self.output_info['file_types'][0]] = resample(self['input_data'], self['lines'] - s_lin, self['pixels'] - s_pix)
+        self[self.output_info['file_types'][0]] = resample(self['input_data'], lines, pixels)

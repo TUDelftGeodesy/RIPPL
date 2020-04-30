@@ -1,4 +1,4 @@
-from rippl.processing_templates.general import GeneralPipelines
+from rippl.processing_templates.general_sentinel_1 import GeneralPipelines
 import gdal
 from osgeo import osr
 from osgeo import ogr
@@ -39,7 +39,7 @@ class LandIce(GeneralPipelines):
             geometry_dataset.coordinates.load_readfile(readfile)
             geometry_dataset.save_tiff(main_folder=True)
 
-    def create_output_tiffs_coherence_unwrap(self):
+    def create_output_tiffs_coherence_ifg(self):
         """
         Creates the geotiffs of coherence and unwrapped values.
 
@@ -54,6 +54,17 @@ class LandIce(GeneralPipelines):
         ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True)[-1]
         for ifg in ifgs:          # type: ImageData
             ifg.save_tiff(main_folder=True)
+
+    def create_output_tiffs_unwrap(self):
+        """
+        Creates geotiffs of unwrapped images.
+
+        """
+
+        # Save the resulting coherences
+        unwrapped_images = self.stack.stack_data_iterator(['unwrap'], [self.full_ml_coor], ifg=True)[-1]
+        for unwrapped in unwrapped_images:          # type: ImageData
+            unwrapped.save_tiff(main_folder=True)
 
     def calc_ice_movement(self):
         """

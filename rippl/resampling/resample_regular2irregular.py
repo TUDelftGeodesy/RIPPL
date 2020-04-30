@@ -5,11 +5,11 @@ from scipy.interpolate import RectBivariateSpline
 
 class Regural2irregular(object):
 
-    def __init__(self, w_type='4p_cubic', table_size=None):
+    def __init__(self, w_type='4p_cubic', table_size=None, custom_kernel=None, kernel_size=None):
         # Both the resampling and interp table scripts are staticmethod which makes them usable outside this class.
         # However, if you want to do the processing using the same interpolation kernel you can use this class to keep
         # those stable.
-        self.window = self.create_interp_table(w_type, table_size)
+        self.window = self.create_interp_table(w_type, table_size=table_size, custom_kernel=custom_kernel, kernel_size=kernel_size)
         self.table_size = [self.window.shape[0] - 1, self.window.shape[1] - 1]
         self.w_type = w_type
 
@@ -54,21 +54,25 @@ class Regural2irregular(object):
             if out_dim == 2:
                 grid_lines = np.ravel(new_grid_lines[line_0:line_1, :])
                 grid_pixels = np.ravel(new_grid_pixels[line_0:line_1, :])
+                shape = new_grid_pixels[line_0:line_1, :].shape
             else:
                 grid_lines = new_grid_lines[line_0:line_1]
                 grid_pixels = new_grid_pixels[line_0:line_1]
+                shape = new_grid_pixels[line_0:line_1].shape
 
-            line_id = np.floor(grid_lines).astype('int32')
-            pixel_id = np.floor(grid_pixels).astype('int32')
-            l_window_id = table_size[0] - np.round((grid_lines - line_id) // w_steps[0]).astype(np.int32)
-            p_window_id = table_size[1] - np.round((grid_pixels - pixel_id) // w_steps[1]).astype(np.int32)
+            valid = ~np.isnan(grid_lines) * (grid_lines != 0) * ~np.isnan(grid_pixels) * (grid_pixels != 0)
+
+            line_id = np.floor(grid_lines[valid]).astype('int32')
+            pixel_id = np.floor(grid_pixels[valid]).astype('int32')
+            l_window_id = table_size[0] - np.round((grid_lines[valid] - line_id) // w_steps[0]).astype(np.int32)
+            p_window_id = table_size[1] - np.round((grid_pixels[valid] - pixel_id) // w_steps[1]).astype(np.int32)
 
             # Check wether the pixels are far enough from the border of the image. Otherwise interpolation kernel cannot
             # Be applied. Missing pixels will be filled with zeros.
             half_w_line = window_size[0] // 2
             half_w_pixel = window_size[1] // 2
-            valid_vals = (((line_id - half_w_line + 1) >= 0) * ((line_id + half_w_line) < orig_grid.shape[0]) *
-                          ((pixel_id - half_w_pixel + 1) >= 0) * ((pixel_id + half_w_pixel) < orig_grid.shape[1]))
+            valid_vals = (((line_id - half_w_line) >= 0) * ((line_id + half_w_line) < orig_grid.shape[0]) *
+                          ((pixel_id - half_w_pixel) >= 0) * ((pixel_id + half_w_pixel) < orig_grid.shape[1]))
 
             # Pre assign the final values of this step.
             out_vals = np.zeros(len(l_window_id)).astype(orig_grid.dtype)
@@ -80,15 +84,15 @@ class Regural2irregular(object):
                     weights = window[l_window_id, p_window_id, i, j]
 
                     # Find the original grid values and add to the out values, applying the weights.
-                    i_im = i - half_w_line + 1
-                    j_im = j - half_w_pixel + 1
+                    i_im = i - half_w_line
+                    j_im = j - half_w_pixel
                     out_vals[valid_vals] += orig_grid[line_id[valid_vals] + i_im, pixel_id[valid_vals] + j_im] * weights[valid_vals]
 
             # Finally assign the grid to the outgoing grid
             if out_dim == 2:
-                out_grid[line_0:line_1, :] = out_vals.reshape((line_1 - line_0, new_grid_lines.shape[1]), order='C')
+                out_grid[line_0:line_1, :][valid.reshape(shape)] = out_vals
             else:
-                out_grid[line_0:line_1] = out_vals
+                out_grid[line_0:line_1][valid] = out_vals
 
         # Return resampling result
         return out_grid
@@ -148,16 +152,25 @@ class Regural2irregular(object):
                                 b * ra_coor_3 ** 3 - 8 * b * ra_coor_3 ** 2 + 21 * b * ra_coor_3 - 18 * b))
             d_ra = np.vstack((np.fliplr(np.flipud(d_ra_r)), d_ra_r))
         elif w_type == 'custom':
-            az_values = np.arange(np.ceil(-kernel_size[0] / 2), np.ceil(kernel_size[0] / 2))[:, None] * np.ones((1, kernel_size[1]))
-            ra_values = np.arange(np.ceil(-kernel_size[1] / 2), np.ceil(kernel_size[1] / 2))[None, :] * np.ones((kernel_size[0], 1))
+            if kernel_size[0] % 2 != 1 or kernel_size[1] % 2 != 1:
+                raise AssertionError('Kernel sizes should be odd!')
 
-            az_wind_vals = np.ravel(az_values[:, :, None, None] + az_coor[None, None, :, None] + np.ones(ra_coor.shape)[None, None, None, :])
-            ra_wind_vals = np.ravel(ra_values[:, :, None, None] + np.ones(az_coor.shape)[None, None, :, None] + ra_coor[None, None, None, :])
+            az_kernel_max = int(np.floor(kernel_size[0] / 2))
+            az_values = np.arange(-az_kernel_max, az_kernel_max + 1)[:, None] * np.ones((1, kernel_size[1]))
+            ra_kernel_max = int(np.floor(kernel_size[1] / 2))
+            ra_values = np.arange(-ra_kernel_max, ra_kernel_max + 1)[None, :] * np.ones((kernel_size[0], 1))
 
-            window = custom_kernel(az_wind_vals, ra_wind_vals).reshape([kernel_size[0], kernel_size[1], len(az_coor), len(ra_coor)])
+            az_wind_vals = np.ravel(az_values[None, None, :, :] + az_coor[:, None, None, None] + np.ones(ra_coor.shape)[None, :, None, None])
+            ra_wind_vals = np.ravel(ra_values[None, None, :, :] + np.ones(az_coor.shape)[:, None, None, None] + ra_coor[None, :, None, None])
+
+            window = custom_kernel.ev(az_wind_vals, ra_wind_vals).reshape([len(az_coor), len(ra_coor), kernel_size[0], kernel_size[1]])
+
+            # Make sure that it sums up to 1
+            window_sum = np.sum(np.sum(window, axis=3), axis=2)
+            window = window / window_sum[:, :, None, None]
+
         else:
-            print('Use nearest_neighbour, linear, 4p_cubic or 6p_cubic as kernel.')
-            return
+            raise ValueError('Use nearest_neighbour, linear, 4p_cubic, 6p_cubic or custom as kernel.')
 
         # TODO Add the 6, 8 and 16 point truncated sinc + raised cosine interpolation
 

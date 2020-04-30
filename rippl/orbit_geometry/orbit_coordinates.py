@@ -46,6 +46,7 @@ class OrbitCoordinates(object):
         self.heading = np.asarray([])           # heading of satellite
         self.azimuth_angle = np.asarray([])     # azimuth angle from points on the ground
         self.elevation_angle = np.asarray([])   # elevation angle from points on the ground to the satellite
+        self.squint_angle = np.asarray([])      # squint angle of pixels (Based on TOPSAR geometry or doppler estimate)
 
         # constants
         self.sol = 299792458                        # speed of light [m/s]
@@ -97,6 +98,7 @@ class OrbitCoordinates(object):
         # type: (OrbitCoordinates, Readfile) -> None
 
         # Load the timing from a readfile object.
+        self.readfile = readfiles
         self.az_time = readfiles.az_first_pix_time
         self.ra_time = readfiles.ra_first_pix_time
         self.az_step = readfiles.az_time_step
@@ -622,6 +624,37 @@ class OrbitCoordinates(object):
         del ray_vector, north_vector, N
 
         self.azimuth_angle = np.arctan2(det, dot).astype(np.float32) / np.pi * 180
+
+    def xyz2scatterer_squint_angle(self):
+        """
+        Calculate the squint angle based on xyz of point on the ground and from the orbits.
+
+        """
+
+        ray = self.get_ray_vector()
+
+        # Calculate the sensing azimuth times.
+        az_first_pix_time, date = Readfile.time2seconds(self.readfile.json_dict['First_pixel_azimuth_time (UTC)'])
+        az_time_step = self.readfile.json_dict['Pulse_repetition_frequency_raw_data (TOPSAR)']
+
+        az_times = self.lines * az_time_step + az_first_pix_time
+        xyz_orbit = self.orbit.evaluate_orbit_spline(az_times, True, False, False, False)
+
+        # Get the ray vector for the squinted geometry.
+        if self.regular:
+            lines = np.ravel(np.tile(np.arange(len(self.lines))[:, None], (1, len(self.pixels))))
+            x_diff = xyz_orbit[0, lines] - self.xyz[0, :]
+            y_diff = xyz_orbit[1, lines] - self.xyz[1, :]
+            z_diff = xyz_orbit[2, lines] - self.xyz[2, :]
+        else:
+            x_diff = xyz_orbit[0, :] - np.ravel(self.xyz[0, :])
+            y_diff = xyz_orbit[1, :] - np.ravel(self.xyz[1, :])
+            z_diff = xyz_orbit[2, :] - np.ravel(self.xyz[2, :])
+
+        ray_squint = np.stack((x_diff, y_diff, z_diff), axis=0)
+        ray_squint = ray_squint / np.sqrt(np.sum(ray**2, axis=0))
+
+        self.squint_angle = np.arccos(np.einsum('ki,ki->i', ray, ray_squint))
 
     def get_ray_vector(self):
         """

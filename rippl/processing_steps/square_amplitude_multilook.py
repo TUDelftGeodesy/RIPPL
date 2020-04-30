@@ -3,7 +3,7 @@ import numpy as np
 import copy
 
 # Import the parent class Process for processing steps.
-from rippl.meta_data.process import Process
+from rippl.meta_data.multilook_process import MultilookProcess
 from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
@@ -11,7 +11,7 @@ from rippl.resampling.coor_new_extend import CoorNewExtend
 from rippl.resampling.multilook_irregular import MultilookIrregular
 from rippl.resampling.multilook_regular import MultilookRegular
 
-class SquareAmplitudeMultilook(Process):  # Change this name to the one of your processing step.
+class SquareAmplitudeMultilook(MultilookProcess):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', polarisation='',
                  in_coor=[], out_coor=[], master_image=False,
@@ -49,8 +49,8 @@ class SquareAmplitudeMultilook(Process):  # Change this name to the one of your 
             self.input_info['process_types'] = ['crop']
             self.input_info['file_types'] = ['crop']
         else:
-            self.input_info['process_types'] = ['earth_topo_phase']
-            self.input_info['file_types'] = ['earth_topo_phase_corrected']
+            self.input_info['process_types'] = ['correct_phases']
+            self.input_info['file_types'] = ['phase_corrected']
 
         self.input_info['polarisations'] = [polarisation]
         self.input_info['data_ids'] = [data_id]
@@ -81,6 +81,10 @@ class SquareAmplitudeMultilook(Process):  # Change this name to the one of your 
         # Finally define whether we overwrite or not
         self.overwrite = overwrite
         self.settings = dict()
+        self.settings['out_irregular_grids'] = ['lines', 'pixels']
+        self.settings['multilooked_grids'] = ['square_amplitude']
+        self.settings['memory_data'] = False
+        self.settings['buf'] = 0
         self.batch_size = batch_size
 
     def init_super(self):
@@ -94,56 +98,11 @@ class SquareAmplitudeMultilook(Process):  # Change this name to the one of your 
             overwrite=self.overwrite,
             settings=self.settings)
 
-    def __call__(self):
-
-        super(SquareAmplitudeMultilook, self).__call__(memory_in=False)
-
-    def process_calculations(self):
+    def before_multilook_calculations(self):
         """
         This function creates an interferogram without additional multilooking.
 
         :return:
         """
 
-        shape = self.in_images['complex_data'].coordinates.shape
-        no_lines = int(np.ceil(self.batch_size / shape[1]))
-        no_blocks = int(np.ceil(shape[0] / no_lines))
-        pixels = self.in_images['pixels'].disk['data']
-        lines = self.in_images['lines'].disk['data']
-        data = self.in_images['complex_data'].disk['data']
-        data_type = self.in_images['complex_data'].disk['meta']['dtype']
-
-        self.coordinate_systems['out_coor'].create_radar_lines()
-        self.coordinate_systems['in_coor'].create_radar_lines()
-        looks = np.zeros(self[self.output_info['file_types'][0]].shape)
-
-        for block in range(no_blocks):
-            coordinates = copy.deepcopy(self.coordinate_systems['in_coor'])
-            coordinates.first_line += block * no_lines
-            coordinates.shape[0] = np.minimum(shape[0] - block * no_lines, no_lines)
-
-            amplitude_data = np.abs(ImageData.disk2memory(data[block * no_lines: (block + 1) * no_lines, :], data_type))**2
-
-            if self.regular:
-                multilook = MultilookRegular(coordinates, self.coordinate_systems['out_coor'])
-                self['square_amplitude'] += multilook(amplitude_data)
-            else:
-                multilook = MultilookIrregular(coordinates, self.coordinate_systems['out_coor'])
-                multilook.create_conversion_grid(lines[block * no_lines: (block + 1) * no_lines, :],
-                                                 pixels[block * no_lines: (block + 1) * no_lines, :])
-                multilook.apply_multilooking(amplitude_data)
-                self['square_amplitude'] += ImageData.memory2disk(multilook.multilooked, self.output_info['data_types'][0])
-                looks += multilook.looks
-
-        valid_pixels = self['square_amplitude'] != 0
-        self['square_amplitude'][valid_pixels] /= looks[valid_pixels]
-
-    def def_out_coor(self):
-        """
-        Calculate extend of output coordinates.
-
-        :return:
-        """
-
-        new_coor = CoorNewExtend(self.coordinate_systems['in_coor'], self.coordinate_systems['out_coor'])
-        self.coordinate_systems['out_coor'] = new_coor.out_coor
+        self['square_amplitude'] = np.abs(self['complex_data']) ** 2
