@@ -50,8 +50,8 @@ land_ice_processing.geocoding(dem_type=dem_type, dem_buffer=dem_buffer, dem_roun
 land_ice_processing.geometric_coregistration_resampling(polarisation)
 
 # AASR calculation
-# land_ice_processing.calc_AASR_amplitude_multilooked(polarisation, amb_no=2, gaussian_spread=1, kernel_size=5)
-# land_ice_processing.create_output_tiffs_AASR()
+land_ice_processing.calc_AASR_amplitude_multilooked(polarisation, amb_no=2, gaussian_spread=1, kernel_size=5)
+land_ice_processing.create_output_tiffs_AASR()
 
 # Multilooking
 land_ice_processing.prepare_multilooking_grid(polarisation[0])
@@ -66,3 +66,4 @@ land_ice_processing.create_geometry_mulitlooked(dem_type=dem_type, dem_buffer=de
 land_ice_processing.create_output_tiffs_amplitude()
 land_ice_processing.create_output_tiffs_coherence_ifg()
 land_ice_processing.create_output_tiffs_geometry()
+

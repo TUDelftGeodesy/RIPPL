@@ -12,9 +12,9 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.processing_steps.deramp import Deramp
 
 
-class Reramp(Process):  # Change this name to the one of your processing step.
+class CalcReramp(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', polarisation='', out_coor=[],
+    def __init__(self, data_id='', out_coor=[],
                  slave='slave', overwrite=False):
         """
         This function deramps the ramped data from TOPS mode to a deramped data. Input data of this function should
@@ -31,24 +31,24 @@ class Reramp(Process):  # Change this name to the one of your processing step.
 
         # Output data information
         self.output_info = dict()
-        self.output_info['process_name'] = 'reramp'
+        self.output_info['process_name'] = 'calc_reramp'
         self.output_info['image_type'] = 'slave'
-        self.output_info['polarisation'] = polarisation
+        self.output_info['polarisation'] = ''
         self.output_info['data_id'] = data_id
         self.output_info['coor_type'] = 'out_coor'
-        self.output_info['file_types'] = ['reramped', 'ramp']
-        self.output_info['data_types'] = ['complex_short', 'real2']
+        self.output_info['file_types'] = ['ramp']
+        self.output_info['data_types'] = ['real2']
 
         # Input data information
         self.input_info = dict()
-        self.input_info['image_types'] = ['slave', 'slave', 'slave']
-        self.input_info['process_types'] = ['earth_topo_phase', 'geometric_coregistration', 'geometric_coregistration']
-        self.input_info['file_types'] = ['earth_topo_phase_corrected', 'coreg_lines', 'coreg_pixels']
-        self.input_info['polarisations'] = [polarisation, '', '']
-        self.input_info['data_ids'] = [data_id, data_id, data_id]
-        self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor']
-        self.input_info['in_coor_types'] = ['', '', '']
-        self.input_info['type_names'] = ['input_data', 'lines', 'pixels']
+        self.input_info['image_types'] = ['slave', 'slave']
+        self.input_info['process_types'] = ['geometric_coregistration', 'geometric_coregistration']
+        self.input_info['file_types'] = ['coreg_lines', 'coreg_pixels']
+        self.input_info['polarisations'] = ['', '']
+        self.input_info['data_ids'] = [data_id, data_id]
+        self.input_info['coor_types'] = ['out_coor', 'out_coor']
+        self.input_info['in_coor_types'] = ['', '']
+        self.input_info['type_names'] = ['lines', 'pixels']
 
         # Coordinate systems
         self.coordinate_systems = dict()
@@ -65,7 +65,7 @@ class Reramp(Process):  # Change this name to the one of your processing step.
     def init_super(self):
 
         self.load_coordinate_system_sizes()
-        super(Reramp, self).__init__(
+        super(CalcReramp, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
             coordinate_systems=self.coordinate_systems,
@@ -90,17 +90,14 @@ class Reramp(Process):  # Change this name to the one of your processing step.
 
         readfile = processing_data.readfiles['original']
         orbit = processing_data.find_best_orbit('original')
-        in_coor = self.in_images['input_data'].in_coordinates       # type: CoordinateSystem
-        in_coor.load_readfile(readfile)
 
         # Calculate azimuth/range grid and ramp.
-        az_grid = self['lines'] * in_coor.az_step + in_coor.az_time
-        ra_grid = self['pixels'] * in_coor.ra_step + in_coor.ra_time
+        az_grid = self['lines'] * readfile.az_time_step + readfile.az_first_pix_time
+        ra_grid = self['pixels'] * readfile.ra_time_step + readfile.ra_first_pix_time
         ramp = Deramp.calc_ramp(readfile, orbit, az_grid, ra_grid)
 
         # Finally calced the deramped image.
-        self['ramp'] = np.angle(ramp)
-        self['reramped'] = self['input_data'] * np.conj(ramp)
+        self['ramp'] = np.angle(ramp).astype(np.float16)
 
         if test:
             self.test_result()
@@ -117,10 +114,10 @@ class Reramp(Process):  # Change this name to the one of your processing step.
         import matplotlib.pyplot as plt
 
         # Calculate the spectrogram of the ramped data
-        spec_in = np.log(np.abs(np.fft.ifftshift(np.fft.fft2(self['reramped']))**2))
+        spec_in = np.log(np.abs(np.fft.ifftshift(np.fft.fft2(self['input_data']))**2))
 
         # And the deramped data
-        spec_out = np.log(np.abs(np.fft.ifftshift(np.fft.fft2(self['deramped'])) ** 2))
+        spec_out = np.log(np.abs(np.fft.ifftshift(np.fft.fft2(self['phase_corrected'])) ** 2))
 
         # plot in one image
         plt.figure()

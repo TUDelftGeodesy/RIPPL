@@ -5,6 +5,7 @@ from rippl.SAR_sensors.sentinel.sentinel_stack import SentinelStack
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.SAR_sensors.sentinel.sentinel_download import DownloadSentinelOrbit, DownloadSentinel
 from rippl.resampling.coor_new_extend import CoorNewExtend
+from rippl.user_settings import UserSettings
 import os
 import numpy as np
 import copy
@@ -51,6 +52,16 @@ class GeneralPipelines():
         self.radar_coor.create_radar_coordinates()
 
         self.processes = processes
+        self.dem_buffer = None
+        self.dem_coor = None
+        self.dem_rounding = None
+        self.dem_type = None
+        self.dem_folder = None
+
+        self.stack_name = None
+        self.stack_folder = None
+        self.start_date = None
+        self.end_date = None
 
     def get_data(self, data_type, slice=False, concat_meta=False):
         """
@@ -199,11 +210,15 @@ class GeneralPipelines():
                 download_data = DownloadSentinel(start_date, end_date, shapefile, track, polarisation=pol)
                 download_data.sentinel_available(ESA_username, ESA_password)
                 download_data.sentinel_download_ASF(radar_database_folder, ASF_username, ASF_password)
-                download_data.sentinel_check_validity(radar_database_folder, ESA_username, ESA_password)
 
         # Orbits
         if orbit:
-            precise_folder = os.path.join(orbit_folder, 'precise')
+            if not orbit_folder:
+                settings = UserSettings()
+                settings.load_settings()
+                orbit_folder = settings.orbit_database
+
+            precise_folder = os.path.join(orbit_folder, 'Sentinel-1', 'precise')
             download_orbit = DownloadSentinelOrbit(start_date, end_date, precise_folder)
             download_orbit.download_orbits()
 
@@ -238,9 +253,9 @@ class GeneralPipelines():
             self.stack = SentinelStack(datastack_folder=stack_folder, datastack_name=stack_name)
             self.stack.read_from_database(radar_database_folder, shapefile, track, orbit_folder, start_date, end_date,
                                           master_date, mode, product_type, pol, cores=cores)
-            self.read_stack(stack_folder, start_date, end_date)
+            self.read_stack(stack_folder, stack_name, start_date, end_date)
 
-    def read_stack(self, stack_folder, start_date, end_date):
+    def read_stack(self, stack_folder='', stack_name='', start_date='', end_date=''):
         """
         Read information of stack
 
@@ -249,12 +264,13 @@ class GeneralPipelines():
         :param end_date:
         :return:
         """
-        
+
         self.start_date = start_date
         self.end_date = end_date
         self.stack_folder = stack_folder
+        self.stack_name = stack_name
         
-        self.stack = Stack(stack_folder)
+        self.stack = Stack(datastack_folder=self.stack_folder, datastack_name=self.stack_name, SAR_type='Sentinel-1')
         self.stack.read_master_slice_list()
         self.stack.read_stack(start_date, end_date)
     
@@ -265,7 +281,7 @@ class GeneralPipelines():
         :return: 
         """
     
-        self.stack = Stack(self.stack_folder)
+        self.stack = Stack(datastack_folder=self.stack_folder, datastack_name=self.stack_name, SAR_type='Sentinel-1')
         self.stack.read_master_slice_list()
         self.stack.read_stack(self.start_date, self.end_date)
     
@@ -287,7 +303,7 @@ class GeneralPipelines():
         self.lon_resolution = lon_resolution
 
     def create_ml_coordinates(self, coor_type, multilook=[1,1], oversample=[1,1], shape=[0,0],
-                              dlat=0.001, dlon=0.001, lat0=-90, lon0=180,
+                              dlat=0.001, dlon=0.001, lat0=-90, lon0=-180,
                               dx=1, dy=1, x0=0, y0=0, projection_string='', projection_type=''):
         """
         Create the coordinate system for multilooking. This can either be in radar coordinates, geographic or projected.
@@ -370,7 +386,7 @@ class GeneralPipelines():
         elif dem_type == 'SRTM3':
             self.stack.download_SRTM_dem(dem_folder, NASA_username, NASA_password, buffer=buffer, rounding=rounding,
                                             srtm_type='SRTM3')
-        elif dem_type == 'Tandem_X':
+        elif dem_type == 'TanDEM-X':
             self.stack.download_Tandem_X_dem(dem_folder, DLR_username, DLR_password, buffer=buffer, rounding=rounding,
                                            lon_resolution=lon_resolution)
 
@@ -650,7 +666,7 @@ class GeneralPipelines():
 
         dem_pipeline = Pipeline(pixel_no=5000000, processes=self.processes)
         dem_pipeline.add_processing_data(coreg_slices, 'coreg_master')
-        dem_pipeline.add_processing_step(ImportDem(in_coor=self.full_ml_coor, coreg_master='coreg_master',
+        dem_pipeline.add_processing_step(ImportDem(in_coor=self.radar_coor, coreg_master='coreg_master',
                                                    dem_type=self.dem_type, dem_folder=self.dem_folder,
                                                    buffer=self.dem_buffer, rounding=self.dem_rounding,
                                                    lon_resolution=self.lon_resolution), True)

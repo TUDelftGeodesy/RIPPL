@@ -10,7 +10,7 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.resampling.resample_regular2irregular import Regural2irregular
 
 
-class combined_ambiguities(Process):  # Change this name to the one of your processing step.
+class CombinedAmbiguities(Process):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', polarisation='', amb_no=2, out_coor=[], slave='slave', master_image=False, overwrite=False):
 
@@ -33,7 +33,7 @@ class combined_ambiguities(Process):  # Change this name to the one of your proc
         self.output_info['data_id'] = data_id
         self.output_info['coor_type'] = 'out_coor'
         self.output_info['file_types'] = ['combined_ambiguities']
-        self.output_info['data_types'] = ['complex_real4']
+        self.output_info['data_types'] = ['complex_short']
 
         # Input data information
         self.input_info = dict()
@@ -42,8 +42,8 @@ class combined_ambiguities(Process):  # Change this name to the one of your proc
             self.input_info['process_types'] = ['crop']
             self.input_info['file_types'] = ['crop']
         else:
-            self.input_info['process_types'] = ['earth_topo_phase']
-            self.input_info['file_types'] = ['earth_topo_phase_corrected']
+            self.input_info['process_types'] = ['correct_phases']
+            self.input_info['file_types'] = ['phase_corrected']
 
         self.input_info['polarisations'] = [polarisation]
         self.input_info['data_ids'] = [data_id]
@@ -52,12 +52,12 @@ class combined_ambiguities(Process):  # Change this name to the one of your proc
         self.input_info['type_names'] = ['orig_data']
 
         for amb_loc in ['left', 'right']:
-            for amb_num in range(amb_no):
+            for amb_num in np.arange(amb_no) + 1:
                 self.input_info['image_types'].append('slave')
-                self.input_info['file_types'].append('ambiguity_' + amb_loc + '_no_' + str(amb_num))
-                self.input_info['process_types'].extend('azimuth_ambiguities')
+                self.input_info['file_types'].append('ambiguities')
+                self.input_info['process_types'].append('azimuth_ambiguities')
                 self.input_info['polarisations'].append(polarisation)
-                self.input_info['data_ids'].append(data_id)
+                self.input_info['data_ids'].append(amb_loc + '_no_' + str(amb_num))
                 self.input_info['coor_types'].append('in_coor')
                 self.input_info['in_coor_types'].append('')
                 self.input_info['type_names'].append('ambiguity_' + amb_loc + '_no_' + str(amb_num))
@@ -79,7 +79,7 @@ class combined_ambiguities(Process):  # Change this name to the one of your proc
     def init_super(self):
 
         self.load_coordinate_system_sizes()
-        super(AASR, self).__init__(
+        super(CombinedAmbiguities, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
             coordinate_systems=self.coordinate_systems,
@@ -95,12 +95,11 @@ class combined_ambiguities(Process):  # Change this name to the one of your proc
         """
 
         # Add all ambiguities
-        orig_power = np.abs(self['in_data'])**2
-        ambiguities_power = np.zeros(orig_power.shape, np.comlex_float32)
+        ambiguities = np.zeros(self.block_coor.shape, np.complex64)
 
         for amb_loc in ['left', 'right']:
-            for amb_num in range(self.settings['ambiguity_no']):
+            for amb_num in np.arange(self.settings['ambiguity_no']) + 1:
                 amb_str = 'ambiguity_' + amb_loc + '_no_' + str(amb_num)
-                ambiguities_power += self[amb_str]
+                ambiguities = ambiguities + self[amb_str]
 
-        self['AASR'] = ambiguities_power / orig_power
+        self['combined_ambiguities'] = ambiguities

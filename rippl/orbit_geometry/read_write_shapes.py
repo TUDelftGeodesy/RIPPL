@@ -1,9 +1,25 @@
 """
 TEST
 
-convert = ReadShapes()
+convert = ReadWriteShapes()
+self = convert
 
 shapefile = '/Users/gertmulder/Downloads/layers/POLYGON.shp'
+# read shapefile
+convert(shapefile)
+
+kml = '/Users/gertmulder/Downloads/layers/pol.kml'
+convert.write_kml(kml)
+convert.read_kml(kml)
+
+geojson = '/Users/gertmulder/Downloads/layers/pol.json'
+convert.write_geo_json(geojson)
+json_dict = convert.write_geo_json()
+convert(geojson)
+
+# Finally save shapefile again
+convert.write_shapefile(shapefile)
+convert(shapefile)
 
 """
 
@@ -11,12 +27,13 @@ import ogr
 import fiona
 from fiona import collection
 from shapely.geometry import Polygon, mapping
-from shapely.wkt import dumps, loads
+import shapely
+from shapely.wkt import loads
 import json
 import os
 
 
-class ReadShapes():
+class ReadWriteShapes():
 
     def __init__(self):
 
@@ -71,10 +88,11 @@ class ReadShapes():
 
         """
 
+        self.shapes = []
         with collection(shapefile, "r") as input_shape:
             for shape in input_shape:
                 # only first shape
-                self.shapes.append(shape)
+                self.shapes.append(shapely.geometry.shape(shape['geometry']))
 
     def read_kml(self, kml):
         """
@@ -86,6 +104,7 @@ class ReadShapes():
         dataSource = driver.Open(kml)
         layer = dataSource.GetLayer()
 
+        self.shapes = []
         for feat in layer:
             self.shapes.append(loads(feat.geometry().ExportToWkt()))
 
@@ -98,12 +117,13 @@ class ReadShapes():
         """
 
         if isinstance(geojson, str):
-            json_data = json.load(geojson)
+            with open(geojson, 'r') as json_file:
+                json_data = json.load(json_file)
         else:
             json_data = geojson
 
         features = json_data["features"]
-        self.shapes = [Polygon(feature["geometry"]) for feature in features]
+        self.shapes = [shapely.geometry.shape(feature['geometry']) for feature in features]
 
     def read_coordinate_list(self, coordinate_list):
         """
@@ -169,7 +189,7 @@ class ReadShapes():
         # Save and close everything
         ds = layer = feat = geom = None
 
-    def write_geojson(self, geojson=None):
+    def write_geo_json(self, geojson=None):
         """
         Write as a geojson. This can be used as part of a json description.
 
@@ -178,13 +198,15 @@ class ReadShapes():
         feature_collection = {"type": "FeatureCollection",
                               "features": []}
 
-        for shape in self.shapes:
-            feature_collection["features"].append(ogr.CreateGeometryFromWkb(shape.wkb).ExportToJson())
+        for id, shape in enumerate(self.shapes):
+            json_dict = {"type": "Feature", "properties":{'id':id}, "geometry":eval(ogr.CreateGeometryFromWkb(shape.wkb).ExportToJson())}
+            feature_collection["features"].append(json_dict)
 
         if isinstance(geojson, str):
-            json.dump(feature_collection, geojson)
+            with open(geojson, 'w') as json_file:
+                json.dump(feature_collection, json_file)
         else:
-            return geojson
+            return feature_collection
 
     def extend_shape(self, buffer=0.1):
         """
@@ -204,7 +226,7 @@ class ReadShapes():
 
         """
 
-        self.shape = self.shape.simplify
+        self.shape = self.shape.simplify(resolution)
         shapes = []
         for shape in self.shapes:
             shapes.append(shape.simplify(resolution))
