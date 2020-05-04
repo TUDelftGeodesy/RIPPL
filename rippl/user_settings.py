@@ -186,7 +186,8 @@ class UserSettings():
         """
 
         # Create text file
-        os.remove(self.settings_path)
+        if os.path.exists(self.settings_path):
+            os.remove(self.settings_path)
         user_settings = open(self.settings_path, 'w')
 
         # Write paths
