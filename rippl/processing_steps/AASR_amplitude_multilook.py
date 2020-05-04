@@ -47,7 +47,7 @@ class AASRAmplitudeMultilook(MultilookProcess):  # Change this name to the one o
         self.input_info = dict()
         self.input_info['image_types'] = ['slave', 'slave', 'coreg_master']
         self.input_info['process_types'] = ['combined_ambiguities', 'calibrated_amplitude', 'radar_ray_angles']
-        self.input_info['file_types'] = ['phase_ambiguities', 'calibrated_amplitude_db', 'incidence_angle']
+        self.input_info['file_types'] = ['combined_ambiguities', 'calibrated_amplitude_db', 'incidence_angle']
 
         self.input_info['polarisations'] = [polarisation, polarisation, '']
         self.input_info['data_ids'] = [data_id, data_id, '']
@@ -117,4 +117,4 @@ class AASRAmplitudeMultilook(MultilookProcess):  # Change this name to the one o
 
         # Calculate the db values.
         self['ambiguities_calibrated_amplitude_db'][valid_pixels] = 10 * np.log10(self['ambiguities_calibrated_amplitude'][valid_pixels])
-        self['AASR_db'] = self['ambiguities_calibrated_amplitude_db'] - self['calibrated_amplitude_db']
+        self['AASR_db'][valid_pixels] = self['ambiguities_calibrated_amplitude_db'][valid_pixels] - self['calibrated_amplitude_db'][valid_pixels]

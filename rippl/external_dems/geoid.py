@@ -5,7 +5,7 @@ import os
 class GeoidInterp():
 
     @staticmethod
-    def create_geoid(coordinates, egm_96_file, download=True):
+    def create_geoid(coordinates=None, egm_96_file='', download=True, lat=None, lon=None):
         """
         Creates a egm96 geoid to correct input dem data to ellipsoid value.
 
@@ -34,7 +34,10 @@ class GeoidInterp():
         lons = np.linspace(-180, 180, 1441)
         egm96_interp = RectBivariateSpline(lats, lons, egm96)
 
-        if coordinates.grid_type == 'geographic':
+        if not coordinates:
+            egm96_grid = egm96_interp(lon, lat)
+
+        elif coordinates.grid_type == 'geographic':
             lats = coordinates.lat0 + (np.arange(coordinates.shape[0]) + coordinates.first_line) * coordinates.dlat
             lons = coordinates.lon0 + (np.arange(coordinates.shape[1]) + coordinates.first_pixel) * coordinates.dlon
 
@@ -65,6 +68,6 @@ class GeoidInterp():
 
             egm96_grid = np.reshape(egm96_interp(lons, lats, grid=False), coordinates.shape)
         else:
-            print('Radar grid inputs cannot be used to interpolate geoid')
+            raise TypeError('Radar grid inputs cannot be used to interpolate geoid')
 
         return egm96_grid / 100

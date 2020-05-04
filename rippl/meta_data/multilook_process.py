@@ -103,7 +103,8 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
 
         # Check if there is a lines/pixels and the multilooking is not regular
         if not regular:
-            if 'lines' not in self.in_images.keys() or 'pixels' not in self.in_images.keys():
+            if ('lines' not in self.in_images.keys() or 'pixels' not in self.in_images.keys()) \
+                    and not 'no_pre_calculated_coordinates' in self.settings.keys():
                 raise LookupError('There should be a lines and pixels input variable to do irregular multilooking! '
                                   'If you do a regular multilook define self.regular = True in the __init__')
             else:
@@ -141,9 +142,12 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
                 elif not regular:
                     multilook = MultilookIrregular(coordinates, self.coordinate_systems['out_coor'])
                     line_no = self.no_block * self.no_lines
-                    multilook.create_conversion_grid(
-                        np.copy(lines[line_no: line_no + self.block_shape[0], :]),
-                        np.copy(pixels[line_no: line_no + self.block_shape[0], :]))
+                    if 'no_pre_calculated_coordinates' in self.settings.keys():
+                        multilook.create_conversion_grid(self['lines'], self['pixels'])
+                    else:
+                        multilook.create_conversion_grid(
+                            np.copy(lines[line_no: line_no + self.block_shape[0], :]),
+                            np.copy(pixels[line_no: line_no + self.block_shape[0], :]))
                     multilook.apply_multilooking(self.ml_in_data[file_type])
                     self[file_type] += multilook.multilooked
                     looks += multilook.looks

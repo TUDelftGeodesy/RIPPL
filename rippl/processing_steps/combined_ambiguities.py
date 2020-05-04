@@ -100,6 +100,7 @@ class CombinedAmbiguities(Process):  # Change this name to the one of your proce
         for amb_loc in ['left', 'right']:
             for amb_num in np.arange(self.settings['ambiguity_no']) + 1:
                 amb_str = 'ambiguity_' + amb_loc + '_no_' + str(amb_num)
-                ambiguities = ambiguities + self[amb_str]
+                valid = (self[amb_str] != 0) * (~np.isnan(self[amb_str]))
+                ambiguities[valid] = ambiguities[valid] + self[amb_str][valid]
 
         self['combined_ambiguities'] = ambiguities

@@ -26,7 +26,7 @@ lon_resolution = 6
 dlat = 0.001
 dlon = 0.001
 
-land_ice_processing = LandIce(processes=1)
+land_ice_processing = LandIce(processes=4)
 
 # Download and create the dataset
 #land_ice_processing.download_sentinel_data(start_date=start_date, end_date=end_date, track=track,
@@ -49,10 +49,6 @@ land_ice_processing.download_external_dem(dem_type=dem_type, lon_resolution=lon_
 land_ice_processing.geocoding(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding)
 land_ice_processing.geometric_coregistration_resampling(polarisation)
 
-# AASR calculation
-land_ice_processing.calc_AASR_amplitude_multilooked(polarisation, amb_no=2, gaussian_spread=1, kernel_size=5)
-land_ice_processing.create_output_tiffs_AASR()
-
 # Multilooking
 land_ice_processing.prepare_multilooking_grid(polarisation[0])
 land_ice_processing.create_calibrated_amplitude_multilooked(polarisation)
@@ -60,10 +56,14 @@ land_ice_processing.create_interferogram_multilooked(polarisation)
 land_ice_processing.create_coherence_multilooked(polarisation)
 # land_ice_processing.create_unwrapped_images(polarisation)
 
+# AASR calculation
+land_ice_processing.calc_AASR_amplitude_multilooked(polarisation, amb_no=2, gaussian_spread=1, kernel_size=5)
+land_ice_processing.create_output_tiffs_AASR()
+
+# Calculate geometry
 land_ice_processing.create_geometry_mulitlooked(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding)
 
 # Create the geotiffs
 land_ice_processing.create_output_tiffs_amplitude()
 land_ice_processing.create_output_tiffs_coherence_ifg()
 land_ice_processing.create_output_tiffs_geometry()
-
