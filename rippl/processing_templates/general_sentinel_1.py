@@ -201,6 +201,13 @@ class GeneralPipelines():
         :return:
         """
 
+        if not os.path.exists(shapefile):
+            settings = UserSettings()
+            settings.load_settings()
+            shapefile = os.path.join(settings.GIS_database, shapefile)
+        if not os.path.exists(shapefile):
+            raise FileExistsError('Shapefile does not exist!')
+
         if data:
             if polarisation is str:
                 polarisation = [polarisation]
@@ -222,9 +229,9 @@ class GeneralPipelines():
             download_orbit = DownloadSentinelOrbit(start_date, end_date, precise_folder)
             download_orbit.download_orbits()
 
-    def create_sentinel_stack(self, start_date, end_date, master_date, track, polarisation,
-                              shapefile, stack_name=None, radar_database_folder=None, orbit_folder=None, stack_folder=None,
-                              mode='IW', product_type='SLC'):
+    def create_sentinel_stack(self, start_date, end_date, master_date, track, polarisation, shapefile,
+                              stack_name=None, radar_database_folder=None, orbit_folder=None,
+                              stack_folder=None, mode='IW', product_type='SLC'):
         """
         Creation of datastack of Sentinel-1 images including the orbits.
 
@@ -817,3 +824,62 @@ class GeneralPipelines():
 
         for AASR_dataset in AASR_datasets:  # type: ImageData
             AASR_dataset.save_tiff(main_folder=True)
+
+    def create_output_tiffs_amplitude(self):
+        """
+        Create the geotiff images
+
+        :return:
+        """
+
+        calibrated_amplitudes = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor], ifg=False)[-1]
+        for calibrated_amplitude in calibrated_amplitudes:          # type: ImageData
+            calibrated_amplitude.save_tiff(main_folder=True)
+
+        geometry_datasets = self.stack.stack_data_iterator(['radar_ray_angles', 'geocode'], coordinates=[self.full_ml_coor],
+                                                           process_types=['lat', 'lon', 'incidence_angle'])[-1]
+        for geometry_dataset in geometry_datasets:                  # type: ImageData
+            geometry_dataset.save_tiff(main_folder=True)
+
+    def create_output_tiffs_geometry(self):
+        """
+        Create the geotiff images
+
+        :return:
+        """
+
+        geometry_datasets = self.stack.stack_data_iterator(['radar_ray_angles', 'geocode', 'dem'], coordinates=[self.full_ml_coor],
+                                                           process_types=['lat', 'lon', 'incidence_angle', 'dem'])[-1]
+        coreg_master = self.get_data('coreg_master', slice=False)[0]
+        readfile = coreg_master.readfiles['original']
+
+        for geometry_dataset in geometry_datasets:  # type: ImageData
+            geometry_dataset.coordinates.load_readfile(readfile)
+            geometry_dataset.save_tiff(main_folder=True)
+
+    def create_output_tiffs_coherence_ifg(self):
+        """
+        Creates the geotiffs of coherence and unwrapped values.
+
+        :return:
+        """
+
+        # Save the resulting coherences
+        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True)[-1]
+        for coherence in coherences:          # type: ImageData
+            coherence.save_tiff(main_folder=True)
+
+        ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True)[-1]
+        for ifg in ifgs:          # type: ImageData
+            ifg.save_tiff(main_folder=True)
+
+    def create_output_tiffs_unwrap(self):
+        """
+        Creates geotiffs of unwrapped images.
+
+        """
+
+        # Save the resulting coherences
+        unwrapped_images = self.stack.stack_data_iterator(['unwrap'], [self.full_ml_coor], ifg=True)[-1]
+        for unwrapped in unwrapped_images:          # type: ImageData
+            unwrapped.save_tiff(main_folder=True)

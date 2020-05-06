@@ -3,11 +3,7 @@ from setuptools import setup
 setup(
     name='rippl',
     version='2.0',
-    packages=['rippl', 'rippl.meta_data', 'rippl.resampling', 'rippl.SAR_sensors', 'rippl.SAR_sensors.radarsat',
-              'rippl.SAR_sensors.sentinel', 'rippl.external_dems', 'rippl.external_dems.srtm',
-              'rippl.external_dems.TanDEM-X', 'rippl.orbit_geometry', 'rippl.NWP_simulations',
-              'rippl.NWP_simulations.ECMWF', 'rippl.NWP_simulations.harmonie', 'rippl.processing_steps',
-              'rippl.processing_steps_old', 'examples', 'examples.old', 'rippl.processing_templates'],
+    packages=['rippl'],
     url='',
     license='',
     author='Gert Mulder',

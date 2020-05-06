@@ -2,20 +2,19 @@ from rippl.processing_templates.general_sentinel_1 import GeneralPipelines
 from rippl.processing_templates.land_ice import LandIce
 
 # Settings where the data is stored
-data_disk = '/mnt/fcf5fddd-48eb-445a-a9a6-bbbb3400ba42/'
-shapefile = data_disk + 'GIS/shapes/Stereoid_cases/jakobshaven_glacier.shp'
-stack_name = 'Jakobshavn_Greenland'
+shapefile = 'East_greenland_small.shp'
+stack_name = 'east_greenland_small'
 
 # Track and data type of Sentinel data
-track = 127
+track = 141
 mode = 'IW'
 product_type = 'SLC'
-polarisation = ['HH', 'HV'] # Possibly add HV later on
+polarisation = ['HH', 'HV']       # Possibly add HV later on
 
 # Start, master and end date of processing
-start_date = '2018-10-01'
-end_date = '2019-10-10'
-master_date = '2019-02-08'
+start_date = '2018-02-01'
+end_date = '2018-02-10'
+master_date = '2018-02-08'
 
 # DEM type
 dem_type = 'TanDEM-X'
@@ -24,10 +23,8 @@ dem_rounding = 1
 lon_resolution = 6
 
 # Multilooking coordinates
-dlat = 0.0005
+dlat = 0.001
 dlon = 0.001
-lat0 = 60
-lon0 = -60
 
 land_ice_processing = LandIce(processes=4)
 
@@ -35,7 +32,7 @@ land_ice_processing = LandIce(processes=4)
 land_ice_processing.download_sentinel_data(start_date=start_date, end_date=end_date, track=track,
                                            polarisation=polarisation, shapefile=shapefile, data=True)
 land_ice_processing.create_sentinel_stack(start_date=start_date, end_date=end_date, master_date=master_date,
-                                          track=track,stack_name='east_greenland_mini', polarisation=polarisation,
+                                          track=track,stack_name=stack_name, polarisation=polarisation,
                                           shapefile=shapefile, mode=mode, product_type=product_type)
 
 # Load stack

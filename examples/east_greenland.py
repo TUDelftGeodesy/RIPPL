@@ -2,7 +2,8 @@ from rippl.processing_templates.general_sentinel_1 import GeneralPipelines
 from rippl.processing_templates.land_ice import LandIce
 
 # Settings where the data is stored
-shapefile = '/Users/gertmulder/surfdrive/TU_Delft/STEREOID/GIS/East_Greenland_Mini.shp'
+data_disk = '/mnt/fcf5fddd-48eb-445a-a9a6-bbbb3400ba42/'
+shapefile = data_disk + 'GIS/shapes/Stereoid_cases/East_greenland_small.shp'
 stack_name = 'east_greenland_mini'
 
 # Track and data type of Sentinel data
@@ -29,11 +30,11 @@ dlon = 0.001
 land_ice_processing = LandIce(processes=4)
 
 # Download and create the dataset
-#land_ice_processing.download_sentinel_data(start_date=start_date, end_date=end_date, track=track,
-#                                           polarisation=polarisation, shapefile=shapefile, data=True)
-#land_ice_processing.create_sentinel_stack(start_date=start_date, end_date=end_date, master_date=master_date,
-#                                          track=track,stack_name='east_greenland_mini', polarisation=polarisation,
-#                                          shapefile=shapefile, mode=mode, product_type=product_type)
+land_ice_processing.download_sentinel_data(start_date=start_date, end_date=end_date, track=track,
+                                           polarisation=polarisation, shapefile=shapefile, data=True)
+land_ice_processing.create_sentinel_stack(start_date=start_date, end_date=end_date, master_date=master_date,
+                                          track=track,stack_name='east_greenland_mini', polarisation=polarisation,
+                                          shapefile=shapefile, mode=mode, product_type=product_type)
 
 # Load stack
 land_ice_processing.read_stack(start_date=start_date, end_date=end_date, stack_name=stack_name)
