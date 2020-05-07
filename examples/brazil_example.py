@@ -3,12 +3,7 @@ from rippl.processing_templates.troposphere import Troposphere
 
 # Settings where the data is stored
 data_disk = '/mnt/fcf5fddd-48eb-445a-a9a6-bbbb3400ba42/'
-datastack_disk = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/'
-database_folder = data_disk + 'radar_database/sentinel-1/'
 shapefile = data_disk + 'GIS/shapes/netherlands/netherland.shp'
-orbit_folder = data_disk + 'orbits/sentinel-1'
-stack_folder = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/radar_datastacks/RIPPL_v2.0/Sentinel_1/netherlands_t37'
-dem_folder = data_disk + 'DEM/SRTM'
 
 # Track and data type of Sentinel data
 track = 37
@@ -20,14 +15,6 @@ polarisation = ['VV']
 start_date = '2016-01-01'
 end_date = '2018-12-31'
 master_date = '2017-11-15'
-
-# Passwords for data and DEM download
-SRTM_username = 'gertmulder'
-SRTM_password = 'Radar2016'
-ASF_username = 'gertmulder'
-ASF_password = 'Radar2016'
-ESA_username = 'fjvanleijen'
-ESA_password = 'stevin01'
 
 # DEM type
 dem_type = 'SRTM3'

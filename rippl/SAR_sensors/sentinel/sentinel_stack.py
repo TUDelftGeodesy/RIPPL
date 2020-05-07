@@ -76,6 +76,10 @@ class SentinelStack(SentinelDatabase, Stack):
             database_folder = os.path.join(self.settings.radar_database, 'Sentinel-1')
         if not shapefile:
             raise FileExistsError('Shapefile entry is empty!')
+        elif not os.path.exists(shapefile):
+            shapefile = os.path.join(self.settings.GIS_database, shapefile)
+        if not os.path.exists(shapefile):
+            raise FileExistsError('Shapefile not found! Either give the full path or the filename in the GIS database folder.')
         if not track_no:
             raise ValueError('Track_no is missing!')
         if not orbit_folder:

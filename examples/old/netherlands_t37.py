@@ -3,15 +3,10 @@ from rippl.processing_templates.troposphere import Troposphere
 
 # Settings where the data is stored
 data_disk = '/mnt/fcf5fddd-48eb-445a-a9a6-bbbb3400ba42/'
-datastack_disk = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/'
-database_folder = data_disk + 'radar_database/sentinel-1/'
 shapefile = data_disk + 'GIS/shapes/netherlands/netherland.shp'
-orbit_folder = data_disk + 'orbits/sentinel-1'
-stack_folder = '/mnt/f7b747c7-594a-44bb-a62a-a3bf2371d931/radar_datastacks/RIPPL_v2.0/Sentinel_1/netherlands_t37'
-dem_folder = data_disk + 'DEM/SRTM'
-
 harmonie_data = data_disk + 'weather_models/harmonie_data'
 ecmwf_data = data_disk + 'weather_models/ecmwf_data'
+stack_name = 'Netherlands_t37'
 
 # Track and data type of Sentinel data
 track = 37
@@ -23,14 +18,6 @@ polarisation = ['VV']
 start_date = '2016-01-01'
 end_date = '2018-12-31'
 master_date = '2017-11-15'
-
-# Passwords for data and DEM download
-SRTM_username = 'gertmulder'
-SRTM_password = 'Radar2016'
-ASF_username = 'gertmulder'
-ASF_password = 'Radar2016'
-ESA_username = 'fjvanleijen'
-ESA_password = 'stevin01'
 
 # DEM type
 dem_type = 'SRTM3'
@@ -47,22 +34,43 @@ processes = 4
 troposphere_processing = Troposphere(processes=processes)
 
 # Download and create the dataset
-# troposphere_processing.download_sentinel_data(start_date, end_date, track, polarisation, shapefile, database_folder,
-#                                        orbit_folder, ESA_username, ESA_password, ASF_username, ASF_password)
-# troposphere_processing.create_sentinel_stack(start_date, end_date, master_date, track, polarisation, shapefile,
-#                                       database_folder, orbit_folder, stack_folder, mode, product_type)
-troposphere_processing.read_stack(stack_folder, start_date, end_date)
+troposphere_processing.download_sentinel_data(start_date=start_date, end_date=end_date, track=track,
+                                           polarisation=polarisation, shapefile=shapefile, data=True)
+troposphere_processing.create_sentinel_stack(start_date=start_date, end_date=end_date, master_date=master_date,
+                                          track=track,stack_name='east_greenland_mini', polarisation=polarisation,
+                                          shapefile=shapefile, mode=mode, product_type=product_type)
+
+# Load stack
+troposphere_processing.read_stack(start_date=start_date, end_date=end_date, stack_name=stack_name)
+troposphere_processing.create_ifg_network(network_type='temp_baseline', temporal_baseline=30)
 
 # Coordinate systems
 troposphere_processing.create_radar_coordinates()
-troposphere_processing.create_dem_coordinates(dem_type)
-troposphere_processing.calc_radar_multilooked_geometry([50, 200], dem_folder, dem_type, dem_buffer, dem_rounding)
+troposphere_processing.create_dem_coordinates(dem_type=dem_type, lon_resolution=6)
 
 # Data processing
-troposphere_processing.create_ifg_network(network_type='temp_baseline', temporal_baseline=60)
-troposphere_processing.download_external_dem(dem_folder, dem_type, ASF_username, ASF_password, buffer=2, rounding=1)
-troposphere_processing.geocoding(dem_folder, dem_type, dem_buffer, dem_rounding)
+troposphere_processing.download_external_dem(dem_type=dem_type)
+troposphere_processing.geocoding(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding)
 troposphere_processing.geometric_coregistration_resampling(polarisation)
+
+# Multilooking
+land_ice_processing.prepare_multilooking_grid(polarisation[0])
+land_ice_processing.create_calibrated_amplitude_multilooked(polarisation)
+land_ice_processing.create_interferogram_multilooked(polarisation)
+land_ice_processing.create_coherence_multilooked(polarisation)
+# land_ice_processing.create_unwrapped_images(polarisation)
+
+# AASR calculation
+land_ice_processing.calc_AASR_amplitude_multilooked(polarisation, amb_no=2, gaussian_spread=1, kernel_size=5)
+land_ice_processing.create_output_tiffs_AASR()
+
+# Calculate geometry
+land_ice_processing.create_geometry_mulitlooked(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding)
+
+# Create the geotiffs
+land_ice_processing.create_output_tiffs_amplitude()
+land_ice_processing.create_output_tiffs_coherence_ifg()
+land_ice_processing.create_output_tiffs_geometry()
 
 for dlat, dlon in zip([0.01, 0.005, 0.0025], [0.01, 0.005, 0.0025]):
     troposphere_processing.create_ml_coordinates(coor_type='geographic', dlat=dlat, dlon=dlon, lat0=lat0, lon0=lon0)
@@ -71,9 +79,9 @@ for dlat, dlon in zip([0.01, 0.005, 0.0025], [0.01, 0.005, 0.0025]):
     troposphere_processing.create_interferogram_multilooked(polarisation)
     troposphere_processing.create_coherence_multilooked(polarisation)
     troposphere_processing.create_unwrapped_images(polarisation)
-    troposphere_processing.create_geometry_mulitlooked(dem_folder, dem_type, dem_buffer, dem_rounding)
+    troposphere_processing.create_geometry_mulitlooked(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding))
 
     # Create the geotiffs
-    troposphere_processing.create_output_tiffs_coherence_unwrap()
+    troposphere_processing.create_output_tiffs_coherence_ifg()
     troposphere_processing.create_output_tiffs_geometry()
 

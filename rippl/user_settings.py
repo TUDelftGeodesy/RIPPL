@@ -26,6 +26,9 @@ class UserSettings():
         self.radar_datastacks = ''
         self.DEM_database = ''
         self.orbit_database = ''
+        self.GIS_database = ''
+        self.NWP_model_database = ''
+        self.rippl_folder = ''
 
         # And the path of the settings file itself
         self.settings_path = os.path.join(os.path.dirname(inspect.getfile(rippl)), 'user_settings.txt')
@@ -91,7 +94,8 @@ class UserSettings():
         self.DLR_username = username
         self.DLR_password = password
     
-    def save_data_database(self, main_folder='', radar_database='', radar_datastacks='', DEM_database='', orbit_database=''):
+    def save_data_database(self, main_folder='', radar_database='', radar_datastacks='', DEM_database='',
+                           orbit_database='', NWP_model_database='', GIS_database=''):
         
         if main_folder:
             if not os.path.isdir(os.path.dirname(main_folder)):
@@ -145,11 +149,25 @@ class UserSettings():
                 os.mkdir(os.path.join(orbit_database, 'Sentinel-1', 'precise'))
             if not os.path.isdir(os.path.join(orbit_database, 'Sentinel-1', 'restituted')):
                 os.mkdir(os.path.join(orbit_database, 'Sentinel-1', 'restituted'))
-        
+
+        if not os.path.isdir(os.path.dirname(NWP_model_database)):
+            raise FileNotFoundError('The folder to write NWP database folder does not exist.')
+        else:
+            if not os.path.isdir(NWP_model_database):
+                os.mkdir(NWP_model_database)
+
+        if not os.path.isdir(os.path.dirname(GIS_database)):
+            raise FileNotFoundError('The folder to write radar database folder does not exist.')
+        else:
+            if not os.path.isdir(GIS_database):
+                os.mkdir(GIS_database)
+
         self.radar_datastacks = radar_datastacks
         self.radar_database = radar_database
         self.orbit_database = orbit_database
         self.DEM_database = DEM_database
+        self.NWP_model_database = NWP_model_database
+        self.GIS_database = GIS_database
         
     def load_settings(self):
         """
@@ -168,6 +186,8 @@ class UserSettings():
         self.radar_database = user_settings.readline().split()[1]
         self.orbit_database = user_settings.readline().split()[1]
         self.DEM_database = user_settings.readline().split()[1]
+        self.NWP_model_database = user_settings.readline().split()[1]
+        self.GIS_database = user_settings.readline().split()[1]
 
         # Get passwords
         self.ESA_username = user_settings.readline().split()[1]
@@ -195,6 +215,8 @@ class UserSettings():
         user_settings.write('radar_database: ' + str(self.radar_database) + '\n')
         user_settings.write('orbit_database: ' + str(self.orbit_database) + '\n')
         user_settings.write('DEM_database: ' + str(self.DEM_database) + '\n')
+        user_settings.write('NWP_model_database: ' + str(self.NWP_model_database) + '\n')
+        user_settings.write('GIS_database: ' + str(self.GIS_database) + '\n')
 
         # Write passwords
         user_settings.write('ESA_username: ' + self.ESA_username + '\n')

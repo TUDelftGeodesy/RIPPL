@@ -122,7 +122,9 @@ class AzimuthAmbiguitiesLocations(Process):  # Change this name to the one of yo
                 self['azimuth' + amb_str][self['incidence_angles'] == 0] = 0
                 self['range' + amb_str] = range_shift / range_spacing + orbit_interp.pixels[None, :]
                 self['range' + amb_str][self['incidence_angles'] == 0] = 0
-                self['gain' + amb_str][self['incidence_angles'] != 0] = aasr_values[loc][str(amb_num)](self['incidence_angles'][self['incidence_angles'] != 0])
+                gain_values = aasr_values[loc][str(amb_num)](self['incidence_angles'][self['incidence_angles'] != 0])
+                gain_values[gain_values < 0] = 0
+                self['gain' + amb_str][self['incidence_angles'] != 0] = gain_values
 
     @staticmethod
     def calculate_ambiguity_location(range_t, PRF, v_sat, wavelength=0.05546576, amb_num=1):
@@ -152,7 +154,10 @@ class AzimuthAmbiguitiesLocations(Process):  # Change this name to the one of yo
         """
 
         # General setup
-        main_dir = os.path.expanduser("~/surfdrive/TU_Delft/STEREOID/Data")
+        if os.path.exists("~/surfdrive"):
+            main_dir = os.path.expanduser("~/surfdrive/TU_Delft/STEREOID/Data")
+        else:
+            main_dir = os.path.expanduser("~/Surfdrive/TU_Delft/STEREOID/Data")
         rxname = 'airbus_dual_rx'
         txname = 'sentinel'
         is_bistatic = True
