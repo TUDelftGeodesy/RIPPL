@@ -273,8 +273,8 @@ class ImageData():
             return False
 
         # Get the data from disk
-        disk_data = self.disk2memory(self.disk['data'], self.json_dict['dtype'])
-        self.memory['data'] = np.copy(disk_data[s_lin:s_lin + shape[0], s_pix:s_pix + shape[1]])
+        disk_data = self.disk2memory(self.disk['data'][s_lin:s_lin + shape[0], s_pix:s_pix + shape[1]], self.json_dict['dtype'])
+        self.memory['data'] = np.copy(disk_data)
 
         # Updata meta data
         self.memory['meta']['s_lin'] = s_lin
@@ -479,7 +479,7 @@ class ImageData():
         :param np.ndarray data: Input data to be converted
         :return: data
         """
-        data = data.view(np.int16).astype('float32').view(np.complex64)
+        data = np.copy(data).view(np.int16).astype('float32').view(np.complex64)
         return data
 
     @staticmethod
@@ -490,7 +490,7 @@ class ImageData():
         :param np.ndarray data: Input data to be converted
         :return: data
         """
-        data = data.view(np.float16).astype('float32').view(np.complex64)
+        data = np.copy(data).view(np.float16).astype('float32').view(np.complex64)
         return data
 
     @staticmethod
