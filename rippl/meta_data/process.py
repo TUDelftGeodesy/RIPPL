@@ -661,13 +661,29 @@ class Process():
 
         elif 'out_irregular_grids' in self.settings.keys():
             out_grids = self.settings['out_irregular_grids']
+            max_shape = self.coordinate_systems['in_coor'].shape
+            first_line_in = self.coordinate_systems['in_coor'].first_line
+            first_pixel_in = self.coordinate_systems['in_coor'].first_pixel
             first_line, first_pixel, shape = \
                 SelectInputWindow.output_irregular_rectangle(np.copy(self[out_grids[0]]),
                                                              np.copy(self[out_grids[1]]),
-                                                             max_shape=self.coordinate_systems['in_coor'].shape,
-                                                             min_line=self.coordinate_systems['in_coor'].first_line,
-                                                             min_pixel=self.coordinate_systems['in_coor'].first_pixel,
+                                                             max_shape=max_shape,
+                                                             min_line=first_line_in,
+                                                             min_pixel=first_pixel_in,
                                                              buf=self.buf)
+
+            # If shape has negative numbers revert too zeros.
+            if shape[0] < 1:
+                shape[0] = 1
+                if first_line >= first_line_in + max_shape[0]:
+                    first_line = first_line_in + max_shape[0] - 1
+            if shape[1] < 1:
+                shape[1] = 1
+                if first_pixel >= first_pixel_in + max_shape[1]:
+                    first_pixel = first_pixel_in + max_shape[1] - 1
+
+            # print('Loading a region of ' + str(shape[0]) + ' lines starting at line ' + str(first_line) +
+            #      ' with max number of lines of ' + str(first_line_in + max_shape[0]))
 
             self.coordinate_systems['in_block_coor'].shape = shape
             self.coordinate_systems['in_block_coor'].first_line = first_line
@@ -693,12 +709,6 @@ class Process():
 
         else:
             raise AttributeError('Not possible to load needed input range for in coordinate system. Aborting.')
-
-        # If shape has negative numbers revert too zeros.
-        if shape[0] < 1:
-            shape[0] = 1
-        if shape[1] < 1:
-            shape[1] = 1
 
         keys = [key for key, input_type in zip(self.in_images.keys(), self.input_info['coor_types']) if input_type == 'in_coor']
         for key in keys:
