@@ -58,7 +58,7 @@ class Orbit():
         self.a_y = a_y
         self.a_z = a_z
 
-    def update_json(self, json_path=''):
+    def save_json(self, json_path=''):
 
         self.json_dict['date'] = self.date
         self.json_dict['satellite'] = self.satellite

@@ -304,8 +304,16 @@ class ImageProcessingData(object):
             image.remove_memory_data()
 
     # Delegate functions to image processing meta object.
-    def update_json(self, json_path=''):
-        self.meta.update_json(json_path)
+    def update_json(self):
+        self.meta.update_json()
+
+    def save_json(self, json_path=''):
+        self.meta.save_json(json_path)
+
+    def get_json(self, json_path=''):
+        json_dict, json_path = self.meta.get_json(json_path)
+
+        return json_dict, json_path
 
     def load_json(self, json_path=''):
         self.meta.load_json(json_path)

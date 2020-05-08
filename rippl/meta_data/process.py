@@ -148,7 +148,7 @@ class Process():
         self.save_to_disk()
 
         self.clean_memory()
-        self.out_processing_image.update_json()
+        self.out_processing_image.save_json()
 
         self.process_finished = True
 

@@ -57,7 +57,7 @@ class Readfile():
         self.json_dict = json_dict
         self.load_json(json_data=self.json_dict)
 
-    def update_json(self, json_path=''):
+    def update_json(self):
         # Save to xml format. Update is only done for the parts that can be changing like the polygon azimuth and range
         # times. (Mainly used with concatenation of image.)
 
@@ -82,12 +82,15 @@ class Readfile():
         self.json_dict['First_pixel_azimuth_time (UTC)'] = self.seconds2time(self.az_first_pix_time, self.date)
         self.json_dict['Range_time_to_first_pixel (2way) (ms)'] = float(self.ra_first_pix_time * 1000)
 
-        if json_path:
-            file = open(json_path, 'w+')
-            json.dump(self.json_dict, file, indent=3)
-            file.close()
-
         return self.json_dict
+
+    def save_json(self, json_path):
+        # Save .json file
+        self.update_json()
+
+        file = open(json_path, 'w+')
+        json.dump(self.json_dict, file, indent=3)
+        file.close()
 
     def load_json(self, json_data='', json_path=''):
         # Load from json data source

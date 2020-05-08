@@ -89,5 +89,5 @@ def write_sentinel_burst(input):
 
         # Save resfile
         new_slice.processes_data['crop'][crop_key].images['crop'].check_data_disk_valid()
-        new_slice.meta.update_json(json_path=slice_json)
+        new_slice.meta.save_json(json_path=slice_json)
         print('Finished initialization of ' + slice_code + ' with polarisation ' + pol + ' at ' + date)

@@ -78,7 +78,7 @@ class ProcessMeta():
 
         return process_id
 
-    def update_json(self, json_path='', save_orbits=False, save_readfiles=False):
+    def update_json(self, save_orbits=False, save_readfiles=False):
         # Update json data dict with current data.
 
         # Combine everything in a json_dict
@@ -107,13 +107,17 @@ class ProcessMeta():
             self.json_dict['in_coordinates'] = self.in_coordinates.json_dict
         else:
             self.json_dict['in_coordinates'] = []
-        
+
+        return self.json_dict
+
+    def save_json(self, json_path, save_orbits=False, save_readfiles=False):
+        # Save json file
+        self.update_json(save_orbits, save_readfiles)
+
         if json_path:
             file = open(json_path, 'w+')
             json.dump(self.json_dict, file, indent=3)
             file.close()
-
-        return self.json_dict
 
     def load_json(self, json_data='', json_path=''):
         # Load json data

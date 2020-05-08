@@ -129,7 +129,7 @@ class ImageProcessingMeta(object):
         header['creation_date'] = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S")
         header['last_date_changed'] = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S")
 
-    def update_json(self, json_path=''):
+    def update_json(self):
         # Only the header file has to be changed. Other processes are changed within their respective classes.
 
         # Combine everything in a json_dict
@@ -149,12 +149,25 @@ class ImageProcessingMeta(object):
 
         self.json_dict['header']['last_date_changed'] = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S")
 
+    def save_json(self, json_path=''):
+        # Update and save the json file.
+        self.update_json()
+
         if json_path:
             file = open(json_path, 'w+')
         else:
             file = open(os.path.join(self.folder, 'info.json'), 'w+')
         json.dump(self.json_dict, file, indent=3)
         file.close()
+
+    def get_json(self, json_path=''):
+        # Update and get json file.
+        self.update_json()
+
+        if json_path:
+            return self.json_dict, json_path
+        else:
+            return self.json_dict, os.path.join(self.folder, 'info.json')
 
     def load_json(self, json_path=''):
         # Load json data from file.

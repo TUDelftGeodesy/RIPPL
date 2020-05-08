@@ -205,7 +205,7 @@ class Concatenate():
                 raise TypeError('Not possible to load either memory or disk data')
 
         # Finally save the .json data.
-        self.concat_image.data.update_json()
+        self.concat_image.data.save_json()
         print('Finished concatenation ' + self.concat_data.process_name + ' of ' + self.concat_data.folder)
 
     def full_weight(self):
