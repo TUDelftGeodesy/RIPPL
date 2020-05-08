@@ -694,6 +694,12 @@ class Process():
         else:
             raise AttributeError('Not possible to load needed input range for in coordinate system. Aborting.')
 
+        # If shape has negative numbers revert too zeros.
+        if shape[0] < 1:
+            shape[0] = 1
+        if shape[1] < 1:
+            shape[1] = 1
+
         keys = [key for key, input_type in zip(self.in_images.keys(), self.input_info['coor_types']) if input_type == 'in_coor']
         for key in keys:
             success = self.in_images[key].load_memory_data(shape, s_lin, s_pix)

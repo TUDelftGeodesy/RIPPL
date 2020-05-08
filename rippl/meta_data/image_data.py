@@ -231,6 +231,11 @@ class ImageData():
         :return:
         """
 
+        if s_lin < 0 or s_pix < 0:
+            raise ImportError('It is not possible to load data with negative start lines or pixels')
+        if shape[0] < 0 or shape[1] < 0:
+            raise ImportError('It is not possible to load data with negative number of lines or pixels')
+
         # Check if coverage is the same otherwise we have to load new data
         if shape == self.memory['meta']['shape'] and \
                 s_lin == self.memory['meta']['s_lin'] and \
