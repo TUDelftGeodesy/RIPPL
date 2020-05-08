@@ -156,7 +156,7 @@ class Pipeline():
                     self.json_dicts.extend(json_out[0])
                     self.json_files.extend(json_out[1])
             else:
-                pool = multiprocessing.Pool(processes=self.processes)
+                pool = multiprocessing.Pool(processes=self.processes, maxtasksperchild=5)
 
                 for json_out in pool.imap_unordered(run_parallel, self.block_pipelines):
                     self.json_dicts.extend(json_out[0])

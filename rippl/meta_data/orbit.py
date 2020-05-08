@@ -58,7 +58,7 @@ class Orbit():
         self.a_y = a_y
         self.a_z = a_z
 
-    def save_json(self, json_path=''):
+    def update_json(self):
 
         self.json_dict['date'] = self.date
         self.json_dict['satellite'] = self.satellite
@@ -77,11 +77,15 @@ class Orbit():
         self.json_dict['a_y'] = list(self.a_y)
         self.json_dict['a_z'] = list(self.a_z)
 
-        if json_path:
-            file = open(json_path)
-            json.dump(self.json_dict, file, indent=3)
-
         return self.json_dict
+
+    def save_json(self, json_path):
+        # Save .json file
+        self.update_json()
+
+        file = open(json_path, 'w+')
+        json.dump(self.json_dict, file, indent=3)
+        file.close()
 
     def load_json(self, json_data='', json_path=''):
 
