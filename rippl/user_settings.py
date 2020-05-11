@@ -49,7 +49,7 @@ class UserSettings():
             urllib.request.urlopen(request)
             print('ESA password valid!')
         except:
-            raise ConnectionError('Your ESA account is not valid.')
+            raise ValueError('Your ESA account is not valid.')
 
         self.ESA_username = username
         self.ESA_password = password
@@ -68,7 +68,7 @@ class UserSettings():
         if output == 0:
             print('NASA password valid!')
         else:
-            raise ConnectionError('Your NASA account is not valid.')
+            raise ValueError('Your NASA account is not valid.')
 
         self.NASA_username = username
         self.NASA_password = password
@@ -89,7 +89,7 @@ class UserSettings():
             ftp.login(user=username, passwd=password)
             print('DLR password valid!')
         except:
-            raise ConnectionError('Account to download TanDEM-X DEM data not valid')
+            raise ValueError('Account to download TanDEM-X DEM data not valid')
 
         self.DLR_username = username
         self.DLR_password = password
@@ -99,7 +99,7 @@ class UserSettings():
         
         if main_folder:
             if not os.path.isdir(os.path.dirname(main_folder)):
-                raise FileNotFoundError('The folder to write the main folder does not exist.')
+                raise ValueError('The folder to write the main folder does not exist.')
             else:
                 if not os.path.isdir(main_folder):
                     os.mkdir(main_folder)
@@ -110,7 +110,7 @@ class UserSettings():
             orbit_database = os.path.join(main_folder, 'orbit_folder')
             
         if not os.path.isdir(os.path.dirname(radar_database)):
-            raise FileNotFoundError('The folder to write radar database folder does not exist.')
+            raise ValueError('The folder to write radar database folder does not exist.')
         else:
             if not os.path.isdir(radar_database):
                 os.mkdir(radar_database)
@@ -119,7 +119,7 @@ class UserSettings():
                     os.mkdir(os.path.join(radar_database, sensor_type))
 
         if not os.path.isdir(os.path.dirname(radar_datastacks)):
-            raise FileNotFoundError('The folder to write radar datastacks folder does not exist.')
+            raise ValueError('The folder to write radar datastacks folder does not exist.')
         else:
             if not os.path.isdir(radar_datastacks):
                 os.mkdir(radar_datastacks)
@@ -128,7 +128,7 @@ class UserSettings():
                     os.mkdir(os.path.join(radar_datastacks, sensor_type))
 
         if not os.path.isdir(os.path.dirname(DEM_database)):
-            raise FileNotFoundError('The folder to write radar database folder does not exist.')
+            raise ValueError('The folder to write radar database folder does not exist.')
         else:
             if not os.path.isdir(DEM_database):
                 os.mkdir(DEM_database)
@@ -137,7 +137,7 @@ class UserSettings():
                     os.mkdir(os.path.join(DEM_database, dat_type))
         
         if not os.path.isdir(os.path.dirname(orbit_database)):
-            raise FileNotFoundError('The folder to write radar database folder does not exist.')
+            raise ValueError('The folder to write radar database folder does not exist.')
         else:
             if not os.path.isdir(orbit_database):
                 os.mkdir(orbit_database)
@@ -151,13 +151,13 @@ class UserSettings():
                 os.mkdir(os.path.join(orbit_database, 'Sentinel-1', 'restituted'))
 
         if not os.path.isdir(os.path.dirname(NWP_model_database)):
-            raise FileNotFoundError('The folder to write NWP database folder does not exist.')
+            raise ValueError('The folder to write NWP database folder does not exist.')
         else:
             if not os.path.isdir(NWP_model_database):
                 os.mkdir(NWP_model_database)
 
         if not os.path.isdir(os.path.dirname(GIS_database)):
-            raise FileNotFoundError('The folder to write radar database folder does not exist.')
+            raise ValueError('The folder to write radar database folder does not exist.')
         else:
             if not os.path.isdir(GIS_database):
                 os.mkdir(GIS_database)
@@ -177,7 +177,7 @@ class UserSettings():
 
         # Open text file
         if not os.path.exists(self.settings_path):
-            raise FileNotFoundError('Settings file not found. First setup user settings using user_setup.ipynb before processing!')
+            raise ValueError('Settings file not found. First setup user settings using user_setup.ipynb before processing!')
 
         user_settings = open(self.settings_path, 'r')
 

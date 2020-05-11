@@ -323,27 +323,3 @@ class Stack(object):
 
         download = TandemXDownload(tandem_x_folder, username, password, lon_resolution=lon_resolution, n_processes=n_processes)
         download(self.slcs[self.master_date].data.meta, buffer=buffer, rounding=rounding)
-
-    def download_ECMWF_data(self, dat_type, ecmwf_data_folder, latlim='', lonlim= '', processes=6, parallel=True):
-        # Download ECMWF data for whole dataset at once. This makes this process much faster.
-
-        # Check the progress of your download at:
-        # 1 https://apps.ecmwf.int/webmars/joblist/ (for operational products)
-        # 2 https://cds.climate.copernicus.eu/cdsapp#!/yourrequests (for ERA5 data)
-
-        try:
-            from rippl.NWP_simulations.ECMWF.ecmwf_download import ECMWFdownload
-        except:
-            print('One of the ecmwf or grib reading packages is not configured correctly')
-            return
-
-        if len(latlim) != 2:
-            latlim = [45, 56]
-        if len(lonlim) != 2:
-            lonlim = [-2, 12]
-
-        down_dates = [datetime.datetime.strptime(d, '%Y%m%d') for d in self.slcs.keys()]
-
-        download = ECMWFdownload(latlim, lonlim, ecmwf_data_folder, dat_type, processes, parallel=parallel)
-        download.prepare_download(down_dates)
-        download.download()

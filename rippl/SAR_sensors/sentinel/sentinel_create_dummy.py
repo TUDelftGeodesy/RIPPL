@@ -15,8 +15,9 @@ Possible inputs are:
 
 import os
 import collections
+import numpy as np
 
-from rippl.meta_data.image_processing_data import ImageData
+from rippl.meta_data.image_data import ImageData
 from rippl.SAR_sensors.sentinel.sentinel_precise_orbit import SentinelOrbitsDatabase
 
 
