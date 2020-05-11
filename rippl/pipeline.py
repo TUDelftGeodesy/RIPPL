@@ -3,6 +3,7 @@ import os
 import numpy as np
 import copy
 import random
+import json
 
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
@@ -146,41 +147,34 @@ class Pipeline():
                         process.create_output_data_files()
 
             # Now run the individual blocks using multiprocessing of cores > 1
-            processing_data_lists = []
+            self.json_dicts = []
+            self.json_files = []
             if self.processes == 1:
 
                 for pipeline in self.block_pipelines:
-                    processing_data_lists.append(run_parallel(pipeline))
+                    json_out = run_parallel(pipeline)
+                    self.json_dicts.extend(json_out[0])
+                    self.json_files.extend(json_out[1])
             else:
-                pool = multiprocessing.Pool(processes=self.processes)
+                pool = multiprocessing.Pool(processes=self.processes, maxtasksperchild=5)
 
-                for result in pool.imap_unordered(run_parallel, self.block_pipelines):
-                    processing_data_lists.append(result)
+                for json_out in pool.imap_unordered(run_parallel, self.block_pipelines):
+                    self.json_dicts.extend(json_out[0])
+                    self.json_files.extend(json_out[1])
                 pool.close()
-
-
-            # First find the unique images. (These will be there multiple times because data is processed in blocks)
-            for processing_data_list in processing_data_lists:
-                for processing in processing_data_list:
-                    self.processing_datasets.append(processing)
-                    self.json_files.append(processing.folder)
 
             self.save_processing_results()
 
     def save_processing_results(self):
         # Write away the .json files.
-        if len(self.processing_datasets) == 0:
+        if len(self.json_dicts) == 0:
             return
 
         unique_json_files, unique_ids = np.unique(self.json_files, return_index=True)
         for id in unique_ids:
-            self.processing_datasets[id].update_json()
-
-        # Finally replace the already existing images that were assigned to the pipelines in the first place with the
-        # new ones after processing.
-        for type_names in self.processing_data.keys():
-            for id, in_processing_data in enumerate(self.processing_data[type_names]):
-                in_processing_data = [processing for processing in self.processing_datasets if processing.folder == processing.folder][0]
+            file = open(self.json_files[id], 'w+')
+            json.dump(self.json_dicts[id], file, indent=3)
+            file.close()
 
     def check_processing_data(self):
         """

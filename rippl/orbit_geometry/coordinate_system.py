@@ -148,7 +148,7 @@ class CoordinateSystem():
         else:
             return self.ml_lines, self.ml_pixels
 
-    def update_json(self, json_path='', save_orbit=False, save_readfile=False):
+    def update_json(self, save_orbit=False, save_readfile=False):
         # type: (CoordinateSystem, str) -> None
         # Save to json format.
 
@@ -203,8 +203,13 @@ class CoordinateSystem():
         else:
             self.json_dict['orbit'] = self.orbit.json_dict
 
-        if json_path:
-            json.dump(json_path, self.json_dict)
+    def save_json(self, json_path, save_orbit=False, save_readfile=False):
+        # Save .json file
+        self.update_json(save_orbit, save_readfile)
+
+        file = open(json_path, 'w+')
+        json.dump(self.json_dict, file, indent=3)
+        file.close()
 
     def load_json(self, json_data, json_path=''):
         # type: (CoordinateSystem, OrderedDict, str) -> None

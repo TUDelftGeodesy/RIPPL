@@ -148,7 +148,7 @@ class Process():
         self.save_to_disk()
 
         self.clean_memory()
-        self.out_processing_image.update_json()
+        self.out_processing_image.save_json()
 
         self.process_finished = True
 
@@ -674,6 +674,8 @@ class Process():
             self.coordinate_systems['in_block_coor'].first_pixel = first_pixel
             s_lin = first_line - self.coordinate_systems['in_coor'].first_line
             s_pix = first_pixel - self.coordinate_systems['in_coor'].first_pixel
+
+            # print('Shape of used inputs is ' + str(shape[0]) + ' lines and ' + str(shape[1]) + ' pixels')
 
         elif 'in_irregular_grids' in self.settings.keys():
             in_grids = self.settings['in_irregular_grids']

@@ -212,7 +212,7 @@ class ImageConcatData(object):
         concat_image.meta.add_orbit(coor.orbit)
         concat_image.meta.create_header()
         concat_image.path = os.path.join(os.path.dirname(self.slice_data[slice].folder), 'info.json')
-        concat_image.update_json(concat_image.path)
+        concat_image.save_json(concat_image.path)
 
         self.data = concat_image
 

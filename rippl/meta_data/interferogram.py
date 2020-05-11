@@ -136,4 +136,4 @@ class Interferogram(ImageConcatData):
         meta.create_header()
 
         # Write meta to .json
-        meta.update_json()
+        meta.save_json()

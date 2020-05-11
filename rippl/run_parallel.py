@@ -1,6 +1,7 @@
 # Function to run parallel package. For further details inspect the pipeline class.
 from rippl.meta_data.process import Process
 from rippl.meta_data.multilook_process import MultilookProcess
+from rippl.meta_data.image_processing_data import ImageProcessingData
 
 
 def run_parallel(dat):
@@ -23,7 +24,7 @@ def run_parallel(dat):
                 processing_images.append(process.processing_images[key])
                 image_keys.append(key)
 
-    for processing_image in processing_images:
+    for processing_image in processing_images:      # type: ImageProcessingData
         processing_image.load_memmap_files()
 
     # Loop over all processes.
@@ -57,8 +58,13 @@ def run_parallel(dat):
         if save and not isinstance(process, MultilookProcess):
             process.save_to_disk()
 
-    for processing_image in processing_images:
-        processing_image.remove_memmap_files()
-        processing_image.remove_memory_files()
+    json_dicts = []
+    json_files = []
 
-    return [process.processing_images[key] for key in list(process.processing_images.keys())]
+    for processing_image in processing_images:
+        json_dict, json_file = processing_image.get_json()
+        json_dicts.append(json_dict)
+        json_files.append(json_file)
+    del processing_images, dat
+
+    return [json_dicts, json_files]
