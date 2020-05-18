@@ -177,8 +177,9 @@ class SentinelDatabase(object):
     def select_overlapping(self, shapefile, buffer=0.02):
 
         if not isinstance(shapefile, Polygon):
-            shape = ReadWriteShapes()
-            shape(shapefile)
+            shape_read = ReadWriteShapes()
+            shape_read(shapefile)
+            shape = shape_read.shape
         else:
             shape = shapefile
         shape = shape.simplify(buffer / 2)
