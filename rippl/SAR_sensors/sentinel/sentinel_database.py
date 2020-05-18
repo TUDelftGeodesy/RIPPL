@@ -176,16 +176,20 @@ class SentinelDatabase(object):
 
     def select_overlapping(self, shapefile, buffer=0.02):
 
-        shape = ReadWriteShapes()
-        shape(shapefile)
-        shape.simplify_shape(buffer / 2)
-        shape.extend_shape(buffer)
+        if not isinstance(shapefile, Polygon):
+            shape = ReadWriteShapes()
+            shape(shapefile)
+        else:
+            shape = shapefile
+        shape = shape.simplify(buffer / 2)
+        shape = shape.buffer(buffer)
 
-        self.master_shape = copy.deepcopy(shape.shape)
-        shape.extend_shape(0.05)
-        self.shape = copy.deepcopy(shape.shape)
+        self.master_shape = copy.deepcopy(shape)
+        shape = shape.buffer(0.05)
+        self.shape = copy.deepcopy(shape)
 
         for key in list(self.selected_images.keys()):
+            print(key)
             if not self.shape.intersects(self.selected_images[key]['coverage']):
 
                 self.selected_images.pop(key)

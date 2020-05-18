@@ -28,6 +28,7 @@ class UserSettings():
         self.GIS_database = ''
         self.NWP_model_database = ''
         self.rippl_folder = ''
+        self.snaphu_path = ''
 
         # And the path of the settings file itself
         self.settings_path = os.path.join(os.path.dirname(inspect.getfile(rippl)), 'user_settings.txt')
@@ -102,11 +103,19 @@ class UserSettings():
             else:
                 if not os.path.isdir(main_folder):
                     os.mkdir(main_folder)
-            
-            radar_database = os.path.join(main_folder, 'radar_database')
-            radar_datastacks = os.path.join(main_folder, 'radar_datastacks')
-            DEM_database = os.path.join(main_folder, 'DEM_data')
-            orbit_database = os.path.join(main_folder, 'orbit_folder')
+
+            if not radar_database:
+                radar_database = os.path.join(main_folder, 'radar_database')
+            if not radar_datastacks:
+                radar_datastacks = os.path.join(main_folder, 'radar_datastacks')
+            if not DEM_database:
+                DEM_database = os.path.join(main_folder, 'DEM_data')
+            if not orbit_database:
+                orbit_database = os.path.join(main_folder, 'orbit_folder')
+            if not NWP_model_database:
+                NWP_model_database = os.path.join(main_folder, 'NWP_model_database')
+            if not GIS_database:
+                GIS_database = os.path.join(main_folder, 'GIS_database')
             
         if not os.path.isdir(os.path.dirname(radar_database)):
             raise ValueError('The folder to write radar database folder does not exist.')
@@ -167,7 +176,26 @@ class UserSettings():
         self.DEM_database = DEM_database
         self.NWP_model_database = NWP_model_database
         self.GIS_database = GIS_database
-        
+
+    def add_snaphu_path(self, snaphu_path):
+        """
+
+        Parameters
+        ----------
+        snaphu_path
+
+        Returns
+        -------
+
+        """
+
+        out = os.system(snaphu_path)
+        if out == 256:
+            print('Snaphu path found and added to RIPPL installation')
+            self.snaphu_path = snaphu_path
+        else:
+            print('Snaphu path incorrect. The full RIPPL code will still work except the unwrapping')
+
     def load_settings(self):
         """
         Load user settings from file
@@ -187,6 +215,7 @@ class UserSettings():
         self.DEM_database = user_settings.readline().split()[1]
         self.NWP_model_database = user_settings.readline().split()[1]
         self.GIS_database = user_settings.readline().split()[1]
+        self.snaphu_path = user_settings.readline().split()[1]
 
         # Get passwords
         self.ESA_username = user_settings.readline().split()[1]
@@ -216,6 +245,7 @@ class UserSettings():
         user_settings.write('DEM_database: ' + str(self.DEM_database) + '\n')
         user_settings.write('NWP_model_database: ' + str(self.NWP_model_database) + '\n')
         user_settings.write('GIS_database: ' + str(self.GIS_database) + '\n')
+        user_settings.write('Snaphu_path: ' + str(self.snaphu_path) + '\n')
 
         # Write passwords
         user_settings.write('ESA_username: ' + self.ESA_username + '\n')

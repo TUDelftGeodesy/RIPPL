@@ -4,6 +4,7 @@ import numpy as np
 import copy
 import random
 import json
+import datetime
 
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
@@ -107,7 +108,7 @@ class Pipeline():
 
         for block in range(blocks):
             # Print which block we are processing.
-            print('Processing pipeline block ' + str(block) + ' out of ' + str(blocks))
+            print('Processing pipeline block ' + str(block + 1) + ' out of ' + str(blocks))
 
             # Then assign the processing data and coordinate systems.
             self.assign_coordinate_systems_processing_data(block)
@@ -170,10 +171,26 @@ class Pipeline():
         if len(self.json_dicts) == 0:
             return
 
-        unique_json_files, unique_ids = np.unique(self.json_files, return_index=True)
-        for id in unique_ids:
-            file = open(self.json_files[id], 'w+')
-            json.dump(self.json_dicts[id], file, indent=3)
+        unique_json_files, unique_ids, reverse_ids = np.unique(self.json_files, return_index=True, return_inverse=True)
+        # Load the existing .json dictionaries.
+        unique_json_dicts = []
+        for unique_json_file in unique_json_files:
+            old_json_file = open(unique_json_file, 'r+')
+            old_json_dict = json.load(old_json_file)
+            old_json_file.close()
+            unique_json_dicts.append(old_json_dict)
+
+            [copy.deepcopy(self.json_dicts[json_id]) for json_id in unique_ids]
+
+        # Merge the new json files with the old json files.
+        for reverse_id, json_dict in zip(reverse_ids, self.json_dicts):
+            # First check if it is the selected unique id.
+            unique_json_dicts[reverse_id] = self.merge(unique_json_dicts[reverse_id], json_dict)
+
+        # Finally write the relevant .json files to disk.
+        for unique_json_dict, unique_json_file in zip(unique_json_dicts, unique_json_files):
+            file = open(unique_json_file, 'w+')
+            json.dump(unique_json_dict, file, indent=3)
             file.close()
 
     def check_processing_data(self):
@@ -352,3 +369,21 @@ class Pipeline():
                 pipeline['process_block_no'] = block_no + self.total_blocks - len(self.block_pipelines)
                 # This is an estimate....
                 pipeline['total_process_block_no'] = self.total_blocks + len(self.block_pipelines) * (max_blocks - run_block - 1)
+
+    @staticmethod
+    def merge(a, b, path=None):
+        "merges b into a"
+        if path is None: path = []
+        for key in b:
+            if key in a:
+                if isinstance(a[key], dict) and isinstance(b[key], dict):
+                    Pipeline.merge(a[key], b[key], path + [str(key)])
+                elif a[key] == b[key]:
+                    pass # same leaf value
+                elif key == 'last_date_changed':
+                    a[key] = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S")
+                else:
+                    a[key] = b[key]
+            else:
+                a[key] = b[key]
+        return a

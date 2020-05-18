@@ -222,8 +222,7 @@ class Process():
         :return:
         """
 
-        print('This method should be in your process function to make any sense. For now all the outputs will just '
-              'be filled with zeros!')
+        pass
 
     def def_out_coor(self):
         """

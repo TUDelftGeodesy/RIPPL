@@ -9,6 +9,7 @@ from rippl.user_settings import UserSettings
 import os
 import numpy as np
 import copy
+from shapely.geometry import Polygon
 
 from rippl.processing_steps.resample import Resample
 from rippl.processing_steps.import_dem import ImportDem
@@ -196,15 +197,16 @@ class GeneralPipelines():
         :return:
         """
 
-        if not os.path.exists(shapefile):
-            settings = UserSettings()
-            settings.load_settings()
-            shapefile = os.path.join(settings.GIS_database, shapefile)
-        if not os.path.exists(shapefile):
-            raise FileExistsError('Shapefile does not exist!')
+        if not isinstance(shapefile, Polygon):
+            if not os.path.exists(shapefile):
+                settings = UserSettings()
+                settings.load_settings()
+                shapefile = os.path.join(settings.GIS_database, shapefile)
+            if not os.path.exists(shapefile):
+                raise FileExistsError('Shapefile does not exist!')
 
         if data:
-            if polarisation is str:
+            if isinstance(polarisation, str):
                 polarisation = [polarisation]
 
             # Download data and orbit
@@ -247,7 +249,7 @@ class GeneralPipelines():
         # Number of cores
         cores = 6
 
-        if polarisation is str:
+        if isinstance(polarisation, str):
             polarisation = [polarisation]
 
         # Prepare processing
@@ -451,7 +453,7 @@ class GeneralPipelines():
         coreg_image.create_concatenate_image(process='radar_ray_angles', file_type='incidence_angle', coor=self.radar_coor, transition_type='cut_off')
         coreg_image.create_concatenate_image(process='radar_ray_angles', file_type='off_nadir_angle', coor=self.radar_coor, transition_type='cut_off')
 
-    def geometric_coregistration_resampling(self, polarisation):
+    def geometric_coregistration_resampling(self, polarisation, output_phase_correction=False):
         """
         Coregistration and resampling based on topography only.
 
@@ -459,7 +461,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if polarisation is str:
+        if isinstance(polarisation, str):
             polarisation = [polarisation]
 
         # Allow the processing of two polarisation at the same time.
@@ -473,18 +475,16 @@ class GeneralPipelines():
                                                                         in_coor=self.radar_coor,
                                                                         coreg_master='coreg_master',
                                                                         slave='slave'), False)
-        resampling_pipeline.add_processing_step(CalcEarthTopoPhase(out_coor=self.radar_coor, slave='slave'), False)
+        resampling_pipeline.add_processing_step(CalcEarthTopoPhase(out_coor=self.radar_coor, slave='slave'), output_phase_correction)
         resampling_pipeline.add_processing_step(CalcReramp(out_coor=self.radar_coor, slave='slave'), True)
 
         for pol in polarisation:
             resampling_pipeline.add_processing_step(DerampResampleRadarGrid(out_coor=self.radar_coor, in_coor=self.radar_coor,
                                                                             polarisation=pol, slave='slave'), False)
             resampling_pipeline.add_processing_step(CorrectPhases(out_coor=self.radar_coor, polarisation=pol, slave='slave'), True)
-
         resampling_pipeline()
 
         # Concatenate the images
-
         self.reload_stack()
         [slave_images, coreg_image] = self.get_data('coreg_slave', slice=False, concat_meta=True)
 
@@ -495,10 +495,10 @@ class GeneralPipelines():
                 slave.create_concatenate_image(process='correct_phases', file_type='phase_corrected',
                                                coor=self.radar_coor, transition_type='cut_off', polarisation=pol)
 
-        for pol in polarisation:
-            # Concatenate the files from the main folder
-            coreg_image[0].create_concatenate_image(process='crop', file_type='crop', coor=self.radar_coor,
-                                                    transition_type='cut_off', polarisation=pol)
+        #for pol in polarisation:
+        #    # Concatenate the files from the main folder
+        #    coreg_image[0].create_concatenate_image(process='crop', file_type='crop', coor=self.radar_coor,
+        #                                            transition_type='cut_off', polarisation=pol)
 
     def prepare_multilooking_grid(self, polarisation):
         """
@@ -531,7 +531,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if polarisation is str:
+        if isinstance(polarisation, str):
             polarisation = [polarisation]
 
         # Then do the resampling
@@ -557,7 +557,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if polarisation is str:
+        if isinstance(polarisation, str):
             polarisation = [polarisation]
 
         for pol in polarisation:
@@ -572,12 +572,11 @@ class GeneralPipelines():
                 CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
                                        slave='slave', coreg_master='coreg_master', batch_size=10000000), True, True)
             create_multilooked_amp()
-            create_multilooked_amp.save_processing_results()
 
             # Finally do the master image seperately
-            amp_multilook = CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                                   slave=coreg_master[0], coreg_master=coreg_master[0], master_image=True, batch_size=10000000)
-            amp_multilook()
+            #amp_multilook = CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
+            #                                       slave=coreg_master[0], coreg_master=coreg_master[0], master_image=False, batch_size=10000000)
+            #amp_multilook()
 
     def create_coherence_multilooked(self, polarisation):
         """
@@ -587,7 +586,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if polarisation is str:
+        if isinstance(polarisation, str):
             polarisation = [polarisation]
 
         # First create the multilooked square amplitudes.
@@ -604,9 +603,9 @@ class GeneralPipelines():
             create_multilooked_amp()
 
             # Finally do the master image seperately
-            amp_multilook = SquareAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                                   slave=coreg_master[0], coreg_master=coreg_master[0], master_image=True, batch_size=10000000)
-            amp_multilook()
+            #amp_multilook = SquareAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
+            #                                       slave=coreg_master[0], coreg_master=coreg_master[0], master_image=False, batch_size=10000000)
+            #amp_multilook()
 
         # After creation of the square amplitude images, we can create the coherence values themselves.
         # Create coherences for multilooked grid
@@ -631,7 +630,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if polarisation is str:
+        if isinstance(polarisation, str):
             polarisation = [polarisation]
 
         for pol in polarisation:

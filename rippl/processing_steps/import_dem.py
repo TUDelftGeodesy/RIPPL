@@ -64,7 +64,10 @@ class ImportDem(Process):  # Change this name to the one of your processing step
         settings = UserSettings()
         settings.load_settings()
         if not dem_folder:
-            self.dem_folder = os.path.join(settings.DEM_database, dem_type)
+            if dem_type.startswith('SRTM'):
+                self.dem_folder = os.path.join(settings.DEM_database, 'SRTM')
+            else:
+                self.dem_folder = os.path.join(settings.DEM_database, dem_type)
         else:
             self.dem_folder = dem_folder
         if not geoid_file:
@@ -233,9 +236,9 @@ class ImportDem(Process):  # Change this name to the one of your processing step
             else:
                 lat = - float(os.path.basename(tile)[s_id+1:s_id+3])
             if os.path.basename(tile)[10] == 'E':
-                lon = float(os.path.basename(tile)[s_id+5:s_id+8])
+                lon = float(os.path.basename(tile)[s_id+4:s_id+7])
             else:
-                lon = - float(os.path.basename(tile)[s_id+5:s_id+8])
+                lon = - float(os.path.basename(tile)[s_id+4:s_id+7])
 
             # print('adding ' + tile)
 

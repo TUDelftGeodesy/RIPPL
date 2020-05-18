@@ -17,6 +17,7 @@ class MultilookRegular(object):
         self.coordinate_systems['in_coor'] = in_coor
         self.coordinate_systems['out_coor'] = out_coor
         self.check_same_coordinate_system(in_coor, out_coor)
+        self.multilooked = []
 
         self.lines_in, self.pixels_in = self.pixel_line_spacing(in_coor, out_coor)
         self.coverage = self.multilook_coverage(self.lines_in, self.pixels_in)
@@ -25,9 +26,7 @@ class MultilookRegular(object):
 
     def __call__(self, data_in):
         # Run the actual multilooking script.
-        data_out = self.regular_multilook(data_in, self.lines_in, self.pixels_in)
-
-        return data_out
+        self.multilooked = self.regular_multilook(data_in, self.lines_in, self.pixels_in)
 
     @staticmethod
     def check_same_coordinate_system(in_coor, out_coor):
