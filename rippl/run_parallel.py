@@ -5,6 +5,7 @@ from rippl.meta_data.process import Process
 from rippl.meta_data.multilook_process import MultilookProcess
 from rippl.meta_data.image_processing_data import ImageProcessingData
 
+
 def run_parallel(dat):
     """
     This function runs a parallel package for image processing.
@@ -66,9 +67,6 @@ def run_parallel(dat):
         json_dict, json_file = processing_image.get_json()
         json_dicts.append(json_dict)
         json_files.append(json_file)
-
-    # Give a summary of the used memory at the end of the processing by the processing_images
-    del dat, processing_images
-    gc.collect()
+    del processing_images, dat
 
     return [json_dicts, json_files]

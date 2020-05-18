@@ -28,6 +28,7 @@ class UserSettings():
         self.GIS_database = ''
         self.NWP_model_database = ''
         self.rippl_folder = ''
+        self.snaphu_path = ''
 
         # And the path of the settings file itself
         self.settings_path = os.path.join(os.path.dirname(inspect.getfile(rippl)), 'user_settings.txt')
@@ -48,7 +49,7 @@ class UserSettings():
             urllib.request.urlopen(request)
             print('ESA password valid!')
         except:
-            raise ConnectionError('Your ESA account is not valid.')
+            raise ValueError('Your ESA account is not valid.')
 
         self.ESA_username = username
         self.ESA_password = password
@@ -67,7 +68,7 @@ class UserSettings():
         if output == 0:
             print('NASA password valid!')
         else:
-            raise ConnectionError('Your NASA account is not valid.')
+            raise ValueError('Your NASA account is not valid.')
 
         self.NASA_username = username
         self.NASA_password = password
@@ -88,7 +89,7 @@ class UserSettings():
             ftp.login(user=username, passwd=password)
             print('DLR password valid!')
         except:
-            raise ConnectionError('Account to download TanDEM-X DEM data not valid')
+            raise ValueError('Account to download TanDEM-X DEM data not valid')
 
         self.DLR_username = username
         self.DLR_password = password
@@ -98,18 +99,26 @@ class UserSettings():
         
         if main_folder:
             if not os.path.isdir(os.path.dirname(main_folder)):
-                raise FileNotFoundError('The folder to write the main folder does not exist.')
+                raise ValueError('The folder to write the main folder does not exist.')
             else:
                 if not os.path.isdir(main_folder):
                     os.mkdir(main_folder)
-            
-            radar_database = os.path.join(main_folder, 'radar_database')
-            radar_datastacks = os.path.join(main_folder, 'radar_datastacks')
-            DEM_database = os.path.join(main_folder, 'DEM_data')
-            orbit_database = os.path.join(main_folder, 'orbit_folder')
+
+            if not radar_database:
+                radar_database = os.path.join(main_folder, 'radar_database')
+            if not radar_datastacks:
+                radar_datastacks = os.path.join(main_folder, 'radar_datastacks')
+            if not DEM_database:
+                DEM_database = os.path.join(main_folder, 'DEM_data')
+            if not orbit_database:
+                orbit_database = os.path.join(main_folder, 'orbit_folder')
+            if not NWP_model_database:
+                NWP_model_database = os.path.join(main_folder, 'NWP_model_database')
+            if not GIS_database:
+                GIS_database = os.path.join(main_folder, 'GIS_database')
             
         if not os.path.isdir(os.path.dirname(radar_database)):
-            raise FileNotFoundError('The folder to write radar database folder does not exist.')
+            raise ValueError('The folder to write radar database folder does not exist.')
         else:
             if not os.path.isdir(radar_database):
                 os.mkdir(radar_database)
@@ -118,7 +127,7 @@ class UserSettings():
                     os.mkdir(os.path.join(radar_database, sensor_type))
 
         if not os.path.isdir(os.path.dirname(radar_datastacks)):
-            raise FileNotFoundError('The folder to write radar datastacks folder does not exist.')
+            raise ValueError('The folder to write radar datastacks folder does not exist.')
         else:
             if not os.path.isdir(radar_datastacks):
                 os.mkdir(radar_datastacks)
@@ -127,7 +136,7 @@ class UserSettings():
                     os.mkdir(os.path.join(radar_datastacks, sensor_type))
 
         if not os.path.isdir(os.path.dirname(DEM_database)):
-            raise FileNotFoundError('The folder to write radar database folder does not exist.')
+            raise ValueError('The folder to write radar database folder does not exist.')
         else:
             if not os.path.isdir(DEM_database):
                 os.mkdir(DEM_database)
@@ -136,7 +145,7 @@ class UserSettings():
                     os.mkdir(os.path.join(DEM_database, dat_type))
         
         if not os.path.isdir(os.path.dirname(orbit_database)):
-            raise FileNotFoundError('The folder to write radar database folder does not exist.')
+            raise ValueError('The folder to write radar database folder does not exist.')
         else:
             if not os.path.isdir(orbit_database):
                 os.mkdir(orbit_database)
@@ -150,13 +159,13 @@ class UserSettings():
                 os.mkdir(os.path.join(orbit_database, 'Sentinel-1', 'restituted'))
 
         if not os.path.isdir(os.path.dirname(NWP_model_database)):
-            raise FileNotFoundError('The folder to write NWP database folder does not exist.')
+            raise ValueError('The folder to write NWP database folder does not exist.')
         else:
             if not os.path.isdir(NWP_model_database):
                 os.mkdir(NWP_model_database)
 
         if not os.path.isdir(os.path.dirname(GIS_database)):
-            raise FileNotFoundError('The folder to write radar database folder does not exist.')
+            raise ValueError('The folder to write radar database folder does not exist.')
         else:
             if not os.path.isdir(GIS_database):
                 os.mkdir(GIS_database)
@@ -167,7 +176,26 @@ class UserSettings():
         self.DEM_database = DEM_database
         self.NWP_model_database = NWP_model_database
         self.GIS_database = GIS_database
-        
+
+    def add_snaphu_path(self, snaphu_path):
+        """
+
+        Parameters
+        ----------
+        snaphu_path
+
+        Returns
+        -------
+
+        """
+
+        out = os.system(snaphu_path)
+        if out == 256:
+            print('Snaphu path found and added to RIPPL installation')
+            self.snaphu_path = snaphu_path
+        else:
+            print('Snaphu path incorrect. The full RIPPL code will still work except the unwrapping')
+
     def load_settings(self):
         """
         Load user settings from file
@@ -176,7 +204,7 @@ class UserSettings():
 
         # Open text file
         if not os.path.exists(self.settings_path):
-            raise FileNotFoundError('Settings file not found. First setup user settings using user_setup.ipynb before processing!')
+            raise ValueError('Settings file not found. First setup user settings using user_setup.ipynb before processing!')
 
         user_settings = open(self.settings_path, 'r')
 
@@ -187,6 +215,7 @@ class UserSettings():
         self.DEM_database = user_settings.readline().split()[1]
         self.NWP_model_database = user_settings.readline().split()[1]
         self.GIS_database = user_settings.readline().split()[1]
+        self.snaphu_path = user_settings.readline().split()[1]
 
         # Get passwords
         self.ESA_username = user_settings.readline().split()[1]
@@ -216,6 +245,7 @@ class UserSettings():
         user_settings.write('DEM_database: ' + str(self.DEM_database) + '\n')
         user_settings.write('NWP_model_database: ' + str(self.NWP_model_database) + '\n')
         user_settings.write('GIS_database: ' + str(self.GIS_database) + '\n')
+        user_settings.write('Snaphu_path: ' + str(self.snaphu_path) + '\n')
 
         # Write passwords
         user_settings.write('ESA_username: ' + self.ESA_username + '\n')

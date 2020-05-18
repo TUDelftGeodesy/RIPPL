@@ -19,7 +19,6 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
 
     def __getitem__(self, key):
         # Check if there is a memory file with this name and give the output.
-        shape_in = self.coordinate_systems['in_coor'].shape
 
         if key in self.in_images.keys() or key in self.out_images.keys():
             if key in self.in_images.keys():
@@ -30,15 +29,15 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
             dtype = get_data['meta']['dtype']
             data = get_data['data']
 
-            if tuple(get_data['data'].shape) == tuple(shape_in):
+            if self.block_processing:
                 line_no = self.no_block * self.no_lines
                 data = ImageData.disk2memory(data[line_no: line_no + self.block_shape[0], :], dtype)
-            else:
+            elif not self.block_processing:
                 data = ImageData.disk2memory(data, dtype)
 
-        elif key in list(self.ml_out_data.keys()):
+        elif key in list(self.ml_out_data.keys()) and not self.block_processing:
             data = self.ml_out_data[key]
-        elif key in list(self.ml_in_data.keys()):
+        elif (key in list(self.ml_in_data.keys()) or key in ['lines', 'pixels']) and self.block_processing:
             data = self.ml_in_data[key]
 
         else:
@@ -48,10 +47,10 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
 
     def __setitem__(self, key, data):
         # Set the data of one variable
-        shape_out = self.coordinate_systems['out_coor'].shape
+
         shape_in = self.coordinate_systems['in_coor'].shape
 
-        if data.shape == tuple(shape_out):
+        if not self.block_processing:
             # If the shape is exactly the same as the output, we assume that we are dealing with the already multi-
             # looked image. In the very exceptional case that both are the same size, this will throw an error.
             # However, this is very unlikely so we like to use the method this way for ease of use.
@@ -63,7 +62,7 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
             else:
                 raise KeyError('This output type is not defined! It should be defined in the self.setting["multilooked_grids"]')
 
-        elif data.shape[0] == self.block_shape[0]:
+        elif self.block_processing:
             # If the shapes are different the data is going to be multilooked.
             if key in list(self.out_images.keys()):
                 if self.out_images[key].disk['data'].shape == shape_in:
@@ -72,13 +71,10 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
                     self.out_images[key].disk['data'][line_no: line_no + self.block_shape[0], :] = ImageData.memory2disk(data, dtype)
                 elif key in self.settings['multilooked_grids']:
                     self.ml_in_data[key] = data
-            elif key in self.settings['multilooked_grids']:
+            elif key in self.settings['multilooked_grids'] or key in ['lines', 'pixels']:
                 self.ml_in_data[key] = data
             else:
                 raise KeyError('This output type is not defined! It should be defined in the self.setting["multilooked_grids"]')
-
-        else:
-            raise TypeError('Not able to save this type of data')
 
     def multilook_calculations(self):
         """
@@ -103,11 +99,11 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
 
         # Check if there is a lines/pixels and the multilooking is not regular
         if not regular:
-            if ('lines' not in self.in_images.keys() or 'pixels' not in self.in_images.keys()) \
-                    and not 'no_pre_calculated_coordinates' in self.settings.keys():
+            if (('lines' not in self.in_images.keys() or 'pixels' not in self.in_images.keys()) and not 'out_irregular_grids' in self.settings.keys()) \
+                    and 'no_pre_calculated_coordinates' not in self.settings.keys():
                 raise LookupError('There should be a lines and pixels input variable to do irregular multilooking! '
                                   'If you do a regular multilook define self.regular = True in the __init__')
-            else:
+            elif 'no_pre_calculated_coordinates' not in self.settings.keys():
                 if 'out_irregular_grids' not in self.settings.keys():
                     lines = self.in_images['lines'].disk['data']
                     pixels = self.in_images['pixels'].disk['data']
@@ -127,20 +123,23 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
                               'batch size and try again!')
 
         for self.no_block in range(self.no_blocks):
-            coordinates = copy.deepcopy(self.coordinate_systems['in_coor'])
-            coordinates.first_line += self.no_block * self.no_lines
-            coordinates.shape[0] = np.minimum(shape[0] - self.no_block * self.no_lines, self.no_lines)
-            self.block_shape = coordinates.shape
+            self.ml_coordinates = copy.deepcopy(self.coordinate_systems['in_coor'])
+            self.ml_coordinates.first_line += self.no_block * self.no_lines
+            self.ml_coordinates.shape[0] = np.minimum(shape[0] - self.no_block * self.no_lines, self.no_lines)
+            self.block_shape = self.ml_coordinates.shape
 
             print('Processing ' + str(self.no_block) + ' out of ' + str(self.no_blocks))
             self.before_multilook_calculations()
 
             for file_type in self.settings['multilooked_grids']:
                 if regular:
-                    multilook = MultilookRegular(coordinates, self.coordinate_systems['out_coor'])
-                    self[file_type] += multilook(self.ml_in_data[file_type])
+                    multilook = MultilookRegular(self.ml_coordinates, self.coordinate_systems['out_coor'])
+                    multilook.apply_multilooking(self.ml_in_data[file_type])
+                    self.block_processing = False
+                    self[file_type] += multilook.multilooked
+                    self.block_processing = True
                 elif not regular:
-                    multilook = MultilookIrregular(coordinates, self.coordinate_systems['out_coor'])
+                    multilook = MultilookIrregular(self.ml_coordinates, self.coordinate_systems['out_coor'])
                     line_no = self.no_block * self.no_lines
                     if 'no_pre_calculated_coordinates' in self.settings.keys():
                         multilook.create_conversion_grid(self['lines'], self['pixels'])
@@ -149,16 +148,18 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
                             np.copy(lines[line_no: line_no + self.block_shape[0], :]),
                             np.copy(pixels[line_no: line_no + self.block_shape[0], :]))
                     multilook.apply_multilooking(self.ml_in_data[file_type])
+                    self.block_processing = False
                     self[file_type] += multilook.multilooked
+                    self.block_processing = True
                     looks += multilook.looks
 
         no_types = len(list(self.settings['multilooked_grids']))
+        self.block_processing = False
 
-        for file_type in self.ml_in_data.keys():
+        for file_type in self.settings['multilooked_grids']:
             valid_pixels = ((self[file_type] != 0) * (looks !=0))
             self[file_type][valid_pixels] /= (looks[valid_pixels] / no_types)
 
-        self.block_processing = False
         self.after_multilook_calculations()
 
     def before_multilook_calculations(self):

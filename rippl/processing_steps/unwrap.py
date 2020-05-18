@@ -10,6 +10,7 @@ import numpy as np
 from rippl.meta_data.process import Process
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
+from rippl.user_settings import UserSettings
 
 
 class Unwrap(Process):  # Change this name to the one of your processing step.
@@ -56,7 +57,10 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
 
         # Finally define whether we overwrite or not
         self.overwrite = overwrite
+        settings = UserSettings()
+        settings.load_settings()
         self.settings = dict()
+        self.settings['snaphu_path'] = settings.snaphu_path
 
     def init_super(self):
 
@@ -99,15 +103,15 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
         # Add coherence file
         c.write('CORRFILE ' + os.path.join(folder, coh_file_name) + '\n')
         c.write('CORRFILEFORMAT		FLOAT_DATA\n')
-        c.write('OUTFILE ' + os.path.join(folder, 'snaphu_out.raw') + '\n')
+        c.write('OUTFILE ' + os.path.join(folder, out_file) + '\n')
         c.write('OUTFILEFORMAT		FLOAT_DATA\n')
         c.write('LOGFILE ' + unwrap_name + '.log' + '\n')
         c.write('STATCOSTMODE SMOOTH')
         c.close()
 
-        command = 'snaphu -f ' + conf_file
+        command = self.settings['snaphu_path'] + ' -f ' + conf_file
         os.system('cd ' + folder)
         os.system(command)
 
-        unwrap_data = np.memmap(os.path.join(folder, 'snaphu_out.raw'), np.float32, 'r', shape=shape)
+        unwrap_data = np.memmap(os.path.join(folder, out_file), np.float32, 'r', shape=shape)
         self['unwrapped'] = unwrap_data[:, :]

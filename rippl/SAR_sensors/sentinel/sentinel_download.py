@@ -17,16 +17,16 @@ from rippl.orbit_geometry.read_write_shapes import ReadWriteShapes
 
 
 class DownloadSentinel(object):
-    
+
     def __init__(self, start_date, end_date, shape, track='', polarisation='', level='',
-                 orbit_direction='', sensor_mode='IW', product='SLC'):
+                 orbit_direction='', sensor_mode='IW', product='SLC', instrument_name='Sentinel-1'):
         # Following variables can be used to make a selection.
         # shape > defining shape file or .kml
         # start_date > first day for downloads (default one month before now) [yyyymmdd]
         # end_date > last day for downloads (default today)
         # track > the tracks we want to check (default all)
         # polarisation > which polarisation will be used. (default all)
-    
+
         # string is the field we enter as url
         self.settings = UserSettings()
         self.settings.load_settings()
@@ -35,15 +35,20 @@ class DownloadSentinel(object):
         self.dates = []
         self.string = ''
 
-        shape_data = ReadWriteShapes()
-        shape_data(shape)
-        self.shape = shape_data.shape       # type:Polygon
+        if not isinstance(shape, Polygon):
+            shape_data = ReadWriteShapes()
+            shape_data(shape)
+            self.shape = shape_data.shape  # type:Polygon
+        else:
+            self.shape = shape
         self.shape_string = ''
         self.create_shape_str()
 
         self.valid_files = []
         self.invalid_files = []
 
+        if instrument_name:
+            self.string = self.string + ' AND ' + 'platformname:' + instrument_name
         if sensor_mode:
             self.string = self.string + ' AND ' + 'sensoroperationalmode:' + sensor_mode
         if product:
@@ -63,23 +68,24 @@ class DownloadSentinel(object):
             start = start_date
         if isinstance(end_date, str):
             if end_date:
-                end = datetime.datetime.strptime(end_date, '%Y-%m-%d') + datetime.timedelta(days=1)
+                end = datetime.datetime.strptime(end_date, '%Y-%m-%d')
             else:
                 end = datetime.datetime.now()
         else:
             end = end_date
-            
+
         if polarisation:
             self.string = self.string + ' AND ' + 'polarisationmode:' + polarisation
         if shape:
             self.string = self.string + ' AND footprint:"Intersects(POLYGON(' + self.shape_string + '))"'
-    
+
         date_string = 'beginposition:[' + start.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z TO ' + \
                       end.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z] AND endposition:[' + \
-                      start.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z TO ' + end.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z]'
+                      start.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z TO ' + end.strftime('%Y-%m-%dT%H:%M:%S.%f')[
+                                                                              :-3] + 'Z]'
         self.string = self.string + ' AND ' + date_string
         self.string = self.string[5:]
-    
+
     def sentinel_available(self, username='', password=''):
         # All available sentinel 1 images are detected and printed on screen.
 
@@ -95,7 +101,8 @@ class DownloadSentinel(object):
         all_loaded = False
         while all_loaded == False:
             # Finally we do the query to get the search result.
-            url = 'https://scihub.copernicus.eu/dhus/search?start=' + str(page) + '&rows=100&q=' + urllib.parse.quote_plus(self.string)
+            url = 'https://scihub.copernicus.eu/dhus/search?start=' + str(
+                page) + '&rows=100&q=' + urllib.parse.quote_plus(self.string)
 
             request = urllib.request.Request(url)
             base64string = base64.b64encode(bytes('%s:%s' % (username, password), "utf-8")).decode()
@@ -115,7 +122,10 @@ class DownloadSentinel(object):
 
             parser = etree.HTMLParser()
             tree = etree.fromstring(html_dat.encode('utf-8'), parser)
-            # Check whether we got all results
+            # Check whether we got all result.
+            if not tree[0][0][5].text:
+                # print('No images found')
+                return
             total_items = int(tree[0][0][5].text)
             start_index = int(tree[0][0][6].text)
             page_items = int(tree[0][0][7].text)
@@ -130,18 +140,13 @@ class DownloadSentinel(object):
 
         # Provide a link to the Sentinel Hub search that visualizes the search.
 
-
         # Make a list with the different tracks and coverage of the different tracks.
-
 
         # Create geojsons of the different tracks. Overlay all SLC images for the different tracks.
 
-
         # Show geojsons for the different tracks if visualization on.
 
-
         # Raise error if
-
 
     def sentinel_download_ESA(self, database_folder='', username='', password=''):
         # Download the files which are found by the sentinel_available script.
@@ -154,8 +159,7 @@ class DownloadSentinel(object):
             database_folder = os.path.join(self.settings.radar_database, 'Sentinel-1')
 
         if not self.products:
-            print('No files to project_functions')
-            return
+            raise FileNotFoundError('No images found!')
 
         wget_base = 'wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --continue --tries=20 ' \
                     '--no-check-certificate --user=' + username + ' --password=' + password + ' '
@@ -181,8 +185,7 @@ class DownloadSentinel(object):
             database_folder = os.path.join(self.settings.radar_database, 'Sentinel-1')
 
         if not self.products:
-            print('No files to project_functions')
-            return
+            raise FileNotFoundError('No images found!')
 
         wget_base = 'wget -c --http-user=' + username + ' --http-password=' + password + ' '
 
@@ -209,7 +212,8 @@ class DownloadSentinel(object):
 
         for product in self.products:
             uuid = product.find('id').text
-            checksum_url = "https://scihub.copernicus.eu/dhus/odata/v1/Products('" + uuid + "')/Checksum/Value/" + urllib.parse.quote_plus('$value')
+            checksum_url = "https://scihub.copernicus.eu/dhus/odata/v1/Products('" + uuid + "')/Checksum/Value/" + urllib.parse.quote_plus(
+                '$value')
             request = urllib.request.Request(checksum_url)
             base64string = base64.b64encode(bytes('%s:%s' % (username, password), "utf-8")).decode()
             request.add_header("Authorization", "Basic " + base64string)
@@ -279,7 +283,7 @@ class DownloadSentinel(object):
         dat = self.shape.exterior.coords
 
         if not isinstance(self.shape, Polygon):
-           raise TypeError('Shape type should be Polygon (no Point, MultiPolygon etc..)')
+            raise TypeError('Shape type should be Polygon (no Point, MultiPolygon etc..)')
 
         self.shape_string = '('
         for p in dat:
@@ -303,13 +307,15 @@ class DownloadSentinelOrbit(object):
         self.precise_folder = precise_folder
         self.restituted_folder = restituted_folder
 
-        last_precise = '' # Last precise orbit file. Used to remove unused restituted orbit files.
+        last_precise = ''  # Last precise orbit file. Used to remove unused restituted orbit files.
         gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 
         # From now on the start date and end date should be given to find the right path.
-        start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+        if not isinstance(start_date, datetime.datetime):
+            start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
         t_step = datetime.timedelta(days=1)
-        end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+        if not isinstance(end_date, datetime.datetime):
+            end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d')
 
         self.precise_files = []
         self.precise_links = []
@@ -319,9 +325,10 @@ class DownloadSentinelOrbit(object):
 
         if download_source == 'ESA':
             if self.precise_folder:
-                while (end_date + t_step * 21)  > date:
+                while (end_date + t_step * 21) > date:
                     # First extract the orbitfiles from the page.
-                    url = 'https://aux.sentinel1.eo.esa.int/POEORB/' + str(date.year) + '/' + str(date.month).zfill(2) + '/' + str(date.day).zfill(2) +  '/'
+                    url = 'https://aux.sentinel1.eo.esa.int/POEORB/' + str(date.year) + '/' + str(date.month).zfill(
+                        2) + '/' + str(date.day).zfill(2) + '/'
 
                     try:
                         page = urllib.request.urlopen(url, context=gcontext)
@@ -350,7 +357,8 @@ class DownloadSentinelOrbit(object):
             if self.restituted_folder:
                 while (end_date + 2 * t_step) > date:
                     # First extract the orbitfiles from the page.
-                    url = 'https://aux.sentinel1.eo.esa.int/RESORB/' + str(date.year) + '/' + str(date.month).zfill(2) + '/' + str(date.day).zfill(2) + '/'
+                    url = 'https://aux.sentinel1.eo.esa.int/RESORB/' + str(date.year) + '/' + str(date.month).zfill(
+                        2) + '/' + str(date.day).zfill(2) + '/'
 
                     try:
                         page = urllib.request.urlopen(url, context=gcontext)

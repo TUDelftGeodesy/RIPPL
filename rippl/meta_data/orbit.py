@@ -83,7 +83,7 @@ class Orbit():
         # Save .json file
         self.update_json()
 
-        file = open(json_path)
+        file = open(json_path, 'w+')
         json.dump(self.json_dict, file, indent=3)
         file.close()
 

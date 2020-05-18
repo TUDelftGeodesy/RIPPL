@@ -9,5 +9,5 @@ setup(
     author='Gert Mulder',
     author_email='g.mulder-1@tudelft.nl',
     description='Radar Interferometric Parallel Processing Lab',
-    install_requires=['numpy', 'scipy', 'matplotlib', 'gdal', 'fiona', 'shapely', 'requests', 'pyproj']
+    install_requires=['numpy', 'scipy', 'scikit-image', 'matplotlib', 'gdal', 'fiona', 'shapely', 'requests', 'pyproj', 'lxml']
 )

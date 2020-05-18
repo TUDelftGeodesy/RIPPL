@@ -81,7 +81,7 @@ class Stack(object):
             print('No existing master slices list found')
             return
         if len(self.master_slice_az_time) != 0:
-            print('First read the list with master slices before reading in new data!')
+            print('Master slice list already loaded!')
             return
 
         l = open(list_file, 'r+')

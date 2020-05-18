@@ -18,6 +18,7 @@ from random import shuffle
 import numpy as np
 from multiprocessing import Pool
 from lxml import etree
+from shapely.geometry import Polygon
 
 from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 from rippl.SAR_sensors.sentinel.sentinel_database import SentinelDatabase
@@ -74,12 +75,13 @@ class SentinelStack(SentinelDatabase, Stack):
 
         if not database_folder:
             database_folder = os.path.join(self.settings.radar_database, 'Sentinel-1')
-        if not shapefile:
-            raise FileExistsError('Shapefile entry is empty!')
-        elif not os.path.exists(shapefile):
-            shapefile = os.path.join(self.settings.GIS_database, shapefile)
-        if not os.path.exists(shapefile):
-            raise FileExistsError('Shapefile not found! Either give the full path or the filename in the GIS database folder.')
+        if not isinstance(shapefile, Polygon):
+            if not shapefile:
+                raise FileExistsError('Shapefile entry is empty!')
+            elif not os.path.exists(shapefile):
+                shapefile = os.path.join(self.settings.GIS_database, shapefile)
+            if not os.path.exists(shapefile):
+                raise FileExistsError('Shapefile not found! Either give the full path or the filename in the GIS database folder.')
         if not track_no:
             raise ValueError('Track_no is missing!')
         if not orbit_folder:
@@ -90,8 +92,7 @@ class SentinelStack(SentinelDatabase, Stack):
         print('Selected images:')
 
         if len(self.selected_images) == 0:
-            print('No SAR images found! Aborting')
-            return
+            raise FileNotFoundError('No SAR images found! Aborting')
 
         for info in self.selected_images:
             print(info)

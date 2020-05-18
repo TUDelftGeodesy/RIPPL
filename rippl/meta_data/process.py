@@ -222,8 +222,7 @@ class Process():
         :return:
         """
 
-        print('This method should be in your process function to make any sense. For now all the outputs will just '
-              'be filled with zeros!')
+        pass
 
     def def_out_coor(self):
         """
@@ -690,6 +689,8 @@ class Process():
             self.coordinate_systems['in_block_coor'].first_pixel = first_pixel
             s_lin = first_line - self.coordinate_systems['in_coor'].first_line
             s_pix = first_pixel - self.coordinate_systems['in_coor'].first_pixel
+
+            # print('Shape of used inputs is ' + str(shape[0]) + ' lines and ' + str(shape[1]) + ' pixels')
 
         elif 'in_irregular_grids' in self.settings.keys():
             in_grids = self.settings['in_irregular_grids']

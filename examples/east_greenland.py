@@ -1,5 +1,4 @@
 from rippl.processing_templates.general_sentinel_1 import GeneralPipelines
-from rippl.processing_templates.land_ice import LandIce
 
 # Settings where the data is stored
 data_disk = '/mnt/fcf5fddd-48eb-445a-a9a6-bbbb3400ba42/'
@@ -27,7 +26,7 @@ lon_resolution = 6
 dlat = 0.001
 dlon = 0.001
 
-land_ice_processing = LandIce(processes=4)
+land_ice_processing = GeneralPipelines(processes=4)
 
 # Download and create the dataset
 land_ice_processing.download_sentinel_data(start_date=start_date, end_date=end_date, track=track,
@@ -56,10 +55,6 @@ land_ice_processing.create_calibrated_amplitude_multilooked(polarisation)
 land_ice_processing.create_interferogram_multilooked(polarisation)
 land_ice_processing.create_coherence_multilooked(polarisation)
 # land_ice_processing.create_unwrapped_images(polarisation)
-
-# AASR calculation
-land_ice_processing.calc_AASR_amplitude_multilooked(polarisation, amb_no=2, gaussian_spread=1, kernel_size=5)
-land_ice_processing.create_output_tiffs_AASR()
 
 # Calculate geometry
 land_ice_processing.create_geometry_mulitlooked(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding)

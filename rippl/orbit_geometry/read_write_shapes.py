@@ -4,15 +4,17 @@ TEST
 convert = ReadWriteShapes()
 self = convert
 
-shapefile = '/Users/gertmulder/Downloads/layers/POLYGON.shp'
-# read shapefile
-convert(shapefile)
+# read in coordinates
+coordinates = [(130.25, 32.28), (131.35, 32.28), (131.35, 33.24), (130.25, 33.24), (130.25, 32.28)]
+convert(coordinates)
 
-kml = '/Users/gertmulder/Downloads/layers/pol.kml'
+shapefile = '/Users/gertmulder/SAR_processing/GIS_database/layers/POLYGON.shp'
+
+kml = '/Users/gertmulder/SAR_processing/GIS_database/layers/pol.kml'
 convert.write_kml(kml)
 convert.read_kml(kml)
 
-geojson = '/Users/gertmulder/Downloads/layers/pol.json'
+geojson = '/Users/gertmulder/SAR_processing/GIS_database/layers/pol.json'
 convert.write_geo_json(geojson)
 json_dict = convert.write_geo_json()
 convert(geojson)
