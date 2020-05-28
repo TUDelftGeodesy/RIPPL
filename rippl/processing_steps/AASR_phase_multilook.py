@@ -1,19 +1,16 @@
 # Try to do all calculations using numpy functions.
 import numpy as np
-import copy
 
 # Import the parent class Process for processing steps.
-from rippl.meta_data.process import Process
+from rippl.meta_data.multilook_process import MultilookProcess
 from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
-from rippl.resampling.coor_new_extend import CoorNewExtend
-from rippl.resampling.multilook_irregular import MultilookIrregular
 from rippl.resampling.multilook_regular import MultilookRegular
 
-class AASRPhaseMultilook(Process):  # Change this name to the one of your processing step.
+class AASRPhaseMultilook(MultilookProcess):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', polarisation='', in_coor=[], out_coor=[], combined_ambiguity=True, amb_no=2,
+    def __init__(self, data_id='', polarisation='', in_coor=[], out_coor=[],
                  slave='slave', master='master', coreg_master='coreg_master', ifg='ifg', overwrite=False, batch_size=1000000):
 
         """
@@ -34,7 +31,7 @@ class AASRPhaseMultilook(Process):  # Change this name to the one of your proces
 
         # Output data information
         self.output_info = dict()
-        self.output_info['process_name'] = 'AASRPhaseMultilook'
+        self.output_info['process_name'] = 'AASR_phase_multilook'
         self.output_info['image_type'] = 'ifg'
         self.output_info['polarisation'] = polarisation
         self.output_info['data_id'] = data_id
@@ -44,23 +41,15 @@ class AASRPhaseMultilook(Process):  # Change this name to the one of your proces
 
         # Input data information
         self.input_info = dict()
-        self.input_info['image_types'] = ['slave', 'master']
-
-        if coreg_master == slave:
-            self.input_info['process_types'] = ['crop', 'correct_phases']
-            self.input_info['file_types'] = ['crop', 'phase_corrected']
-        elif coreg_master == master:
-            self.input_info['process_types'] = ['correct_phases', 'crop']
-            self.input_info['file_types'] = ['phase_corrected', 'crop']
-        else:
-            self.input_info['process_types'] = ['correct_phases', 'correct_phases']
-            self.input_info['file_types'] = ['phase_corrected', 'phase_corrected']
+        self.input_info['image_types'] = ['master', 'slave']
+        self.input_info['process_types'] = ['combined_ambiguities', 'combined_ambiguities']
+        self.input_info['file_types'] = ['combined_ambiguities', 'combined_ambiguities']
 
         self.input_info['polarisations'] = [polarisation, polarisation]
         self.input_info['data_ids'] = [data_id, data_id]
         self.input_info['coor_types'] = ['in_coor', 'in_coor']
         self.input_info['in_coor_types'] = ['', '']
-        self.input_info['type_names'] = ['slave', 'master']
+        self.input_info['type_names'] = ['master', 'slave']
 
         if not self.regular:
             self.input_info['image_types'].extend(['coreg_master', 'coreg_master'])
@@ -87,12 +76,16 @@ class AASRPhaseMultilook(Process):  # Change this name to the one of your proces
         # Finally define whether we overwrite or not
         self.overwrite = overwrite
         self.settings = dict()
+        self.settings['out_irregular_grids'] = ['lines', 'pixels']
+        self.settings['memory_data'] = False
+        self.settings['buf'] = 0
+        self.settings['multilooked_grids'] = ['AASR_interferogram', 'master_amplitude', 'slave_amplitude']
         self.batch_size = batch_size
 
     def init_super(self):
 
         self.load_coordinate_system_sizes()
-        super(InterferogramMultilook, self).__init__(
+        super(AASRPhaseMultilook, self).__init__(
             input_info=self.input_info,
             output_info=self.output_info,
             coordinate_systems=self.coordinate_systems,
@@ -102,59 +95,22 @@ class AASRPhaseMultilook(Process):  # Change this name to the one of your proces
 
     def __call__(self):
 
-        super(InterferogramMultilook, self).__call__(memory_in=False)
+        super(AASRPhaseMultilook, self).__call__(memory_in=False)
 
-    def process_calculations(self):
+    def before_multilook_calculations(self):
         """
         This function creates an interferogram without additional multilooking.
 
         :return:
         """
 
-        shape = self.in_images['master'].coordinates.shape
-        no_lines = int(np.ceil(self.batch_size / shape[1]))
-        no_blocks = int(np.ceil(shape[0] / no_lines))
-        pixels = self.in_images['pixels'].disk['data']
-        lines = self.in_images['lines'].disk['data']
-        slave_data = self.in_images['slave'].disk['data']
-        slave_type = self.in_images['slave'].disk['meta']['dtype']
-        master_data = self.in_images['master'].disk['data']
-        master_type = self.in_images['master'].disk['meta']['dtype']
+        self['master_amplitude'] = np.abs(self['master']) ** 2
+        self['slave_amplitude'] = np.abs(self['slave']) ** 2
+        self['AASR_interferogram'] = self['master'] * np.conjugate(self['slave'])
 
-        self.coordinate_systems['out_coor'].create_radar_lines()
-        self.coordinate_systems['in_coor'].create_radar_lines()
-        looks = np.zeros(self[self.output_info['file_types'][0]].shape)
+    def after_multilook_calculations(self):
 
-        for block in range(no_blocks):
-            coordinates = copy.deepcopy(self.coordinate_systems['in_coor'])
-            coordinates.first_line += block * no_lines
-            coordinates.shape[0] = np.minimum(shape[0] - block * no_lines, no_lines)
+        valid_pixels = (self['AASR_interferogram'] != 0) * ~np.isnan(self['AASR_interferogram'])
 
-            ifg_data = ImageData.disk2memory(master_data[block * no_lines: (block + 1) * no_lines, :], master_type) * \
-                       np.conjugate(ImageData.disk2memory(slave_data[block * no_lines: (block + 1) * no_lines, :], slave_type))
-
-            print('Processing ' + str(block) + ' out of ' + str(no_blocks))
-
-            if self.regular:
-                multilook = MultilookRegular(coordinates, self.coordinate_systems['out_coor'])
-                self['interferogram'] += multilook(ifg_data)
-            else:
-                multilook = MultilookIrregular(coordinates, self.coordinate_systems['out_coor'])
-                multilook.create_conversion_grid(lines[block * no_lines: (block + 1) * no_lines, :],
-                                                 pixels[block * no_lines: (block + 1) * no_lines, :])
-                multilook.apply_multilooking(ifg_data)
-                self['interferogram'] += ImageData.memory2disk(multilook.multilooked, self.output_info['data_types'][0])
-                looks += multilook.looks
-
-        valid_pixels = self['interferogram'] != 0
-        self['interferogram'][valid_pixels] /= looks[valid_pixels]
-
-    def def_out_coor(self):
-        """
-        Calculate extend of output coordinates.
-
-        :return:
-        """
-
-        new_coor = CoorNewExtend(self.coordinate_systems['in_coor'], self.coordinate_systems['out_coor'])
-        self.coordinate_systems['out_coor'] = new_coor.out_coor
+        # Calculate the db values.
+        self['AASR_coherence'][valid_pixels] = np.abs(self['AASR_interferogram'][valid_pixels]) / np.sqrt(self['master_amplitude'][valid_pixels] * self['slave_amplitude'][valid_pixels])

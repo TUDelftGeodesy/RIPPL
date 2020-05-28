@@ -35,6 +35,7 @@ from rippl.processing_steps.combined_ambiguities import CombinedAmbiguities
 from rippl.processing_steps.azimuth_ambiguities import CalcAzimuthAmbiguities
 from rippl.processing_steps.azimuth_ambiguities_locations import AzimuthAmbiguitiesLocations
 from rippl.processing_steps.AASR_amplitude_multilook import AASRAmplitudeMultilook
+from rippl.processing_steps.AASR_phase_multilook import AASRPhaseMultilook
 
 from rippl.processing_steps.multilook import Multilook
 from rippl.pipeline import Pipeline
@@ -755,7 +756,7 @@ class GeneralPipelines():
             geometry_dataset.coordinates.load_readfile(readfile)
             geometry_dataset.save_tiff(main_folder=True)
 
-    def calc_AASR_amplitude_multilooked(self, polarisation, amb_no, gaussian_spread=1, kernel_size=5):
+    def calc_AASR_multilooked(self, polarisation, amb_no, gaussian_spread=1, kernel_size=5):
         """
         Calculate the effect of the ambiguities in amplitude.
 
@@ -797,7 +798,7 @@ class GeneralPipelines():
         calc_ambiguities()
         calc_ambiguities.save_processing_results()
 
-        # Finally do the AASR multilooking to find the resulting AASR values in a regular geographic grid.
+        # Do the AASR multilooking to find the resulting AASR values in a regular geographic grid.
         for pol in polarisation:
             self.reload_stack()
             [coreg_slave, coreg_master] = self.get_data('coreg_slave', slice=False)
@@ -812,6 +813,21 @@ class GeneralPipelines():
             multilook_ambiguties()
             multilook_ambiguties.save_processing_results()
 
+        # Finally calculate coherence and interferogram.
+        for pol in polarisation:
+            self.reload_stack()
+            [ifgs, masters, slaves, coreg_master] = self.get_data('ifg', slice=False)
+
+            create_multilooked_AASR_ifg = Pipeline(pixel_no=0, processes=self.processes)
+            create_multilooked_AASR_ifg.add_processing_data(coreg_master, 'coreg_master')
+            create_multilooked_AASR_ifg.add_processing_data(slaves, 'slave')
+            create_multilooked_AASR_ifg.add_processing_data(masters, 'master')
+            create_multilooked_AASR_ifg.add_processing_data(ifgs, 'ifg')
+            create_multilooked_AASR_ifg.add_processing_step(
+                AASRPhaseMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
+                                       slave='slave', coreg_master='coreg_master', ifg='ifg', master='master', batch_size=10000000), True, True)
+            create_multilooked_AASR_ifg()
+
     def create_output_tiffs_AASR(self):
         """
         Create the geotiff images
@@ -819,8 +835,12 @@ class GeneralPipelines():
         :return:
         """
 
-        AASR_datasets = self.stack.stack_data_iterator(['AASR_amplitude_multilook'], coordinates=[self.full_ml_coor],
-                                                           process_types=['ambiguities_calibrated_amplitude', 'ambiguities_calibrated_amplitude_db', 'AASR_db'])[-1]
+        AASR_datasets = self.stack.stack_data_iterator(['AASR_amplitude_multilook', 'AASR_phase_multilook'], coordinates=[self.full_ml_coor],
+                                                           process_types=['ambiguities_calibrated_amplitude',
+                                                                          'ambiguities_calibrated_amplitude_db',
+                                                                          'AASR_db',
+                                                                          'AASR_interferogram',
+                                                                          'AASR_coherence'])[-1]
 
         for AASR_dataset in AASR_datasets:  # type: ImageData
             AASR_dataset.save_tiff(main_folder=True)

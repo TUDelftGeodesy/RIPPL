@@ -92,7 +92,8 @@ class SentinelStack(SentinelDatabase, Stack):
         print('Selected images:')
 
         if len(self.selected_images) == 0:
-            raise FileNotFoundError('No SAR images found! Aborting')
+            print('No SAR images found! Aborting')
+            return
 
         for info in self.selected_images:
             print(info)
