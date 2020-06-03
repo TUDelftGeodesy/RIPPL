@@ -28,42 +28,63 @@ dlon = 0.001
 
 land_ice_processing = LandIce(processes=1)
 
+create_stack = False
+load_stack = True
+coreg = False
+multilook = False
+AASR = False
+geotiff = False
+plot = True
+
 # Download and create the dataset
-land_ice_processing.download_sentinel_data(start_date=start_date, end_date=end_date, track=track,
-                                           polarisation=polarisation, shapefile=shapefile, data=False)
-land_ice_processing.create_sentinel_stack(start_date=start_date, end_date=end_date, master_date=master_date,
-                                          track=track,stack_name=stack_name, polarisation=polarisation,
-                                          shapefile=shapefile, mode=mode, product_type=product_type)
+if create_stack:
+    land_ice_processing.download_sentinel_data(start_date=start_date, end_date=end_date, track=track,
+                                               polarisation=polarisation, shapefile=shapefile, data=False)
+    land_ice_processing.create_sentinel_stack(start_date=start_date, end_date=end_date, master_date=master_date,
+                                              track=track,stack_name=stack_name, polarisation=polarisation,
+                                              shapefile=shapefile, mode=mode, product_type=product_type)
 
 # Load stack
-land_ice_processing.read_stack(start_date=start_date, end_date=end_date, stack_name=stack_name)
-land_ice_processing.create_ifg_network(network_type='temp_baseline', temporal_baseline=30)
+if load_stack:
+    land_ice_processing.read_stack(start_date=start_date, end_date=end_date, stack_name=stack_name)
+    land_ice_processing.create_ifg_network(network_type='temp_baseline', temporal_baseline=30)
 
-# Coordinate systems
-land_ice_processing.create_radar_coordinates()
-land_ice_processing.create_dem_coordinates(dem_type=dem_type, lon_resolution=6)
-land_ice_processing.create_ml_coordinates(coor_type='geographic', dlat=dlat, dlon=dlon)
+    # Coordinate systems
+    land_ice_processing.create_radar_coordinates()
+    land_ice_processing.create_dem_coordinates(dem_type=dem_type, lon_resolution=6)
+    land_ice_processing.create_ml_coordinates(coor_type='geographic', dlat=dlat, dlon=dlon)
 
 # Data processing
-land_ice_processing.download_external_dem(dem_type=dem_type, lon_resolution=lon_resolution)
-land_ice_processing.geocoding(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding)
-land_ice_processing.geometric_coregistration_resampling(polarisation)
+if coreg:
+    land_ice_processing.download_external_dem(dem_type=dem_type, lon_resolution=lon_resolution)
+    land_ice_processing.geocoding(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding)
+    land_ice_processing.geometric_coregistration_resampling(polarisation)
 
 # Multilooking
-land_ice_processing.prepare_multilooking_grid(polarisation[0])
-land_ice_processing.create_calibrated_amplitude_multilooked(polarisation)
-land_ice_processing.create_interferogram_multilooked(polarisation)
-land_ice_processing.create_coherence_multilooked(polarisation)
-# land_ice_processing.create_unwrapped_images(polarisation)
+if multilook:
+    land_ice_processing.prepare_multilooking_grid(polarisation[0])
+    land_ice_processing.create_calibrated_amplitude_multilooked(polarisation)
+    land_ice_processing.create_interferogram_multilooked(polarisation)
+    land_ice_processing.create_coherence_multilooked(polarisation)
+    # land_ice_processing.create_unwrapped_images(polarisation)
+
+    # Calculate geometry
+    land_ice_processing.create_geometry_mulitlooked(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding)
 
 # AASR calculation
-land_ice_processing.calc_AASR_multilooked(polarisation, amb_no=2, gaussian_spread=1, kernel_size=5)
-land_ice_processing.create_output_tiffs_AASR()
+if AASR:
+    land_ice_processing.calc_AASR_multilooked(polarisation, amb_no=2, gaussian_spread=1, kernel_size=5)
 
-# Calculate geometry
-land_ice_processing.create_geometry_mulitlooked(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding)
 
 # Create the geotiffs
-land_ice_processing.create_output_tiffs_amplitude()
-land_ice_processing.create_output_tiffs_coherence_ifg()
-land_ice_processing.create_output_tiffs_geometry()
+if geotiff:
+    land_ice_processing.create_output_tiffs_AASR()
+    land_ice_processing.create_output_tiffs_amplitude()
+    land_ice_processing.create_output_tiffs_coherence_ifg()
+    land_ice_processing.create_output_tiffs_geometry()
+
+if plot:
+    land_ice_processing.create_plots_AASR(True)
+    land_ice_processing.create_plots_amplitude(False)
+    land_ice_processing.create_plots_coherence(False)
+    land_ice_processing.create_plots_ifg(False)

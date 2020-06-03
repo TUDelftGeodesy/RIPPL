@@ -1,11 +1,13 @@
 
 from rippl.meta_data.stack import Stack
+from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData, ImageProcessingMeta
 from rippl.SAR_sensors.sentinel.sentinel_stack import SentinelStack
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.SAR_sensors.sentinel.sentinel_download import DownloadSentinelOrbit, DownloadSentinel
 from rippl.resampling.coor_new_extend import CoorNewExtend
 from rippl.user_settings import UserSettings
+from rippl.meta_data.plot_data import PlotData
 import os
 import numpy as np
 import copy
@@ -772,7 +774,7 @@ class GeneralPipelines():
 
         calc_ambiguities = Pipeline(pixel_no=5000000, processes=self.processes)
         calc_ambiguities.add_processing_data(coreg_images, 'coreg_master')
-        calc_ambiguities.add_processing_step(AzimuthAmbiguitiesLocations(coreg_master='coreg_master', no_ambiguities=2, out_coor=self.radar_coor), True)
+        calc_ambiguities.add_processing_step(AzimuthAmbiguitiesLocations(coreg_master='coreg_master', no_ambiguities=amb_no, out_coor=self.radar_coor), True)
         calc_ambiguities()
         calc_ambiguities.save_processing_results()
 
@@ -794,7 +796,7 @@ class GeneralPipelines():
                                                                                 polarisation=pol,
                                                                                 gaussian_spread=gaussian_spread,
                                                                                 kernel_size=kernel_size), False)
-            calc_ambiguities.add_processing_step(CombinedAmbiguities(out_coor=self.radar_coor, polarisation=pol, slave='slave'), True)
+            calc_ambiguities.add_processing_step(CombinedAmbiguities(out_coor=self.radar_coor, polarisation=pol, slave='slave', amb_no=amb_no), True)
         calc_ambiguities()
         calc_ambiguities.save_processing_results()
 
@@ -845,6 +847,34 @@ class GeneralPipelines():
         for AASR_dataset in AASR_datasets:  # type: ImageData
             AASR_dataset.save_tiff(main_folder=True)
 
+    def create_plots_AASR(self, overwrite=False):
+        """
+        Create the geotiff images
+
+        :return:
+        """
+
+        ambiguity_amplitudes = self.stack.stack_data_iterator(['AASR_amplitude_multilook'], coordinates=[self.full_ml_coor],
+                                                           process_types=['ambiguities_calibrated_amplitude_db'])[-1]
+        AASRs = self.stack.stack_data_iterator(['AASR_amplitude_multilook'], coordinates=[self.full_ml_coor],
+                                                           process_types=['AASR_db'])[-1]
+
+        cmap = 'jet'
+        for ambiguity_amplitude in ambiguity_amplitudes:          # type: ImageData
+            plot = PlotData(ambiguity_amplitude, data_cmap=cmap, margins=0.1, data_quantiles=[0.001, 0.999], overwrite=overwrite)
+            succes = plot()
+            if succes:
+                plot.add_labels('Amplitude of ambiguities ' + os.path.basename(ambiguity_amplitude.folder), 'dB')
+                plot.save_image()
+
+        cmap = 'jet'
+        for AASR in AASRs:          # type: ImageData
+            plot = PlotData(AASR, data_cmap=cmap, margins=0.1, data_quantiles=[0.001, 0.999], overwrite=overwrite)
+            succes = plot()
+            if succes:
+                plot.add_labels('AASR ' + os.path.basename(AASR.folder), 'dB')
+                plot.save_image()
+
     def create_output_tiffs_amplitude(self):
         """
         Create the geotiff images
@@ -860,6 +890,22 @@ class GeneralPipelines():
                                                            process_types=['lat', 'lon', 'incidence_angle'])[-1]
         for geometry_dataset in geometry_datasets:                  # type: ImageData
             geometry_dataset.save_tiff(main_folder=True)
+
+    def create_plots_amplitude(self, overwrite=False):
+        """
+        Create plots for the amplitude images.
+
+        :return:
+        """
+
+        calibrated_amplitudes = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor], ifg=False)[-1]
+        cmap = 'Greys_r'
+        for calibrated_amplitude in calibrated_amplitudes:          # type: ImageData
+            plot = PlotData(calibrated_amplitude, data_cmap=cmap, margins=0.1, data_quantiles=[0.05, 0.95], overwrite=overwrite)
+            succes = plot()
+            if succes:
+                plot.add_labels('Calibrated Amplitude ' + os.path.basename(calibrated_amplitude.folder), 'dB')
+                plot.save_image()
 
     def create_output_tiffs_geometry(self):
         """
@@ -892,6 +938,40 @@ class GeneralPipelines():
         ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True)[-1]
         for ifg in ifgs:          # type: ImageData
             ifg.save_tiff(main_folder=True)
+
+    def create_plots_coherence(self, overwrite=False):
+        """
+        Create plots for the coherences
+
+        :return:
+        """
+
+        cmap = 'Greys_r'
+        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True)[-1]
+        for coherence in coherences:
+            plot = PlotData(coherence, data_cmap=cmap, margins=0.1, data_quantiles=[0.05, 0.95], overwrite=overwrite)
+            succes = plot()
+            if succes:
+                plot.add_labels('Coherence ' + os.path.basename(coherence.folder), 'Coherence')
+                plot.save_image()
+
+    def create_plots_ifg(self, overwrite=False):
+        """
+
+        :param overwrite:
+        :return:
+        """
+
+        cmap = 'jet'
+        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True)[-1]
+        ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True)[-1]
+        for ifg, coherence in zip(ifgs, coherences):
+            plot = PlotData(ifg, data_cmap=cmap, margins=0.1, data_min_max=[-np.pi, np.pi], transparency_in=coherence,
+                            transparency_scale='linear', complex_plot='phase', transparency_min_max=[0.1, 0.3], overwrite=overwrite)
+            succes = plot()
+            if succes:
+                plot.add_labels('Interferogram ' + os.path.basename(ifg.folder), 'Radians')
+                plot.save_image()
 
     def create_output_tiffs_unwrap(self):
         """
