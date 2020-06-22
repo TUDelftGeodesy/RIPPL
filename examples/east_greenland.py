@@ -1,8 +1,7 @@
 from rippl.processing_templates.general_sentinel_1 import GeneralPipelines
 
 # Settings where the data is stored
-data_disk = '/mnt/fcf5fddd-48eb-445a-a9a6-bbbb3400ba42/'
-shapefile = data_disk + 'GIS/shapes/Stereoid_cases/East_greenland_small.shp'
+shapefile = 'East_Greenland_Mini.shp'
 stack_name = 'east_greenland_mini'
 
 # Track and data type of Sentinel data

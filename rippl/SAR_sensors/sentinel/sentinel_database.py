@@ -134,6 +134,9 @@ class SentinelDatabase(object):
 
             # Give the .xml and .tiff files
             files = [m.attrib['href'] for m in manifest.xpath('//dataObject/byteStream/fileLocation')]
+            if os.name == 'nt':
+                files = [file.replace('/', '\\') for file in files]
+
             if filename.endswith('.SAFE.zip'):
                 im_dict['swath_tiff'] = [os.path.join(os.path.basename(filename[:-4]), f[2:]) for f in files if f.endswith('.tiff')]
                 im_dict['swath_xml'] = [os.path.join(os.path.basename(filename[:-4]), f[2:]) for f in files if f.endswith('.xml') and len(f) < 90]
