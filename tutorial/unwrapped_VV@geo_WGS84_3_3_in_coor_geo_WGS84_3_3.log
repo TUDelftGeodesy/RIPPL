@@ -1,0 +1,176 @@
+# snaphu v2.0.3
+# Log file generated Wed May 20 15:58:26 2020
+# Host name: tud0038726
+# PID 64964
+# Current working directory: /Users/gertmulder/software/rippl_master/tutorial
+# Command line call: /Users/gertmulder/software/snaphu-v2.0.3/bin/snaphu -f /Users/gertmulder/SAR_processing/radar_datastacks/Sentinel-1/Kumamoto_earthquake/20160408_20160420/unwrapped_VV@geo_WGS84_3_3_in_coor_geo_WGS84_3_3.conf
+
+# Data type size information for executable as compiled
+# sizeof(short):      2
+# sizeof(int):        4
+# sizeof(long):       8
+# sizeof(float):      4
+# sizeof(double):     8
+# sizeof(void *):     8
+# sizeof(size_t):     8
+
+# File input and output and runtime options
+INFILE  /Users/gertmulder/SAR_processing/radar_datastacks/Sentinel-1/Kumamoto_earthquake/20160408_20160420/interferogram_VV@geo_WGS84_3_3_in_coor_radar.raw
+LINELENGTH  2139
+OUTFILE  /Users/gertmulder/SAR_processing/radar_datastacks/Sentinel-1/Kumamoto_earthquake/20160408_20160420/unwrapped_VV@geo_WGS84_3_3_in_coor_geo_WGS84_3_3.raw
+# Empty value for parameter WEIGHTFILE
+# Empty value for parameter AMPFILE
+# Empty value for parameter MAGFILE
+CORRFILE  /Users/gertmulder/SAR_processing/radar_datastacks/Sentinel-1/Kumamoto_earthquake/20160408_20160420/coherence_VV@geo_WGS84_3_3_in_coor_geo_WGS84_3_3.raw
+# Empty value for parameter ESTIMATEFILE
+# Empty value for parameter COSTINFILE
+# Empty value for parameter COSTOUTFILE
+# Empty value for parameter BYTEMASKFILE
+LOGFILE  unwrapped_VV@geo_WGS84_3_3_in_coor_geo_WGS84_3_3.log
+STATCOSTMODE  SMOOTH
+INITONLY  FALSE
+UNWRAPPED_IN  FALSE
+DEBUG  FALSE
+INITMETHOD  MST
+VERBOSE  FALSE
+
+# File Formats
+INFILEFORMAT  COMPLEX_DATA
+OUTFILEFORMAT  FLOAT_DATA
+AMPFILEFORMAT  ALT_SAMPLE_DATA
+MAGFILEFORMAT  FLOAT_DATA
+CORRFILEFORMAT  FLOAT_DATA
+ESTFILEFORMAT  ALT_LINE_DATA
+UNWRAPPEDINFILEFORMAT  ALT_LINE_DATA
+
+# SAR and Geometry Parameters
+ALTITUDE  775000.00000000
+# ORBITRADIUS  7153000.00000000
+EARTHRADIUS  6378000.00000000
+BASELINE 150.00000000
+BASELINEANGLE_DEG 225.00000000
+TRANSMITMODE  REPEATPASS
+NEARRANGE  831000.00000000
+DR  8.00000000
+DA  20.00000000
+RANGERES  10.00000000
+AZRES  6.00000000
+LAMBDA  0.05656470
+NLOOKSRANGE  1
+NLOOKSAZ  5
+NLOOKSOTHER  1
+NCORRLOOKS  23.80000000
+NCORRLOOKSRANGE  3
+NCORRLOOKSAZ  15
+
+# Scattering model parameters
+KDS  0.02000000
+SPECULAREXP  8.00000000
+DZRCRITFACTOR  2.00000000
+SHADOW  FALSE
+DZEIMIN  -4.00000000
+LAYWIDTH  16
+LAYMINEI  1.25000000
+SLOPERATIOFACTOR  1.18000000
+SIGSQEI  100.00000000
+
+# Decorrelation model parameters
+DRHO  0.00500000
+RHOSCONST1  1.30000000
+RHOSCONST2  0.14000000
+CSTD1  0.40000000
+CSTD2  0.35000000
+CSTD3  0.06000000
+DEFAULTCORR  0.01000000
+RHOMINFACTOR  1.30000000
+
+# PDF model parameters
+DZLAYPEAK  -2.00000000
+AZDZFACTOR  0.99000000
+DZEIFACTOR  4.00000000
+DZEIWEIGHT  0.50000000
+DZLAYFACTOR  1.00000000
+LAYCONST  0.90000000
+LAYFALLOFFCONST  2.00000000
+SIGSQSHORTMIN  1
+SIGSQLAYFACTOR  0.10000000
+
+# Deformation mode parameters
+DEFOAZDZFACTOR  1.00000000
+DEFOTHRESHFACTOR  1.20000000
+DEFOMAX_CYCLE  1.20000000
+SIGSQCORR  0.05000000
+DEFOCONST  0.90000000
+
+# Algorithm parameters
+INITMAXFLOW  9999
+ARCMAXFLOWCONST  3
+MAXFLOW  4
+KROWEI  65
+KCOLEI  257
+KPARDPSI  7
+KPERPDPSI  7
+THRESHOLD  0.00100000
+INITDZR  2048.00000000
+INITDZSTEP  100.00000000
+MAXCOST  1000.00000000
+COSTSCALE  100.00000000
+COSTSCALEAMBIGHT  80.00000000
+DNOMINCANGLE  0.01000000
+NSHORTCYCLE  200
+MAXNEWNODECONST  0.00080000
+MAXNFLOWCYCLES  35
+NCONNNODEMIN  0
+CS2SCALEFACTOR  8
+NMAJORPRUNE  2000000000
+PRUNECOSTTHRESH  2000000000
+# PLPN  -99.999  (not set)
+# BIDIRLPN  TRUE
+
+# File names for dumping intermediate arrays
+# Empty value for parameter INITFILE
+# Empty value for parameter FLOWFILE
+# Empty value for parameter EIFILE
+# Empty value for parameter ROWCOSTFILE
+# Empty value for parameter COLCOSTFILE
+# Empty value for parameter MSTROWCOSTFILE
+# Empty value for parameter MSTCOLCOSTFILE
+# Empty value for parameter MSTCOSTSFILE
+# Empty value for parameter RAWCORRDUMPFILE
+# Empty value for parameter CORRDUMPFILE
+
+# Edge masking parameters
+EDGEMASKTOP    0
+EDGEMASKBOT    0
+EDGEMASKLEFT   0
+EDGEMASKRIGHT  0
+
+# Piece extraction parameters
+PIECEFIRSTROW  1
+PIECEFIRSTCOL  1
+PIECENROW  1633
+PIECENCOL  2139
+
+# Tile control
+NTILEROW  1
+NTILECOL  1
+ROWOVRLP  0
+COLOVRLP  0
+NPROC  1
+TILECOSTTHRESH  500
+MINREGIONSIZE  100
+TILEEDGEWEIGHT  2.50000000
+SCNDRYARCFLOWMAX  8
+RMTMPTILE  TRUE
+# Empty value for parameter DOTILEMASKFILE
+# Empty value for parameter TILEDIR
+ASSEMBLEONLY  FALSE
+SINGLETILEREOPTIMIZE  FALSE
+
+# Connected component control
+# Empty value for parameter CONNCOMPFILE
+REGROWCONNCOMPS  FALSE
+MINCONNCOMPFRAC  0.01000000
+CONNCOMPTHRESH  300
+MAXNCOMPS  32
+CONNCOMPOUTTYPE  UCHAR
