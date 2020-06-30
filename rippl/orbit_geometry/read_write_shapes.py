@@ -28,7 +28,7 @@ convert(shapefile)
 import ogr
 import fiona
 from fiona import collection
-from shapely.geometry import Polygon, mapping
+from shapely.geometry import Polygon, mapping, MultiPolygon
 import shapely
 from shapely.wkt import loads
 import json
@@ -57,20 +57,26 @@ class ReadWriteShapes():
 
             if input_data.endswith('.shp'):
                 self.read_shapefile(input_data)
-                self.shape = self.shapes[0]
             elif input_data.endswith('.kml'):
                 self.read_kml(input_data)
-                self.shape = self.shapes[0]
             elif input_data.endswith('.json'):
                 self.read_geo_json(input_data)
-                self.shape = self.shapes[0]
             else:
                 raise TypeError('File should either be a shapefile or a kml file.')
 
+            # If multipolygon then create polygons.from
+            new_shapes = []
             for shape in self.shapes:
-                if not isinstance(shape, Polygon):
+                if isinstance(shape, MultiPolygon):
+                    new_shapes.extend(list(shape))
+                elif isinstance(shape, Polygon):
+                    new_shapes.append(shape)
+                else:
                     raise TypeError('The input shapes for either shapefile or kml files should be Polygons! Points, '
                                     'Lines or Multipolygons cannot be used by the RIPPL package.')
+
+            self.shapes = new_shapes
+            self.shape = self.shapes[0]
 
         elif isinstance(input_data, list):
             self.read_coordinate_list(input_data)

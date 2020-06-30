@@ -12,6 +12,7 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from matplotlib.colors import Normalize
+import gc
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 import cartopy.crs as ccrs
@@ -29,7 +30,7 @@ class PlotData(object):
     def __init__(self, data_in, transparency_in=None, complex_plot='phase', complex_transparency='',
                  data_min_max=[], data_quantiles=[], data_scale='linear', data_cmap='viridis',
                  transparency_min_max=[], transparency_quantiles=[], transparency_scale='linear',
-                 lat_in=[], lon_in=[], max_pixels=10000000, margins=0, overwrite=False):
+                 lat_in=[], lon_in=[], max_pixels=100000000, margins=0, overwrite=False):
         """
 
         :param ImageData data_in:
@@ -43,7 +44,7 @@ class PlotData(object):
         """
 
         # information on plot
-        self.figure = []
+        self.figure = []            # type: plt.Figure
         self.main_axis = []
         self.inset_axis = []
         self.plot_main = []
@@ -119,7 +120,7 @@ class PlotData(object):
 
         self.transparency_data = []
         self.data_in.load_disk_data()
-        plot_data = self.data_in.disk2memory(self.data_in.disk['data'][::self.interval, ::self.interval], self.data_in.dtype_disk)
+        plot_data = self.data_in.disk2memory(self.data_in.disk['data'], self.data_in.dtype_disk)[::self.interval, ::self.interval]
         if plot_data.dtype == np.complex64:
             if self.complex_plot == 'phase':
                 self.plot_data = np.angle(plot_data)
@@ -276,7 +277,17 @@ class PlotData(object):
                                                 edgecolor='face',
                                                 facecolor=cfeature.COLORS['land'])
 
-        self.figure = plt.figure(dpi=300)
+        title_size = 8
+        fontsize = 5
+        plt.rcParams["axes.titlesize"] = title_size
+        plt.rcParams["axes.labelsize"] = fontsize
+        plt.rcParams["font.size"] = fontsize
+        plt.rcParams["figure.titlesize"] = fontsize
+        plt.rcParams["legend.fontsize"] = fontsize
+        plt.rcParams["xtick.labelsize"] = fontsize
+        plt.rcParams["ytick.labelsize"] = fontsize
+        plt.rcParams["font.size"] = "5"
+        self.figure = plt.figure(dpi=1000)
         self.main_axis = self.figure.add_subplot(111, projection=self.crs)
         self.main_axis.coastlines(resolution='10m', zorder=10, alpha=0.5)
         self.main_axis.add_feature(ocean_10m, zorder=5)
@@ -329,8 +340,8 @@ class PlotData(object):
         gl.ylocator = mticker.FixedLocator(ygrid.tolist())
         gl.xformatter = LONGITUDE_FORMATTER
         gl.yformatter = LATITUDE_FORMATTER
-        gl.xlabel_style = {'size': 11, 'color': 'black'}
-        gl.ylabel_style = {'size': 11, 'color': 'black'}
+        gl.xlabel_style = {'size': 6, 'color': 'black'}
+        gl.ylabel_style = {'size': 6, 'color': 'black'}
 
     def plot_figure_data(self):
         """
@@ -449,3 +460,12 @@ class PlotData(object):
         """
 
         plt.show()
+
+    def close_plot(self):
+        """
+
+        """
+
+        self.figure.clf()
+        plt.close(self.figure)
+        gc.collect()

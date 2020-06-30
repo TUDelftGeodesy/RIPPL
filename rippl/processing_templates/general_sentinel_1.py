@@ -866,6 +866,7 @@ class GeneralPipelines():
             if succes:
                 plot.add_labels('Amplitude of ambiguities ' + os.path.basename(ambiguity_amplitude.folder), 'dB')
                 plot.save_image()
+                plot.close_plot()
 
         cmap = 'jet'
         for AASR in AASRs:          # type: ImageData
@@ -874,6 +875,7 @@ class GeneralPipelines():
             if succes:
                 plot.add_labels('AASR ' + os.path.basename(AASR.folder), 'dB')
                 plot.save_image()
+                plot.close_plot()
 
     def create_output_tiffs_amplitude(self):
         """
@@ -906,6 +908,7 @@ class GeneralPipelines():
             if succes:
                 plot.add_labels('Calibrated Amplitude ' + os.path.basename(calibrated_amplitude.folder), 'dB')
                 plot.save_image()
+                plot.close_plot()
 
     def create_output_tiffs_geometry(self):
         """
@@ -954,6 +957,7 @@ class GeneralPipelines():
             if succes:
                 plot.add_labels('Coherence ' + os.path.basename(coherence.folder), 'Coherence')
                 plot.save_image()
+                plot.close_plot()
 
     def create_plots_ifg(self, overwrite=False):
         """
@@ -972,6 +976,7 @@ class GeneralPipelines():
             if succes:
                 plot.add_labels('Interferogram ' + os.path.basename(ifg.folder), 'Radians')
                 plot.save_image()
+                plot.close_plot()
 
     def create_output_tiffs_unwrap(self):
         """
