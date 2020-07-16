@@ -33,12 +33,6 @@ from rippl.processing_steps.calibrated_amplitude_multilook import CalibratedAmpl
 from rippl.processing_steps.multilook_prepare import MultilookPrepare
 from rippl.processing_steps.resample_prepare import ResamplePrepare
 from rippl.processing_steps.unwrap import Unwrap
-from rippl.processing_steps.nesz_harmony_sentinel import NeszHarmonySentinel
-from rippl.processing_steps.combined_ambiguities import CombinedAmbiguities
-from rippl.processing_steps.azimuth_ambiguities import CalcAzimuthAmbiguities
-from rippl.processing_steps.azimuth_ambiguities_locations import AzimuthAmbiguitiesLocations
-from rippl.processing_steps.AASR_amplitude_multilook import AASRAmplitudeMultilook
-from rippl.processing_steps.AASR_phase_multilook import AASRPhaseMultilook
 
 from rippl.processing_steps.multilook import Multilook
 from rippl.pipeline import Pipeline
@@ -61,6 +55,7 @@ class GeneralPipelines():
         self.dem_rounding = None
         self.dem_type = None
         self.dem_folder = None
+        self.lon_resolution = 6
 
         self.stack_name = None
         self.stack_folder = None

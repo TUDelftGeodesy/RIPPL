@@ -102,8 +102,18 @@ class CalibratedAmplitudeApproxMultilook(MultilookProcess):  # Change this name 
         az_step = self.ml_coordinates.az_step
         ra_time = self.ml_coordinates.ra_time
         ra_step = self.ml_coordinates.ra_step
-        center_lat = self.ml_coordinates.center_lat
-        center_lon = self.ml_coordinates.center_lon
+
+        line = int(self.ml_coordinates.interval_lines[int(len(self.ml_coordinates.interval_lines) / 2)])
+        pixel = int(self.ml_coordinates.interval_pixels[int(len(self.ml_coordinates.interval_pixels) / 2)])
+        heights = 0
+
+        orbit_coor = OrbitCoordinates(orbit=orbit, coordinates=self.ml_coordinates)
+        orbit_coor.manual_line_pixel_height(np.array([line]), np.array([pixel]), np.array([heights]))
+        orbit_coor.lph2xyz()
+        orbit_coor.xyz2ell()
+
+        center_lat = float(orbit_coor.lat)
+        center_lon = float(orbit_coor.lon)
 
         R, geoid_h = self.globe_center_distance(center_lat, center_lon)
 

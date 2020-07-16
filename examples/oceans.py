@@ -69,5 +69,7 @@ for track_no, master_date, stack_name in zip(selected_tracks, selected_master_da
     s1_processing.create_output_tiffs_amplitude()
 
     # Create lat/lon/incidence angle/DEM for multilooked grid.
-    s1_processing.create_geometry_mulitlooked()
+    s1_processing.create_dem_coordinates(dem_type='SRTM3')
+    s1_processing.download_external_dem(buffer=1, rounding=1)
+    s1_processing.create_geometry_mulitlooked(lon_resolution=3, dem_buffer=0.1, dem_rounding=0.1, dem_type='SRTM3')
     s1_processing.create_output_tiffs_geometry()
