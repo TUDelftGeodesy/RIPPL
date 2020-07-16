@@ -687,7 +687,7 @@ class CoordinateSystem():
 
         return lat, lon
 
-    def create_xy_grid(self):
+    def create_xy_grid(self, x_interval=1, y_interval=1):
         # Creates the xy grid for a projection.
         if self.grid_type != 'projection':
             print('xy grid can only be created for a projection')
@@ -700,10 +700,10 @@ class CoordinateSystem():
 
         return x, y
 
-    def create_latlon_grid(self):
+    def create_latlon_grid(self, lat_interval=1, lon_interval=1):
         # Creates the lat/lon grid for a projection
         if self.grid_type != 'geographic':
-            print('xy grid can only be created for a geographic coordinate system')
+            print('lat/lon grid can only be created for a geographic coordinate system')
             return
 
         lat_vals = self.lat0 + np.arange(self.shape[0]) * self.dlat + self.first_line * self.dlat

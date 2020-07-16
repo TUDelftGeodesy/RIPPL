@@ -1,4 +1,6 @@
 # Function to run parallel package. For further details inspect the pipeline class.
+import gc
+
 from rippl.meta_data.process import Process
 from rippl.meta_data.multilook_process import MultilookProcess
 from rippl.meta_data.image_processing_data import ImageProcessingData

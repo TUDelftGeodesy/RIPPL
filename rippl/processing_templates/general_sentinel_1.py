@@ -1,15 +1,16 @@
 
 from rippl.meta_data.stack import Stack
+from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData, ImageProcessingMeta
 from rippl.SAR_sensors.sentinel.sentinel_stack import SentinelStack
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.SAR_sensors.sentinel.sentinel_download import DownloadSentinelOrbit, DownloadSentinel
 from rippl.resampling.coor_new_extend import CoorNewExtend
 from rippl.user_settings import UserSettings
+from rippl.meta_data.plot_data import PlotData
 import os
 import numpy as np
 import copy
-from shapely.geometry import Polygon
 
 from rippl.processing_steps.resample import Resample
 from rippl.processing_steps.import_dem import ImportDem
@@ -32,6 +33,12 @@ from rippl.processing_steps.calibrated_amplitude_multilook import CalibratedAmpl
 from rippl.processing_steps.multilook_prepare import MultilookPrepare
 from rippl.processing_steps.resample_prepare import ResamplePrepare
 from rippl.processing_steps.unwrap import Unwrap
+from rippl.processing_steps.nesz_harmony_sentinel import NeszHarmonySentinel
+from rippl.processing_steps.combined_ambiguities import CombinedAmbiguities
+from rippl.processing_steps.azimuth_ambiguities import CalcAzimuthAmbiguities
+from rippl.processing_steps.azimuth_ambiguities_locations import AzimuthAmbiguitiesLocations
+from rippl.processing_steps.AASR_amplitude_multilook import AASRAmplitudeMultilook
+from rippl.processing_steps.AASR_phase_multilook import AASRPhaseMultilook
 
 from rippl.processing_steps.multilook import Multilook
 from rippl.pipeline import Pipeline
@@ -205,16 +212,15 @@ class GeneralPipelines():
         :return:
         """
 
-        if not isinstance(shapefile, Polygon):
-            if not os.path.exists(shapefile):
-                settings = UserSettings()
-                settings.load_settings()
-                shapefile = os.path.join(settings.GIS_database, shapefile)
-            if not os.path.exists(shapefile):
-                raise FileExistsError('Shapefile does not exist!')
+        if not os.path.exists(shapefile):
+            settings = UserSettings()
+            settings.load_settings()
+            shapefile = os.path.join(settings.GIS_database, shapefile)
+        if not os.path.exists(shapefile):
+            raise FileExistsError('Shapefile does not exist!')
 
         if data:
-            if isinstance(polarisation, str):
+            if polarisation is str:
                 polarisation = [polarisation]
 
             # Download data and orbit
@@ -263,7 +269,7 @@ class GeneralPipelines():
         # Number of cores
         cores = 6
 
-        if isinstance(polarisation, str):
+        if polarisation is str:
             polarisation = [polarisation]
 
         # Prepare processing
@@ -493,7 +499,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if isinstance(polarisation, str):
+        if polarisation is str:
             polarisation = [polarisation]
 
         # Allow the processing of two polarisation at the same time.
@@ -507,16 +513,18 @@ class GeneralPipelines():
                                                                         in_coor=self.radar_coor,
                                                                         coreg_master='coreg_master',
                                                                         slave='slave'), False)
-        resampling_pipeline.add_processing_step(CalcEarthTopoPhase(out_coor=self.radar_coor, slave='slave'), output_phase_correction)
+        resampling_pipeline.add_processing_step(CalcEarthTopoPhase(out_coor=self.radar_coor, slave='slave'), False)
         resampling_pipeline.add_processing_step(CalcReramp(out_coor=self.radar_coor, slave='slave'), True)
 
         for pol in polarisation:
             resampling_pipeline.add_processing_step(DerampResampleRadarGrid(out_coor=self.radar_coor, in_coor=self.radar_coor,
                                                                             polarisation=pol, slave='slave'), False)
             resampling_pipeline.add_processing_step(CorrectPhases(out_coor=self.radar_coor, polarisation=pol, slave='slave'), True)
+
         resampling_pipeline()
 
         # Concatenate the images
+
         self.reload_stack()
         [slave_images, coreg_image] = self.get_data('coreg_slave', slice=False, concat_meta=True, include_coreg_master=True)
 
@@ -558,7 +566,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if isinstance(polarisation, str):
+        if polarisation is str:
             polarisation = [polarisation]
 
         # Then do the resampling
@@ -584,7 +592,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if isinstance(polarisation, str):
+        if polarisation is str:
             polarisation = [polarisation]
 
         for pol in polarisation:
@@ -599,6 +607,7 @@ class GeneralPipelines():
                 CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
                                        slave='slave', coreg_master='coreg_master', batch_size=10000000), True, True)
             create_multilooked_amp()
+            create_multilooked_amp.save_processing_results()
 
             # Finally do the master image seperately
             amp_multilook = CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
@@ -643,7 +652,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if isinstance(polarisation, str):
+        if polarisation is str:
             polarisation = [polarisation]
 
         # First create the multilooked square amplitudes.
@@ -687,7 +696,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if isinstance(polarisation, str):
+        if polarisation is str:
             polarisation = [polarisation]
 
         for pol in polarisation:
@@ -800,6 +809,42 @@ class GeneralPipelines():
         ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True)[-1]
         for ifg in ifgs:          # type: ImageData
             ifg.save_tiff(main_folder=True)
+
+    def create_plots_coherence(self, overwrite=False):
+        """
+        Create plots for the coherences
+
+        :return:
+        """
+
+        cmap = 'Greys_r'
+        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True)[-1]
+        for coherence in coherences:
+            plot = PlotData(coherence, data_cmap=cmap, margins=0.1, data_quantiles=[0.05, 0.95], overwrite=overwrite)
+            succes = plot()
+            if succes:
+                plot.add_labels('Coherence ' + os.path.basename(coherence.folder), 'Coherence')
+                plot.save_image()
+                plot.close_plot()
+
+    def create_plots_ifg(self, overwrite=False):
+        """
+
+        :param overwrite:
+        :return:
+        """
+
+        cmap = 'jet'
+        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True)[-1]
+        ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True)[-1]
+        for ifg, coherence in zip(ifgs, coherences):
+            plot = PlotData(ifg, data_cmap=cmap, margins=0.1, data_min_max=[-np.pi, np.pi], transparency_in=coherence,
+                            transparency_scale='linear', complex_plot='phase', transparency_min_max=[0.1, 0.3], overwrite=overwrite)
+            succes = plot()
+            if succes:
+                plot.add_labels('Interferogram ' + os.path.basename(ifg.folder), 'Radians')
+                plot.save_image()
+                plot.close_plot()
 
     def create_output_tiffs_unwrap(self):
         """
