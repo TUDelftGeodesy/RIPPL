@@ -42,6 +42,7 @@ class ReadWriteShapes():
         # Loaded shape or shapes as shapely Polygons.
         self.shape = None         # type: Polygon
         self.shapes = []          # type: list(Polygon)
+        self.shape_names = []     # type: list(str)
 
     def __call__(self, input_data):
         """
@@ -152,15 +153,20 @@ class ReadWriteShapes():
 
         """
 
-        schema = {'geometry': 'Polygon', 'properties': {'id': 'int'}}
+        schema = {'geometry': 'Polygon', 'properties': {'name': 'str', 'id': 'int'}}
 
         # Write a new Shapefile
         with fiona.open(shapefile, 'w', 'ESRI Shapefile', schema) as shape_dat:
             ## If there are multiple geometries, put the "for" loop here
             for id, shape in enumerate(self.shapes):
+                if self.shape_names:
+                    name = self.shape_names[id]
+                else:
+                    name = str(id)
+
                 shape_dat.write({
                     'geometry': mapping(shape),
-                    'properties': {'id': id},
+                    'properties': {'id': id, 'name': name},
                 })
 
     def write_kml(self, kml):
@@ -174,12 +180,19 @@ class ReadWriteShapes():
         layer = ds.CreateLayer('', None, ogr.wkbPolygon)
         # Add one attribute
         layer.CreateField(ogr.FieldDefn('id', ogr.OFTInteger))
+        layer.CreateField(ogr.FieldDefn('name', ogr.OFTString))
         defn = layer.GetLayerDefn()
 
         for id, shape in enumerate(self.shapes):
+            if self.shape_names:
+                name = self.shape_names[id]
+            else:
+                name = str(id)
+
             # Create a new feature
             feat = ogr.Feature(defn)
             feat.SetField('id', id)
+            feat.SetField('name', name)
 
             # Make a geometry, from Shapely object
             geom = ogr.CreateGeometryFromWkb(shape.wkb)
@@ -201,7 +214,12 @@ class ReadWriteShapes():
                               "features": []}
 
         for id, shape in enumerate(self.shapes):
-            json_dict = {"type": "Feature", "properties":{'id':id}, "geometry":eval(ogr.CreateGeometryFromWkb(shape.wkb).ExportToJson())}
+            if self.shape_names:
+                name = self.shape_names[id]
+            else:
+                name = str(id)
+
+            json_dict = {"type": "Feature", "properties":{'id': id, 'name': name}, "geometry":eval(ogr.CreateGeometryFromWkb(shape.wkb).ExportToJson())}
             feature_collection["features"].append(json_dict)
 
         if isinstance(geojson, str):

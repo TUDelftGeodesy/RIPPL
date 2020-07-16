@@ -19,7 +19,7 @@ from rippl.resampling.coor_new_extend import CoorNewExtend
 
 class Multilook(MultilookProcess):  # Change this name to the one of your processing step.
 
-    def __init__(self, in_coor=[], out_coor=[],
+    def __init__(self, in_coor=[], out_coor=[], no_of_looks=False,
                  in_image_type='', in_process='', in_file_type='', in_polarisation='', in_data_id='', in_data_type='real4',
                  slave='slave', coreg_master='coreg_master', overwrite=False, batch_size=1000000):
 
@@ -104,6 +104,7 @@ class Multilook(MultilookProcess):  # Change this name to the one of your proces
         self.batch_size = batch_size
         self.settings = dict()
         self.settings['out_irregular_grids'] = ['lines', 'pixels']
+        self.add_no_of_looks(no_of_looks)
 
     def init_super(self):
 

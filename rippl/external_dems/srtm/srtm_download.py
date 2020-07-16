@@ -191,8 +191,11 @@ class SrtmDownload(object):
 
         lat0 = coordinates.lat0 + coordinates.dlat * coordinates.first_line
         lon0 = coordinates.lon0 + coordinates.dlon * coordinates.first_pixel
-        lats = np.arange(np.floor(lat0), np.ceil(lat0 + coordinates.shape[0] * coordinates.dlat)).astype(np.int32)
-        lons = np.arange(np.floor(lon0), np.ceil(lon0 + coordinates.shape[1] * coordinates.dlon)).astype(np.int32)
+        # We add and subtract 0.0001 to the total value to prevent that rounding errors add a full degree to the total value.
+        d_small_lat = 0.0001 * np.sign(coordinates.dlat)
+        lats = np.arange(np.floor(lat0 + d_small_lat), np.ceil(lat0 + (coordinates.shape[0] - 1) * coordinates.dlat - d_small_lat)).astype(np.int32)
+        d_small_lon = 0.0001 * np.sign(coordinates.dlon)
+        lons = np.arange(np.floor(lon0 + d_small_lon), np.ceil(lon0 + (coordinates.shape[1] - 1) * coordinates.dlon - d_small_lon)).astype(np.int32)
 
         for lat in lats:
             for lon in lons:
@@ -247,16 +250,18 @@ class SrtmDownload(object):
         # This makes it easier to detect whether files do or don't exist.
 
         settings = UserSettings()
-        settings.load_settings()
 
         # SRTM folder
         if not srtm_folder:
+            settings.load_settings()
             srtm_folder = os.path.join(settings.DEM_database, 'SRTM')
 
         # credentials
         if not username:
+            settings.load_settings()
             username = settings.NASA_username
         if not password:
+            settings.load_settings()
             password = settings.NASA_password
 
         data_file = os.path.join(srtm_folder, 'filelist')
@@ -287,6 +292,10 @@ class SrtmDownload(object):
         filelist['SRTM3'] = dict()
         filelist['SRTM30'] = dict()
 
+        print('Indexing SRTM tiles...')
+        total_no = 12
+        num = 0
+
         for folder, key_value in zip(folders, keys):
 
             if len(username) == 0 or len(password) == 0:
@@ -296,7 +305,9 @@ class SrtmDownload(object):
 
             conn = requests.get(server + '/' + folder, auth=(username, password))
             if conn.status_code == 200:
-                print("status200 received ok")
+                print(str(int(num / total_no * 100)) + '% finished')
+                print("Indexing tiles " + str(num * 10000) + ' to ' + str((num + 1) * 10000) + ' out of ' + str(total_no * 10000) + ' tiles.')
+                num += 1
             else:
                 print("an error occurred during connection")
 

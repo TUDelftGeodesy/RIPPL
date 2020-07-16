@@ -17,6 +17,40 @@ from rippl.resampling.coor_new_extend import CoorNewExtend
 
 class MultilookProcess(Process):  # Change this name to the one of your processing step.
 
+    def __call__(self, memory_in=True):
+        """
+        This function does basically the same as the __call__ function, but assumes that we apply no multiprocessing
+        and or pipeline processing. Therefore it includes an extended number of steps:
+        1. Reading in of input data
+        2. Creation of output data on disk
+        3. Create output memory files
+        4. Perform the actual processing
+        5. Save data to disk
+        6. Clean memory steps.
+
+        :return:
+        """
+
+        self.init_super()
+        if self.process_finished and self.process_on_disk:
+            print('Process already finished')
+            return
+
+        # Create the input and output info
+        self.load_input_info()
+
+        for image_key in self.processing_images.keys():
+            self.processing_images[image_key].load_memmap_files()
+
+        self.create_output_data_files()
+        self.create_memory()
+        self.multilook_calculations()
+
+        self.clean_memory()
+        self.out_processing_image.save_json()
+
+        self.process_finished = True
+
     def __getitem__(self, key):
         # Check if there is a memory file with this name and give the output.
 
@@ -75,6 +109,22 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
                 self.ml_in_data[key] = data
             else:
                 raise KeyError('This output type is not defined! It should be defined in the self.setting["multilooked_grids"]')
+
+    def add_no_of_looks(self, no_of_looks=False):
+        """
+        This function is used to add a number of looks output to a process.
+
+        Returns
+        -------
+
+        """
+
+        self.settings['no_of_looks'] = no_of_looks
+
+        # Now add to the outputs.
+        if no_of_looks:
+            self.output_info['file_types'].append('no_of_looks')
+            self.output_info['data_types'].append('int32')
 
     def multilook_calculations(self):
         """
@@ -155,6 +205,10 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
 
         no_types = len(list(self.settings['multilooked_grids']))
         self.block_processing = False
+
+        if 'no_of_looks' in self.settings.keys():
+            if self.settings['no_of_looks']:
+                self['no_of_looks'][:, :] = looks
 
         for file_type in self.settings['multilooked_grids']:
             valid_pixels = ((self[file_type] != 0) * (looks !=0))

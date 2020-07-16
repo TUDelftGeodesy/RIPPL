@@ -217,7 +217,8 @@ class ImageConcatData(object):
         self.data = concat_image
 
     def create_concatenate_image(self, process, file_type, coor, data_id='', polarisation='', overwrite=False,
-                                 output_type='disk', transition_type='full_weight', replace=False, cut_off=10):
+                                 output_type='disk', transition_type='full_weight', replace=False, cut_off=10,
+                                 remove_input=False):
         """
         This method is used to concatenate slices. Be sure that before this step is run the meta data is first created
         using the create_concatenate_meta_data function.
@@ -237,6 +238,7 @@ class ImageConcatData(object):
                     overlap. (Note that option 2 and 3 are only possible when working in radar coordinates!)
         :param int cut_off: Number of pixels of the outer part of the image that will not be used because it could still
                     contain zeros.
+        :param bool remove_input: Remove the disk data of the input images.
         :return:
         """
 
@@ -251,5 +253,5 @@ class ImageConcatData(object):
         succes = concatenate.create_image()
         # Do the actual concatenation
         if succes:
-            concatenate.concatenate(transition_type=transition_type, cut_off=cut_off, replace=replace)
+            concatenate.concatenate(transition_type=transition_type, cut_off=cut_off, replace=replace, remove_input=remove_input)
 

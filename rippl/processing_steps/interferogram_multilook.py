@@ -14,7 +14,7 @@ from rippl.resampling.multilook_regular import MultilookRegular
 class InterferogramMultilook(MultilookProcess):  # Change this name to the one of your processing step.
 
     def __init__(self, data_id='', polarisation='',
-                 in_coor=[], out_coor=[],
+                 in_coor=[], out_coor=[], no_of_looks=False,
                  slave='slave', master='master', coreg_master='coreg_master', ifg='ifg', overwrite=False, batch_size=1000000):
 
         """
@@ -93,6 +93,7 @@ class InterferogramMultilook(MultilookProcess):  # Change this name to the one o
         self.settings['memory_data'] = False
         self.settings['buf'] = 0
         self.batch_size = batch_size
+        self.add_no_of_looks(no_of_looks)
 
     def init_super(self):
 

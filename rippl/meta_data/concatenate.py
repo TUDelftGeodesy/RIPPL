@@ -53,7 +53,7 @@ class Concatenate():
 
         # Init the lines/pixels weights.
         self.line_weights = dict()             # type: dict(np.ndarray)
-        self.pixel_weights = dict()             # type: dict(np.ndarray)
+        self.pixel_weights = dict()            # type: dict(np.ndarray)
 
     def load_data(self):
         """
@@ -149,7 +149,7 @@ class Concatenate():
 
         return True
 
-    def concatenate(self, transition_type='full_weight', replace=False, cut_off=10):
+    def concatenate(self, transition_type='full_weight', replace=False, cut_off=10, remove_input=False):
         """
         Here the actual concatenation is done.
 
@@ -203,6 +203,10 @@ class Concatenate():
                             image.disk['data'] * line_weight[:, None] * pixel_weight[None, :]
             else:
                 raise TypeError('Not possible to load either memory or disk data')
+
+            if remove_input:
+                image.remove_disk_data()
+                image.remove_memory_data()
 
         # Finally save the .json data.
         self.concat_image.data.save_json()

@@ -8,7 +8,8 @@ import ftplib
 import rippl
 
 
-class UserSettings():
+
+class UserSettings(object):
 
     def __init__(self):
         
@@ -93,7 +94,7 @@ class UserSettings():
 
         self.DLR_username = username
         self.DLR_password = password
-    
+
     def save_data_database(self, main_folder='', radar_database='', radar_datastacks='', DEM_database='',
                            orbit_database='', NWP_model_database='', GIS_database=''):
         

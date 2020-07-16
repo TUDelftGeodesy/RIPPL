@@ -14,13 +14,17 @@ Examples of functions are:
 import os
 import datetime
 import numpy as np
+from shapely.ops import cascaded_union
 
 from rippl.meta_data.slc import SLC
 from rippl.meta_data.interferogram import Interferogram
 from rippl.external_dems.srtm.srtm_download import SrtmDownload
 from rippl.external_dems.tandem_x.tandem_x_download import TandemXDownload
 from rippl.meta_data.interferogram_network import InterferogramNetwork
+from rippl.meta_data.image_processing_concatenate import ImageConcatData, ImageProcessingData
 from rippl.user_settings import UserSettings
+from rippl.orbit_geometry.read_write_shapes import ReadWriteShapes
+
 
 
 class Stack(object):
@@ -67,6 +71,7 @@ class Stack(object):
         self.master_slice_z = []
         self.master_slice_time = []
         self.master_slice_seconds = []
+        self.master_slice_range_seconds = []
 
         # Finally also give the slice numbers (we will start with 500 so we can count down if needed.)
         self.master_slice_number = []
@@ -107,21 +112,60 @@ class Stack(object):
 
         l.close()
 
-    def read_stack(self, first_date='1900-01-01', last_date='2100-01-01'):
+    def read_stack(self, start_date='', end_date='', start_dates='', end_dates='', dates='', time_window=''):
         # This function reads the whole stack in memory. A stack consists of:
         # - images > with individual slices (yyyymmdd)
         # - interferograms > with individual slices if needed. (yyyymmdd_yyyymmdd)
         # First date and last give the maximum and minimum date to load (in case we want to load only a part of the stack.
         # Note: The master date is always loaded!
 
-        start = int(first_date[:4] + first_date[5:7] + first_date[8:10])
-        end = int(last_date[:4] + last_date[5:7] + last_date[8:10])
+        # Create a list of search windows with start and end dates
+        if isinstance(dates, list):
+            for date in dates:
+                if not isinstance(date, datetime.datetime):
+                    raise TypeError('Input dates should be datetime objects.')
+
+            if isinstance(time_window, datetime.timedelta):
+                self.start_dates = [date - time_window for date in dates]
+                self.end_dates = [date + time_window for date in dates]
+            else:
+                self.start_dates = [date.replace(hour=0, minute=0, second=0, microsecond=0) for date in dates]
+                self.end_dates = [date + datetime.timedelta(days=1) for date in self.start_dates]
+
+        elif isinstance(start_date, datetime.datetime) and isinstance(end_date, datetime.datetime):
+            self.start_dates = [start_date]
+            self.end_dates = [end_date]
+        elif isinstance(start_dates, list) and isinstance(end_dates, list):
+            self.start_dates = start_dates
+            self.end_dates = end_dates
+            valid_dates = [isinstance(start_date, datetime.datetime) * isinstance(end_date, datetime.datetime) for
+                           start_date, end_date in zip(start_dates, end_dates)]
+            if np.sum(valid_dates) < len(valid_dates):
+                raise TypeError('Input dates should be datetime objects.')
+        else:
+            raise TypeError('You should define a start or end date or a list of dates to search for Sentinel-1 data! '
+                            'Dates should be datetime objects')
+
+        self.start_dates = np.array(self.start_dates)
+        self.end_dates = np.array(self.end_dates)
 
         dirs = next(os.walk(self.datastack_folder))[1]
-        image_dirs = sorted([os.path.join(self.datastack_folder, x) for x in dirs if (len(x) == 8 and
-                         start <= int(x) <= end) or x == self.master_date])
-        ifg_dirs = sorted([os.path.join(self.datastack_folder, x) for x in dirs if len(x) == 17 and
-                       start <= int(x[:8]) <= end and start <= int(x[9:]) <= end])
+        all_image_dirs = sorted([os.path.join(self.datastack_folder, x) for x in dirs if len(x) == 8])
+        image_dirs = []
+        all_ifg_dirs = sorted([os.path.join(self.datastack_folder, x) for x in dirs if len(x) == 17])
+        ifg_dirs = []
+
+        for image_dir in all_image_dirs:
+            date = datetime.datetime.strptime(os.path.basename(image_dir), '%Y%m%d')
+            if np.sum((self.start_dates < date) * (self.end_dates > date)) > 0:
+                image_dirs.append(image_dir)
+
+        for ifg_dir in all_ifg_dirs:
+            date_1 = datetime.datetime.strptime(os.path.basename(ifg_dir)[:8], '%Y%m%d')
+            date_2 = datetime.datetime.strptime(os.path.basename(ifg_dir)[9:], '%Y%m%d')
+            if np.sum((self.start_dates < date_1) * (self.end_dates > date_1)) > 0 and \
+                    np.sum((self.start_dates < date_2) * (self.end_dates > date_2)):
+                ifg_dirs.append(ifg_dir)
 
         # Load individual images.
         for image_dir in image_dirs:
@@ -323,3 +367,55 @@ class Stack(object):
 
         download = TandemXDownload(tandem_x_folder, username, password, lon_resolution=lon_resolution, n_processes=n_processes)
         download(self.slcs[self.master_date].data.meta, buffer=buffer, rounding=rounding)
+
+    def create_coverage_shp_kml_geojson(self):
+        """
+        Create shapefiles for the full coverage and the individual swaths and bursts.
+
+        Returns
+        -------
+
+        """
+
+        # First load the bursts of the master date.
+        master = self.slcs[self.master_date]            # type: ImageConcatData
+        master.load_slice_meta()
+
+        slice_shapes = []
+        slice_names = []
+        for key in master.slice_data:
+            slice = master.slice_data[key]              # type: ImageProcessingData
+            slice_shapes.append(slice.readfiles['original'].polygon.buffer(0.0001))
+            slice_names.append(key)
+
+        # Create the burst image file
+        shapes = ReadWriteShapes()
+        shapes.shapes = slice_shapes
+        shapes.shape_names = slice_names
+        shapes.write_kml(os.path.join(self.datastack_folder, 'bursts.kml'))
+        shapes.write_geo_json(os.path.join(self.datastack_folder, 'bursts.geojson'))
+        shapes.write_shapefile(os.path.join(self.datastack_folder, 'bursts.shp'))
+
+        # Now concatenate the individual swaths and create the swath shp/kml/geojson files
+        swath_names = [slice_name[-7:] for slice_name in slice_names]
+        swath_unique_names = np.unique(np.array(swath_names))
+        swath_shapes = []
+
+        for swath in swath_unique_names:
+            swath_ids = np.ravel(np.argwhere(np.array(swath_names) == swath))
+            swath_shapes.append(cascaded_union(np.array(slice_shapes)[swath_ids]))
+        swaths = ReadWriteShapes()
+        swaths.shapes = swath_shapes
+        swaths.shape_names = list(swath_unique_names)
+        swaths.write_kml(os.path.join(self.datastack_folder, 'swaths.kml'))
+        swaths.write_geo_json(os.path.join(self.datastack_folder, 'swaths.geojson'))
+        swaths.write_shapefile(os.path.join(self.datastack_folder, 'swaths.shp'))
+
+        # Finally do the same thing for the full image
+        full_image_shape = cascaded_union(slice_shapes)
+        full_image = ReadWriteShapes()
+        full_image.shapes = [full_image_shape]
+        full_image.shape_names = ['full_image']
+        full_image.write_kml(os.path.join(self.datastack_folder, 'full_image.kml'))
+        full_image.write_geo_json(os.path.join(self.datastack_folder, 'full_image.geojson'))
+        full_image.write_shapefile(os.path.join(self.datastack_folder, 'full_image.shp'))

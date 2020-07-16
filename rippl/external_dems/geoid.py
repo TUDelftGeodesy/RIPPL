@@ -24,8 +24,13 @@ class GeoidInterp():
                 command = 'wget http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC -O ' + egm_96_file
                 os.system(command)
             else:
-                print('Cannot download http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC to '
-                      + egm_96_file + ' ,please try to do it manually and try again.')
+                raise LookupError('No geoid file can be found. Please set download to True and try again')
+
+            if not os.path.exists(egm_96_file):
+                raise ConnectionError('Failed to download http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC to '
+                      + egm_96_file + ' ,please try to do it manually and try again. \n Run the following on the command line \n ' + command)
+            else:
+                print('Succesfully downloaded the EGM96 geoid file to ' + egm_96_file)
 
         # Load data
         egm96 = np.fromfile(egm_96_file, dtype='>i2').reshape((721, 1440)).astype('float32')
@@ -35,7 +40,10 @@ class GeoidInterp():
         egm96_interp = RectBivariateSpline(lats, lons, egm96)
 
         if not coordinates:
-            egm96_grid = egm96_interp(lon, lat)
+            if not lat or not lon:
+                egm96_grid = egm96
+            else:
+                egm96_grid = egm96_interp(lon, lat)
 
         elif coordinates.grid_type == 'geographic':
             lats = coordinates.lat0 + (np.arange(coordinates.shape[0]) + coordinates.first_line) * coordinates.dlat

@@ -1,5 +1,8 @@
 # Class to calculate the geometry of a radar image based on the orbits.
 import numpy as np
+import osr
+import utm
+
 from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.meta_data.readfile import Readfile
@@ -715,3 +718,49 @@ class OrbitCoordinates(object):
         out_vector = vector - np.einsum('ki,ki->i', vector, N) * N
 
         return out_vector
+
+    def create_mercator_projection(self, UTM=False):
+        """
+        This function creates a Mercator projection for this specific coordinate system. If UTM is true, we will adapt
+        to the UTM tranverse mercator projection. If it is false we will use an orbit specific oblique mercator
+        projection. This ensures equal spacing of the grid even for large images.
+
+        To do so we follow these steps:
+        1. Find the mid image pixel and calculate the lat/lon and azimuth angle
+        2. Calculate the UTM zone if necessary
+        3. Calculate the coordinates of the corner points and define the image limits
+
+        Returns new coordinate system in mercator projection
+        -------
+
+        """
+
+        if UTM:
+            [utm_x, utm_y, utm_num, utm_letter] = utm.from_latlon(np.rad2deg(self.center_phi), np.rad2deg(self.center_lambda))
+            if list('abcdefghijklmnopqrstuvwxyz').index(utm_letter.lower()) > 12:
+                epsg = 326 * 100 + utm_num
+            else:
+                epsg = 327 * 100 + utm_num
+            projection = osr.SpatialReference()
+            projection.ImportFromEPSG(epsg)
+
+            proj4 = projection.ExportToProj4()
+        else:
+            # Calculate the orbit direction on the ground.
+            if len(self.lines) == 0:
+                raise ValueError('To find the correct oblique mercator information on image size should be known!')
+
+            line = int(self.lines[int(len(self.lines) / 2)])
+            pixel = int(self.pixels[int(len(self.pixels) / 2)])
+            heights = 0
+
+            self.manual_line_pixel_height(np.array([line]), np.array([pixel]), np.array([heights]))
+            self.lph2xyz()
+            self.xyz2scatterer_azimuth_elevation()
+            gamma = -1 * (float(self.azimuth_angle[0]) + 90)
+
+            # We use a oblique mercator projection.
+            proj4 = '+proj=omerc +lonc=' + str(np.rad2deg(self.center_lambda)) + ' +lat_0=' + \
+                    str(np.rad2deg(self.center_phi)) + ' +gamma=' + str(gamma) + ' +ellps=WGS84'
+
+        return proj4

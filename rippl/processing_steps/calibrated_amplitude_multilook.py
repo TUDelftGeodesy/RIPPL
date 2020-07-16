@@ -13,7 +13,7 @@ from rippl.resampling.multilook_regular import MultilookRegular
 
 class CalibratedAmplitudeMultilook(MultilookProcess):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', polarisation='',
+    def __init__(self, data_id='', polarisation='', no_of_looks=False,
                  in_coor=[], out_coor=[], master_image=False, db_only=True, resampled=True,
                  coreg_master='coreg_master', slave='slave', overwrite=False, batch_size=1000000):
 
@@ -92,6 +92,7 @@ class CalibratedAmplitudeMultilook(MultilookProcess):  # Change this name to the
         self.settings['memory_data'] = False
         self.settings['buf'] = 0
         self.batch_size = batch_size
+        self.add_no_of_looks(no_of_looks)
 
     def init_super(self):
 

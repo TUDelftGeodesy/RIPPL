@@ -15,12 +15,13 @@ class Readfile():
         self.swath = ''
 
         # Main variables of  (times are all in seconds)
+        self.orig_az_first_pix_time = 'None'
+        self.orig_ra_first_pix_time = 'None'
         self.ra_first_pix_time = ''
         self.az_first_pix_time = ''
         self.ra_time_step = ''
         self.az_time_step = ''
         self.date = ''
-        self.datetime = ''
 
         # Polygon and image size
         self.polygon = ''
@@ -38,6 +39,12 @@ class Readfile():
         self.DC_ref_ra = ''
         self.DC_polynomial = []
         self.steering_rate = []
+
+        # First line/pixel
+        self.first_line = 0
+        self.first_pixel = 0
+        self.orig_first_pixel = 0
+        self.orig_first_line = 0
 
         # Information on source file
         self.first_line_tiff = []
@@ -82,6 +89,10 @@ class Readfile():
         self.json_dict['First_pixel_azimuth_time (UTC)'] = self.seconds2time(self.az_first_pix_time, self.date)
         self.json_dict['Range_time_to_first_pixel (2way) (ms)'] = float(self.ra_first_pix_time * 1000)
 
+        # line/pixel
+        self.json_dict['First_line'] = self.first_line
+        self.json_dict['First_pixel'] = self.first_pixel
+
         return self.json_dict
 
     def save_json(self, json_path):
@@ -109,11 +120,14 @@ class Readfile():
 
         # First find the azimuth and range timing
         self.first_line_str = self.json_dict['First_pixel_azimuth_time (UTC)']
-        self.az_first_pix_time, self.date = self.time2seconds(self.json_dict['First_pixel_azimuth_time (UTC)'])
-        self.ra_first_pix_time = self.json_dict['Range_time_to_first_pixel (2way) (ms)'] * 1e-3
-        self.datetime = datetime.datetime.strptime(self.json_dict['First_pixel_azimuth_time (UTC)'], '%Y-%m-%dT%H:%M:%S.%f')
-        self.orig_az_first_pix_time, self.date = self.time2seconds(self.json_dict['Orig_first_pixel_azimuth_time (UTC)'])
-        self.orig_ra_first_pix_time = self.json_dict['Orig_range_time_to_first_pixel (2way) (ms)'] * 1e-3
+
+        if self.json_dict['First_pixel_azimuth_time (UTC)'] != 'None':
+            self.az_first_pix_time, self.date = self.time2seconds(self.json_dict['First_pixel_azimuth_time (UTC)'])
+            self.ra_first_pix_time = self.json_dict['Range_time_to_first_pixel (2way) (ms)'] * 1e-3
+        if self.json_dict['Orig_first_pixel_azimuth_time (UTC)'] != 'None':
+            self.orig_az_first_pix_time, self.date = self.time2seconds(self.json_dict['Orig_first_pixel_azimuth_time (UTC)'])
+            self.orig_ra_first_pix_time = self.json_dict['Orig_range_time_to_first_pixel (2way) (ms)'] * 1e-3
+
         self.az_time_step = self.json_dict['Azimuth_time_interval (s)']
         self.ra_time_step = 1 / self.json_dict['Range_sampling_rate (computed, MHz)'] / 1000000
 
@@ -154,21 +168,18 @@ class Readfile():
         self.center_lat = self.json_dict['Scene_center_latitude']
         self.center_lon = self.json_dict['Scene_center_longitude']
 
-    def remove_source_file_info(self):
-        # After concatenation information about the source file is not valid.
-
-        for key in ['Number_of_lines_original',
-                    'Number_of_pixels_original',
-                    'First_line (w.r.t. tiff_image)',
-                    'First_pixel (w.r.t. tiff_image)',
-                    'Last_line (w.r.t. tiff_image)',
-                    'Last_pixel (w.r.t. tiff_image)',
-                    'Dataformat',
-                    'Datafile']:
-            self.json_dict.pop(key)
+        # Line numbers
+        self.first_line = self.json_dict['First_line']
+        self.first_pixel = self.json_dict['First_pixel']
+        self.orig_first_pixel = self.json_dict['Orig_first_line']
+        self.orig_first_line = self.json_dict['Orig_first_pixel']
 
     @staticmethod
     def time2seconds(date_string):
+
+        if date_string == 0:
+            return 0, 'no date'
+
         time = (datetime.datetime.strptime(date_string, '%Y-%m-%dT%H:%M:%S.%f') -
                                   datetime.datetime.strptime(date_string[:10], '%Y-%m-%d'))
         seconds = time.seconds + time.microseconds / 1000000.0
