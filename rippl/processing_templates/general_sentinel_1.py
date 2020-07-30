@@ -11,6 +11,7 @@ from rippl.meta_data.plot_data import PlotData
 import os
 import numpy as np
 import copy
+from shapely.geometry import Polygon
 
 from rippl.processing_steps.resample import Resample
 from rippl.processing_steps.import_dem import ImportDem
@@ -207,15 +208,16 @@ class GeneralPipelines():
         :return:
         """
 
-        if not os.path.exists(shapefile):
-            settings = UserSettings()
-            settings.load_settings()
-            shapefile = os.path.join(settings.GIS_database, shapefile)
-        if not os.path.exists(shapefile):
-            raise FileExistsError('Shapefile does not exist!')
+        if not isinstance(shapefile, Polygon):
+            if not os.path.exists(shapefile):
+                settings = UserSettings()
+                settings.load_settings()
+                shapefile = os.path.join(settings.GIS_database, shapefile)
+            if not os.path.exists(shapefile):
+                raise FileExistsError('Shapefile does not exist!')
 
         if data:
-            if polarisation is str:
+            if isinstance(polarisation, str):
                 polarisation = [polarisation]
 
             # Download data and orbit
@@ -264,7 +266,7 @@ class GeneralPipelines():
         # Number of cores
         cores = 6
 
-        if polarisation is str:
+        if isinstance(polarisation, str):
             polarisation = [polarisation]
 
         # Prepare processing
@@ -494,7 +496,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if polarisation is str:
+        if isinstance(polarisation, str):
             polarisation = [polarisation]
 
         # Allow the processing of two polarisation at the same time.
@@ -561,7 +563,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if polarisation is str:
+        if isinstance(polarisation, str):
             polarisation = [polarisation]
 
         # Then do the resampling
@@ -587,7 +589,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if polarisation is str:
+        if isinstance(polarisation, str):
             polarisation = [polarisation]
 
         for pol in polarisation:
@@ -647,7 +649,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if polarisation is str:
+        if isinstance(polarisation, str):
             polarisation = [polarisation]
 
         # First create the multilooked square amplitudes.
@@ -691,7 +693,7 @@ class GeneralPipelines():
         :return:
         """
 
-        if polarisation is str:
+        if isinstance(polarisation, str):
             polarisation = [polarisation]
 
         for pol in polarisation:
