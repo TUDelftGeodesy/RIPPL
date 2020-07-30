@@ -172,6 +172,17 @@ class OrbitCoordinates(object):
         # Evaluate the orbit based on the given az_times
         self.xyz_orbit, self.vel_orbit, self.acc_orbit = self.orbit.evaluate_orbit_spline(self.az_times, vel=True, acc=True)
 
+    def approx_lph2xyz(self):
+        """
+        This function calculates an approximate value for xyz, using the intersection between a sphere and a circle.
+        The sphere of the globe is defined base on the local distance to the earth center.
+
+        Returns
+        -------
+
+        """
+        pass
+
     # The next two function are used to calculate xyz coordinates on the ground.
     # To do so we also need the heights of the points on the ground.
     def lph2xyz(self):

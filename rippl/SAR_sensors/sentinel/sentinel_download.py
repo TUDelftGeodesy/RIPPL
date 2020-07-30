@@ -252,7 +252,7 @@ class DownloadSentinel(object):
                 self.tracks.append(int(product['track']))
                 self.orbit_directions.append(product['flightDirection'])
                 self.ids.append(product['sceneId'])
-                self.dates.append(datetime.datetime.fromisoformat(product['sceneDate']))
+                self.dates.append(datetime.datetime.strptime(product['sceneDate'], '%Y-%m-%dT%H:%M:%S.%f'))
 
         if len(self.dates) == 0:
             print('No images found!')
@@ -318,7 +318,7 @@ class DownloadSentinel(object):
                 self.tracks.extend([int(data.find("int[@name='relativeorbitnumber']").text) for data in tree.iter(tag='entry')])
                 self.footprints.extend([shapely.wkt.loads(data.find("str[@name='footprint']").text) for data in tree.iter(tag='entry')])
                 self.orbit_directions.extend([data.find("str[@name='orbitdirection']").text for data in tree.iter(tag='entry')])
-                self.dates.extend([datetime.datetime.fromisoformat(data.find("date[@name='beginposition']").text[:19]) for data in tree.iter(tag='entry')])
+                self.dates.extend([datetime.datetime.strptime(data.find("date[@name='beginposition']").text[:19], '%Y-%m-%dT%H:%M:%S') for data in tree.iter(tag='entry')])
 
         if len(self.dates) == 0:
             print('No images found!')
