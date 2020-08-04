@@ -30,6 +30,8 @@ class Readfile():
         self.center_heading = []
         self.center_lat = []
         self.center_lon = []
+        self.center_line = 0
+        self.center_pixel = 0
 
         # Information for ramping/deramping
         self.FM_ref_az = ''
@@ -84,6 +86,8 @@ class Readfile():
         self.json_dict['Scene_center_heading'] = float(self.center_heading)
         self.json_dict['Scene_center_latitude'] = float(self.center_lat)
         self.json_dict['Scene_center_longitude'] = float(self.center_lon)
+        self.json_dict['Scene_center_pixel'] = int(self.center_pixel)
+        self.json_dict['Scene_center_line'] = int(self.center_line)
 
         # Azimuth and range timing
         self.json_dict['First_pixel_azimuth_time (UTC)'] = self.seconds2time(self.az_first_pix_time, self.date)
@@ -167,6 +171,8 @@ class Readfile():
         self.center_heading = self.json_dict['Scene_center_heading']
         self.center_lat = self.json_dict['Scene_center_latitude']
         self.center_lon = self.json_dict['Scene_center_longitude']
+        self.center_pixel = self.json_dict['Scene_center_pixel']
+        self.center_line = self.json_dict['Scene_center_line']
 
         # Line numbers
         self.first_line = self.json_dict['First_line']

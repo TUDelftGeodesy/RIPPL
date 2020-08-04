@@ -56,6 +56,11 @@ class CoorConcatenate():
         readfile.json_dict['Orig_first_pixel'] = 'None'
         readfile.first_pixel = self.concat_coor.first_pixel
         readfile.first_line = self.concat_coor.first_line
+        readfile.center_lat = self.concat_coor.center_lat
+        readfile.center_lon = self.concat_coor.center_lon
+        readfile.center_line = self.concat_coor.center_line
+        readfile.center_pixel = self.concat_coor.center_pixel
+        readfile.center_heading = self.concat_coor.center_heading
 
         # Get the oblique mercator projection
         orbit_calculations = OrbitCoordinates(orbit=orbit)
@@ -74,9 +79,7 @@ class CoorConcatenate():
                               coor.proj2ell(y_coor[0], x_coor[1]), coor.proj2ell(y_coor[0], x_coor[0])]
         readfile.size = [self.concat_coor.shape[0] + self.concat_coor.first_line,
                          self.concat_coor.shape[1] + self.concat_coor.first_pixel]
-        readfile.center_lat = self.concat_coor.center_lat
-        readfile.center_lon = self.concat_coor.center_lon
-        readfile.center_heading = self.concat_coor.center_heading
+
 
         # Then remove all irrelevant parts of the new readfiles image (no link to source data or something)
         for key in ['First_line (w.r.t. tiff_image)', 'Last_line (w.r.t. tiff_image)',
@@ -191,6 +194,8 @@ class CoorConcatenate():
         concat_coor.center_lat = np.mean([coor.center_lat for coor in coor_systems])
         concat_coor.center_lon = np.mean([coor.center_lon for coor in coor_systems])
         concat_coor.center_heading = np.mean([coor.center_heading for coor in coor_systems])
+        concat_coor.center_pixel = np.int(np.mean([coor.center_pixel for coor in coor_systems]))
+        concat_coor.center_line = np.int(np.mean([coor.center_line for coor in coor_systems]))
 
         return concat_coor, sync_coors
 

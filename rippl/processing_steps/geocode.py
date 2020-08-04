@@ -15,7 +15,7 @@ from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 class Geocode(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', out_coor=[], coreg_master='coreg_master', overwrite=False):
+    def __init__(self, data_id='', out_coor=[], coreg_master='coreg_master', overwrite=False, approximate=False):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -56,6 +56,7 @@ class Geocode(Process):  # Change this name to the one of your processing step.
         self.processing_images = dict()
         self.processing_images['coreg_master'] = coreg_master
         self.settings = dict()
+        self.settings['approximate'] = approximate
 
     def init_super(self):
 
@@ -87,7 +88,10 @@ class Geocode(Process):  # Change this name to the one of your processing step.
             orbit_interp.lp_time()
 
             # Calculate cartesian coordinates
-            orbit_interp.lph2xyz()
+            if self.settings['approximate']:
+                orbit_interp.approx_lph2xyz()
+            else:
+                orbit_interp.lph2xyz()
             self['X'] = np.reshape(orbit_interp.xyz[0, :], self.block_coor.shape)
             self['Y'] = np.reshape(orbit_interp.xyz[1, :], self.block_coor.shape)
             self['Z'] = np.reshape(orbit_interp.xyz[2, :], self.block_coor.shape)

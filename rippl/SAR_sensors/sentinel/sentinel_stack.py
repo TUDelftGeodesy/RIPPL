@@ -287,12 +287,16 @@ class SentinelStack(SentinelDatabase, Stack):
 
         slice.readfiles['original'].first_line = int(np.round((crop_coor.orig_az_time - lowest_az_time) / crop_coor.az_step))
         slice.readfiles['original'].first_pixel = int(np.round((crop_coor.orig_ra_time - lowest_ra_time) / crop_coor.ra_step))
+        slice.readfiles['original'].center_line += int(np.round((crop_coor.orig_az_time - lowest_az_time) / crop_coor.az_step))
+        slice.readfiles['original'].center_pixel += int(np.round((crop_coor.orig_ra_time - lowest_ra_time) / crop_coor.ra_step))
 
         crop_coor.orig_first_line = copy.copy(crop_coor.first_line)
         crop_coor.first_line += int(np.round((crop_coor.orig_az_time - lowest_az_time) / crop_coor.az_step))
+        crop_coor.center_line += int(np.round((crop_coor.orig_az_time - lowest_az_time) / crop_coor.az_step))
         crop_coor.az_time = lowest_az_time
         crop_coor.orig_first_pixel = copy.copy(crop_coor.first_pixel)
         crop_coor.first_pixel += int(np.round((crop_coor.orig_ra_time - lowest_ra_time) / crop_coor.ra_step))
+        crop_coor.center_pixel += int(np.round((crop_coor.orig_ra_time - lowest_ra_time) / crop_coor.ra_step))
         crop_coor.ra_time = lowest_ra_time
 
     def assign_slice_id(self):

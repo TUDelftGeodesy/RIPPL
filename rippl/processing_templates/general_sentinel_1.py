@@ -29,7 +29,6 @@ from rippl.processing_steps.coherence import Coherence
 from rippl.processing_steps.deramp_resample_radar_grid import DerampResampleRadarGrid
 from rippl.processing_steps.interferogram_multilook import InterferogramMultilook
 from rippl.processing_steps.square_amplitude_multilook import SquareAmplitudeMultilook
-from rippl.processing_steps.calibrated_amplitude_approx_multilook import CalibratedAmplitudeApproxMultilook
 from rippl.processing_steps.calibrated_amplitude_multilook import CalibratedAmplitudeMultilook
 from rippl.processing_steps.multilook_prepare import MultilookPrepare
 from rippl.processing_steps.resample_prepare import ResamplePrepare
@@ -636,9 +635,10 @@ class GeneralPipelines():
             # First create the multilooked square amplitudes.
             create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation)
             create_multilooked_amp.add_processing_data(slcs, 'slave')
+            create_multilooked_amp.add_processing_data(slcs, 'coreg_master')
             create_multilooked_amp.add_processing_step(
-                CalibratedAmplitudeApproxMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                       slave='slave', batch_size=10000000), True, True)
+                CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
+                                       slave='slave', resampled=False, batch_size=10000000, no_line_pixel_input=True), True, True)
             create_multilooked_amp()
 
     def create_coherence_multilooked(self, polarisation, block_orientation='lines'):

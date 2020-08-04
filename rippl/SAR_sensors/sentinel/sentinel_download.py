@@ -438,22 +438,27 @@ class DownloadSentinel(object):
         # Plot polygon for different tracks
         for n, polygon in enumerate(track_polygon):
             title = str(int(average_coverages[n] * 100)) + '% coverage for ' + direction[n].lower() + ' track ' + str(unique_tracks[n])
+            if isinstance(polygon, Polygon):
+                polygons = [polygon]
+            else:
+                polygons = [pol for pol in polygon]
 
             if plot_cartopy:
                 ax = plt.axes(projection=ccrs.PlateCarree())
                 ax.set_title(title)
                 ax.add_feature(cfeature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='face', facecolor='g'))
                 ax.add_feature(cfeature.BORDERS, linestyle='-', alpha=.5)
-                ax.add_geometries([polygon], ccrs.PlateCarree(), facecolor='b', alpha=0.5)
+                ax.add_geometries(polygons, ccrs.PlateCarree(), facecolor='b', alpha=0.5)
                 ax.add_geometries([self.shape], ccrs.PlateCarree(), facecolor='r', alpha=0.8)
                 ax.set_extent(list(bb_buffer), ccrs.PlateCarree())
                 plt.show()
             else:
                 ax = plt.axes()
                 shape_x, shape_y = self.shape.exterior.xy
-                dat_x, dat_y = polygon.exterior.xy
+                for polygon in polygons:
+                    dat_x, dat_y = polygon.exterior.xy
+                    ax.fill(dat_x, dat_y, alpha=0.5, fc='blue', ec='none')
                 ax.fill(shape_x, shape_y, alpha=0.5, fc='r', ec='none')
-                ax.fill(dat_x, dat_y, alpha=0.5, fc='blue', ec='none')
                 ax.set_title(title)
                 ax.set_xlim([bb_buffer[0], bb_buffer[1]])
                 ax.set_ylim([bb_buffer[2], bb_buffer[3]])

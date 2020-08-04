@@ -52,6 +52,8 @@ class CoordinateSystem():
         self.center_lon = 0
         self.center_lat = 0
         self.center_heading = 0
+        self.center_pixel = 0
+        self.center_line = 0
         self.swath = 0
 
         # Characteristics for geographic type
@@ -109,6 +111,8 @@ class CoordinateSystem():
         self.az_step = readfile.az_time_step
         self.center_lat = readfile.center_lat
         self.center_lon = readfile.center_lon
+        self.center_pixel = readfile.center_pixel
+        self.center_line = readfile.center_line
         self.center_heading = readfile.center_heading
         self.date = readfile.date
         self.swath = readfile.swath
@@ -187,6 +191,8 @@ class CoordinateSystem():
             self.json_dict['ra_step'] = float(self.ra_step)
             self.json_dict['center_lat'] = float(self.center_lat)
             self.json_dict['center_lon'] = float(self.center_lon)
+            self.json_dict['center_line'] = int(self.center_line)
+            self.json_dict['center_pixel'] = int(self.center_pixel)
             self.json_dict['center_heading'] = float(self.center_heading)
             self.json_dict['multilook'] = [int(s) for s in self.multilook]
             self.json_dict['date'] = self.date
@@ -257,6 +263,8 @@ class CoordinateSystem():
             self.ra_step = self.json_dict['ra_step']
             self.center_lat = self.json_dict['center_lat']
             self.center_lon = self.json_dict['center_lon']
+            self.center_line = self.json_dict['center_line']
+            self.center_pixel = self.json_dict['center_pixel']
             self.center_heading = self.json_dict['center_heading']
             self.multilook = self.json_dict['multilook']
             self.date = self.json_dict['date']

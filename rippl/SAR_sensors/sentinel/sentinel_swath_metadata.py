@@ -344,6 +344,8 @@ class CreateSwathXmlRes():
             # First find coordinates of center and optionally the corners
             readfiles['Scene_center_longitude'] = float(self.burst_center_coors[n][0])
             readfiles['Scene_center_latitude'] = float(self.burst_center_coors[n][1])
+            readfiles['Scene_center_line'] = int(self.swath_readfiles['Number_of_lines'] / 2)
+            readfiles['Scene_center_pixel'] = int(self.swath_readfiles['Number_of_pixels'] / 2)
             readfiles['Scene_ul_corner_latitude'] = float(self.burst_coors[n][0][1])
             readfiles['Scene_ur_corner_latitude'] = float(self.burst_coors[n][1][1])
             readfiles['Scene_lr_corner_latitude'] = float(self.burst_coors[n][2][1])
@@ -406,7 +408,6 @@ class CreateSwathXmlRes():
             coordinates.first_pixel = first_pixel
             coordinates.first_line = first_line
             coordinates.shape = [last_line - first_line, last_pixel - first_pixel]
-
             crop = ProcessData('', 'crop', coordinates, polarisation=self.swath_readfiles['Polarisation'])
             crop.add_process_image('crop', 'complex_int', coordinates.shape)
 

@@ -30,7 +30,7 @@ selected_tracks = [58]
 selected_master_dates = [datetime.datetime(year=2019, month=6, day=9)]
 stack_names = ['Malvina_track_58']
 
-geographic = True
+geographic = False
 
 # Initialize stacks
 for track_no, master_date, stack_name in zip(selected_tracks, selected_master_dates, stack_names):
