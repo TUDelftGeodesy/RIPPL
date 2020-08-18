@@ -72,7 +72,7 @@ class MultilookIrregular(object):
 
         lines -= self.out_coor.first_line
         pixels -= self.out_coor.first_pixel
-        inside = (lines > 0) * (pixels > 0) * (lines < shape[0]) * (lines < shape[1])
+        inside = (lines > 0) * (pixels > 0) * (lines < shape[0]) * (pixels < shape[1])
 
         # Select all pixels inside boundaries.
         # Calculate the coordinates of the new pixels and find the pixels outside the given boundaries.

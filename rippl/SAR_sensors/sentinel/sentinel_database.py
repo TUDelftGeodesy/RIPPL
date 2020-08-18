@@ -23,6 +23,7 @@ import datetime
 from lxml import etree
 import os
 import zipfile
+import numpy as np
 
 from rippl.user_settings import UserSettings
 from rippl.orbit_geometry.read_write_shapes import ReadWriteShapes
@@ -55,9 +56,40 @@ class SentinelDatabase(object):
         self.master_shape = Polygon
         self.selected_images = dict()
 
-    def __call__(self, database_folder='', shapefile='', track_no='', start_date='2010-01-01', end_date='2030-01-01', mode='IW', product_type='SLC', polarisation='VV'):
+    def __call__(self, database_folder='', shapefile='', track_no='',
+                 start_date='', end_date='', start_dates='', end_dates='', dates='',
+                 time_window='', mode='IW', product_type='SLC', polarisation='VV'):
         # Run the different commands step by step
 
+        # Create a list of search windows with start and end dates
+        if isinstance(dates, list):
+            for date in dates:
+                if not isinstance(date, datetime.datetime):
+                    raise TypeError('Input dates should be datetime objects.')
+
+            if isinstance(time_window, datetime.timedelta):
+                self.start_dates = [date - time_window for date in dates]
+                self.end_dates = [date + time_window for date in dates]
+            else:
+                self.start_dates = [date.replace(hour=0, minute=0, second=0, microsecond=0) for date in dates]
+                self.end_dates = [date + datetime.timedelta(days=1) for date in self.start_dates]
+
+        elif isinstance(start_date, datetime.datetime) and isinstance(end_date, datetime.datetime):
+            self.start_dates = [start_date]
+            self.end_dates = [end_date]
+        elif isinstance(start_dates, list) and isinstance(end_dates, list):
+            self.start_dates = start_dates
+            self.end_dates = end_dates
+            valid_dates = [isinstance(start_date, datetime.datetime) * isinstance(end_date, datetime.datetime) for
+                           start_date, end_date in zip(start_dates, end_dates)]
+            if np.sum(valid_dates) < len(valid_dates):
+                raise TypeError('Input dates should be datetime objects.')
+        else:
+            raise TypeError('You should define a start or end date or a list of dates to search for Sentinel-1 data! '
+                            'Dates should be datetime objects')
+
+        self.start_dates = np.array(self.start_dates)
+        self.end_dates = np.array(self.end_dates)
 
         # Select based on dates and read manifest files
         if not database_folder:
@@ -69,7 +101,7 @@ class SentinelDatabase(object):
 
         self.index_folder()
         self.extract_manifest_files()
-        self.select_date_track(track_no, start_date, end_date, mode, product_type, polarisation)
+        self.select_date_track(track_no, mode, product_type, polarisation)
 
         # Read shape file and select images based on coverage.
         self.select_overlapping(shapefile, buffer=0.02)
@@ -134,6 +166,9 @@ class SentinelDatabase(object):
 
             # Give the .xml and .tiff files
             files = [m.attrib['href'] for m in manifest.xpath('//dataObject/byteStream/fileLocation')]
+            if os.name == 'nt':
+                files = [file.replace('/', '\\') for file in files]
+
             if filename.endswith('.SAFE.zip'):
                 im_dict['swath_tiff'] = [os.path.join(os.path.basename(filename[:-4]), f[2:]) for f in files if f.endswith('.tiff')]
                 im_dict['swath_xml'] = [os.path.join(os.path.basename(filename[:-4]), f[2:]) for f in files if f.endswith('.xml') and len(f) < 90]
@@ -150,13 +185,8 @@ class SentinelDatabase(object):
 
         self.image_info[os.path.basename(filename)] = copy.deepcopy(im_dict)
 
-    def select_date_track(self, track_no, start_date='2010-01-01', end_date='2030-01-01', mode='IW', product_type='SLC', polarisation='VV'):
+    def select_date_track(self, track_no, mode='IW', product_type='SLC', polarisation='VV'):
         # Select all the images of interest
-
-        if start_date:
-            start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
-        if end_date:
-            end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d')
 
         for filename in self.image_info.keys():
 
@@ -165,12 +195,12 @@ class SentinelDatabase(object):
                     or product_type != self.image_info[filename]['product_type'] \
                     or polarisation not in self.image_info[filename]['polarisation']:
                 continue
-            if start_date:
-                if start_date > self.image_info[filename]['az_start_time']:
-                    continue
-            if end_date:
-                if end_date < self.image_info[filename]['az_start_time']:
-                    continue
+
+            valid_time_windows = (self.start_dates <= self.image_info[filename]['az_start_time']) * \
+                         (self.end_dates >= self.image_info[filename]['az_start_time'])
+
+            if np.sum(valid_time_windows) == 0:
+                continue
 
             self.selected_images[filename] = self.image_info[filename]
 

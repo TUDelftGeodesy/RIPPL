@@ -140,11 +140,11 @@ class Process():
         for image_key in self.processing_images.keys():
             self.processing_images[image_key].load_memmap_files()
 
-        if memory_in:  # For the multilooking we do not work with parts of files, but the whole file at once.
-            self.load_input_data()
+        self.load_input_data()
         self.create_output_data_files()
         self.create_memory()
         self.process_calculations()
+
         self.save_to_disk()
 
         self.clean_memory()
@@ -503,8 +503,8 @@ class Process():
         needed to do the reading in.
         Exception for this are the 'regular' multilooking, which does not need any precreated grid.
 
-        :param int s_lin: Start line with respect too total image size
-        :param int s_pix: Start pixel with respect too total image size
+        :param int s_lin: Start line with respect to total image size
+        :param int s_pix: Start pixel with respect to total image size
         :param int lines: Number of lines to process
         :param int pixels: Number of pixels to process
         :return:
@@ -660,13 +660,29 @@ class Process():
 
         elif 'out_irregular_grids' in self.settings.keys():
             out_grids = self.settings['out_irregular_grids']
+            max_shape = self.coordinate_systems['in_coor'].shape
+            first_line_in = self.coordinate_systems['in_coor'].first_line
+            first_pixel_in = self.coordinate_systems['in_coor'].first_pixel
             first_line, first_pixel, shape = \
                 SelectInputWindow.output_irregular_rectangle(np.copy(self[out_grids[0]]),
                                                              np.copy(self[out_grids[1]]),
-                                                             max_shape=self.coordinate_systems['in_coor'].shape,
-                                                             min_line=self.coordinate_systems['in_coor'].first_line,
-                                                             min_pixel=self.coordinate_systems['in_coor'].first_pixel,
+                                                             max_shape=max_shape,
+                                                             min_line=first_line_in,
+                                                             min_pixel=first_pixel_in,
                                                              buf=self.buf)
+
+            # If shape has negative numbers revert too zeros.
+            if shape[0] < 1:
+                shape[0] = 1
+                if first_line >= first_line_in + max_shape[0]:
+                    first_line = first_line_in + max_shape[0] - 1
+            if shape[1] < 1:
+                shape[1] = 1
+                if first_pixel >= first_pixel_in + max_shape[1]:
+                    first_pixel = first_pixel_in + max_shape[1] - 1
+
+            # print('Loading a region of ' + str(shape[0]) + ' lines starting at line ' + str(first_line) +
+            #      ' with max number of lines of ' + str(first_line_in + max_shape[0]))
 
             self.coordinate_systems['in_block_coor'].shape = shape
             self.coordinate_systems['in_block_coor'].first_line = first_line
@@ -782,6 +798,27 @@ class Process():
 
         for file_type in file_types:
             save_data = self.out_images[file_type].save_memory_data_to_disk()
+            if not save_data:
+                return False
+
+        # If all files are succesfully saved.
+        return True
+
+    def flush_to_disk(self, file_types=[]):
+        """
+        This function flushes all memmap data to disk. This is the last step for multilooking of other steps where
+        data is directly written to disk.
+
+        :param list(str) file_types: File types which are saved to disk. If not specified all file types are used.
+        :return:
+        """
+
+        # Save data from memory to disk.
+        if len(file_types) == 0:
+            file_types = list(self.out_images.keys())
+
+        for file_type in file_types:
+            save_data = self.out_images[file_type].disk['data'].flush()
             if not save_data:
                 return False
 

@@ -19,6 +19,7 @@ import numpy as np
 from multiprocessing import Pool
 from lxml import etree
 from shapely.geometry import Polygon
+import copy
 
 from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 from rippl.SAR_sensors.sentinel.sentinel_database import SentinelDatabase
@@ -27,6 +28,7 @@ from rippl.SAR_sensors.sentinel.sentinel_read_data import write_sentinel_burst
 from rippl.SAR_sensors.sentinel.sentinel_swath_metadata import CreateSwathXmlRes
 from rippl.meta_data.stack import Stack
 from rippl.user_settings import UserSettings
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 
 class SentinelStack(SentinelDatabase, Stack):
@@ -65,13 +67,15 @@ class SentinelStack(SentinelDatabase, Stack):
         self.slice_y = []
         self.slice_z = []
         self.slice_seconds = []
+        self.slice_range_seconds = []
         self.slice_names = []
 
         # Availability of the master/slave bursts in image
         self.burst_availability = []
 
-    def read_from_database(self, database_folder='', shapefile=None, track_no=None, orbit_folder=None, start_date='2010-01-01',
-                 end_date='2030-01-01', master_date='', mode='IW', product_type='SLC', polarisation='VV', cores=4):
+    def read_from_database(self, database_folder='', shapefile=None, track_no=None, orbit_folder=None,
+                           start_date='', end_date='', dates='', time_window='', master_date='', end_dates='', start_dates='',
+                           mode='IW', product_type='SLC', polarisation='VV', cores=4):
 
         if not database_folder:
             database_folder = os.path.join(self.settings.radar_database, 'Sentinel-1')
@@ -88,11 +92,14 @@ class SentinelStack(SentinelDatabase, Stack):
             orbit_folder = os.path.join(self.settings.orbit_database, 'Sentinel-1')
 
         # Select data products
-        SentinelDatabase.__call__(self, database_folder, shapefile, track_no, start_date, end_date, mode, product_type, polarisation)
+        SentinelDatabase.__call__(self, database_folder=database_folder, shapefile=shapefile, track_no=track_no,
+                                  start_date=start_date, start_dates=start_dates, end_date=end_date, end_dates=end_dates,
+                                  dates=dates, time_window=time_window, mode=mode, product_type=product_type, polarisation=polarisation)
         print('Selected images:')
 
         if len(self.selected_images) == 0:
-            raise FileNotFoundError('No SAR images found! Aborting')
+            print('No SAR images found! Aborting')
+            return
 
         for info in self.selected_images:
             print(info)
@@ -122,6 +129,9 @@ class SentinelStack(SentinelDatabase, Stack):
 
         # Now assign ids to new master and slave slices
         self.assign_slice_id()
+
+        # Then adjust the range and azimuth timing to create uniform values for different dates.
+        self.adjust_pixel_line_selected_bursts()
 
         # Finally write data to data files
         self.update_stack(cores)
@@ -155,12 +165,13 @@ class SentinelStack(SentinelDatabase, Stack):
 
         print('')
 
-    def create_slice_list(self, master_date):
+    def create_slice_list(self, master_start):
         # master date should be in yyyy-mm-dd format
         # This function creates a list of all slices within the datastack and reads the needed meta_data.
 
         time_lim = 0.1
-        master_start = datetime.datetime.strptime(master_date, '%Y-%m-%d')
+        if not isinstance(master_start, datetime.datetime):
+            master_start = datetime.datetime.strptime(master_start, '%Y-%m-%d')
         master_end = master_start + datetime.timedelta(days=1)
 
         # Iterate over swath list
@@ -174,20 +185,20 @@ class SentinelStack(SentinelDatabase, Stack):
                 for slice, slice_coverage, slice_time, slice_coors in zip(
                         slices, swath.burst_coverage, swath.burst_xml_dat['azimuthTimeStart'], swath.burst_center_coors):
 
-                    b_t = datetime.datetime.strptime(slice_time, '%Y-%m-%dT%H:%M:%S.%f')
-                    b_time = float(b_t.hour * 3600 + b_t.minute * 60 + b_t.second) + float(b_t.microsecond) / 1000000
-                    if interp_orbit.t[-1] > 86400:
-                        b_time += 86400
+                    readfile = slice.readfiles['original']
+                    az_time = readfile.time2seconds(readfile.json_dict['Orig_first_pixel_azimuth_time (UTC)'])[0]
+                    az_date = datetime.datetime.strptime(readfile.json_dict['Orig_first_pixel_azimuth_time (UTC)'],
+                                                               '%Y-%m-%dT%H:%M:%S.%f')
 
-                    if master_start < b_t < master_end:
+                    if master_start < az_date < master_end:
                         if self.master_shape.intersects(slice_coverage):
                             # Check if this time already exists
                             if len(self.master_slice_seconds) > 0 and np.min(np.abs(
-                                            b_time - np.asarray(self.master_slice_seconds))) < time_lim:
+                                            az_time - np.asarray(self.master_slice_seconds))) < time_lim:
                                 print('Duplicate slice found. New slice removed from rippl.stack')
                                 continue
 
-                            xyz = interp_orbit.evaluate_orbit_spline([b_time])[0]
+                            xyz = interp_orbit.evaluate_orbit_spline([az_time])[0]
                             self.master_slice_x.append(xyz[0, 0])
                             self.master_slice_y.append(xyz[1, 0])
                             self.master_slice_z.append(xyz[2, 0])
@@ -196,8 +207,9 @@ class SentinelStack(SentinelDatabase, Stack):
                             self.master_slice_date.append(slice_time[:10])
                             self.master_slice_swath_no.append(int(slice.readfiles['original'].json_dict['Swath']))
                             self.master_slice_az_time.append(slice_time)
-                            self.master_slice_seconds.append(b_time)
-                            self.master_slice_time.append(b_t)
+                            self.master_slice_seconds.append(az_time)
+                            self.master_slice_time.append(readfile.json_dict['Orig_first_pixel_azimuth_time (UTC)'])
+                            self.master_slice_range_seconds.append(readfile.json_dict['Orig_range_time_to_first_pixel (2way) (ms)'] * 1e-3)
 
                             self.master_slices.append(slice)
 
@@ -207,23 +219,85 @@ class SentinelStack(SentinelDatabase, Stack):
 
                         if len(dat_id) >= 1:
                             if len(self.slice_seconds) > 0 and np.min(np.abs(
-                                            b_time - np.asarray(self.slice_seconds)[dat_id])) < time_lim:
+                                            az_time - np.asarray(self.slice_seconds)[dat_id])) < time_lim:
                                 print('Duplicate slice found. New slice removed from rippl.stack')
                                 continue
 
-                        xyz = interp_orbit.evaluate_orbit_spline([b_time])[0]
+                        xyz = interp_orbit.evaluate_orbit_spline([az_time])[0]
                         self.slice_x.append(xyz[0, 0])
                         self.slice_y.append(xyz[1, 0])
                         self.slice_z.append(xyz[2, 0])
                         self.slice_lat.append(slice_coors[1])
                         self.slice_lon.append(slice_coors[0])
                         self.slice_date.append(slice_time[:10])
-                        self.slice_swath_no.append(int(slice.readfiles['original'].json_dict['Swath']))
+                        self.slice_swath_no.append(int(readfile.json_dict['Swath']))
                         self.slice_az_time.append(slice_time)
-                        self.slice_seconds.append(b_time)
-                        self.slice_time.append(b_t)
+                        self.slice_seconds.append(az_time)
+                        self.slice_time.append(readfile.json_dict['Orig_first_pixel_azimuth_time (UTC)'])
+                        self.slice_range_seconds.append(readfile.json_dict['Orig_range_time_to_first_pixel (2way) (ms)'] * 1e-3)
 
                         self.slices.append(slice)
+
+    def adjust_pixel_line_selected_bursts(self):
+        """
+        For all sets of master and slave bursts adjust the azimuth and range time to the lowest available in the total
+        set of bursts for that date.
+
+        :return:
+        """
+
+        # Final step is to adjust all azimuth and range values.
+
+        # Find lowest azimuth value
+        lowest_az_time = np.min(self.master_slice_seconds)
+        lowest_ra_time = np.min(self.master_slice_range_seconds)
+
+        for slice in self.master_slices:
+            self.adjust_pixel_line(slice, lowest_az_time, lowest_ra_time)
+
+        # Now do the same thing for the slave pixels.
+        dates = list(set(self.slice_date))
+        for date in dates:
+            slice_ids = np.where(np.array(self.slice_date) == date)[0]
+            lowest_az_time = np.min(np.array(self.slice_seconds)[slice_ids])
+            lowest_ra_time = np.min(np.array(self.slice_range_seconds)[slice_ids])
+
+            for slice_id in slice_ids:
+                self.adjust_pixel_line(self.slices[slice_id], lowest_az_time, lowest_ra_time)
+
+    @staticmethod
+    def adjust_pixel_line(slice, lowest_az_time, lowest_ra_time):
+        """
+        Adjust the first pixel and line values.
+
+        :param slice:
+        :param lowest_az_time:
+        :param lowest_ra_time:
+        :return:
+        """
+
+        # Replace readfile values
+        slice.readfiles['original'].az_first_pix_time = lowest_az_time
+        slice.readfiles['original'].ra_first_pix_time = lowest_ra_time
+
+        # Replace coordinate values
+        pol = slice.readfiles['original'].json_dict['Polarisation']
+        crop_key = [key for key in slice.processes['crop'].keys() if pol in key][0]
+        crop_coor = slice.processes['crop'][crop_key].coordinates  # type:CoordinateSystem
+
+        slice.readfiles['original'].first_line = int(np.round((crop_coor.orig_az_time - lowest_az_time) / crop_coor.az_step))
+        slice.readfiles['original'].first_pixel = int(np.round((crop_coor.orig_ra_time - lowest_ra_time) / crop_coor.ra_step))
+        slice.readfiles['original'].center_line += int(np.round((crop_coor.orig_az_time - lowest_az_time) / crop_coor.az_step))
+        slice.readfiles['original'].center_pixel += int(np.round((crop_coor.orig_ra_time - lowest_ra_time) / crop_coor.ra_step))
+
+        crop_coor.orig_first_line = copy.copy(crop_coor.first_line)
+        crop_coor.first_line += int(np.round((crop_coor.orig_az_time - lowest_az_time) / crop_coor.az_step))
+        crop_coor.center_line += int(np.round((crop_coor.orig_az_time - lowest_az_time) / crop_coor.az_step))
+        crop_coor.az_time = lowest_az_time
+        crop_coor.orig_first_pixel = copy.copy(crop_coor.first_pixel)
+        crop_coor.first_pixel += int(np.round((crop_coor.orig_ra_time - lowest_ra_time) / crop_coor.ra_step))
+        crop_coor.center_pixel += int(np.round((crop_coor.orig_ra_time - lowest_ra_time) / crop_coor.ra_step))
+        crop_coor.ra_time = lowest_ra_time
 
     def assign_slice_id(self):
         # Create new master ids if needed

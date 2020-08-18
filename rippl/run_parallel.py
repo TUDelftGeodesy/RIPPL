@@ -1,7 +1,10 @@
 # Function to run parallel package. For further details inspect the pipeline class.
+import gc
+
 from rippl.meta_data.process import Process
 from rippl.meta_data.multilook_process import MultilookProcess
 from rippl.meta_data.image_processing_data import ImageProcessingData
+import numpy as np
 
 
 def run_parallel(dat):
@@ -43,9 +46,16 @@ def run_parallel(dat):
                 process.create_memory()
 
             # Print processing
+            dat['pixels'] = np.minimum(dat['pixels'], dat['total_pixels'] - dat['s_pix'])
+            dat['lines'] = np.minimum(dat['lines'], dat['total_lines'] - dat['s_lin'])
             print('Start processing ' + process.process_name + ' block ' + str(dat['block'] + 1) + ' out of ' +
                   str(dat['total_blocks']) + ' [' + str(dat['process_block_no']) + ' of total ' +
                   str(dat['total_process_block_no']) + '] for ' + process.out_processing_image.folder)
+            print('Processing image region from lines ' + str(dat['s_lin'] + 1) + ' > ' + str(dat['s_lin'] + dat['lines'])
+                  + ' and pixels ' + str(dat['s_pix'] + 1) + ' > ' + str(dat['s_pix'] + dat['pixels']) +
+                  ' with size ' + str(dat['lines']) + ' x ' + str(dat['pixels']) +
+                  ' from total image size ' + str(dat['total_lines']) + ' x ' + str(dat['total_pixels']))
+
             # Then do the final calculations. (For multilooking apply the multilooking calculation)
             if isinstance(process, MultilookProcess):
                 process.multilook_calculations()

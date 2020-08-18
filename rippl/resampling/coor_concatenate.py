@@ -10,6 +10,7 @@ import numpy as np
 import copy
 
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
+from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 from rippl.meta_data.readfile import Readfile
 from rippl.meta_data.orbit import Orbit
 from rippl.resampling.coor_new_extend import CoorNewExtend
@@ -41,34 +42,48 @@ class CoorConcatenate():
             return
 
         readfile = copy.deepcopy(readfile)
-        self.concat_coor.load_orbit(orbit)
+        self.concat_coor.load_orbit(orbit)          # type: CoordinateSystem
+        self.concat_coor.create_radar_lines()
 
         # First update the relevant values
+        readfile.json_dict['Orig_first_pixel_azimuth_time (UTC)'] = 'None'
+        readfile.json_dict['Orig_range_time_to_first_pixel (2way) (ms)'] = 'None'
         readfile.ra_first_pix_time = self.concat_coor.ra_time
         readfile.az_first_pix_time = self.concat_coor.az_time
         readfile.ra_time_step = self.concat_coor.ra_step
         readfile.az_time_step = self.concat_coor.az_step
+        readfile.json_dict['Orig_first_line'] = 'None'
+        readfile.json_dict['Orig_first_pixel'] = 'None'
+        readfile.first_pixel = self.concat_coor.first_pixel
+        readfile.first_line = self.concat_coor.first_line
+        readfile.center_lat = self.concat_coor.center_lat
+        readfile.center_lon = self.concat_coor.center_lon
+        readfile.center_line = self.concat_coor.center_line
+        readfile.center_pixel = self.concat_coor.center_pixel
+        readfile.center_heading = self.concat_coor.center_heading
+
+        # Get the oblique mercator projection
+        orbit_calculations = OrbitCoordinates(orbit=orbit)
+        orbit_calculations.load_coordinate_system(self.concat_coor)
+        proj_string = orbit_calculations.create_mercator_projection(UTM=False)
 
         # Calculate the lat/lon coverage of the image based on known radar coordinates
         new_coor = CoordinateSystem()
-        new_coor.create_geographic(0.01, 0.01)
+        new_coor.create_projection(1, 1, proj4_str=proj_string)
         new_coor.load_orbit(orbit)
         new_coverage = CoorNewExtend(self.concat_coor, new_coor)
         coor = new_coverage.out_coor
-        lat_coor = [coor.lat0 + coor.first_line * coor.dlat, coor.lat0 + (coor.first_line + coor.shape[0]) * coor.dlat]
-        lon_coor = [coor.lon0 + coor.first_pixel * coor.dlon, coor.lon0 + (coor.first_pixel + coor.shape[1]) * coor.dlon]
-        readfile.poly_coor = [[lat_coor[1], lon_coor[0]], [lat_coor[1], lon_coor[0]],
-                              [lat_coor[0], lon_coor[1]], [lat_coor[0], lon_coor[0]]]
+        y_coor = [coor.y0 + coor.first_line * coor.dy, coor.y0 + (coor.first_line + coor.shape[0]) * coor.dy]
+        x_coor = [coor.x0 + coor.first_pixel * coor.dx, coor.x0 + (coor.first_pixel + coor.shape[1]) * coor.dx]
+        readfile.poly_coor = [coor.proj2ell(y_coor[1], x_coor[0]), coor.proj2ell(y_coor[1], x_coor[1]),
+                              coor.proj2ell(y_coor[0], x_coor[1]), coor.proj2ell(y_coor[0], x_coor[0])]
         readfile.size = [self.concat_coor.shape[0] + self.concat_coor.first_line,
                          self.concat_coor.shape[1] + self.concat_coor.first_pixel]
-        readfile.center_lat = (lat_coor[0] + lat_coor[1]) / 2
-        readfile.center_lon = (lon_coor[0] + lon_coor[1]) / 2
+
 
         # Then remove all irrelevant parts of the new readfiles image (no link to source data or something)
         for key in ['First_line (w.r.t. tiff_image)', 'Last_line (w.r.t. tiff_image)',
                     'First_pixel (w.r.t. tiff_image)', 'Last_pixel (w.r.t. tiff_image)',
-                    'Number_of_lines_original', 'Number_of_pixels_original',
-                    'Number_of_lines_burst', 'Number_of_pixels_burst',
                     'Datafile', 'Dataformat', 'Number_of_bursts', 'Burst_number_index',
                     'Number_of_lines_swath', 'Number_of_pixels_swath',
                     'DC_reference_azimuth_time', 'DC_reference_range_time',
@@ -143,8 +158,8 @@ class CoorConcatenate():
         orig_line = np.min(orig_lines)
         orig_pixel = np.min(orig_pixels)
         new_coors = []
-        for coodinate_system in coor_systems:
-            new_coors.append(CoorConcatenate.adjust_orig_vals(coodinate_system, orig_line, orig_pixel))
+        for coordinate_system in coor_systems:
+            new_coors.append(CoorConcatenate.adjust_orig_vals(coordinate_system, orig_line, orig_pixel))
 
         return new_coors
 
@@ -155,7 +170,7 @@ class CoorConcatenate():
         sync_coors = CoorConcatenate.synchronize_coordinates(coor_systems)
 
         # Than get the first/last pixels
-        align_data = CoorConcatenate.coordinates_alignment(coor_systems)
+        align_data = CoorConcatenate.coordinates_alignment(sync_coors)
         if not align_data:
             return False
         else:
@@ -168,10 +183,19 @@ class CoorConcatenate():
         max_pix = np.max([first_pixel + coor.shape[1] for first_pixel, coor in zip(first_pixels, sync_coors)])
 
         new_shape = [int(max_line - new_first_line), int(max_pix - new_first_pix)]
-        concat_coor = copy.deepcopy(sync_coors[0])
+        concat_coor = copy.deepcopy(sync_coors[0])              # type: CoordinateSystem
+        line_id = np.argmin(orig_lines)
+        concat_coor.az_time = orig_lines[line_id] * concat_coor.az_step
+        pix_id = np.argmin(orig_pixels)
+        concat_coor.ra_time = orig_pixels[pix_id] * concat_coor.ra_step
         concat_coor.shape = new_shape
         concat_coor.first_line = int(new_first_line)
         concat_coor.first_pixel = int(new_first_pix)
+        concat_coor.center_lat = np.mean([coor.center_lat for coor in coor_systems])
+        concat_coor.center_lon = np.mean([coor.center_lon for coor in coor_systems])
+        concat_coor.center_heading = np.mean([coor.center_heading for coor in coor_systems])
+        concat_coor.center_pixel = np.int(np.mean([coor.center_pixel for coor in coor_systems]))
+        concat_coor.center_line = np.int(np.mean([coor.center_line for coor in coor_systems]))
 
         return concat_coor, sync_coors
 
@@ -219,8 +243,8 @@ class CoorConcatenate():
         if coor.grid_type == 'radar_coordinates':
             az_diff = (coor.az_time / coor.az_step) - orig_line
             ra_diff = (coor.ra_time / coor.ra_step) - orig_pix
-            coor.az_time = orig_line * coor.az_step
-            coor.ra_time = orig_pix * coor.ra_step
+            coor.az_time += az_diff * coor.az_step
+            coor.ra_time += ra_diff * coor.ra_step
 
             coor.first_line = int(np.round(coor.first_line + az_diff * (coor.multilook[0] / coor.oversample[0])))
             coor.first_pixel = int(np.round(coor.first_pixel + ra_diff * (coor.multilook[1] / coor.oversample[1])))

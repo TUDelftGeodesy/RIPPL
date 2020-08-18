@@ -13,9 +13,9 @@ from rippl.resampling.multilook_regular import MultilookRegular
 
 class CalibratedAmplitudeMultilook(MultilookProcess):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', polarisation='',
-                 in_coor=[], out_coor=[], master_image=False, db_only=True, resampled=True,
-                 coreg_master='coreg_master', slave='slave', overwrite=False, batch_size=1000000):
+    def __init__(self, data_id='', polarisation='', no_of_looks=False,
+                 in_coor=[], out_coor=[], master_image=False, db_only=True, resampled=True, no_line_pixel_input=False,
+                 coreg_master='coreg_master', slave='slave', overwrite=False, batch_size=1000000, oceans=True):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -50,29 +50,40 @@ class CalibratedAmplitudeMultilook(MultilookProcess):  # Change this name to the
 
         # Input data information
         self.input_info = dict()
-        self.input_info['image_types'] = ['slave', 'coreg_master']
+        self.input_info['image_types'] = ['slave']
         if master_image or not resampled:
-            self.input_info['process_types'] = ['crop', 'radar_ray_angles']
-            self.input_info['file_types'] = ['crop', 'incidence_angle']
+            self.input_info['process_types'] = ['crop']
+            self.input_info['file_types'] = ['crop']
         else:
-            self.input_info['process_types'] = ['correct_phases', 'radar_ray_angles']
-            self.input_info['file_types'] = ['phase_corrected', 'incidence_angle']
+            self.input_info['process_types'] = ['correct_phases']
+            self.input_info['file_types'] = ['phase_corrected']
 
-        self.input_info['polarisations'] = [polarisation, '']
-        self.input_info['data_ids'] = [data_id, '']
-        self.input_info['coor_types'] = ['in_coor', 'in_coor']
-        self.input_info['in_coor_types'] = ['', '']
-        self.input_info['type_names'] = ['complex_data', 'incidence_angle']
+        self.input_info['polarisations'] = [polarisation]
+        self.input_info['data_ids'] = [data_id]
+        self.input_info['coor_types'] = ['in_coor']
+        self.input_info['in_coor_types'] = ['']
+        self.input_info['type_names'] = ['complex_data']
 
-        if not self.regular:
-            self.input_info['image_types'].extend(['coreg_master', 'coreg_master'])
-            self.input_info['process_types'].extend(['reproject', 'reproject'])
-            self.input_info['file_types'].extend(['in_coor_lines', 'in_coor_pixels'])
-            self.input_info['polarisations'].extend(['', ''])
-            self.input_info['data_ids'].extend(['', ''])
-            self.input_info['coor_types'].extend(['in_coor', 'in_coor'])
-            self.input_info['in_coor_types'].extend(['out_coor', 'out_coor'])
-            self.input_info['type_names'].extend(['lines', 'pixels'])
+        if not self.regular and not no_line_pixel_input:
+            self.input_info['image_types'].extend(['coreg_master', 'coreg_master', 'coreg_master'])
+            self.input_info['process_types'].extend(['reproject', 'reproject', 'radar_ray_angles'])
+            self.input_info['file_types'].extend(['in_coor_lines', 'in_coor_pixels', 'incidence_angle'])
+            self.input_info['polarisations'].extend(['', '', ''])
+            self.input_info['data_ids'].extend(['', '', ''])
+            self.input_info['coor_types'].extend(['in_coor', 'in_coor', 'in_coor'])
+            self.input_info['in_coor_types'].extend(['out_coor', 'out_coor', ''])
+            self.input_info['type_names'].extend(['lines', 'pixels', 'incidence_angle'])
+        elif not self.regular and no_line_pixel_input and not oceans:
+            self.input_info['image_types'].extend(['coreg_master'])
+            self.input_info['process_types'].extend(['dem'])
+            self.input_info['file_types'].extend(['dem'])
+            self.input_info['polarisations'].extend(['',])
+            self.input_info['data_ids'].extend([''])
+            self.input_info['coor_types'].extend(['in_coor',])
+            self.input_info['in_coor_types'].extend([''])
+            self.input_info['type_names'].extend(['dem'])
+        else:
+            no_line_pixel_input = True
 
         # Coordinate systems
         self.coordinate_systems = dict()
@@ -91,7 +102,12 @@ class CalibratedAmplitudeMultilook(MultilookProcess):  # Change this name to the
         self.settings['multilooked_grids'] = ['calibrated_amplitude']
         self.settings['memory_data'] = False
         self.settings['buf'] = 0
+        self.settings['no_line_pixel_input'] = no_line_pixel_input
+        self.settings['regular'] = self.regular
+        if not oceans:
+            self.settings['dem'] = True
         self.batch_size = batch_size
+        self.add_no_of_looks(no_of_looks)
 
     def init_super(self):
 

@@ -1,11 +1,13 @@
 
 from rippl.meta_data.stack import Stack
+from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData, ImageProcessingMeta
 from rippl.SAR_sensors.sentinel.sentinel_stack import SentinelStack
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.SAR_sensors.sentinel.sentinel_download import DownloadSentinelOrbit, DownloadSentinel
 from rippl.resampling.coor_new_extend import CoorNewExtend
 from rippl.user_settings import UserSettings
+from rippl.meta_data.plot_data import PlotData
 import os
 import numpy as np
 import copy
@@ -53,13 +55,18 @@ class GeneralPipelines():
         self.dem_rounding = None
         self.dem_type = None
         self.dem_folder = None
+        self.lon_resolution = 6
 
         self.stack_name = None
         self.stack_folder = None
         self.start_date = None
         self.end_date = None
+        self.start_dates = None
+        self.end_dates = None
+        self.time_window = None
+        self.dates = None
 
-    def get_data(self, data_type, slice=False, concat_meta=False):
+    def get_data(self, data_type, slice=False, concat_meta=False, include_coreg_master=False):
         """
         This function loads the data for the different data types (ifg, coreg_master, coreg_slave, slc)
 
@@ -145,7 +152,10 @@ class GeneralPipelines():
 
         elif data_type == 'coreg_slave':
 
-            slave_names = [slave_name for slave_name in list(self.stack.slcs.keys())]
+            if include_coreg_master:
+                slave_names = list(self.stack.slcs.keys())
+            else:
+                slave_names = [slave_name for slave_name in list(self.stack.slcs.keys()) if slave_name != coreg_master_name]
             slave = []
             master = []
 
@@ -177,8 +187,8 @@ class GeneralPipelines():
 
         print('Working on this!')
 
-    def download_sentinel_data(self, start_date, end_date, track, polarisation,
-                              shapefile, radar_database_folder=None, orbit_folder=None,
+    def download_sentinel_data(self, start_date='', end_date='', dates='', time_window='', start_dates='', end_dates=''
+                               , track='', polarisation='', shapefile='', radar_database_folder=None, orbit_folder=None,
                               ESA_username=None, ESA_password=None, ASF_username=None, ASF_password=None, data=True, orbit=True):
         """
         Creation of datastack of Sentinel-1 images including the orbits.
@@ -211,8 +221,10 @@ class GeneralPipelines():
 
             # Download data and orbit
             for pol in polarisation:
-                download_data = DownloadSentinel(start_date, end_date, shapefile, track, polarisation=pol)
-                download_data.sentinel_available(ESA_username, ESA_password)
+                download_data = DownloadSentinel(start_date=start_date, end_date=end_date, end_dates=end_dates,
+                                                 start_dates=start_dates, time_window=time_window, dates=dates,
+                                                 shape=shapefile, track=track, polarisation=pol)
+                download_data.sentinel_search_ASF(ASF_username, ASF_password)
                 download_data.sentinel_download_ASF(radar_database_folder, ASF_username, ASF_password)
 
         # Orbits
@@ -223,10 +235,14 @@ class GeneralPipelines():
                 orbit_folder = settings.orbit_database
 
             precise_folder = os.path.join(orbit_folder, 'Sentinel-1', 'precise')
-            download_orbit = DownloadSentinelOrbit(start_date, end_date, precise_folder)
+            if data:
+                start_date = np.min(download_data.start_dates)
+                end_date = np.max(download_data.end_dates)
+            download_orbit = DownloadSentinelOrbit(start_date=start_date, end_date=end_date, precise_folder=precise_folder)
             download_orbit.download_orbits()
 
-    def create_sentinel_stack(self, start_date, end_date, master_date, track, polarisation, shapefile,
+    def create_sentinel_stack(self, start_date='', end_date='', master_date='', track='', polarisation='VV', shapefile='',
+                              dates='', time_window='', start_dates='', end_dates='',
                               stack_name=None, radar_database_folder=None, orbit_folder=None,
                               stack_folder=None, mode='IW', product_type='SLC'):
         """
@@ -255,11 +271,17 @@ class GeneralPipelines():
         # Prepare processing
         for pol in polarisation:
             self.stack = SentinelStack(datastack_folder=stack_folder, datastack_name=stack_name)
-            self.stack.read_from_database(radar_database_folder, shapefile, track, orbit_folder, start_date, end_date,
-                                          master_date, mode, product_type, pol, cores=cores)
-            self.read_stack(stack_folder, stack_name, start_date, end_date)
+            self.stack.read_from_database(database_folder=radar_database_folder, shapefile=shapefile, track_no=track,
+                                          orbit_folder=orbit_folder, start_date=start_date, end_date=end_date,
+                                          master_date=master_date, mode=mode, product_type=product_type,
+                                          polarisation=pol, cores=cores, dates=dates, time_window=time_window,
+                                          start_dates=start_dates, end_dates=end_dates)
+            self.read_stack(stack_folder=stack_folder, stack_name=stack_name, start_date=start_date, end_date=end_date,
+                            dates=dates, time_window=time_window, start_dates=start_dates, end_dates=end_dates)
+            self.stack.create_coverage_shp_kml_geojson()
 
-    def read_stack(self, stack_folder='', stack_name='', start_date='', end_date=''):
+    def read_stack(self, stack_folder='', stack_name='', start_date='', end_date='', start_dates='', end_dates='',
+                   dates='', time_window=''):
         """
         Read information of stack
 
@@ -271,12 +293,17 @@ class GeneralPipelines():
 
         self.start_date = start_date
         self.end_date = end_date
+        self.start_dates = start_dates
+        self.end_dates = end_dates
+        self.time_window = time_window
+        self.dates = dates
         self.stack_folder = stack_folder
         self.stack_name = stack_name
         
         self.stack = Stack(datastack_folder=self.stack_folder, datastack_name=self.stack_name, SAR_type='Sentinel-1')
         self.stack.read_master_slice_list()
-        self.stack.read_stack(start_date, end_date)
+        self.stack.read_stack(start_date=start_date, end_date=end_date, start_dates=start_dates, end_dates=end_dates,
+                              dates=dates, time_window=time_window)
     
     def reload_stack(self):
         """
@@ -287,7 +314,8 @@ class GeneralPipelines():
     
         self.stack = Stack(datastack_folder=self.stack_folder, datastack_name=self.stack_name, SAR_type='Sentinel-1')
         self.stack.read_master_slice_list()
-        self.stack.read_stack(self.start_date, self.end_date)
+        self.stack.read_stack(start_date=self.start_date, end_date=self.end_date, start_dates=self.start_dates,
+                              end_dates=self.end_dates, dates=self.dates, time_window=self.time_window)
     
     def create_dem_coordinates(self, dem_type, lon_resolution=3):
         """
@@ -306,33 +334,39 @@ class GeneralPipelines():
         self.dem_type = dem_type
         self.lon_resolution = lon_resolution
 
-    def create_ml_coordinates(self, coor_type, multilook=[1,1], oversample=[1,1], shape=[0,0],
-                              dlat=0.001, dlon=0.001, lat0=-90, lon0=-180,
-                              dx=1, dy=1, x0=0, y0=0, projection_string='', projection_type=''):
+    def create_ml_coordinates(self, coor_type='geographic', multilook=[1,1], oversample=[1,1], shape=[0,0],
+                              dlat=0.001, dlon=0.001, lat0=-90, lon0=-180, buffer=0, rounding=0,
+                              dx=1, dy=1, x0=0, y0=0, projection_string='', projection_type='', standard_type=''):
         """
         Create the coordinate system for multilooking. This can either be in radar coordinates, geographic or projected.
 
         :return:
         """
 
-        self.full_ml_coor = CoordinateSystem()
+        if not standard_type:
+            self.full_ml_coor = CoordinateSystem()
 
-        if coor_type == 'radar_grid':
-            self.full_ml_coor.create_radar_coordinates(multilook=multilook, oversample=oversample, shape=shape)
-            # TODO add readfiles/orbits
-        elif coor_type == 'geographic':
-            self.full_ml_coor.create_geographic(dlat, dlon, shape=shape, lon0=lon0, lat0=lat0)
-        elif coor_type == 'projection':
-            self.full_ml_coor.create_projection(dx, dy, projection_type=projection_type, proj4_str=projection_string, x0=x0, y0=y0)
+            if coor_type == 'radar_grid':
+                self.full_ml_coor.create_radar_coordinates(multilook=multilook, oversample=oversample, shape=shape)
+                # TODO add readfiles/orbits
+            elif coor_type == 'geographic':
+                self.full_ml_coor.create_geographic(dlat, dlon, shape=shape, lon0=lon0, lat0=lat0)
+            elif coor_type == 'projection':
+                self.full_ml_coor.create_projection(dx, dy, projection_type=projection_type, proj4_str=projection_string, x0=x0, y0=y0)
 
         coreg_image = self.get_data('coreg_master', slice=False, concat_meta=False)[0]  # type: ImageProcessingData
         orbit = coreg_image.find_best_orbit()
         readfile = coreg_image.readfiles['original']
         self.full_radar_coor.load_orbit(orbit)
+        self.full_radar_coor.create_radar_lines()
 
         # Define the full image multilooked image.
-        if shape == [0, 0] or shape == '':
-            new_coor = CoorNewExtend(self.full_radar_coor, self.full_ml_coor)
+        if standard_type:
+            new_coor = CoorNewExtend(self.full_radar_coor, standard_type, buffer=buffer, rounding=rounding,
+                                     dx=dx, dy=dy, dlat=dlat, dlon=dlon)
+            self.full_ml_coor = new_coor.out_coor
+        elif shape == [0, 0] or shape == '':
+            new_coor = CoorNewExtend(self.full_radar_coor, self.full_ml_coor, rounding=rounding, buffer=buffer)
             self.full_ml_coor = new_coor.out_coor
 
         self.full_ml_coor.load_orbit(orbit)
@@ -367,7 +401,7 @@ class GeneralPipelines():
                                                 spatial_baseline)
 
     def download_external_dem(self, dem_folder=None, dem_type='SRTM3', NASA_username=None, NASA_password=None, DLR_username=None, DLR_password=None,
-                              lon_resolution=3, buffer=1, rounding=1):
+                              lon_resolution=3, buffer=1, rounding=1, block_orientation='lines'):
         """
 
         :param dem_folder:
@@ -394,7 +428,7 @@ class GeneralPipelines():
             self.stack.download_Tandem_X_dem(dem_folder, DLR_username, DLR_password, buffer=buffer, rounding=rounding,
                                            lon_resolution=lon_resolution)
 
-    def geocoding(self, dem_folder=None, dem_type=None, dem_buffer=None, dem_rounding=None, lon_resolution=None):
+    def geocoding(self, dem_folder=None, dem_type=None, dem_buffer=None, dem_rounding=None, lon_resolution=None, block_orientation='lines'):
         """
         :param dem_folder:
         :param dem_type:
@@ -420,7 +454,7 @@ class GeneralPipelines():
         self.reload_stack()
         coreg_slices = self.get_data('coreg_master', slice=True)
 
-        dem_pipeline = Pipeline(pixel_no=5000000, processes=self.processes)
+        dem_pipeline = Pipeline(pixel_no=5000000, processes=self.processes, block_orientation=block_orientation)
         dem_pipeline.add_processing_data(coreg_slices, 'coreg_master')
         dem_pipeline.add_processing_step(ImportDem(in_coor=self.radar_coor, coreg_master='coreg_master',
                                                    dem_type=self.dem_type, dem_folder=self.dem_folder,
@@ -434,26 +468,26 @@ class GeneralPipelines():
         self.reload_stack()
         coreg_slices = self.get_data('coreg_master', slice=True)
 
-        geocode_pipeline = Pipeline(pixel_no=3000000, processes=self.processes)
+        geocode_pipeline = Pipeline(pixel_no=3000000, processes=self.processes, block_orientation=block_orientation)
         geocode_pipeline.add_processing_data(coreg_slices, 'coreg_master')
         geocode_pipeline.add_processing_step(ResampleDem(out_coor=self.radar_coor, in_coor=self.dem_coor,
                                                          coreg_master='coreg_master'), True)
         geocode_pipeline.add_processing_step(Geocode(out_coor=self.radar_coor, coreg_master='coreg_master'), True)
-        geocode_pipeline.add_processing_step(RadarRayAngles(out_coor=self.radar_coor, coreg_master='coreg_master'), True)
+        geocode_pipeline.add_processing_step(RadarRayAngles(out_coor=self.radar_coor, coreg_master='coreg_master',
+                                                            heading=False, off_nadir_angle=False, azimuth_angle=False, incidence_angle=True), True,)
         geocode_pipeline()
 
         self.reload_stack()
         coreg_image = self.get_data('coreg_master', slice=False, concat_meta=True)[0]
 
         # Finally concatenate bursts
-        coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.dem_coor, replace=True)
+        coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.dem_coor, replace=True, remove_input=True)
         coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.radar_coor, transition_type='cut_off')
-        coreg_image.create_concatenate_image(process='geocode', file_type='lat', coor=self.radar_coor, transition_type='cut_off')
-        coreg_image.create_concatenate_image(process='geocode', file_type='lon', coor=self.radar_coor, transition_type='cut_off')
-        coreg_image.create_concatenate_image(process='radar_ray_angles', file_type='incidence_angle', coor=self.radar_coor, transition_type='cut_off')
-        coreg_image.create_concatenate_image(process='radar_ray_angles', file_type='off_nadir_angle', coor=self.radar_coor, transition_type='cut_off')
+        coreg_image.create_concatenate_image(process='geocode', file_type='lat', coor=self.radar_coor, transition_type='cut_off', remove_input=True)
+        coreg_image.create_concatenate_image(process='geocode', file_type='lon', coor=self.radar_coor, transition_type='cut_off', remove_input=True)
+        coreg_image.create_concatenate_image(process='radar_ray_angles', file_type='incidence_angle', coor=self.radar_coor, transition_type='cut_off', remove_input=True)
 
-    def geometric_coregistration_resampling(self, polarisation, output_phase_correction=False):
+    def geometric_coregistration_resampling(self, polarisation, output_phase_correction=False, block_orientation='lines'):
         """
         Coregistration and resampling based on topography only.
 
@@ -466,41 +500,38 @@ class GeneralPipelines():
 
         # Allow the processing of two polarisation at the same time.
         self.reload_stack()
-        [slave_slices, coreg_slices] = self.get_data('coreg_slave', slice=True)
+        [slave_slices, coreg_slices] = self.get_data('coreg_slave', slice=True, include_coreg_master=True)
 
-        resampling_pipeline = Pipeline(pixel_no=5000000, processes=self.processes)
+        resampling_pipeline = Pipeline(pixel_no=5000000, processes=self.processes, block_orientation=block_orientation)
         resampling_pipeline.add_processing_data(coreg_slices, 'coreg_master')
         resampling_pipeline.add_processing_data(slave_slices, 'slave')
         resampling_pipeline.add_processing_step(GeometricCoregistration(out_coor=self.radar_coor,
                                                                         in_coor=self.radar_coor,
                                                                         coreg_master='coreg_master',
                                                                         slave='slave'), False)
-        resampling_pipeline.add_processing_step(CalcEarthTopoPhase(out_coor=self.radar_coor, slave='slave'), output_phase_correction)
+        resampling_pipeline.add_processing_step(CalcEarthTopoPhase(out_coor=self.radar_coor, slave='slave'), False)
         resampling_pipeline.add_processing_step(CalcReramp(out_coor=self.radar_coor, slave='slave'), True)
 
         for pol in polarisation:
             resampling_pipeline.add_processing_step(DerampResampleRadarGrid(out_coor=self.radar_coor, in_coor=self.radar_coor,
                                                                             polarisation=pol, slave='slave'), False)
             resampling_pipeline.add_processing_step(CorrectPhases(out_coor=self.radar_coor, polarisation=pol, slave='slave'), True)
+
         resampling_pipeline()
 
         # Concatenate the images
+
         self.reload_stack()
-        [slave_images, coreg_image] = self.get_data('coreg_slave', slice=False, concat_meta=True)
+        [slave_images, coreg_image] = self.get_data('coreg_slave', slice=False, concat_meta=True, include_coreg_master=True)
 
         for slave in slave_images:
             slave.create_concatenate_image(process='calc_reramp', file_type='ramp',
-                                           coor=self.radar_coor, transition_type='cut_off')
+                                           coor=self.radar_coor, transition_type='cut_off', remove_input=True)
             for pol in polarisation:
                 slave.create_concatenate_image(process='correct_phases', file_type='phase_corrected',
-                                               coor=self.radar_coor, transition_type='cut_off', polarisation=pol)
+                                               coor=self.radar_coor, transition_type='cut_off', polarisation=pol, remove_input=True)
 
-        #for pol in polarisation:
-        #    # Concatenate the files from the main folder
-        #    coreg_image[0].create_concatenate_image(process='crop', file_type='crop', coor=self.radar_coor,
-        #                                            transition_type='cut_off', polarisation=pol)
-
-    def prepare_multilooking_grid(self, polarisation):
+    def prepare_multilooking_grid(self, polarisation, block_orientation='lines'):
         """
         Create a multilooking grid.
 
@@ -512,10 +543,10 @@ class GeneralPipelines():
         coreg_image = self.get_data('coreg_master', slice=False, concat_meta=True)
 
         # Concatenate the files from the main folder if not already done
-        coreg_image[0].create_concatenate_image(process='crop', file_type='crop', polarisation=polarisation, coor=self.radar_coor, transition_type='cut_off')
+        coreg_image[0].create_concatenate_image(process='crop', file_type='crop', polarisation=polarisation, coor=self.radar_coor, transition_type='cut_off', remove_input=True)
 
         coreg_image = self.get_data('coreg_master', slice=False)
-        create_multilooking_grid = Pipeline(pixel_no=5000000, processes=self.processes)
+        create_multilooking_grid = Pipeline(pixel_no=5000000, processes=self.processes, block_orientation=block_orientation)
         create_multilooking_grid.add_processing_data(coreg_image, 'coreg_master')
         create_multilooking_grid.add_processing_step(
             MultilookPrepare(in_polarisation=polarisation, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
@@ -523,7 +554,7 @@ class GeneralPipelines():
                              slave='coreg_master', coreg_master='coreg_master'), True)
         create_multilooking_grid()
 
-    def create_interferogram_multilooked(self, polarisation):
+    def create_interferogram_multilooked(self, polarisation, block_orientation='lines'):
         """
         Create the interferograms using a multilooking in a geographic grid.
 
@@ -539,7 +570,7 @@ class GeneralPipelines():
             self.reload_stack()
             [ifgs, masters, slaves, coreg_master] = self.get_data('ifg', slice=False)
 
-            create_multilooked_ifg = Pipeline(pixel_no=0, processes=self.processes)
+            create_multilooked_ifg = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation)
             create_multilooked_ifg.add_processing_data(coreg_master, 'coreg_master')
             create_multilooked_ifg.add_processing_data(slaves, 'slave')
             create_multilooked_ifg.add_processing_data(masters, 'master')
@@ -549,7 +580,7 @@ class GeneralPipelines():
                                        slave='slave', coreg_master='coreg_master', ifg='ifg', master='master', batch_size=10000000), True, True)
             create_multilooked_ifg()
 
-    def create_calibrated_amplitude_multilooked(self, polarisation):
+    def create_calibrated_amplitude_multilooked(self, polarisation, block_orientation='lines'):
         """
         Create a geographic grid for the calibrated amplitude images.
 
@@ -565,20 +596,52 @@ class GeneralPipelines():
             [coreg_slave, coreg_master] = self.get_data('coreg_slave')
 
             # First create the multilooked square amplitudes.
-            create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes)
+            create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation)
             create_multilooked_amp.add_processing_data(coreg_master, 'coreg_master')
             create_multilooked_amp.add_processing_data(coreg_slave, 'slave')
             create_multilooked_amp.add_processing_step(
                 CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
                                        slave='slave', coreg_master='coreg_master', batch_size=10000000), True, True)
             create_multilooked_amp()
+            create_multilooked_amp.save_processing_results()
 
             # Finally do the master image seperately
-            #amp_multilook = CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-            #                                       slave=coreg_master[0], coreg_master=coreg_master[0], master_image=False, batch_size=10000000)
-            #amp_multilook()
+            amp_multilook = CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
+                                                   slave=coreg_master[0], coreg_master=coreg_master[0], master_image=False, batch_size=10000000, no_of_looks=True)
+            amp_multilook()
 
-    def create_coherence_multilooked(self, polarisation):
+    def create_calibrated_amplitude_approx_multilooked(self, polarisation, block_orientation='lines'):
+        """
+        Create a geographic grid for the calibrated amplitude images.
+
+        :param polarisation:
+        :return:
+        """
+
+        if isinstance(polarisation, str):
+            polarisation = [polarisation]
+
+        for pol in polarisation:
+            self.reload_stack()
+            slcs = self.get_data('slc', concat_meta=True)
+
+            for slc in slcs:
+                slc.create_concatenate_image(process='crop', file_type='crop',
+                                               coor=self.radar_coor, transition_type='cut_off', polarisation=pol, remove_input=True)
+
+        for pol in polarisation:
+            self.reload_stack()
+            slcs = self.get_data('slc')
+            # First create the multilooked square amplitudes.
+            create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation)
+            create_multilooked_amp.add_processing_data(slcs, 'slave')
+            create_multilooked_amp.add_processing_data(slcs, 'coreg_master')
+            create_multilooked_amp.add_processing_step(
+                CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
+                                       slave='slave', resampled=False, batch_size=10000000, no_line_pixel_input=True), True, True)
+            create_multilooked_amp()
+
+    def create_coherence_multilooked(self, polarisation, block_orientation='lines'):
         """
         Create the coherence values for the interferogram. Make sure that you created the interferograms first!
 
@@ -594,7 +657,7 @@ class GeneralPipelines():
             self.reload_stack()
             [coreg_slave, coreg_master] = self.get_data('coreg_slave')
 
-            create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes)
+            create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation)
             create_multilooked_amp.add_processing_data(coreg_master, 'coreg_master')
             create_multilooked_amp.add_processing_data(coreg_slave, 'slave')
             create_multilooked_amp.add_processing_step(
@@ -603,9 +666,9 @@ class GeneralPipelines():
             create_multilooked_amp()
 
             # Finally do the master image seperately
-            #amp_multilook = SquareAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-            #                                       slave=coreg_master[0], coreg_master=coreg_master[0], master_image=False, batch_size=10000000)
-            #amp_multilook()
+            amp_multilook = SquareAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
+                                                   slave=coreg_master[0], coreg_master=coreg_master[0], master_image=False, batch_size=10000000)
+            amp_multilook()
 
         # After creation of the square amplitude images, we can create the coherence values themselves.
         # Create coherences for multilooked grid
@@ -613,7 +676,7 @@ class GeneralPipelines():
             self.reload_stack()
             [ifgs, masters, slaves, coreg_master] = self.get_data('ifg', slice=False)
 
-            create_coherence = Pipeline(pixel_no=5000000, processes=self.processes)
+            create_coherence = Pipeline(pixel_no=5000000, processes=self.processes, block_orientation=block_orientation)
             create_coherence.add_processing_data(coreg_master, 'coreg_master')
             create_coherence.add_processing_data(slaves, 'slave')
             create_coherence.add_processing_data(masters, 'master')
@@ -622,7 +685,7 @@ class GeneralPipelines():
                 Coherence(polarisation=pol, out_coor=self.full_ml_coor, slave='slave', master='master', ifg='ifg'), True)
             create_coherence()
 
-    def create_unwrapped_images(self, polarisation):
+    def create_unwrapped_images(self, polarisation, block_orientation='lines'):
         """
         Create the unwrapped interferograms.
 
@@ -637,12 +700,12 @@ class GeneralPipelines():
             self.reload_stack()
             [ifgs, masters, slaves, coreg_master] = self.get_data('ifg', slice=False)
 
-            create_unwrapped_image = Pipeline(pixel_no=0, processes=self.processes)
+            create_unwrapped_image = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation)
             create_unwrapped_image.add_processing_data(ifgs, 'ifg')
             create_unwrapped_image.add_processing_step(Unwrap(polarisation=pol, out_coor=self.full_ml_coor, ifg='ifg'), True)
             create_unwrapped_image()
 
-    def create_geometry_mulitlooked(self, dem_folder=None, dem_type=None, dem_buffer=None, dem_rounding=None, lon_resolution=None):
+    def create_geometry_mulitlooked(self, dem_folder=None, dem_type=None, dem_buffer=None, dem_rounding=None, lon_resolution=None, block_orientation='lines'):
         """
         Create the geometry for a geographic grid used for multilooking
 
@@ -665,7 +728,7 @@ class GeneralPipelines():
         self.reload_stack()
         coreg_slices = self.get_data('coreg_master', slice=False)
 
-        dem_pipeline = Pipeline(pixel_no=5000000, processes=self.processes)
+        dem_pipeline = Pipeline(pixel_no=5000000, processes=self.processes, block_orientation=block_orientation)
         dem_pipeline.add_processing_data(coreg_slices, 'coreg_master')
         dem_pipeline.add_processing_step(ImportDem(in_coor=self.radar_coor, coreg_master='coreg_master',
                                                    dem_type=self.dem_type, dem_folder=self.dem_folder,
@@ -675,7 +738,7 @@ class GeneralPipelines():
 
         self.reload_stack()
         coreg_image = self.get_data('coreg_master', slice=False)
-        create_resample_grid = Pipeline(pixel_no=5000000, processes=self.processes)
+        create_resample_grid = Pipeline(pixel_no=5000000, processes=self.processes, block_orientation=block_orientation)
         create_resample_grid.add_processing_data(coreg_image, 'coreg_master')
         create_resample_grid.add_processing_step(
             ResamplePrepare(in_coor=self.dem_coor, out_coor=self.full_ml_coor,
@@ -687,7 +750,7 @@ class GeneralPipelines():
         self.reload_stack()
         coreg_slices = self.get_data('coreg_master', slice=False)
 
-        geocode_pipeline = Pipeline(pixel_no=3000000, processes=self.processes)
+        geocode_pipeline = Pipeline(pixel_no=3000000, processes=self.processes, block_orientation=block_orientation)
         geocode_pipeline.add_processing_data(coreg_slices, 'coreg_master')
         geocode_pipeline.add_processing_step(Resample(in_coor=self.dem_coor, out_coor=self.full_ml_coor,
                                                              in_file_type='dem', in_process='dem',
@@ -696,7 +759,7 @@ class GeneralPipelines():
         geocode_pipeline.add_processing_step(RadarRayAngles(out_coor=self.full_ml_coor, coreg_master='coreg_master'), True)
         geocode_pipeline()
 
-    def create_output_tiffs_amplitude(self):
+    def create_output_tiffs_amplitude(self, block_orientation='lines'):
         """
         Create the geotiff images
 
@@ -712,7 +775,7 @@ class GeneralPipelines():
         for geometry_dataset in geometry_datasets:                  # type: ImageData
             geometry_dataset.save_tiff(main_folder=True)
 
-    def create_output_tiffs_geometry(self):
+    def create_output_tiffs_geometry(self, block_orientation='lines'):
         """
         Create the geotiff images
 
@@ -743,6 +806,42 @@ class GeneralPipelines():
         ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True)[-1]
         for ifg in ifgs:          # type: ImageData
             ifg.save_tiff(main_folder=True)
+
+    def create_plots_coherence(self, overwrite=False):
+        """
+        Create plots for the coherences
+
+        :return:
+        """
+
+        cmap = 'Greys_r'
+        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True)[-1]
+        for coherence in coherences:
+            plot = PlotData(coherence, data_cmap=cmap, margins=0.1, data_quantiles=[0.05, 0.95], overwrite=overwrite)
+            succes = plot()
+            if succes:
+                plot.add_labels('Coherence ' + os.path.basename(coherence.folder), 'Coherence')
+                plot.save_image()
+                plot.close_plot()
+
+    def create_plots_ifg(self, overwrite=False):
+        """
+
+        :param overwrite:
+        :return:
+        """
+
+        cmap = 'jet'
+        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True)[-1]
+        ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True)[-1]
+        for ifg, coherence in zip(ifgs, coherences):
+            plot = PlotData(ifg, data_cmap=cmap, margins=0.1, data_min_max=[-np.pi, np.pi], transparency_in=coherence,
+                            transparency_scale='linear', complex_plot='phase', transparency_min_max=[0.1, 0.3], overwrite=overwrite)
+            succes = plot()
+            if succes:
+                plot.add_labels('Interferogram ' + os.path.basename(ifg.folder), 'Radians')
+                plot.save_image()
+                plot.close_plot()
 
     def create_output_tiffs_unwrap(self):
         """

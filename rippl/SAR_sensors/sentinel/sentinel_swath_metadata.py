@@ -147,9 +147,7 @@ class CreateSwathXmlRes():
             ('FM_polynomial_linear_coeff (Hz/s, early edge)', 'burst_specific'),
             ('FM_polynomial_quadratic_coeff (Hz/s/s, early edge)', 'burst_specific'),
             ('Datafile'                                     , 'needs_initial_processing'),
-            ('Dataformat'                                   , 'burst_specific'),
-            ('Number_of_lines_original'                     , 'burst_specific'),
-            ('Number_of_pixels_original'                    , 'burst_specific')
+            ('Dataformat'                                   , 'burst_specific')
         ])
 
         self.swath_xml_update = collections.OrderedDict([
@@ -225,21 +223,17 @@ class CreateSwathXmlRes():
         self.swath_readfiles['Number_of_bursts'] = len(self.burst_xml_dat['azimuthTimeStart'])
         self.swath_readfiles['Scene_identification'] = 'Orbit: '+ self.swath_xml_update['Orbit_number']
         self.swath_readfiles['Radar_wavelength (m)'] = 299792458.0/float(self.swath_readfiles['Radar_frequency (Hz)'])
-        self.swath_readfiles['Range_time_to_first_pixel (2way) (ms)'] = float(self.swath_xml_update['Slant_range_time'])*1000
+        self.swath_readfiles['Range_time_to_first_pixel (2way) (ms)'] = 'None'
         self.swath_readfiles['Orig_range_time_to_first_pixel (2way) (ms)'] = float(self.swath_xml_update['Slant_range_time']) * 1000
         self.swath_readfiles['Range_sampling_rate (computed, MHz)'] = float(self.swath_xml_update['Range_sampling_rate'])/1000000
         self.swath_readfiles['Total_range_band_width (MHz)'] = float(self.swath_xml_update['Range_bandwidth'])/1000000
         self.swath_readfiles['Datafile'] = os.path.join(os.path.dirname(os.path.dirname(self.swath_xml)),
                                            'measurement', os.path.basename(self.swath_xml)[:-4] + '.tiff')
         self.swath_readfiles['Dataformat'] = 'tiff'
-        self.swath_readfiles['Number_of_lines_original'] = int(self.swath_xml_update['Image_lines'])
-        self.swath_readfiles['Number_of_pixels_original'] = int(self.swath_xml_update['Image_pixels'])
-        self.swath_readfiles['Number_of_lines_burst'] = int(self.swath_xml_update['Lines_per_burst'])
-        self.swath_readfiles['Number_of_pixels_burst'] = int(self.swath_xml_update['Samples_per_burst'])
         self.swath_readfiles['Number_of_lines'] = int(self.swath_xml_update['Lines_per_burst'])
         self.swath_readfiles['Number_of_pixels'] = int(self.swath_xml_update['Samples_per_burst'])
-        self.swath_readfiles['First_pixel (w.r.t. tiff_image)'] = 1
-        self.swath_readfiles['Last_pixel (w.r.t. tiff_image)'] = int(self.swath_xml_update['Samples_per_burst'])
+        self.swath_readfiles['First_pixel (w.r.t. tiff_image)'] = 0
+        self.swath_readfiles['Last_pixel (w.r.t. tiff_image)'] = int(self.swath_xml_update['Samples_per_burst']) - 1
 
     def create_swath_orbit(self, orbit_class):
         # This function utilizes the orbit_read script to read precise orbit files and export them to the resfile format.
@@ -274,7 +268,7 @@ class CreateSwathXmlRes():
         self.swath_orbit = Orbit()
         self.swath_orbit.create_orbit(t, x, y, z, vel_x, vel_y, vel_z, satellite=self.swath_readfiles['SAR_processor'],
                                       type=orbit_type,
-                                      date=self.burst_readfiles[0].json_dict['First_pixel_azimuth_time (UTC)'][:10])
+                                      date=self.burst_readfiles[0].json_dict['Orig_first_pixel_azimuth_time (UTC)'][:10])
 
     def burst_swath_coverage(self):
         # This function returns the lat, lon of the corners of all bursts in this swath. If polygon is True also the poly
@@ -338,9 +332,20 @@ class CreateSwathXmlRes():
             readfiles['Burst_number_index'] = int(n + 1)
             readfiles['Slice'] = 'True'
 
+            # Line coordinates in tiff file
+            burst_lines = int(self.swath_readfiles['Number_of_lines'])
+            readfiles['First_line (w.r.t. tiff_image)'] = int(n * burst_lines)
+            readfiles['Last_line (w.r.t. tiff_image)'] = int((n + 1) * burst_lines - 1)
+            readfiles['Orig_first_line'] = 0
+            readfiles['Orig_first_pixel'] = 0
+            readfiles['First_line'] = 0
+            readfiles['First_pixel'] = 0
+
             # First find coordinates of center and optionally the corners
             readfiles['Scene_center_longitude'] = float(self.burst_center_coors[n][0])
             readfiles['Scene_center_latitude'] = float(self.burst_center_coors[n][1])
+            readfiles['Scene_center_line'] = int(self.swath_readfiles['Number_of_lines'] / 2)
+            readfiles['Scene_center_pixel'] = int(self.swath_readfiles['Number_of_pixels'] / 2)
             readfiles['Scene_ul_corner_latitude'] = float(self.burst_coors[n][0][1])
             readfiles['Scene_ur_corner_latitude'] = float(self.burst_coors[n][1][1])
             readfiles['Scene_lr_corner_latitude'] = float(self.burst_coors[n][2][1])
@@ -352,7 +357,7 @@ class CreateSwathXmlRes():
 
             # Find doppler centroid frequency and azimuth reference time
             readfiles['First_pixel_azimuth_time (UTC, TOPSAR)'] = burst_start_time_topsar[n].strftime('%Y-%m-%dT%H:%M:%S.%f')
-            readfiles['First_pixel_azimuth_time (UTC)'] = burst_start_time[n].strftime('%Y-%m-%dT%H:%M:%S.%f')
+            readfiles['First_pixel_azimuth_time (UTC)'] = 'None'
             readfiles['Orig_first_pixel_azimuth_time (UTC)'] = burst_start_time[n].strftime('%Y-%m-%dT%H:%M:%S.%f')
 
             # First index after start burst for doppler and azimuth
@@ -375,11 +380,6 @@ class CreateSwathXmlRes():
             readfiles['FM_polynomial_linear_coeff (Hz/s, early edge)'] = float(parameter[1])
             readfiles['FM_polynomial_quadratic_coeff (Hz/s/s, early edge)'] = float(parameter[2])
 
-            # Line coordinates in tiff file
-            burst_lines = int(self.swath_readfiles['Number_of_lines_burst'])
-            readfiles['First_line (w.r.t. tiff_image)'] = int(1 + n * burst_lines)
-            readfiles['Last_line (w.r.t. tiff_image)'] = int((n + 1) * burst_lines)
-
             readfile_burst = Readfile(json_data=readfiles)
 
             self.burst_readfiles.append(readfile_burst)
@@ -398,8 +398,8 @@ class CreateSwathXmlRes():
 
             first_line = np.argmax(np.diff(np.array(first_sample))) + 1
             last_line = np.argmin(np.diff(np.array(first_sample)))
-            first_pixel = np.min(first_sample[first_sample != -1])
-            last_pixel = np.min(last_sample[first_sample != -1])
+            first_pixel = np.min(first_sample[first_sample != -1]) - 1
+            last_pixel = np.min(last_sample[first_sample != -1]) - 1
 
             coordinates = CoordinateSystem()
             coordinates.load_readfile(self.burst_readfiles[n])
@@ -408,7 +408,6 @@ class CreateSwathXmlRes():
             coordinates.first_pixel = first_pixel
             coordinates.first_line = first_line
             coordinates.shape = [last_line - first_line, last_pixel - first_pixel]
-
             crop = ProcessData('', 'crop', coordinates, polarisation=self.swath_readfiles['Polarisation'])
             crop.add_process_image('crop', 'complex_int', coordinates.shape)
 

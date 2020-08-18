@@ -3,6 +3,7 @@ from collections import OrderedDict
 import pyproj
 import numpy as np
 import osr
+import utm
 
 from rippl.meta_data.readfile import Readfile
 from rippl.meta_data.orbit import Orbit
@@ -44,10 +45,15 @@ class CoordinateSystem():
         self.date = ''
         self.ra_time = 0
         self.az_time = 0
+        self.orig_ra_time = 0
+        self.orig_az_time = 0
         self.az_step = 0
         self.ra_step = 0
         self.center_lon = 0
         self.center_lat = 0
+        self.center_heading = 0
+        self.center_pixel = 0
+        self.center_line = 0
         self.swath = 0
 
         # Characteristics for geographic type
@@ -99,15 +105,22 @@ class CoordinateSystem():
 
         self.ra_time = readfile.ra_first_pix_time
         self.az_time = readfile.az_first_pix_time
+        self.orig_ra_time = readfile.orig_ra_first_pix_time
+        self.orig_az_time = readfile.orig_az_first_pix_time
         self.ra_step = readfile.ra_time_step
         self.az_step = readfile.az_time_step
         self.center_lat = readfile.center_lat
         self.center_lon = readfile.center_lon
+        self.center_pixel = readfile.center_pixel
+        self.center_line = readfile.center_line
+        self.center_heading = readfile.center_heading
         self.date = readfile.date
         self.swath = readfile.swath
 
         if self.shape == '' and self.grid_type == 'radar_coordinates':
             self.shape = readfile.size
+            self.first_line = readfile.first_line
+            self.first_pixel = readfile.first_pixel
         # To define the origin of the readfile we assume it is always from the same track. So it can be defined using
         # the date only.
         self.radar_grid_date = readfile.date
@@ -172,10 +185,15 @@ class CoordinateSystem():
             self.json_dict['date'] = self.date
             self.json_dict['az_time'] = float(self.az_time)
             self.json_dict['ra_time'] = float(self.ra_time)
+            self.json_dict['orig_az_time'] = float(self.orig_az_time)
+            self.json_dict['orig_ra_time'] = float(self.orig_ra_time)
             self.json_dict['az_step'] = float(self.az_step)
             self.json_dict['ra_step'] = float(self.ra_step)
             self.json_dict['center_lat'] = float(self.center_lat)
             self.json_dict['center_lon'] = float(self.center_lon)
+            self.json_dict['center_line'] = int(self.center_line)
+            self.json_dict['center_pixel'] = int(self.center_pixel)
+            self.json_dict['center_heading'] = float(self.center_heading)
             self.json_dict['multilook'] = [int(s) for s in self.multilook]
             self.json_dict['date'] = self.date
             self.json_dict['swath'] = int(self.swath)
@@ -185,7 +203,7 @@ class CoordinateSystem():
             self.json_dict['lon0'] = float(self.lon0)
             self.json_dict['dlat'] = float(self.dlat)
             self.json_dict['dlon'] = float(self.dlon)
-        elif self.grid_type == 'geographic':
+        elif self.grid_type == 'projection':
             self.json_dict['ellipse_type'] = self.ellipse_type
             self.json_dict['projection_type'] = self.projection_type
             self.json_dict['proj4_str'] = self.proj4_str
@@ -239,10 +257,15 @@ class CoordinateSystem():
             self.date = self.json_dict['date']
             self.az_time = self.json_dict['az_time']
             self.ra_time = self.json_dict['ra_time']
+            self.orig_az_time = self.json_dict['orig_az_time']
+            self.orig_ra_time = self.json_dict['orig_ra_time']
             self.az_step = self.json_dict['az_step']
             self.ra_step = self.json_dict['ra_step']
             self.center_lat = self.json_dict['center_lat']
             self.center_lon = self.json_dict['center_lon']
+            self.center_line = self.json_dict['center_line']
+            self.center_pixel = self.json_dict['center_pixel']
+            self.center_heading = self.json_dict['center_heading']
             self.multilook = self.json_dict['multilook']
             self.date = self.json_dict['date']
             self.swath = self.json_dict['swath']
@@ -252,7 +275,7 @@ class CoordinateSystem():
             self.lon0 = self.json_dict['lon0']
             self.dlat = self.json_dict['dlat']
             self.dlon = self.json_dict['dlon']
-        elif self.grid_type == 'geographic':
+        elif self.grid_type == 'projection':
             self.ellipse_type = self.json_dict['ellipse_type']
             self.projection_type = self.json_dict['projection_type']
             self.proj4_str = self.json_dict['proj4_str']
@@ -260,6 +283,7 @@ class CoordinateSystem():
             self.y0 = self.json_dict['y0']
             self.dx = self.json_dict['dx']
             self.dy = self.json_dict['dy']
+            self.proj = pyproj.Proj(self.proj4_str)
 
         # Add the readfile and orbit
         if len(self.json_dict['readfile']) > 0:
@@ -278,6 +302,41 @@ class CoordinateSystem():
         if mask_name:
             self.mask_name = mask_name
             self.sample = self.sample + '_' + self.mask_name
+
+    def coordinate_limits(self):
+        """
+        Limits of coordinate system
+
+        Returns
+        -------
+
+        """
+
+        print('Coordinate system type is ' + self.grid_type)
+        print('Coordinate system size is ' + str(self.shape[0]) + ' lines and ' + str(self.shape[1]) + ' pixels')
+
+        if self.grid_type == 'radar_coordinates':
+            print('First line is ' + str(self.first_line) + ' and last line is ' + str(self.first_line + self.shape[0] - 1))
+            print('Steps in lines is ' + str(self.multilook[0]))
+            print('First pixel is ' + str(self.first_pixel) + ' and last pixel is ' + str(self.first_pixel + self.shape[1] - 1))
+            print('Steps in pixels is ' + str(self.multilook[1]))
+
+        elif self.grid_type == 'geographic':
+            print('First line latitude is at ' + '%.4f'%(self.first_line * self.dlat + self.lat0) + ' degrees and the '
+                  'last line at ' + '%.4f'%((self.first_line + self.shape[0] - 1) * self.dlat + self.lat0) + ' degrees')
+            print('Step size in latitude is ' + '%.4f'%(self.dlat) + ' degrees')
+            print('First pixel longitude is at ' + '%.4f'%(self.first_pixel * self.dlon + self.lon0) + ' degrees and the '
+                  'last line at ' + '%.4f'%((self.first_pixel + self.shape[1] - 1) * self.dlon + self.lon0) + ' degrees')
+            print('Step size in longitude is ' + '%.4f'%(self.dlon) + ' degrees')
+
+        elif self.grid_type == 'projection':
+            print('Projection string is ' + self.proj4_str)
+            print('First line distance is at ' + str(int(self.first_line * self.dy + self.y0)) + ' meters and the '
+                  'last line at ' + str(int((self.first_line + self.shape[0] - 1) * self.dy + self.y0)) + ' meters')
+            print('Step size in distance is ' + str(int(self.dy)) + ' meters')
+            print('First pixel distance is at ' + str(int(self.first_pixel * self.dx + self.x0)) + ' meters and the '
+                  'last line at ' + str(int((self.first_pixel + self.shape[1] - 1) * self.dx + self.x0)) + ' meters')
+            print('Step size in distance is ' + str(int(self.dx)) + ' meters')
 
     def create_radar_coordinates(self, multilook='', oversample='', shape='', first_line=0, first_pixel=0,
                                  sparse_name='', mask_name=''):
@@ -373,6 +432,7 @@ class CoordinateSystem():
             self.proj = pyproj.Proj(proj4_str)
         else:
             self.proj = pyproj.Proj(proj=projection_type, ellps=ellipse_type)
+            self.proj4_str = self.proj.definition_string()
 
     def create_projection_extend(self, buf_pix=10, x0='', y0=''):
         # type: (CoordinateSystem, int, float, float) -> None
@@ -422,7 +482,8 @@ class CoordinateSystem():
 
         return x0, y0, first_line, first_pixel, shape
 
-    def create_gdal_projection(self):
+
+    def create_gdal_projection(self, radar_proj4=''):
         """
         Create the projection characteristics to save data as .tiff file using gdal.
         Note that the values for radar coordinates are an approximation only!
@@ -590,7 +651,7 @@ class CoordinateSystem():
         elif self.grid_type == 'geographic':
             self.short_id_str = 'geo_' + (self.ellipse_type + '_' + str(int(self.dlon * 3600)) + '_' + str(int(self.dlat * 3600))) + '_' + self.sparse_name + self.mask_name
         elif self.grid_type == 'projection':
-            self.short_id_str = 'proj_' + (self.projection_type + '_' + str(self.dy) + '_' + str(self.dx)) + '_' + self.sparse_name + self.mask_name
+            self.short_id_str = 'proj_' + (self.projection_type + '_' + str(int(self.dy)) + '_' + str(int(self.dx))) + '_' + self.sparse_name + self.mask_name
 
         if self.short_id_str.endswith('_'):
             self.short_id_str = self.short_id_str[:-1]
@@ -634,7 +695,7 @@ class CoordinateSystem():
 
         return lat, lon
 
-    def create_xy_grid(self):
+    def create_xy_grid(self, x_interval=1, y_interval=1):
         # Creates the xy grid for a projection.
         if self.grid_type != 'projection':
             print('xy grid can only be created for a projection')
@@ -647,10 +708,10 @@ class CoordinateSystem():
 
         return x, y
 
-    def create_latlon_grid(self):
+    def create_latlon_grid(self, lat_interval=1, lon_interval=1):
         # Creates the lat/lon grid for a projection
         if self.grid_type != 'geographic':
-            print('xy grid can only be created for a geographic coordinate system')
+            print('lat/lon grid can only be created for a geographic coordinate system')
             return
 
         lat_vals = self.lat0 + np.arange(self.shape[0]) * self.dlat + self.first_line * self.dlat

@@ -15,7 +15,7 @@ from rippl.run_parallel import run_parallel
 class Pipeline():
 
 
-    def __init__(self, pixel_no=1000000, processes=1, run_no_datasets=25):
+    def __init__(self, pixel_no=1000000, processes=1, run_no_datasets=25, block_orientation='lines'):
         """
         The pipeline function is used to create pipelines of functions. This serves several purposes:
         1. Results from different functions can be saved to memory, reducing disk input/output
@@ -40,6 +40,7 @@ class Pipeline():
         self.processes = processes
         self.run_no_datasets = run_no_datasets
         self.total_blocks = 0
+        self.block_orientation = block_orientation
 
         self.pipelines = []
         self.block_pipelines = []
@@ -114,7 +115,7 @@ class Pipeline():
             self.assign_coordinate_systems_processing_data(block)
 
             # Finally create the block sizes.
-            self.divide_processing_blocks(block)
+            self.divide_processing_blocks(block, self.block_orientation)
 
             # The output resfile to disk.
             self.processing_datasets = []
@@ -159,7 +160,7 @@ class Pipeline():
             else:
                 pool = multiprocessing.Pool(processes=self.processes, maxtasksperchild=5)
 
-                for json_out in pool.imap_unordered(run_parallel, self.block_pipelines):
+                for json_out in pool.imap_unordered(run_parallel, self.block_pipelines, chunksize=1):
                     self.json_dicts.extend(json_out[0])
                     self.json_files.extend(json_out[1])
                 pool.close()
@@ -315,7 +316,7 @@ class Pipeline():
             else:
                 print('Skipping processing. Process already finished')
 
-    def divide_processing_blocks(self, run_block=0):
+    def divide_processing_blocks(self, run_block=0, block_orientation='lines'):
         """
         Be sure you run the assign_coordinate_systems_processing_data before this step.
 
@@ -334,8 +335,15 @@ class Pipeline():
             for pipeline in self.pipelines:
                 pipeline['block'] = 0
                 pipeline['total_blocks'] = 1
+                pipeline['s_lin'] = 0
+                pipeline['s_pix'] = 0
+                coor_type = pipeline['processes'][0].output_info['coor_type']
+                coor_system = pipeline['processes'][0].coordinate_systems[coor_type]
+                pipeline['lines'] = coor_system.shape[0]
+                pipeline['pixels'] = coor_system.shape[1]
+                pipeline['total_lines'] = coor_system.shape[0]
+                pipeline['total_pixels'] = coor_system.shape[1]
                 self.block_pipelines.append(pipeline)
-
         else:
             for pipeline in self.pipelines:
                 # First find the output coordinate system
@@ -348,19 +356,48 @@ class Pipeline():
                     # image.
                     pipeline['block'] = 0
                     pipeline['total_blocks'] = 1
+                    pipeline['s_lin'] = 0
+                    pipeline['s_pix'] = 0
+                    pipeline['lines'] = coor_system.shape[0]
+                    pipeline['pixels'] = coor_system.shape[1]
+                    pipeline['total_lines'] = coor_system.shape[0]
+                    pipeline['total_pixels'] = coor_system.shape[1]
                     self.block_pipelines.append(pipeline)
                 else:
-                    lines = np.ceil(float(self.pixel_no) / coor_system.shape[1]).astype(np.int32)
-                    blocks = np.ceil(float(coor_system.shape[0]) / lines).astype(np.int32)
+                    if block_orientation == 'lines':
+                        lines = np.ceil(float(self.pixel_no) / coor_system.shape[1]).astype(np.int32)
+                        pixels = coor_system.shape[1]
+                        l_blocks = np.ceil(float(coor_system.shape[0]) / lines).astype(np.int32)
+                        p_blocks = 1
+                    elif block_orientation == 'pixels':
+                        lines = coor_system.shape[0]
+                        pixels = np.ceil(float(self.pixel_no) / coor_system.shape[0]).astype(np.int32)
+                        l_blocks = 1
+                        p_blocks = np.ceil(float(coor_system.shape[1]) / pixels).astype(np.int32)
+                    elif block_orientation == 'blocks':
+                        # If this option is chosen the image is divided in blocks in equal lines/pixel blocks.
+                        lines = np.ceil(np.sqrt(float(self.pixel_no))).astype(np.int32)
+                        pixels = lines
+                        l_blocks = np.ceil(float(coor_system.shape[0]) / lines).astype(np.int32)
+                        p_blocks = np.ceil(float(coor_system.shape[1]) / pixels).astype(np.int32)
+                    else:
+                        raise TypeError('block orientation can only be lines or pixels')
 
-                    for n in range(blocks):
-                        new_pipeline = copy.deepcopy(pipeline)
-                        for process in new_pipeline['processes']:
-                            process.define_processing_block(s_lin=n * lines, lines=lines)
+                    for n in range(l_blocks):
+                        for m in range(p_blocks):
+                            new_pipeline = copy.deepcopy(pipeline)
+                            for process in new_pipeline['processes']:
+                                process.define_processing_block(s_lin=n * lines, lines=lines, s_pix=m * pixels, pixels=pixels)
 
-                        new_pipeline['block'] = n
-                        new_pipeline['total_blocks'] = blocks
-                        self.block_pipelines.append(new_pipeline)
+                            new_pipeline['block'] = n * m + m
+                            new_pipeline['total_blocks'] = l_blocks * p_blocks
+                            new_pipeline['s_lin'] = n * lines
+                            new_pipeline['s_pix'] = m * pixels
+                            new_pipeline['lines'] = lines
+                            new_pipeline['pixels'] = pixels
+                            new_pipeline['total_lines'] = coor_system.shape[0]
+                            new_pipeline['total_pixels'] = coor_system.shape[1]
+                            self.block_pipelines.append(new_pipeline)
 
         random.shuffle(self.block_pipelines)
 

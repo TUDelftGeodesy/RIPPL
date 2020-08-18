@@ -18,8 +18,9 @@ from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 class CoorNewExtend(object):
 
-    def __init__(self, in_coor, out_coor, min_height=0, max_height=500, full_coverage='in', buffer=0, rounding=0):
-        # type: (CoorNewExtend, CoordinateSystem, CoordinateSystem, int, int, str) -> None
+    def __init__(self, in_coor, out_coor, min_height=0, max_height=5000, full_coverage='in', buffer=0, rounding=0,
+                 dx=100, dy=100, dlat=0.1, dlon=0.1):
+        # type: (CoordinateSystem, [CoordinateSystem, str], int, int, str) -> None
         # We assume that the x0/y0/lat0/lon0/az_time/ra_time are either 0 or already defined.
 
         self.in_coor = in_coor
@@ -28,11 +29,39 @@ class CoorNewExtend(object):
         self.full_coverage = full_coverage
 
         if in_coor.grid_type == 'radar_coordinates':
+            if out_coor == 'UTM':
+                out_coor = self.get_mercator_projection(in_coor, True, dx, dy)
+            elif out_coor == 'oblique_mercator':
+                out_coor = self.get_mercator_projection(in_coor, False, dx, dy)
+            elif out_coor == 'geographic':
+                out_coor = CoordinateSystem()
+                out_coor.create_geographic(dlat=dlat, dlon=dlon)
+
             self.out_coor = CoorNewExtend.radar2new(in_coor, out_coor, min_height, max_height, full_coverage, buffer,
                                                     rounding)
         else:
             self.out_coor = CoorNewExtend.geographic_projection2new(in_coor, out_coor, min_height, max_height,
                                                                     full_coverage, buffer, rounding)
+
+    @staticmethod
+    def get_mercator_projection(in_coor, UTM, dx, dy):
+        """
+
+        Returns
+        -------
+
+        """
+
+        orbit_in = OrbitCoordinates(in_coor)
+        proj_string = orbit_in.create_mercator_projection(UTM)
+
+        out_coor = CoordinateSystem()
+        if UTM:
+            out_coor.create_projection(dx, dy, proj4_str=proj_string, projection_type='UTM')
+        else:
+            out_coor.create_projection(dx, dy, proj4_str=proj_string, projection_type='oblique_mercator')
+
+        return out_coor
 
     @staticmethod
     def radar_convex_hull(in_coor):

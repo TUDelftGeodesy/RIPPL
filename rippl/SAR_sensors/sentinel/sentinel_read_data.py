@@ -10,7 +10,10 @@ def sentinel_read_data(path_tiff, s_pix, s_lin, size):
 
     if 'zip' in path_tiff:
         os.environ['CPL_ZIP_ENCODING'] = 'UTF-8'
-        src_ds = gdal.Open('/vsizip/' + path_tiff, gdal.GA_ReadOnly)
+        if os.name == 'nt':
+            src_ds = gdal.Open('"\"vsizip"\"' + path_tiff, gdal.GA_ReadOnly)
+        else:
+            src_ds = gdal.Open('/vsizip/' + path_tiff, gdal.GA_ReadOnly)
     else:
         src_ds = gdal.Open(path_tiff, gdal.GA_ReadOnly)
     if src_ds is None:
@@ -18,7 +21,7 @@ def sentinel_read_data(path_tiff, s_pix, s_lin, size):
         return
 
     band = src_ds.GetRasterBand(1)
-    dat = band.ReadAsArray(int(s_pix), int(s_lin), int(size[1]), int(size[0]))
+    dat = band.ReadAsArray(int(s_pix) + 1, int(s_lin) + 1, int(size[1]), int(size[0]))
 
     return dat
 
@@ -47,9 +50,9 @@ def write_sentinel_burst(input):
     crop_key = [key for key in slice.processes['crop'].keys() if pol in key][0]
     crop_coor = slice.processes['crop'][crop_key].coordinates
 
-    first_line = int(slice.readfiles['original'].json_dict['First_line (w.r.t. tiff_image)']) + crop_coor.first_line
+    first_line = int(slice.readfiles['original'].json_dict['First_line (w.r.t. tiff_image)']) + crop_coor.orig_first_line
     lines = crop_coor.shape[0]
-    first_pixel = crop_coor.first_pixel
+    first_pixel = crop_coor.orig_first_pixel
     pixels = crop_coor.shape[1]
 
     data_path = slice.readfiles['original'].json_dict['Datafile']
@@ -91,3 +94,4 @@ def write_sentinel_burst(input):
         new_slice.processes_data['crop'][crop_key].images['crop'].check_data_disk_valid()
         new_slice.meta.save_json(json_path=slice_json)
         print('Finished initialization of ' + slice_code + ' with polarisation ' + pol + ' at ' + date)
+

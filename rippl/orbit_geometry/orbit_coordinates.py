@@ -1,9 +1,15 @@
 # Class to calculate the geometry of a radar image based on the orbits.
 import numpy as np
+import osr
+import utm
+import os
+
 from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.meta_data.readfile import Readfile
 from rippl.meta_data.orbit import Orbit
+from rippl.user_settings import UserSettings
+from rippl.external_dems.geoid import GeoidInterp
 
 
 class OrbitCoordinates(object):
@@ -19,9 +25,10 @@ class OrbitCoordinates(object):
         self.ra_step = []
         self.center_phi = []
         self.center_lambda = []
-
-        self.degree2rad = np.pi / 180
-        self.rad2degree = 180 / np.pi
+        self.center_line = []
+        self.center_pixel = []
+        self.center_lat = []
+        self.center_lon = []
 
         # Define the main variables for this function
         self.az_times = np.asarray([])          # azimuth times of different lines
@@ -40,6 +47,7 @@ class OrbitCoordinates(object):
         self.height_orbit = np.asarray([])      # height of azimuth points along orbit (WGS84)
         self.xyz = np.asarray([])                 # cartesian coordinates on the ground
         self.geoid = np.asarray([])             # geoid correction for points on the ground (EGM96)
+        self.incidence = np.asarray([])         # approximation of incidence angle
 
         # Variables that can be used for ray tracing
         self.off_nadir_angle = np.asarray([])   # off nadir angle for all pixels
@@ -79,8 +87,12 @@ class OrbitCoordinates(object):
         self.ra_time = coordinates.ra_time
         self.az_step = coordinates.az_step
         self.ra_step = coordinates.ra_step
-        self.center_phi = coordinates.center_lat * self.degree2rad
-        self.center_lambda = coordinates.center_lon * self.degree2rad
+        self.center_phi = np.deg2rad(coordinates.center_lat)
+        self.center_lambda = np.deg2rad(coordinates.center_lon)
+        self.center_lat = coordinates.center_lat
+        self.center_lon = coordinates.center_lon
+        self.center_line = coordinates.center_line
+        self.center_pixel = coordinates.center_pixel
 
         # Line pixel coordinates
         self.lines = coordinates.interval_lines
@@ -104,8 +116,12 @@ class OrbitCoordinates(object):
         self.az_step = readfiles.az_time_step
         self.ra_step = readfiles.ra_time_step
 
-        self.center_phi = readfiles.center_lat * self.degree2rad
-        self.center_lambda = readfiles.center_lon * self.degree2rad
+        self.center_phi = np.deg2rad(readfiles.center_lat)
+        self.center_lambda = np.deg2rad(readfiles.center_lon)
+        self.center_lat = readfiles.center_lat
+        self.center_lon = readfiles.center_lon
+        self.center_line = readfiles.center_line
+        self.center_pixel = readfiles.center_pixel
 
     def load_data(self, meta, s_lin=0, lines=0, dem=True, xyz=False):
         # Load data from resfile. Only the ones that are available with the same coordinate system.
@@ -126,7 +142,7 @@ class OrbitCoordinates(object):
             if man_par != 0:
                 coor_par = man_par
                 if deg2rad:
-                    coor_par *= self.degree2rad
+                    coor_par = np.deg2rad(coor_par)
 
     def manual_line_pixel_height(self, lines, pixels, heights):
         # type: (OrbitCoordinates, np.array, np.array, np.array) -> None
@@ -168,6 +184,90 @@ class OrbitCoordinates(object):
 
         # Evaluate the orbit based on the given az_times
         self.xyz_orbit, self.vel_orbit, self.acc_orbit = self.orbit.evaluate_orbit_spline(self.az_times, vel=True, acc=True)
+
+    def first_guess_xyz(self, lines):
+        """
+        This function gives a first guess of the xyz location of the radar pixel points. This gives a faster iteration
+        to the final solution and prevents the switching of the solution from right-looking to left-looking and the
+        other way around.
+
+        Returns
+        -------
+
+        """
+
+        # Calculate location of center point
+        R, geoid = self.globe_center_distance(self.center_lat, self.center_lon)
+        center_xyz = self.ell2xyz(self.center_lat, self.center_lon, geoid)
+
+        # Calculate orbit difference
+        center_az_time = self.center_line * self.az_step + self.az_time
+        center_orbit_xyz = self.orbit.evaluate_orbit_spline([center_az_time])[0]
+        az_times = lines * self.az_step + self.az_time
+        orbit_xyz = self.orbit.evaluate_orbit_spline(az_times)[0]
+
+        # Calculate xyz estimate (we shift the point exactly the same as the satellite is moved during this period)
+        xyz = center_xyz + (orbit_xyz - center_orbit_xyz)
+
+        return xyz, center_xyz
+
+    def approx_lph2xyz(self):
+        """
+        This function calculates an approximate value for xyz, using the intersection between a sphere and a circle.
+        The sphere of the globe is defined base on the local distance to the earth center.
+
+        Returns
+        -------
+
+        """
+
+        R, geoid_h = self.globe_center_distance(self.center_lat, self.center_lon)
+
+        # Line pixel coordinates
+        az_times = self.az_time + self.az_step * self.lines
+        ra_dist = (self.ra_time + self.ra_step * self.pixels) * self.sol / 2
+
+        xyz, vel_xyz, acc_xyz = self.orbit.evaluate_orbit_spline(az_times, pos=True, vel=True, sorted=True)
+        vel_n = vel_xyz / np.sqrt(np.sum(vel_xyz**2, axis=0))[None, :]          # size 3 * az
+
+        # Calculate the globe intersection circles. Center location and sizes.
+        circle_dist = np.einsum('ij,ij->j', vel_n, xyz)                         # size az
+        circle_center = circle_dist * vel_n                                     # size az
+        circle_size = np.sqrt((R + np.ravel(self.height))**2 -                  # size (az * ra)
+                              np.ravel(circle_dist[:, None] * np.ones((1, len(self.pixels))))**2)
+        d = np.sqrt(np.sum((xyz - circle_center)**2, axis=0))                   # size az
+
+        # Calculate tangent vector
+        tangent_vector = np.cross(circle_center - xyz, vel_n, axis=0)           # size 3 * az
+        tangent_norm = tangent_vector / np.sqrt(np.sum(tangent_vector**2, axis=0))[None, :] # size 3 * az
+
+        if self.regular:
+            # Reshape to full grid values
+            ra_dist = np.ravel(ra_dist[None, :] * np.ones((len(az_times), 1)))
+            d = np.ravel(d[:, None] * np.ones((1, len(self.pixels))))
+            circle_center = np.ravel(circle_center[:, :, None] * np.ones((1, 1, len(self.pixels)))).reshape((3, -1))
+            xyz = np.ravel(xyz[:, :, None] * np.ones((1, 1, len(self.pixels)))).reshape((3, -1))
+            tangent_norm = np.ravel(tangent_norm[:, :, None] * np.ones((1, 1, len(self.pixels)))).reshape((3, -1))
+
+        # Now do the calcutations for all points.
+        h = 0.5 + (ra_dist**2 - circle_size**2) / (2 * d**2)
+        r_i = np.sqrt(ra_dist**2 - h**2 * d**2)
+        c_i = xyz + h[None, :] * (circle_center - xyz)
+        # Calc incidence angle using cosine rule
+        self.incidence = np.pi - np.arccos((circle_size**2 + ra_dist**2 - d**2) / (2 * circle_size * ra_dist))
+        del h, circle_center, circle_size, ra_dist, xyz
+
+        # Check for one point which side is the right one
+        block_center_xyz, center_xyz = self.first_guess_xyz(np.array([int((np.mean(az_times) - self.az_time) / self.az_step)]))
+        p0 = c_i[:, 0] - tangent_norm[:, 0] * r_i[0]
+        dist0 = np.sqrt(np.sum((p0[:, None] - block_center_xyz)**2))
+        p1 = c_i[:, 0] + tangent_norm[:, 0] * r_i[0]
+        dist1 = np.sqrt(np.sum((p1[:, None] - block_center_xyz)**2))
+
+        if dist0 < dist1:
+            self.xyz = c_i - tangent_norm * r_i
+        elif dist1 <= dist0:
+            self.xyz = c_i + tangent_norm * r_i
 
     # The next two function are used to calculate xyz coordinates on the ground.
     # To do so we also need the heights of the points on the ground.
@@ -225,14 +325,12 @@ class OrbitCoordinates(object):
 
         # Some preparations to get the start conditions
         height = np.ravel(self.height)
-
-        h = np.mean(height)
         ell_a_2 = (ell_a + height)**2    # Preparation for distance on ellips with certain height
         ell_b_2 = (ell_b + height)**2    # Preparation for distance on ellips with certain height
-        Ncenter = ell_a / np.sqrt(1 - ell_e2 * (np.sin(self.center_phi) ** 2))
-        scenecenterx = (Ncenter + h) * np.cos(self.center_phi) * np.cos(self.center_lambda)
-        scenecentery = (Ncenter + h) * np.cos(self.center_phi) * np.sin(self.center_lambda)
-        scenecenterz = (Ncenter + h - ell_e2 * Ncenter) * np.sin(self.center_phi)
+
+        xyz = self.first_guess_xyz(self.lines)[0]
+        if self.regular:
+            xyz = np.ravel(xyz[:, :, None] * np.ones((1, 1, len(self.pixels)))).reshape((3, -1))
 
         # These arrays are only in the azimuth direction
         possatx = self.xyz_orbit[0, :]
@@ -245,15 +343,14 @@ class OrbitCoordinates(object):
         # First guess
         if self.regular:
             num = len(self.lines) * len(self.pixels)
-            shp = (len(self.lines), len(self.pixels))
         else:
             num = len(self.lines)
-            shp = len(self.lines)
 
         height = []
-        posonellx = np.ones(num) * scenecenterx
-        posonelly = np.ones(num) * scenecentery
-        posonellz = np.ones(num) * scenecenterz
+        posonellx = xyz[0, :]
+        posonelly = xyz[1, :]
+        posonellz = xyz[2, :]
+        del xyz
 
         # 1D id, 2D row and column ids (used to extract information
         if self.regular:
@@ -715,3 +812,67 @@ class OrbitCoordinates(object):
         out_vector = vector - np.einsum('ki,ki->i', vector, N) * N
 
         return out_vector
+
+    def create_mercator_projection(self, UTM=False):
+        """
+        This function creates a Mercator projection for this specific coordinate system. If UTM is true, we will adapt
+        to the UTM tranverse mercator projection. If it is false we will use an orbit specific oblique mercator
+        projection. This ensures equal spacing of the grid even for large images.
+
+        To do so we follow these steps:
+        1. Find the mid image pixel and calculate the lat/lon and azimuth angle
+        2. Calculate the UTM zone if necessary
+        3. Calculate the coordinates of the corner points and define the image limits
+
+        Returns new coordinate system in mercator projection
+        -------
+
+        """
+
+        if UTM:
+            [utm_x, utm_y, utm_num, utm_letter] = utm.from_latlon(np.rad2deg(self.center_phi), np.rad2deg(self.center_lambda))
+            if list('abcdefghijklmnopqrstuvwxyz').index(utm_letter.lower()) > 12:
+                epsg = 326 * 100 + utm_num
+            else:
+                epsg = 327 * 100 + utm_num
+            projection = osr.SpatialReference()
+            projection.ImportFromEPSG(epsg)
+
+            proj4 = projection.ExportToProj4()
+        else:
+            # Calculate the orbit direction on the ground.
+            if len(self.lines) == 0:
+                raise ValueError('To find the correct oblique mercator information on image size should be known!')
+
+            line = int(self.lines[int(len(self.lines) / 2)])
+            pixel = int(self.pixels[int(len(self.pixels) / 2)])
+            heights = 0
+
+            self.manual_line_pixel_height(np.array([line]), np.array([pixel]), np.array([heights]))
+            self.lph2xyz()
+            self.xyz2scatterer_azimuth_elevation()
+            gamma = -1 * (float(self.azimuth_angle[0]) + 90)
+
+            # We use a oblique mercator projection.
+            proj4 = '+proj=omerc +lonc=' + str(np.rad2deg(self.center_lambda)) + ' +lat_0=' + \
+                    str(np.rad2deg(self.center_phi)) + ' +gamma=' + str(gamma) + ' +ellps=WGS84'
+
+        return proj4
+
+    def globe_center_distance(self, lat, lon):
+        """
+        Calculate the distance from the center of the globe to the lat/lon location using the geoid file.
+
+        """
+
+        settings = UserSettings()
+        settings.load_settings()
+
+        geoid_file = os.path.join(settings.DEM_database, 'geoid', 'egm96.dat')
+        geoid = GeoidInterp.create_geoid(egm_96_file=geoid_file, lat=np.array(lat), lon=np.array(lon))
+
+        # Calculate location on WGS84 ellipsoid
+        xyz = self.ell2xyz(lat, lon, geoid)
+        R = np.sqrt(np.sum(xyz**2))
+
+        return R, geoid

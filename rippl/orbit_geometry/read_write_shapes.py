@@ -28,7 +28,7 @@ convert(shapefile)
 import ogr
 import fiona
 from fiona import collection
-from shapely.geometry import Polygon, mapping
+from shapely.geometry import Polygon, mapping, MultiPolygon
 import shapely
 from shapely.wkt import loads
 import json
@@ -42,6 +42,7 @@ class ReadWriteShapes():
         # Loaded shape or shapes as shapely Polygons.
         self.shape = None         # type: Polygon
         self.shapes = []          # type: list(Polygon)
+        self.shape_names = []     # type: list(str)
 
     def __call__(self, input_data):
         """
@@ -57,20 +58,26 @@ class ReadWriteShapes():
 
             if input_data.endswith('.shp'):
                 self.read_shapefile(input_data)
-                self.shape = self.shapes[0]
             elif input_data.endswith('.kml'):
                 self.read_kml(input_data)
-                self.shape = self.shapes[0]
             elif input_data.endswith('.json'):
                 self.read_geo_json(input_data)
-                self.shape = self.shapes[0]
             else:
                 raise TypeError('File should either be a shapefile or a kml file.')
 
+            # If multipolygon then create polygons.from
+            new_shapes = []
             for shape in self.shapes:
-                if not isinstance(shape, Polygon):
+                if isinstance(shape, MultiPolygon):
+                    new_shapes.extend(list(shape))
+                elif isinstance(shape, Polygon):
+                    new_shapes.append(shape)
+                else:
                     raise TypeError('The input shapes for either shapefile or kml files should be Polygons! Points, '
                                     'Lines or Multipolygons cannot be used by the RIPPL package.')
+
+            self.shapes = new_shapes
+            self.shape = self.shapes[0]
 
         elif isinstance(input_data, list):
             self.read_coordinate_list(input_data)
@@ -152,15 +159,20 @@ class ReadWriteShapes():
 
         """
 
-        schema = {'geometry': 'Polygon', 'properties': {'id': 'int'}}
+        schema = {'geometry': 'Polygon', 'properties': {'name': 'str', 'id': 'int'}}
 
         # Write a new Shapefile
         with fiona.open(shapefile, 'w', 'ESRI Shapefile', schema) as shape_dat:
             ## If there are multiple geometries, put the "for" loop here
             for id, shape in enumerate(self.shapes):
+                if self.shape_names:
+                    name = self.shape_names[id]
+                else:
+                    name = str(id)
+
                 shape_dat.write({
                     'geometry': mapping(shape),
-                    'properties': {'id': id},
+                    'properties': {'id': id, 'name': name},
                 })
 
     def write_kml(self, kml):
@@ -174,12 +186,19 @@ class ReadWriteShapes():
         layer = ds.CreateLayer('', None, ogr.wkbPolygon)
         # Add one attribute
         layer.CreateField(ogr.FieldDefn('id', ogr.OFTInteger))
+        layer.CreateField(ogr.FieldDefn('name', ogr.OFTString))
         defn = layer.GetLayerDefn()
 
         for id, shape in enumerate(self.shapes):
+            if self.shape_names:
+                name = self.shape_names[id]
+            else:
+                name = str(id)
+
             # Create a new feature
             feat = ogr.Feature(defn)
             feat.SetField('id', id)
+            feat.SetField('name', name)
 
             # Make a geometry, from Shapely object
             geom = ogr.CreateGeometryFromWkb(shape.wkb)
@@ -201,7 +220,12 @@ class ReadWriteShapes():
                               "features": []}
 
         for id, shape in enumerate(self.shapes):
-            json_dict = {"type": "Feature", "properties":{'id':id}, "geometry":eval(ogr.CreateGeometryFromWkb(shape.wkb).ExportToJson())}
+            if self.shape_names:
+                name = self.shape_names[id]
+            else:
+                name = str(id)
+
+            json_dict = {"type": "Feature", "properties":{'id': id, 'name': name}, "geometry":eval(ogr.CreateGeometryFromWkb(shape.wkb).ExportToJson())}
             feature_collection["features"].append(json_dict)
 
         if isinstance(geojson, str):

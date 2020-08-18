@@ -15,7 +15,8 @@ from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 class RadarRayAngles(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', out_coor=[], coreg_master='coreg_master', overwrite=False, squint=False):
+    def __init__(self, data_id='', out_coor=[], coreg_master='coreg_master', overwrite=False, squint=False,
+                 off_nadir_angle=True, heading=True, incidence_angle=True, azimuth_angle=True):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -33,8 +34,20 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
         self.output_info['polarisation'] = ''
         self.output_info['data_id'] = data_id
         self.output_info['coor_type'] = 'out_coor'
-        self.output_info['file_types'] = ['off_nadir_angle', 'heading', 'incidence_angle', 'azimuth_angle']
-        self.output_info['data_types'] = ['real4', 'real4', 'real4', 'real4']
+        self.output_info['file_types'] = []
+        self.output_info['data_types'] = []
+        if off_nadir_angle:
+            self.output_info['file_types'].append('off_nadir_angle')
+            self.output_info['data_types'].append('real4')
+        if heading:
+            self.output_info['file_types'].append('heading')
+            self.output_info['data_types'].append('real4')
+        if incidence_angle:
+            self.output_info['file_types'].append('incidence_angle')
+            self.output_info['data_types'].append('real4')
+        if azimuth_angle:
+            self.output_info['file_types'].append('azimuth_angle')
+            self.output_info['data_types'].append('real4')
         if squint:
             self.output_info['file_types'].append('squint_angle')
             self.output_info['data_types'].append('real2')
@@ -62,6 +75,10 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
         self.processing_images['coreg_master'] = coreg_master
         self.settings = dict()
         self.settings['squint'] = squint
+        self.settings['off_nadir_angle'] = off_nadir_angle
+        self.settings['incidence_angle'] = incidence_angle
+        self.settings['heading'] = heading
+        self.settings['azimuth_angle'] = azimuth_angle
 
     def init_super(self):
 
@@ -103,14 +120,18 @@ class RadarRayAngles(Process):  # Change this name to the one of your processing
             orbit_interp.lp_time()
 
         # Calc angles based on xyz information from geocoding
-        orbit_interp.xyz2scatterer_azimuth_elevation()
-        orbit_interp.xyz2orbit_heading_off_nadir()
+        if self.settings['incidence_angle'] or self.settings['azimuth_angle']:
+            orbit_interp.xyz2scatterer_azimuth_elevation()
+        if self.settings['off_nadir_angle'] or self.settings['heading']:
+            orbit_interp.xyz2orbit_heading_off_nadir()
         if self.settings['squint']:
             orbit_interp.xyz2squint()
 
-        self['off_nadir_angle'] = np.reshape(orbit_interp.off_nadir_angle, self.block_coor.shape)
-        self['heading'] = np.reshape(orbit_interp.heading, self.block_coor.shape)
-        self['incidence_angle'] = np.reshape(90 - orbit_interp.elevation_angle, self.block_coor.shape)
-        self['azimuth_angle'] = np.reshape(orbit_interp.azimuth_angle, self.block_coor.shape)
-        if self.settings['squint']:
-            orbit_interp.xyz2squint()
+        if self.settings['off_nadir_angle']:
+            self['off_nadir_angle'] = np.reshape(orbit_interp.off_nadir_angle, self.block_coor.shape)
+        if self.settings['heading']:
+            self['heading'] = np.reshape(orbit_interp.heading, self.block_coor.shape)
+        if self.settings['incidence_angle']:
+            self['incidence_angle'] = np.reshape(90 - orbit_interp.elevation_angle, self.block_coor.shape)
+        if self.settings['azimuth_angle']:
+            self['azimuth_angle'] = np.reshape(orbit_interp.azimuth_angle, self.block_coor.shape)
