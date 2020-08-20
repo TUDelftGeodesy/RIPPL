@@ -244,9 +244,10 @@ class DownloadSentinel(object):
             for line in dat:
                 html_dat = html_dat + line.decode('UTF-8')
 
-            self.products = json.loads(html_dat)[-1]
+            products = json.loads(html_dat)[-1]
+            self.products.extend(products)
 
-            for product in self.products:
+            for product in products:
                 self.polarisations.append(product['polarization'].replace('+', ''))
                 self.footprints.append(shapely.wkt.loads(product['stringFootprint']))
                 self.tracks.append(int(product['track']))
