@@ -6,12 +6,41 @@ from rippl.SAR_sensors.sentinel.sentinel_download import DownloadSentinel
 from rippl.processing_templates.general_sentinel_1 import GeneralPipelines
 
 # Create list of dates. For the dates we search for Sentinel images in a time window around that date.
-dates = [datetime.datetime(year=2019, month=6, day=14, hour=7, minute=22, second=36),
-         datetime.datetime(year=2019, month=6, day=9, hour=7, minute=57, second=35)]
+dates = [datetime.datetime(year=2020, month=6, day=19, hour=8, minute=5, second=19),
+         datetime.datetime(year=2020, month=4, day=30, hour=8, minute=1, second=28),
+         datetime.datetime(year=2020, month=4, day=18, hour=8, minute=12, second=43),
+         datetime.datetime(year=2020, month=4, day=4, hour=7, minute=35, second=5),
+         datetime.datetime(year=2020, month=4, day=3, hour=8, minute=1, second=24),
+         datetime.datetime(year=2020, month=3, day=30, hour=8, minute=5, second=10),
+         datetime.datetime(year=2020, month=3, day=19, hour=7, minute=50, second=7),
+         datetime.datetime(year=2020, month=3, day=4, hour=7, minute=38, second=49),
+         datetime.datetime(year=2020, month=3, day=3, hour=8, minute=5, second=9),
+         datetime.datetime(year=2020, month=2, day=25, hour=7, minute=46, second=20),
+         datetime.datetime(year=2020, month=2, day=21, hour=7, minute=50, second=5),
+         datetime.datetime(year=2020, month=2, day=19, hour=7, minute=41, second=15),
+         datetime.datetime(year=2020, month=2, day=12, hour=7, minute=22, second=33),
+         datetime.datetime(year=2020, month=1, day=4, hour=7, minute=33, second=45),
+         datetime.datetime(year=2019, month=12, day=22, hour=7, minute=31, second=18),
+         datetime.datetime(year=2019, month=12, day=20, hour=7, minute=22, second=30),
+         datetime.datetime(year=2019, month=11, day=28, hour=7, minute=53, second=53),
+         datetime.datetime(year=2019, month=11, day=2, hour=7, minute=27, second=31),
+         datetime.datetime(year=2019, month=9, day=26, hour=21, minute=24, second=12),
+         datetime.datetime(year=2019, month=9, day=26, hour=7, minute=26, second=18),
+         datetime.datetime(year=2019, month=9, day=8, hour=7, minute=53, second=51),
+         datetime.datetime(year=2019, month=9, day=7, hour=7, minute=18, second=47),
+         datetime.datetime(year=2019, month=9, day=3, hour=7, minute=22, second=31),
+         datetime.datetime(year=2019, month=8, day=21, hour=7, minute=59, second=56),
+         datetime.datetime(year=2019, month=8, day=15, hour=8, minute=16, second=25),
+         datetime.datetime(year=2019, month=8, day=10, hour=7, minute=45, second=0),
+         datetime.datetime(year=2019, month=8, day=7, hour=7, minute=22, second=34),
+         datetime.datetime(year=2019, month=7, day=11, hour=7, minute=22, second=36),
+         datetime.datetime(year=2019, month=6, day=17, hour=7, minute=45, second=2),
+         datetime.datetime(year=2019, month=6, day=15, hour=7, minute=57, second=35),
+         datetime.datetime(year=2019, month=6, day=14, hour=7, minute=22, second=36)]
 time_window = datetime.timedelta(hours=12)
 
 # Select the region of interes (last pair of coordinates should be the same as the first)
-Malvina_shape = [(19.5, -33), (19.5, -37), (27, -37), (27, -33), (19.5, -33)]
+Malvina_shape = [(-97, 30.5), (-97, 26), (-85, 26), (-85, 30.5), (-97, 30.5)]
 study_area = ReadWriteShapes()
 study_area(Malvina_shape)
 
@@ -26,9 +55,9 @@ find_track.summarize_search_results(plot_cartopy=False, buffer=2)
 
 ################################################################################################################
 # Based on the results from the line before you can now select the stack results.
-selected_tracks = [58]
-selected_master_dates = [datetime.datetime(year=2019, month=6, day=9)]
-stack_names = ['Malvina_track_58']
+selected_tracks = [63]
+selected_master_dates = [datetime.datetime(year=2019, month=8, day=21)]
+stack_names = ['GoM_track_63']
 
 geographic = False
 

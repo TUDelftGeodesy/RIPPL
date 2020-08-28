@@ -16,9 +16,10 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 class ImageProcessingMeta(object):
 
-    def __init__(self, folder, overwrite=False, json_path=''):
+    def __init__(self, folder, overwrite=False, json_path='', adjust_date=False):
 
         self.folder = folder
+        self.adjust_date = adjust_date                      # type: bool
         if not json_path:
             self.json_path = os.path.join(self.folder, 'info.json')
         else:
@@ -188,7 +189,7 @@ class ImageProcessingMeta(object):
 
         self.readfiles = OrderedDict()
         for readfile_key in self.json_dict['readfiles'].keys():
-            self.readfiles[readfile_key] = Readfile(json_data=self.json_dict['readfiles'][readfile_key])
+            self.readfiles[readfile_key] = Readfile(json_data=self.json_dict['readfiles'][readfile_key], adjust_date=self.adjust_date)
 
         self.orbits = OrderedDict()
         for orbit_key in self.json_dict['orbits'].keys():

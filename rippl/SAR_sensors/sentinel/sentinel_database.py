@@ -57,11 +57,16 @@ class SentinelDatabase(object):
         self.selected_images = dict()
 
     def __call__(self, database_folder='', shapefile='', track_no='',
-                 start_date='', end_date='', start_dates='', end_dates='', dates='',
+                 start_date='', end_date='', start_dates='', end_dates='', date='', dates='',
                  time_window='', mode='IW', product_type='SLC', polarisation='VV'):
         # Run the different commands step by step
 
         # Create a list of search windows with start and end dates
+        if isinstance(date, datetime.datetime):
+            dates = [date]
+        elif isinstance(dates, datetime.datetime):
+            dates = [dates]
+
         if isinstance(dates, list):
             for date in dates:
                 if not isinstance(date, datetime.datetime):

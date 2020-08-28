@@ -72,6 +72,7 @@ class Stack(object):
         self.master_slice_time = []
         self.master_slice_seconds = []
         self.master_slice_range_seconds = []
+        self.master_date_boundary = False
 
         # Finally also give the slice numbers (we will start with 500 so we can count down if needed.)
         self.master_slice_number = []
@@ -110,9 +111,13 @@ class Stack(object):
                 self.master_slice_names.append(name)
                 self.master_date = t.strftime('%Y%m%d')
 
+        for seconds in self.master_slice_seconds:
+            if seconds < 3600 or seconds > 82800:
+                self.master_date_boundary = True
+
         l.close()
 
-    def read_stack(self, start_date='', end_date='', start_dates='', end_dates='', dates='', time_window=''):
+    def read_stack(self, start_date='', end_date='', start_dates='', end_dates='', date='', dates='', time_window=''):
         # This function reads the whole stack in memory. A stack consists of:
         # - images > with individual slices (yyyymmdd)
         # - interferograms > with individual slices if needed. (yyyymmdd_yyyymmdd)
@@ -120,6 +125,11 @@ class Stack(object):
         # Note: The master date is always loaded!
 
         # Create a list of search windows with start and end dates
+        if isinstance(date, datetime.datetime):
+            dates = [date]
+        elif isinstance(dates, datetime.datetime):
+            dates = [dates]
+
         if isinstance(dates, list):
             for date in dates:
                 if not isinstance(date, datetime.datetime):
@@ -171,7 +181,7 @@ class Stack(object):
         for image_dir in image_dirs:
             if image_dir not in self.slc_dates:
                 image_key = os.path.basename(image_dir)
-                self.slcs[image_key] = SLC(image_dir, slice_list=self.master_slice_names)
+                self.slcs[image_key] = SLC(image_dir, slice_list=self.master_slice_names, adjust_date=self.master_date_boundary)
                 self.slcs[image_key].load_full_meta()
                 self.slcs[image_key].load_slice_meta()
                 self.slc_dates.append(os.path.basename(image_dir))
@@ -193,7 +203,8 @@ class Stack(object):
                     slave_slc = ''
 
                 self.ifgs[ifg_dir[-17:]] = Interferogram(ifg_dir, master_slc=master_slc, slave_slc=slave_slc,
-                                                         coreg_slc=cmaster_image, slice_list=self.master_slice_names)
+                                                         coreg_slc=cmaster_image, slice_list=self.master_slice_names,
+                                                         adjust_date=self.master_date_boundary)
                 self.ifg_dates.append(os.path.basename(ifg_dir))
 
         # combine the ifg and image dates

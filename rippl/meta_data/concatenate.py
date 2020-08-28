@@ -71,6 +71,14 @@ class Concatenate():
                                                         slices=True,
                                                         full_image=False)
 
+        if len(process_ids) == 0:
+            self.coordinates.create_coor_id()
+            raise FileNotFoundError('No slices found for concatenation for process ' + self.process +
+                                    ' ,file type ' + self.file_type +
+                                    ' ,data id ' + self.data_id +
+                                    ' ,polarisation ' + self.polarisation +
+                                    ' and coordinates ' + self.coordinates.short_id_str)
+
         data_ids = []
         polarisations = []
         in_coordinates_str = []
@@ -105,7 +113,7 @@ class Concatenate():
         :return:
         """
 
-        concat = CoorConcatenate(self.slice_coordinates)
+        concat = CoorConcatenate(self.slice_coordinates, adjust_date=self.concat_image.adjust_date)
         self.slice_coordinates = concat.sync_coors
         concat_coor = concat.concat_coor
 

@@ -63,12 +63,12 @@ class CreateSwathXmlRes():
         # Final results for burst .res files
         self.burst_meta = []        # Final resfiles for burst files.
 
-    def __call__(self, orbit_class):
+    def __call__(self, orbit_class, adjust_date=False):
         # When we call the function perform all steps and create the burst .res files
         self.read_xml()
         self.burst_swath_coverage()
-        self.create_burst_readfiles()
-        self.create_swath_orbit(orbit_class)
+        self.create_burst_readfiles(adjust_date=adjust_date)
+        self.create_swath_orbit(orbit_class, adjust_date=adjust_date)
         self.create_burst_crop()
 
         # In the last step we combine header, readfile.py, orbit and crop to create burst resfiles
@@ -235,7 +235,7 @@ class CreateSwathXmlRes():
         self.swath_readfiles['First_pixel (w.r.t. tiff_image)'] = 0
         self.swath_readfiles['Last_pixel (w.r.t. tiff_image)'] = int(self.swath_xml_update['Samples_per_burst']) - 1
 
-    def create_swath_orbit(self, orbit_class):
+    def create_swath_orbit(self, orbit_class, adjust_date=False):
         # This function utilizes the orbit_read script to read precise orbit files and export them to the resfile format.
         # Additionally it removes the burst_datapoints part, as it is not needed anymore.
 
@@ -243,14 +243,18 @@ class CreateSwathXmlRes():
         sat = self.swath_readfiles['SAR_processor'][-2:]
 
         orbit_type = 'precise'
-        orbit_dat = orbit_class.interpolate_orbit(orbit_time, orbit_type, satellite=sat)
+        orbit_dat = orbit_class.interpolate_orbit(orbit_time, orbit_type, satellite=sat, adjust_date=adjust_date)
         if orbit_dat == False:
             orbit_type = 'restituted'
-            orbit_dat = orbit_class.interpolate_orbit(orbit_time, orbit_type, satellite=sat)
+            orbit_dat = orbit_class.interpolate_orbit(orbit_time, orbit_type, satellite=sat, adjust_date=adjust_date)
         # If there are no precise orbit files available switch back to .xml file information
         if orbit_dat == False:
             orbit_type = 'xml_data'
             orbit_dat = self.burst_xml_dat
+            if isinstance(adjust_date, datetime):
+                orbit_dat.t = [(datetime.strptime(d, '%Y-%m-%dT%H:%M:%S.%f') - adjust_date).total_seconds() for d in orbit_dat.t]
+            else:
+                orbit_dat.t = [(datetime.strptime(d, '%Y-%m-%dT%H:%M:%S.%f') - datetime.strptime(d[:10], '%Y-%m-%d')).total_seconds() for d in orbit_dat.t]
 
         self.swath_orbit = collections.OrderedDict()
 
@@ -277,18 +281,9 @@ class CreateSwathXmlRes():
         # Now calculate the center pixels of individual bursts.
         line_nums = np.array([int(n) for n in self.burst_xml_dat['sceneCenLine_number']])
         size = (len(np.unique(line_nums)), line_nums.size // len(np.unique(line_nums)))
-        line_nums = np.reshape(line_nums, size)
 
         lat = np.reshape([float(n) for n in self.burst_xml_dat['sceneCenLat']], size)
         lon = np.reshape([float(n) for n in self.burst_xml_dat['sceneCenLon']], size)
-        az_times = np.reshape([datetime.strptime(n,'%Y-%m-%dT%H:%M:%S.%f') for n in self.burst_xml_dat['azimuthTime']], size)
-        az_steps = timedelta(seconds = float(self.swath_readfiles['Azimuth_time_interval (s)']))
-        az_start_time = az_times[0, :] - az_steps * line_nums[0, :]
-
-        # Calculate line numbers
-        az_diff = (az_times - az_start_time[None, :])
-        line_nums = np.reshape(np.round(np.array([n.seconds + n.microseconds/1000000.0 for n in np.ravel(az_diff)]) \
-                       / (az_steps.microseconds / 1000000.0)), size).astype(np.int32)
 
         self.burst_coors = []
         self.burst_coverage = []
@@ -309,7 +304,7 @@ class CreateSwathXmlRes():
                            [lon[-1, -1], lat[-1, -1]], [lon[-1, 0], lat[-1, 0]]]
         self.swath_coverage = geometry.Polygon(self.swath_coors)
 
-    def create_burst_readfiles(self):
+    def create_burst_readfiles(self, adjust_date=False):
         # First copy swath meta_data for burst and create a georef dict which stores information about the geo reference of
         # the burst.
 
@@ -380,7 +375,7 @@ class CreateSwathXmlRes():
             readfiles['FM_polynomial_linear_coeff (Hz/s, early edge)'] = float(parameter[1])
             readfiles['FM_polynomial_quadratic_coeff (Hz/s/s, early edge)'] = float(parameter[2])
 
-            readfile_burst = Readfile(json_data=readfiles)
+            readfile_burst = Readfile(json_data=readfiles, adjust_date=adjust_date)
 
             self.burst_readfiles.append(readfile_burst)
 

@@ -187,7 +187,7 @@ class GeneralPipelines():
 
         print('Working on this!')
 
-    def download_sentinel_data(self, start_date='', end_date='', dates='', time_window='', start_dates='', end_dates=''
+    def download_sentinel_data(self, start_date='', end_date='', date='', dates='', time_window='', start_dates='', end_dates=''
                                , track='', polarisation='', shapefile='', radar_database_folder=None, orbit_folder=None,
                               ESA_username=None, ESA_password=None, ASF_username=None, ASF_password=None, data=True, orbit=True):
         """
@@ -222,7 +222,7 @@ class GeneralPipelines():
             # Download data and orbit
             for pol in polarisation:
                 download_data = DownloadSentinel(start_date=start_date, end_date=end_date, end_dates=end_dates,
-                                                 start_dates=start_dates, time_window=time_window, dates=dates,
+                                                 start_dates=start_dates, time_window=time_window, date=date, dates=dates,
                                                  shape=shapefile, track=track, polarisation=pol)
                 download_data.sentinel_search_ASF(ASF_username, ASF_password)
                 download_data.sentinel_download_ASF(radar_database_folder, ASF_username, ASF_password)
@@ -242,7 +242,7 @@ class GeneralPipelines():
             download_orbit.download_orbits()
 
     def create_sentinel_stack(self, start_date='', end_date='', master_date='', track='', polarisation='VV', shapefile='',
-                              dates='', time_window='', start_dates='', end_dates='',
+                              date='', dates='', time_window='', start_dates='', end_dates='',
                               stack_name=None, radar_database_folder=None, orbit_folder=None,
                               stack_folder=None, mode='IW', product_type='SLC'):
         """
@@ -274,14 +274,14 @@ class GeneralPipelines():
             self.stack.read_from_database(database_folder=radar_database_folder, shapefile=shapefile, track_no=track,
                                           orbit_folder=orbit_folder, start_date=start_date, end_date=end_date,
                                           master_date=master_date, mode=mode, product_type=product_type,
-                                          polarisation=pol, cores=cores, dates=dates, time_window=time_window,
+                                          polarisation=pol, cores=cores, date=date, dates=dates, time_window=time_window,
                                           start_dates=start_dates, end_dates=end_dates)
             self.read_stack(stack_folder=stack_folder, stack_name=stack_name, start_date=start_date, end_date=end_date,
-                            dates=dates, time_window=time_window, start_dates=start_dates, end_dates=end_dates)
+                            date=date, dates=dates, time_window=time_window, start_dates=start_dates, end_dates=end_dates)
             self.stack.create_coverage_shp_kml_geojson()
 
     def read_stack(self, stack_folder='', stack_name='', start_date='', end_date='', start_dates='', end_dates='',
-                   dates='', time_window=''):
+                   date='', dates='', time_window=''):
         """
         Read information of stack
 
@@ -297,13 +297,14 @@ class GeneralPipelines():
         self.end_dates = end_dates
         self.time_window = time_window
         self.dates = dates
+        self.date = date
         self.stack_folder = stack_folder
         self.stack_name = stack_name
         
         self.stack = Stack(datastack_folder=self.stack_folder, datastack_name=self.stack_name, SAR_type='Sentinel-1')
         self.stack.read_master_slice_list()
         self.stack.read_stack(start_date=start_date, end_date=end_date, start_dates=start_dates, end_dates=end_dates,
-                              dates=dates, time_window=time_window)
+                              date=date, dates=dates, time_window=time_window)
     
     def reload_stack(self):
         """
@@ -315,7 +316,7 @@ class GeneralPipelines():
         self.stack = Stack(datastack_folder=self.stack_folder, datastack_name=self.stack_name, SAR_type='Sentinel-1')
         self.stack.read_master_slice_list()
         self.stack.read_stack(start_date=self.start_date, end_date=self.end_date, start_dates=self.start_dates,
-                              end_dates=self.end_dates, dates=self.dates, time_window=self.time_window)
+                              date=self.date, end_dates=self.end_dates, dates=self.dates, time_window=self.time_window)
     
     def create_dem_coordinates(self, dem_type, lon_resolution=3):
         """
@@ -538,6 +539,9 @@ class GeneralPipelines():
         :param polarisation: Polarisation used for processing
         :return:
         """
+
+        if isinstance(polarisation, list):
+            polarisation = polarisation[0]
 
         self.reload_stack()
         coreg_image = self.get_data('coreg_master', slice=False, concat_meta=True)

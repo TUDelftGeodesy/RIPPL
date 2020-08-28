@@ -183,6 +183,7 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
                 if 'no_line_pixel_input' in self.settings.keys():
                     ml_lines, ml_pixels = self.calc_line_pixel()
                 else:
+                    line_no = self.no_block * self.no_lines
                     ml_lines = np.copy(lines[line_no: line_no + self.block_shape[0], :])
                     ml_pixels = np.copy(pixels[line_no: line_no + self.block_shape[0], :])
 
@@ -198,7 +199,6 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
                     self.block_processing = True
                 elif not regular:
                     multilook = MultilookIrregular(self.ml_coordinates, self.coordinate_systems['out_coor'])
-                    line_no = self.no_block * self.no_lines
                     multilook.create_conversion_grid(ml_lines, ml_pixels)
                     multilook.apply_multilooking(self.ml_in_data[file_type])
                     self.block_processing = False

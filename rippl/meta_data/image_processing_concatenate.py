@@ -17,7 +17,7 @@ class ImageConcatData(object):
     :type slice_list = List(ImageProcessingData)
     """
 
-    def __init__(self, folder, slice_list='', update_full_image=False, json_path=''):
+    def __init__(self, folder, slice_list='', update_full_image=False, json_path='', adjust_date=False):
         # Either give an xml_file or a res_file as input to define the meta_data of the image
         # Every image will contain slices (or bursts). This could be one or multiple.
         # Processing will be done based on these slices. Although some processes for which not everything needs to be
@@ -25,11 +25,14 @@ class ImageConcatData(object):
 
         # Read the image information
         self.folder = folder
+        self.adjust_date = adjust_date
+
         if not json_path:
             self.json_path = os.path.join(self.folder, 'info.json')
         else:
             self.json_path = json_path
         self.data = ImageProcessingData(self.folder)
+        # Adjust date to get the right values for dates and seconds in case of a date boundary.
 
         # Other images that are linked to this image (added in SLC or interferogram)
         self.reference_images = dict()
@@ -141,7 +144,7 @@ class ImageConcatData(object):
 
     def load_full_meta(self, reference_images=False):
         # Read the result file again.
-        self.data = ImageProcessingData(self.folder)
+        self.data = ImageProcessingData(self.folder, adjust_date=self.adjust_date)
         self.reference_images_iterator('load_full_meta', reference_images)
 
     def load_full_memmap(self, reference_images=False):
@@ -160,7 +163,7 @@ class ImageConcatData(object):
         self.slice_json_paths = []
         for slice_folder, slice_name in zip(self.slice_folders, self.slice_names):
             self.slice_json_paths.append(os.path.join(slice_folder, 'info.json'))
-            self.slice_data[slice_name] = ImageProcessingData(slice_folder)
+            self.slice_data[slice_name] = ImageProcessingData(slice_folder, adjust_date=self.adjust_date)
 
         self.reference_images_iterator('load_slice_meta', reference_images)
 
@@ -204,7 +207,7 @@ class ImageConcatData(object):
 
             coors.append(coor)
 
-        concat = CoorConcatenate(coors)
+        concat = CoorConcatenate(coors, adjust_date=self.adjust_date)
         concat.update_readfiles(coor.readfile, coor.orbit)
 
         concat_image = ImageProcessingData('')

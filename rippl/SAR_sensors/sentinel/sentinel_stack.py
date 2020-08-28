@@ -74,7 +74,7 @@ class SentinelStack(SentinelDatabase, Stack):
         self.burst_availability = []
 
     def read_from_database(self, database_folder='', shapefile=None, track_no=None, orbit_folder=None,
-                           start_date='', end_date='', dates='', time_window='', master_date='', end_dates='', start_dates='',
+                           start_date='', end_date='', date='', dates='', time_window='', master_date='', end_dates='', start_dates='',
                            mode='IW', product_type='SLC', polarisation='VV', cores=4):
 
         if not database_folder:
@@ -94,7 +94,7 @@ class SentinelStack(SentinelDatabase, Stack):
         # Select data products
         SentinelDatabase.__call__(self, database_folder=database_folder, shapefile=shapefile, track_no=track_no,
                                   start_date=start_date, start_dates=start_dates, end_date=end_date, end_dates=end_dates,
-                                  dates=dates, time_window=time_window, mode=mode, product_type=product_type, polarisation=polarisation)
+                                  date=date, dates=dates, time_window=time_window, mode=mode, product_type=product_type, polarisation=polarisation)
         print('Selected images:')
 
         if len(self.selected_images) == 0:
@@ -168,17 +168,36 @@ class SentinelStack(SentinelDatabase, Stack):
     def create_slice_list(self, master_start):
         # master date should be in yyyy-mm-dd format
         # This function creates a list of all slices within the datastack and reads the needed meta_data.
+        self.iterate_swaths(master_start, adjust_date=False)
+
+        # Adjust timing for master if needed.
+        for seconds in self.master_slice_seconds:
+            if seconds < 3600 or seconds > 82800:
+                self.master_date_boundary = True
+        if self.master_date_boundary:
+            self.master_slice_seconds = [seconds + 86400 for seconds in self.master_slice_seconds if seconds < 7200]
+            self.slice_seconds = [seconds + 86400 for seconds in self.slice_seconds if seconds < 7200]
+
+        if np.mean(self.master_slice_seconds) > 86400:
+            adjust_type = 'high'
+        elif np.mean(self.master_slice_seconds) <= 86400:
+            adjust_type = 'low'
+
+        # Reload the slices and calc coordinates
+        self.iterate_swaths(master_start, adjust_date=True, adjust_type=adjust_type)
+
+    def iterate_swaths(self, master_start, adjust_date=False, adjust_type='low'):
 
         time_lim = 0.1
         if not isinstance(master_start, datetime.datetime):
-            master_start = datetime.datetime.strptime(master_start, '%Y-%m-%d')
-        master_end = master_start + datetime.timedelta(days=1)
+            master_start = datetime.datetime.strptime(master_start, '%Y-%m-%d') - datetime.timedelta(seconds=3600)
+        master_end = master_start + datetime.timedelta(days=1, seconds=3600)
 
         # Iterate over swath list
         for swath in self.swaths:
             # Select if it overlaps with area of interest
             if self.shape.intersects(swath.swath_coverage):
-                slices = swath(self.orbits)
+                slices = swath(self.orbits, adjust_date=adjust_date)
                 interp_orbit = OrbitInterpolate(slices[0].meta.orbits[list(slices[0].meta.orbits.keys())[0]])
                 interp_orbit.fit_orbit_spline(vel=False, acc=False)
 
@@ -186,17 +205,26 @@ class SentinelStack(SentinelDatabase, Stack):
                         slices, swath.burst_coverage, swath.burst_xml_dat['azimuthTimeStart'], swath.burst_center_coors):
 
                     readfile = slice.readfiles['original']
-                    az_time = readfile.time2seconds(readfile.json_dict['Orig_first_pixel_azimuth_time (UTC)'])[0]
+                    az_time, az_date_str = readfile.time2seconds(readfile.json_dict['Orig_first_pixel_azimuth_time (UTC)'], adjust_date=adjust_date, adjust_type=adjust_type)
                     az_date = datetime.datetime.strptime(readfile.json_dict['Orig_first_pixel_azimuth_time (UTC)'],
                                                                '%Y-%m-%dT%H:%M:%S.%f')
 
                     if master_start < az_date < master_end:
                         if self.master_shape.intersects(slice_coverage):
                             # Check if this time already exists
-                            if len(self.master_slice_seconds) > 0 and np.min(np.abs(
-                                            az_time - np.asarray(self.master_slice_seconds))) < time_lim:
-                                print('Duplicate slice found. New slice removed from rippl.stack')
-                                continue
+
+                            if len(self.master_slice_seconds) > 0:
+                                time_min = np.abs(az_time - np.asarray(self.master_slice_seconds))
+                                min_id = np.argmin(time_min)
+
+                                if time_min[min_id] < time_lim:
+                                    if not adjust_date:
+                                        print('Duplicate slice found. Old slice replaced with new one.')
+                                    for list_dat in [self.master_slice_x, self.master_slice_y, self.master_slice_z,
+                                                     self.master_slice_lat, self.master_slice_lon, self.master_slice_date,
+                                                     self.master_slice_swath_no, self.master_slice_az_time, self.master_slice_seconds,
+                                                     self.master_slice_time, self.master_slice_range_seconds, self.master_slices]:
+                                        list_dat.pop(min_id)
 
                             xyz = interp_orbit.evaluate_orbit_spline([az_time])[0]
                             self.master_slice_x.append(xyz[0, 0])
@@ -204,7 +232,7 @@ class SentinelStack(SentinelDatabase, Stack):
                             self.master_slice_z.append(xyz[2, 0])
                             self.master_slice_lat.append(slice_coors[1])
                             self.master_slice_lon.append(slice_coors[0])
-                            self.master_slice_date.append(slice_time[:10])
+                            self.master_slice_date.append(az_date_str)
                             self.master_slice_swath_no.append(int(slice.readfiles['original'].json_dict['Swath']))
                             self.master_slice_az_time.append(slice_time)
                             self.master_slice_seconds.append(az_time)
@@ -218,10 +246,17 @@ class SentinelStack(SentinelDatabase, Stack):
                         dat_id = np.where(self.slice_date == slice_time[:10])[0]
 
                         if len(dat_id) >= 1:
-                            if len(self.slice_seconds) > 0 and np.min(np.abs(
-                                            az_time - np.asarray(self.slice_seconds)[dat_id])) < time_lim:
-                                print('Duplicate slice found. New slice removed from rippl.stack')
-                                continue
+
+                            time_min = np.abs(az_time - np.asarray(self.slice_seconds)[dat_id])
+                            min_id = np.argmin(time_min)
+
+                            if time_min[min_id] < time_lim:
+                                if not adjust_date:
+                                    print('Duplicate slice found. Old slice replaced with new one.')
+                                for list_dat in [self.slice_x, self.slice_y, self.slice_z, self.slice_lat, self.slice_lon,
+                                             self.slice_date, self.slice_swath_no, self.slice_az_time, self.slice_seconds,
+                                             self.slice_time, self.slice_range_seconds, self.slices]:
+                                    list_dat.pop(min_id)
 
                         xyz = interp_orbit.evaluate_orbit_spline([az_time])[0]
                         self.slice_x.append(xyz[0, 0])
@@ -229,7 +264,7 @@ class SentinelStack(SentinelDatabase, Stack):
                         self.slice_z.append(xyz[2, 0])
                         self.slice_lat.append(slice_coors[1])
                         self.slice_lon.append(slice_coors[0])
-                        self.slice_date.append(slice_time[:10])
+                        self.slice_date.append(az_date_str)
                         self.slice_swath_no.append(int(readfile.json_dict['Swath']))
                         self.slice_az_time.append(slice_time)
                         self.slice_seconds.append(az_time)

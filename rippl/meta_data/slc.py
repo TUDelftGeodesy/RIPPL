@@ -20,13 +20,13 @@ class SLC(ImageConcatData):
     :type slice_list = list
     """
 
-    def __init__(self, folder, coreg_image='', slice_list='', update_full_image=False):
+    def __init__(self, folder, coreg_image='', slice_list='', update_full_image=False, adjust_date=False):
         # Either give an xml_file or a res_file as input to define the meta_data of the image
         # Every image will contain slices (or bursts). This could be one or multiple.
         # Processing will be done based on these slices. Although some processes for which not everything needs to be
         # read in memory can be done seperately.
 
-        super(SLC, self).__init__(folder, slice_list, update_full_image)
+        super(SLC, self).__init__(folder, slice_list, update_full_image, adjust_date=adjust_date)
 
         # Add the reference image. We use this image to reference other images too. If this image is missing coregistration
         # is not possible.

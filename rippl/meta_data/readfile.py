@@ -7,7 +7,7 @@ import json
 
 class Readfile():
 
-    def __init__(self, json_data=''):
+    def __init__(self, json_data='', adjust_date=False):
 
         self.satellite = ''
         self.wavelength = ''
@@ -15,6 +15,7 @@ class Readfile():
         self.swath = ''
 
         # Main variables of  (times are all in seconds)
+        self.adjust_date = adjust_date
         self.orig_az_first_pix_time = 'None'
         self.orig_ra_first_pix_time = 'None'
         self.ra_first_pix_time = ''
@@ -126,10 +127,10 @@ class Readfile():
         self.first_line_str = self.json_dict['First_pixel_azimuth_time (UTC)']
 
         if self.json_dict['First_pixel_azimuth_time (UTC)'] != 'None':
-            self.az_first_pix_time, self.date = self.time2seconds(self.json_dict['First_pixel_azimuth_time (UTC)'])
+            self.az_first_pix_time, self.date = self.time2seconds(self.json_dict['First_pixel_azimuth_time (UTC)'], self.adjust_date)
             self.ra_first_pix_time = self.json_dict['Range_time_to_first_pixel (2way) (ms)'] * 1e-3
         if self.json_dict['Orig_first_pixel_azimuth_time (UTC)'] != 'None':
-            self.orig_az_first_pix_time, self.date = self.time2seconds(self.json_dict['Orig_first_pixel_azimuth_time (UTC)'])
+            self.orig_az_first_pix_time, self.date = self.time2seconds(self.json_dict['Orig_first_pixel_azimuth_time (UTC)'], self.adjust_date)
             self.orig_ra_first_pix_time = self.json_dict['Orig_range_time_to_first_pixel (2way) (ms)'] * 1e-3
 
         self.az_time_step = self.json_dict['Azimuth_time_interval (s)']
@@ -137,7 +138,7 @@ class Readfile():
 
         # FM
         if 'FM_reference_azimuth_time' in self.json_dict.keys():
-            self.FM_ref_az = self.time2seconds(self.json_dict['FM_reference_azimuth_time'])
+            self.FM_ref_az = self.time2seconds(self.json_dict['FM_reference_azimuth_time'], self.adjust_date)
             self.FM_ref_ra = self.json_dict['FM_reference_range_time']
             self.FM_polynomial = []
             self.FM_polynomial.append(self.json_dict['FM_polynomial_constant_coeff (Hz, early edge)'])
@@ -146,7 +147,7 @@ class Readfile():
 
         # DC
         if 'DC_reference_azimuth_time' in self.json_dict.keys():
-            self.DC_ref_az = self.time2seconds(self.json_dict['DC_reference_azimuth_time'])
+            self.DC_ref_az = self.time2seconds(self.json_dict['DC_reference_azimuth_time'], self.adjust_date)
             self.DC_ref_ra = self.json_dict['DC_reference_range_time']
             self.DC_polynomial = []
             self.DC_polynomial.append(self.json_dict['Xtrack_f_DC_constant (Hz, early edge)'])
@@ -181,7 +182,7 @@ class Readfile():
         self.orig_first_line = self.json_dict['Orig_first_pixel']
 
     @staticmethod
-    def time2seconds(date_string):
+    def time2seconds(date_string, adjust_date=False, adjust_type='low'):
 
         if date_string == 0:
             return 0, 'no date'
@@ -190,6 +191,17 @@ class Readfile():
                                   datetime.datetime.strptime(date_string[:10], '%Y-%m-%d'))
         seconds = time.seconds + time.microseconds / 1000000.0
         date = date_string[:10]
+
+        if adjust_date:
+            orig_date = datetime.datetime.strptime(date_string[:10], '%Y-%m-%d')
+
+            if adjust_type == 'low' and seconds < 7200:
+                date = (orig_date - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+            elif adjust_type == 'high' and seconds > 79200:
+                date = (orig_date + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+
+            if seconds < 7200:
+                seconds += 86400
 
         return seconds, date
 

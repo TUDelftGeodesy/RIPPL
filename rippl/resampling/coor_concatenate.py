@@ -18,11 +18,11 @@ from rippl.resampling.coor_new_extend import CoorNewExtend
 
 class CoorConcatenate():
 
-    def __init__(self, coor_systems):
+    def __init__(self, coor_systems, adjust_date=False):
         # Input coordinate systems a list of coordinate systems.
 
         self.coor_systems = coor_systems
-        self.concat_coor, self.sync_coors = CoorConcatenate.create_concat_coordinates(self.coor_systems)
+        self.concat_coor, self.sync_coors = CoorConcatenate.create_concat_coordinates(self.coor_systems, adjust_date=adjust_date)
 
         # Information on readfiles that will be updated.
         self.readfile = []
@@ -164,7 +164,7 @@ class CoorConcatenate():
         return new_coors
 
     @staticmethod
-    def create_concat_coordinates(coor_systems):
+    def create_concat_coordinates(coor_systems, adjust_date=True):
         # type:
         # first synchronize all coordinate systems.
         sync_coors = CoorConcatenate.synchronize_coordinates(coor_systems)
@@ -186,6 +186,8 @@ class CoorConcatenate():
         concat_coor = copy.deepcopy(sync_coors[0])              # type: CoordinateSystem
         line_id = np.argmin(orig_lines)
         concat_coor.az_time = orig_lines[line_id] * concat_coor.az_step
+        if adjust_date and concat_coor.az_time < 7200:
+            concat_coor.az_time += 86400
         pix_id = np.argmin(orig_pixels)
         concat_coor.ra_time = orig_pixels[pix_id] * concat_coor.ra_step
         concat_coor.shape = new_shape

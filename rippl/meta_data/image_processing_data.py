@@ -12,7 +12,7 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 class ImageProcessingData(object):
 
-    def __init__(self, folder, overwrite=False, json_path='', image_processing_meta=''):
+    def __init__(self, folder, overwrite=False, json_path='', image_processing_meta='', adjust_date=False):
         """
         This class gathers the data on disk of an image using ProcessData object. The main function is to connect all
         the processes and makes it possible to search the processes done for any image.
@@ -34,7 +34,7 @@ class ImageProcessingData(object):
         if isinstance(image_processing_meta, ImageProcessingMeta):
             self.meta = image_processing_meta
         else:
-            self.meta = ImageProcessingMeta(folder, overwrite)
+            self.meta = ImageProcessingMeta(folder, overwrite, adjust_date=adjust_date)
 
         self.folder = self.meta.folder                      # type: str
         self.reference_paths = self.meta.reference_paths    # type: OrderedDict(str)

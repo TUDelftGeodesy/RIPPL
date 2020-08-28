@@ -72,7 +72,7 @@ class SentinelOrbitsDatabase(object):
 
         self.latest_precise = datetime.strptime(str(self.latest_precise), '%Y%m%d')
 
-    def interpolate_orbit(self, overpass_time, input_orbit_type='POE', satellite='1A'):
+    def interpolate_orbit(self, overpass_time, input_orbit_type='POE', satellite='1A', adjust_date=False):
         # overpass_time should be a datetime object
 
         if input_orbit_type not in ['RES', 'restituted', 'POE', 'precise']:
@@ -107,19 +107,19 @@ class SentinelOrbitsDatabase(object):
             if os.path.basename(orb_file) in self.precise_files[satellite].keys():
                 orbit_dat = self.precise_files[satellite][os.path.basename(orb_file)]
             else:
-                orbit_meta, orbit_dat = self.orbit_read(orb_file, overpass_time, type)
+                orbit_meta, orbit_dat = self.orbit_read(orb_file, overpass_time, type, adjust_date)
                 self.precise_files[satellite][os.path.basename(orb_file)] = orbit_dat
         if type == 'restituted':
             if os.path.basename(orb_file) in self.restituted_files[satellite].keys():
                 orbit_dat = self.restituted_files[satellite][os.path.basename(orb_file)]
             else:
-                orbit_meta, orbit_dat = self.orbit_read(orb_file, overpass_time, type)
+                orbit_meta, orbit_dat = self.orbit_read(orb_file, overpass_time, type, adjust_date)
                 self.restituted_files[satellite][os.path.basename(orb_file)] = orbit_dat
 
         return orbit_dat
 
     @staticmethod
-    def orbit_read(input_orbit, input_time, orbit_type='precise'):
+    def orbit_read(input_orbit, input_time, orbit_type='precise', adjust_date=False):
 
         in_tree = etree.parse(input_orbit)
         metadata = {'Mission' : './/Earth_Explorer_Header/Fixed_Header/Mission',
@@ -142,11 +142,11 @@ class SentinelOrbitsDatabase(object):
             time = datetime.strptime(times[1].text[4:], '%Y-%m-%dT%H:%M:%S.%f')
 
             if min_time < time < max_time:
-                if time.day != min_time.day:
-                    days = 1
-                else:
-                    days = 0
-                orbit_dat['orbitTime'].append(float(time.hour * 3600 + time.minute * 60 + time.second) + float(time.microsecond) / 1000000 + 86400 * days)
+                seconds = float(time.hour * 3600 + time.minute * 60 + time.second) + float(time.microsecond) / 1000000
+
+                if (adjust_date and seconds < 7200) or time.day != min_time.day:
+                    seconds += 86400
+                orbit_dat['orbitTime'].append(seconds)
                 orbit_dat['orbitX'].append(float(times[4].text))
                 orbit_dat['orbitY'].append(float(times[5].text))
                 orbit_dat['orbitZ'].append(float(times[6].text))

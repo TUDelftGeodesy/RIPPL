@@ -17,6 +17,7 @@ class Orbit():
 
         self.satellite = ''
         self.date = ''
+        self.ref_date = ''
         self.orbit_type = ''
         self.t = []
 

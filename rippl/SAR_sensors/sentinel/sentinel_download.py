@@ -53,7 +53,7 @@ self.sentinel_download_ASF()
 
 class DownloadSentinel(object):
 
-    def __init__(self, start_date='', end_date='', start_dates='', end_dates='', dates='', time_window='',
+    def __init__(self, start_date='', end_date='', start_dates='', end_dates='', date='', dates='', time_window='',
                  shape='', track='', polarisation='',
                  orbit_direction='', sensor_mode='IW', product='SLC', instrument_name='Sentinel-1'):
         # Following variables can be used to make a selection.
@@ -104,6 +104,11 @@ class DownloadSentinel(object):
 
         self.start_dates = []
         self.end_dates = []
+
+        if isinstance(date, datetime.datetime):
+            dates = [date]
+        elif isinstance(dates, datetime.datetime):
+            dates = [dates]
 
         # Create a list of search windows with start and end dates
         if isinstance(dates, list):
