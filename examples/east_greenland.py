@@ -56,7 +56,7 @@ land_ice_processing.create_interferogram_multilooked(polarisation)
 land_ice_processing.create_coherence_multilooked(polarisation)
 
 # Calculate geometry
-land_ice_processing.create_geometry_mulitlooked(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding)
+land_ice_processing.create_geometry_mulitlooked(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding, baselines=True)
 
 # Create the geotiffs
 land_ice_processing.create_output_tiffs_amplitude()

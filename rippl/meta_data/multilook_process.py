@@ -152,15 +152,17 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
 
         # Check if there is a lines/pixels and the multilooking is not regular
         if not regular:
+            no_input = False
             if 'no_line_pixel_input' in self.settings.keys():
-                pass
-            elif 'no_line_pixel_input' not in self.settings.keys():
-                if 'out_irregular_grids' not in self.settings.keys():
-                    lines = self.in_images['lines'].disk['data']
-                    pixels = self.in_images['pixels'].disk['data']
-                else:
-                    lines = self.in_images[self.settings['out_irregular_grids'][0]].disk['data']
-                    pixels = self.in_images[self.settings['out_irregular_grids'][1]].disk['data']
+                if self.settings['no_line_pixel_input'] == True:
+                    no_input = True
+
+            if 'out_irregular_grids' not in self.settings.keys() and not no_input:
+                lines = self.in_images['lines'].disk['data']
+                pixels = self.in_images['pixels'].disk['data']
+            elif not no_input:
+                lines = self.in_images[self.settings['out_irregular_grids'][0]].disk['data']
+                pixels = self.in_images[self.settings['out_irregular_grids'][1]].disk['data']
 
         self.coordinate_systems['out_coor'].create_radar_lines()
         self.coordinate_systems['in_coor'].create_radar_lines()
@@ -180,7 +182,7 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
             self.block_shape = self.ml_coordinates.shape
 
             if not regular:
-                if 'no_line_pixel_input' in self.settings.keys():
+                if no_input:
                     ml_lines, ml_pixels = self.calc_line_pixel()
                 else:
                     line_no = self.no_block * self.no_lines

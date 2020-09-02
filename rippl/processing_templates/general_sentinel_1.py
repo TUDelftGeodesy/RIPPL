@@ -523,13 +523,13 @@ class GeneralPipelines():
         # Concatenate the images
 
         self.reload_stack()
-        [slave_images, coreg_image] = self.get_data('coreg_slave', slice=False, concat_meta=True, include_coreg_master=True)
+        slcs = self.get_data('slc', slice=False, concat_meta=True)
 
-        for slave in slave_images:
-            slave.create_concatenate_image(process='calc_reramp', file_type='ramp',
+        for slc in slcs:
+            slc.create_concatenate_image(process='calc_reramp', file_type='ramp',
                                            coor=self.radar_coor, transition_type='cut_off', remove_input=True)
             for pol in polarisation:
-                slave.create_concatenate_image(process='correct_phases', file_type='phase_corrected',
+                slc.create_concatenate_image(process='correct_phases', file_type='phase_corrected',
                                                coor=self.radar_coor, transition_type='cut_off', polarisation=pol, remove_input=True)
 
     def prepare_multilooking_grid(self, polarisation, block_orientation='lines'):
@@ -611,7 +611,7 @@ class GeneralPipelines():
 
             # Finally do the master image seperately
             amp_multilook = CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                                   slave=coreg_master[0], coreg_master=coreg_master[0], master_image=False, batch_size=10000000, no_of_looks=True)
+                                                   slave=coreg_master[0], coreg_master=coreg_master[0], batch_size=10000000, no_of_looks=True)
             amp_multilook()
 
     def create_calibrated_amplitude_approx_multilooked(self, polarisation, block_orientation='lines'):
@@ -709,7 +709,7 @@ class GeneralPipelines():
             create_unwrapped_image.add_processing_step(Unwrap(polarisation=pol, out_coor=self.full_ml_coor, ifg='ifg'), True)
             create_unwrapped_image()
 
-    def create_geometry_mulitlooked(self, dem_folder=None, dem_type=None, dem_buffer=None, dem_rounding=None, lon_resolution=None, block_orientation='lines'):
+    def create_geometry_mulitlooked(self, dem_folder=None, dem_type=None, dem_buffer=None, dem_rounding=None, lon_resolution=None, block_orientation='lines', baselines=False):
         """
         Create the geometry for a geographic grid used for multilooking
 
@@ -762,6 +762,19 @@ class GeneralPipelines():
         geocode_pipeline.add_processing_step(Geocode(out_coor=self.full_ml_coor, coreg_master='coreg_master'), True)
         geocode_pipeline.add_processing_step(RadarRayAngles(out_coor=self.full_ml_coor, coreg_master='coreg_master'), True)
         geocode_pipeline()
+
+        # Finally create the baselines for the interograms
+        if baselines:
+            self.reload_stack()
+            [coreg_slave, coreg_master] = self.get_data('coreg_slave')
+
+            create_baselines = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation)
+            create_baselines.add_processing_data(coreg_master, 'coreg_master')
+            create_baselines.add_processing_data(coreg_slave, 'slave')
+            create_baselines.add_processing_step(
+                Baseline(out_coor=self.full_ml_coor, slave='slave', coreg_master='coreg_master', batch_size=10000000),
+                True, True)
+            create_baselines()
 
     def create_output_tiffs_amplitude(self, block_orientation='lines'):
         """
