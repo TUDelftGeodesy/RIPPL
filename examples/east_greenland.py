@@ -42,23 +42,24 @@ land_ice_processing.create_ifg_network(network_type='temp_baseline', temporal_ba
 # Coordinate systems
 land_ice_processing.create_radar_coordinates()
 land_ice_processing.create_dem_coordinates(dem_type=dem_type, lon_resolution=6)
-land_ice_processing.create_ml_coordinates(standard_type='oblique_mercator', dx=dx, dy=dy, buffer=0, rounding=0)
 
 # Data processing
 land_ice_processing.download_external_dem(dem_type=dem_type, lon_resolution=lon_resolution)
 land_ice_processing.geocoding(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding)
 land_ice_processing.geometric_coregistration_resampling(polarisation)
 
-# Multilooking
-land_ice_processing.prepare_multilooking_grid(polarisation)
-land_ice_processing.create_calibrated_amplitude_multilooked(polarisation)
-land_ice_processing.create_interferogram_multilooked(polarisation)
-land_ice_processing.create_coherence_multilooked(polarisation)
+for dx, dy in zip([50, 100, 200], [50, 100, 200]):
+    # Multilooking
+    land_ice_processing.create_ml_coordinates(standard_type='oblique_mercator', dx=dx, dy=dy, buffer=0, rounding=0)
+    land_ice_processing.prepare_multilooking_grid(polarisation)
+    land_ice_processing.create_calibrated_amplitude_multilooked(polarisation)
+    land_ice_processing.create_interferogram_multilooked(polarisation)
+    land_ice_processing.create_coherence_multilooked(polarisation)
 
-# Calculate geometry
-land_ice_processing.create_geometry_mulitlooked(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding, baselines=True)
+    # Calculate geometry
+    land_ice_processing.create_geometry_mulitlooked(dem_type=dem_type, dem_buffer=dem_buffer, dem_rounding=dem_rounding) #, baselines=True)
 
-# Create the geotiffs
-land_ice_processing.create_output_tiffs_amplitude()
-land_ice_processing.create_output_tiffs_coherence_ifg()
-land_ice_processing.create_output_tiffs_geometry()
+    # Create the geotiffs
+    land_ice_processing.create_output_tiffs_amplitude()
+    land_ice_processing.create_output_tiffs_coherence_ifg()
+    land_ice_processing.create_output_tiffs_geometry()
