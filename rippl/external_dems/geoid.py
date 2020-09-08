@@ -21,7 +21,11 @@ class GeoidInterp():
         if not os.path.exists(egm_96_file):
             # Download egm96 file
             if download:
-                command = 'wget http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC -O ' + egm_96_file
+                if os.name == 'nt':
+                    command = 'curl -L http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC -o ' + egm_96_file
+                else:
+                    command = 'wget http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC -O ' + egm_96_file
+                print(command)
                 os.system(command)
             else:
                 raise LookupError('No geoid file can be found. Please set download to True and try again')

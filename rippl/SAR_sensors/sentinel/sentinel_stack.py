@@ -149,7 +149,7 @@ class SentinelStack(SentinelDatabase, Stack):
 
                     if image['path'].endswith('zip'):
                         archive = zipfile.ZipFile(image['path'], 'r')
-                        xml_path = swath
+                        xml_path = swath.replace('\\', '/')
                         swath_data = etree.parse(archive.open(xml_path))
                         xml_path = os.path.join(image['path'], swath)
                     else:

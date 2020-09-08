@@ -11,9 +11,9 @@ def sentinel_read_data(path_tiff, s_pix, s_lin, size):
     if 'zip' in path_tiff:
         os.environ['CPL_ZIP_ENCODING'] = 'UTF-8'
         if os.name == 'nt':
-            src_ds = gdal.Open('"\"vsizip"\"' + path_tiff, gdal.GA_ReadOnly)
-        else:
-            src_ds = gdal.Open('/vsizip/' + path_tiff, gdal.GA_ReadOnly)
+            path, zip_path = path_tiff.split('.zip')
+            path_tiff = path + '.zip' + zip_path.replace('\\', '/')
+        src_ds = gdal.Open('/vsizip/' + path_tiff, gdal.GA_ReadOnly)
     else:
         src_ds = gdal.Open(path_tiff, gdal.GA_ReadOnly)
     if src_ds is None:

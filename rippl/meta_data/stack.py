@@ -318,7 +318,7 @@ class Stack(object):
         return image_types_out, image_dates_out, slice_names_out, processes_out, process_ids_out, coordinates_out, \
                in_coordinates_out, file_types_out, images_out
 
-    def download_SRTM_dem(self, srtm_folder=None, username=None, password=None, buffer=0.5, rounding=0.5, srtm_type='SRTM3', parallel=True):
+    def download_SRTM_dem(self, srtm_folder=None, username=None, password=None, buffer=0.5, rounding=0.5, srtm_type='SRTM3', parallel=True, n_processes=4):
         """
         Downloads the needed srtm data for this datastack. srtm_folder is the folder the downloaded srtm tiles are
         stored.
@@ -347,7 +347,7 @@ class Stack(object):
         if not password:
             password = settings.NASA_password
 
-        download = SrtmDownload(srtm_folder, username, password, srtm_type)
+        download = SrtmDownload(srtm_folder, username, password, srtm_type, n_processes=n_processes)
         download(self.slcs[self.master_date].data.meta, buffer=buffer, rounding=rounding, parallel=parallel)
 
     def download_Tandem_X_dem(self, tandem_x_folder=None, username=None, password=None, buffer=0.5, rounding=0.5, lon_resolution=3,

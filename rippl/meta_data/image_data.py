@@ -182,6 +182,7 @@ class ImageData():
 
         # If file exists
         if self.check_data_disk_valid()[0]:
+            self.remove_disk_data_memmap()
             os.remove(self.file_path)
 
         return True

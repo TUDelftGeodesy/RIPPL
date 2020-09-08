@@ -189,7 +189,8 @@ class GeneralPipelines():
 
     def download_sentinel_data(self, start_date='', end_date='', date='', dates='', time_window='', start_dates='', end_dates=''
                                , track='', polarisation='', shapefile='', radar_database_folder=None, orbit_folder=None,
-                              ESA_username=None, ESA_password=None, ASF_username=None, ASF_password=None, data=True, orbit=True):
+                              ESA_username=None, ESA_password=None, ASF_username=None, ASF_password=None, data=True, orbit=True,
+                               source='ASF'):
         """
         Creation of datastack of Sentinel-1 images including the orbits.
 
@@ -224,8 +225,14 @@ class GeneralPipelines():
                 download_data = DownloadSentinel(start_date=start_date, end_date=end_date, end_dates=end_dates,
                                                  start_dates=start_dates, time_window=time_window, date=date, dates=dates,
                                                  shape=shapefile, track=track, polarisation=pol)
-                download_data.sentinel_search_ASF(ASF_username, ASF_password)
-                download_data.sentinel_download_ASF(radar_database_folder, ASF_username, ASF_password)
+                if source == 'ASF':
+                    download_data.sentinel_search_ASF(ASF_username, ASF_password)
+                    download_data.sentinel_download_ASF(radar_database_folder, ASF_username, ASF_password)
+                elif source == 'ESA':
+                    download_data.sentinel_search_ESA(ESA_username, ESA_password)
+                    download_data.sentinel_download_ESA(radar_database_folder, ESA_username, ESA_password)
+                else:
+                    print('Source should be ESA or ASF')
 
         # Orbits
         if orbit:
@@ -244,7 +251,7 @@ class GeneralPipelines():
     def create_sentinel_stack(self, start_date='', end_date='', master_date='', track='', polarisation='VV', shapefile='',
                               date='', dates='', time_window='', start_dates='', end_dates='',
                               stack_name=None, radar_database_folder=None, orbit_folder=None,
-                              stack_folder=None, mode='IW', product_type='SLC'):
+                              stack_folder=None, mode='IW', product_type='SLC', cores=6):
         """
         Creation of datastack of Sentinel-1 images including the orbits.
 
@@ -261,9 +268,6 @@ class GeneralPipelines():
         :param product_type:
         :return:
         """
-
-        # Number of cores
-        cores = 6
 
         if isinstance(polarisation, str):
             polarisation = [polarisation]
@@ -402,7 +406,7 @@ class GeneralPipelines():
                                                 spatial_baseline)
 
     def download_external_dem(self, dem_folder=None, dem_type='SRTM3', NASA_username=None, NASA_password=None, DLR_username=None, DLR_password=None,
-                              lon_resolution=3, buffer=1, rounding=1, block_orientation='lines'):
+                              lon_resolution=3, buffer=1, rounding=1, block_orientation='lines', n_processes=4):
         """
 
         :param dem_folder:
@@ -420,14 +424,14 @@ class GeneralPipelines():
 
         if dem_type == 'SRTM1':
             self.stack.download_SRTM_dem(dem_folder, NASA_username, NASA_password, buffer=buffer, rounding=rounding,
-                                            srtm_type='SRTM1')
+                                            srtm_type='SRTM1', n_processes=n_processes)
 
         elif dem_type == 'SRTM3':
             self.stack.download_SRTM_dem(dem_folder, NASA_username, NASA_password, buffer=buffer, rounding=rounding,
-                                            srtm_type='SRTM3')
+                                            srtm_type='SRTM3', n_processes=n_processes)
         elif dem_type == 'TanDEM-X':
             self.stack.download_Tandem_X_dem(dem_folder, DLR_username, DLR_password, buffer=buffer, rounding=rounding,
-                                           lon_resolution=lon_resolution)
+                                           lon_resolution=lon_resolution, n_processes=n_processes)
 
     def geocoding(self, dem_folder=None, dem_type=None, dem_buffer=None, dem_rounding=None, lon_resolution=None, block_orientation='lines'):
         """
@@ -482,11 +486,11 @@ class GeneralPipelines():
         coreg_image = self.get_data('coreg_master', slice=False, concat_meta=True)[0]
 
         # Finally concatenate bursts
-        coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.dem_coor, replace=True, remove_input=True)
+        coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.dem_coor, replace=True, remove_input=False)
         coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.radar_coor, transition_type='cut_off')
-        coreg_image.create_concatenate_image(process='geocode', file_type='lat', coor=self.radar_coor, transition_type='cut_off', remove_input=True)
-        coreg_image.create_concatenate_image(process='geocode', file_type='lon', coor=self.radar_coor, transition_type='cut_off', remove_input=True)
-        coreg_image.create_concatenate_image(process='radar_ray_angles', file_type='incidence_angle', coor=self.radar_coor, transition_type='cut_off', remove_input=True)
+        coreg_image.create_concatenate_image(process='geocode', file_type='lat', coor=self.radar_coor, transition_type='cut_off', remove_input=False)
+        coreg_image.create_concatenate_image(process='geocode', file_type='lon', coor=self.radar_coor, transition_type='cut_off', remove_input=False)
+        coreg_image.create_concatenate_image(process='radar_ray_angles', file_type='incidence_angle', coor=self.radar_coor, transition_type='cut_off', remove_input=False)
 
     def geometric_coregistration_resampling(self, polarisation, output_phase_correction=False, block_orientation='lines'):
         """
@@ -527,10 +531,10 @@ class GeneralPipelines():
 
         for slc in slcs:
             slc.create_concatenate_image(process='calc_reramp', file_type='ramp',
-                                           coor=self.radar_coor, transition_type='cut_off', remove_input=True)
+                                           coor=self.radar_coor, transition_type='cut_off', remove_input=False)
             for pol in polarisation:
                 slc.create_concatenate_image(process='correct_phases', file_type='phase_corrected',
-                                               coor=self.radar_coor, transition_type='cut_off', polarisation=pol, remove_input=True)
+                                               coor=self.radar_coor, transition_type='cut_off', polarisation=pol, remove_input=False)
 
     def prepare_multilooking_grid(self, polarisation, block_orientation='lines'):
         """
@@ -547,7 +551,7 @@ class GeneralPipelines():
         coreg_image = self.get_data('coreg_master', slice=False, concat_meta=True)
 
         # Concatenate the files from the main folder if not already done
-        coreg_image[0].create_concatenate_image(process='crop', file_type='crop', polarisation=polarisation, coor=self.radar_coor, transition_type='cut_off', remove_input=True)
+        coreg_image[0].create_concatenate_image(process='crop', file_type='crop', polarisation=polarisation, coor=self.radar_coor, transition_type='cut_off', remove_input=False)
 
         coreg_image = self.get_data('coreg_master', slice=False)
         create_multilooking_grid = Pipeline(pixel_no=5000000, processes=self.processes, block_orientation=block_orientation)
@@ -631,7 +635,7 @@ class GeneralPipelines():
 
             for slc in slcs:
                 slc.create_concatenate_image(process='crop', file_type='crop',
-                                               coor=self.radar_coor, transition_type='cut_off', polarisation=pol, remove_input=True)
+                                               coor=self.radar_coor, transition_type='cut_off', polarisation=pol, remove_input=False)
 
         for pol in polarisation:
             self.reload_stack()

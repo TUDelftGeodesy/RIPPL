@@ -131,9 +131,9 @@ class SentinelDatabase(object):
             try:
                 archive = zipfile.ZipFile(zip_image, 'r')
                 if zip_image.endswith('.SAFE.zip'):
-                    manifest = etree.parse(archive.open(os.path.join(os.path.basename(zip_image)[:-4], 'manifest.safe')))
+                    manifest = etree.parse(archive.open(os.path.basename(zip_image)[:-4] + '/manifest.safe'))
                 else:
-                    manifest = etree.parse(archive.open(os.path.join(os.path.basename(zip_image)[:-4] + '.SAFE', 'manifest.safe')))
+                    manifest = etree.parse(archive.open(os.path.basename(zip_image)[:-4] + '.SAFE' + '/manifest.safe'))
                 zip_image = os.path.join('/vsizip/', zip_image)
                 self.read_manifest_file(zip_image, manifest)
             except:

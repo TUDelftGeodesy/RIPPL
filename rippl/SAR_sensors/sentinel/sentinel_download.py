@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon as mpl_polygon
 
 from rippl.user_settings import UserSettings
+from rippl.download_login import DownloadLogin
 from rippl.orbit_geometry.read_write_shapes import ReadWriteShapes
 
 """
@@ -66,6 +67,7 @@ class DownloadSentinel(object):
         # string is the field we enter as url
         self.settings = UserSettings()
         self.settings.load_settings()
+        self.sizes = []
         self.products = []
         self.polarisations = []
         self.footprints = []
@@ -253,6 +255,7 @@ class DownloadSentinel(object):
             self.products.extend(products)
 
             for product in products:
+                self.sizes.append(int(float(product['sizeMB'])))
                 self.polarisations.append(product['polarization'].replace('+', ''))
                 self.footprints.append(shapely.wkt.loads(product['stringFootprint']))
                 self.tracks.append(int(product['track']))
@@ -320,6 +323,7 @@ class DownloadSentinel(object):
 
                 self.products.extend([data for data in tree.iter(tag='entry')])
                 self.polarisations.extend([str(data.find("str[@name='polarisationmode']").text).replace(' ', '') for data in tree.iter(tag='entry')])
+                self.sizes.extend([int(float(data.find("str[@name='size']").text[:-3]) * 1000) for data in tree.iter(tag='entry')])
                 self.ids.extend([data.find("str[@name='identifier']").text for data in tree.iter(tag='entry')])
                 self.tracks.extend([int(data.find("int[@name='relativeorbitnumber']").text) for data in tree.iter(tag='entry')])
                 self.footprints.extend([shapely.wkt.loads(data.find("str[@name='footprint']").text) for data in tree.iter(tag='entry')])
@@ -342,10 +346,10 @@ class DownloadSentinel(object):
         if not self.products:
             raise FileNotFoundError('No images found!')
 
-        wget_base = 'wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --continue --tries=20 ' \
-                    '--no-check-certificate --user=' + username + ' --password=' + password + ' '
+        download_base = 'wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 --continue --tries=20 ' \
+                        '--no-check-certificate --user=' + username + ' --password=' + password + ' '
 
-        for product_name, date, track, polarisation, direction in zip(self.ids, self.dates, self.tracks, self.polarisations, self.orbit_directions):
+        for product_name, date, track, polarisation, direction, size in zip(self.ids, self.dates, self.tracks, self.polarisations, self.orbit_directions, self.sizes):
             file_dir = DownloadSentinel.find_database_folder(database_folder, product_name, date, track, polarisation, direction)
             url = "https://scihub.copernicus.eu/dhus/odata/v1/Products?$filter=Name%20eq%20'" + product_name + "'"
             request = urllib.request.Request(url)
@@ -369,9 +373,15 @@ class DownloadSentinel(object):
 
             # Download data files and create symbolic link
             if not os.path.exists(file_dir):
-                wget_data = wget_base + url + ' -O ' + file_dir
-                print(wget_data)
-                os.system(wget_data)
+
+                if os.name == 'nt':
+                    download_data = DownloadLogin('', username, password)
+                    print('downloading from ' + url + ' to ' + file_dir)
+                    download_data.download_file(url[1:-1], file_dir, size)
+                else:
+                    download_data = download_base + url + ' -O ' + file_dir
+                print(download_data)
+                os.system(download_data)
 
     def sentinel_download_ASF(self, database_folder='', username='', password=''):
         # Download data from ASF (Generally easier and much faster to download from this platform.)
@@ -386,17 +396,23 @@ class DownloadSentinel(object):
         if not self.products:
             raise FileNotFoundError('No images found!')
 
-        wget_base = 'wget -c --http-user=' + username + ' --http-password=' + password + ' --no-check-certificate '
+        command_base = 'wget -c --http-user=' + username + ' --http-password=' + password + ' --no-check-certificate '
 
-        for product_name, date, track, polarisation, direction in zip(self.ids, self.dates, self.tracks, self.polarisations, self.orbit_directions):
+        for product_name, date, track, polarisation, direction, size in zip(self.ids, self.dates, self.tracks, self.polarisations, self.orbit_directions, self.sizes):
             file_dir = DownloadSentinel.find_database_folder(database_folder, product_name, date, track, polarisation, direction)
             url = '"https://datapool.asf.alaska.edu/SLC/SA/' + os.path.basename(file_dir) + '"'
 
             # Download data files and create symbolic link
             if not os.path.exists(file_dir):
-                wget_data = wget_base + url + ' -O ' + file_dir
-                print(wget_data)
-                os.system(wget_data)
+
+                if os.name == 'nt':
+                    download_data = DownloadLogin('', username, password)
+                    print('downloading from ' + url + ' to ' + file_dir)
+                    download_data.download_file(url[1:-1], file_dir, size)
+                else:
+                    command_data = command_base + url + ' -o ' + file_dir
+                    print(command_data)
+                    os.system(command_data)
 
     def summarize_search_results(self, plot_cartopy=True, buffer=5):
 

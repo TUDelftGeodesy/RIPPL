@@ -4,9 +4,10 @@ import inspect
 import base64
 from six.moves import urllib
 import ftplib
+import subprocess
 
 import rippl
-
+from rippl.download_login import DownloadLogin
 
 
 class UserSettings(object):
@@ -63,9 +64,21 @@ class UserSettings(object):
 
         """
 
+        # check if wget is installed
+        if os.system('wget') != 0 and os.name != 'nt':
+            print('Please install the program wget on your system to enable downloading from the ASF server.')
+            return False
+        elif os.system('curl --help') != 0:
+            print('Please install the program curl on your system to enable downloading from the ASF server.')
+            return False
+
         # Check whether we are allowed to download a file
         url = 'http://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL1.003/2000.02.11/N17E055.SRTMGL1.hgt.zip.xml'
-        command = 'wget ' + url + ' -O /dev/null --password ' + password + ' --user ' + username
+        if os.name == 'nt':
+            check_download = DownloadLogin('', username, password)
+            check_download.download_file(url)
+        else:
+            command = 'wget ' + url + ' -O /dev/null --password ' + password + ' --user ' + username
         output = os.system(command)
 
         if output == 0:
@@ -205,12 +218,12 @@ class UserSettings(object):
 
         """
 
-        out = os.system(snaphu_path)
-        if out == 256:
+        try:
+            subprocess.call(snaphu_path)
             print('Snaphu path found and added to RIPPL installation')
             self.snaphu_path = snaphu_path
             return True
-        else:
+        except:
             print('Snaphu path incorrect. The full RIPPL code will still work except the unwrapping')
             return False
 

@@ -93,7 +93,7 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
         pixels = str(shape[1])
 
         unwrap_name = 'unwrapped' + coh_file_name[len('coherence'):][:-4]
-        out_file = os.path.join(folder, unwrap_name + '.raw')
+        out_file = os.path.join(folder, unwrap_name + '.data')
         conf_file = os.path.join(folder, unwrap_name + '.conf')
         c = open(conf_file, 'w+')
 

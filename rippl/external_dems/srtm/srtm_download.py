@@ -26,6 +26,7 @@ from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.meta_data.image_processing_meta import ImageProcessingMeta
 from rippl.resampling.coor_new_extend import CoorNewExtend
 from rippl.user_settings import UserSettings
+from rippl.download_login import DownloadLogin
 
 
 class SrtmDownloadTile(object):
@@ -64,14 +65,20 @@ class SrtmDownloadTile(object):
         # Download and unzip
         try:
             if not os.path.exists(file_unzip):
-                command = 'wget ' + url + ' --user ' + self.username + ' --password ' \
-                          + self.password + ' -O ' + file_zip
-                os.system(command)
+                if os.name == 'nt':
+                    download = DownloadLogin('', username=self.username, password=self.password)
+                    download.download_file(url, file_zip)
+                else:
+                    command = 'wget ' + url + ' --user ' + self.username + ' --password ' \
+                              + self.password + ' -O ' + file_zip
+                    os.system(command)
                 zip_data = zipfile.ZipFile(file_zip)
                 source = zip_data.open(zip_data.namelist()[0])
                 target = open(file_unzip, 'wb')
                 shutil.copyfileobj(source, target, length=-1)
                 target.close()
+                zip_data.close()
+                source.close()
                 os.remove(file_zip)
         except:
             print('Failed to download ' + url)
@@ -163,7 +170,7 @@ class SrtmDownload(object):
         download_dat = [[url, file_zip, file_unzip, lat, lon] for
                      url, file_zip, file_unzip, lat, lon in
                      zip(urls, tiles_zip, download_tiles, tile_lats, tile_lons)]
-        if parallel:
+        if parallel and self.n_processes > 1:
             pool = Pool(self.n_processes)
             pool.map(tile_download, download_dat)
         else:
