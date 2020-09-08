@@ -65,30 +65,33 @@ class UserSettings(object):
         """
 
         # check if wget is installed
-        if os.system('wget') != 0 and os.name != 'nt':
-            print('Please install the program wget on your system to enable downloading from the ASF server.')
-            return False
-        elif os.system('curl --help') != 0:
-            print('Please install the program curl on your system to enable downloading from the ASF server.')
-            return False
+        if os.name != 'nt':
+            if os.system('wget') != 0:
+                print('Please install the program wget on your system to enable downloading from the ASF server.')
+                return False
 
         # Check whether we are allowed to download a file
         url = 'http://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL1.003/2000.02.11/N17E055.SRTMGL1.hgt.zip.xml'
         if os.name == 'nt':
-            check_download = DownloadLogin('', username, password)
-            check_download.download_file(url)
+            try:
+                check_download = DownloadLogin('', username, password)
+                path = os.path.join(os.path.dirname(self.settings_path), 'external_dems', 'test_file')
+                check_download.download_file(url, path)
+                os.remove(path)
+            except:
+                print('Your NASA account is not valid.')
+                return False
         else:
             command = 'wget ' + url + ' -O /dev/null --password ' + password + ' --user ' + username
-        output = os.system(command)
+            output = os.system(command)
 
-        if output == 0:
-            print('NASA password valid!')
-        else:
-            print('Your NASA account is not valid.')
-            return False
+            if output != 0:
+                print('Your NASA account is not valid.')
+                return False
 
         self.NASA_username = username
         self.NASA_password = password
+        print('NASA password valid!')
         return True
 
     def add_DLR_settings(self, username, password):
