@@ -410,7 +410,7 @@ class DownloadSentinel(object):
                     print('downloading from ' + url + ' to ' + file_dir)
                     download_data.download_file(url[1:-1], file_dir, size)
                 else:
-                    command_data = command_base + url + ' -o ' + file_dir
+                    command_data = command_base + url + ' -O ' + file_dir
                     print(command_data)
                     os.system(command_data)
 
