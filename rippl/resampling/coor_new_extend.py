@@ -135,7 +135,7 @@ class CoorNewExtend(object):
         if in_coor.grid_type == 'geographic':
             lat, lon = CoorNewExtend.geographic_convex_hull(in_coor)
         elif in_coor.grid_type == 'projection':
-            x_coors, y_coors = CoorNewExtend.projection_convex_hull(in_coor)
+            y_coors, x_coors = CoorNewExtend.projection_convex_hull(in_coor)
             lat, lon = in_coor.proj2ell(x_coors, y_coors)
         heights = np.concatenate((np.ones(lat.shape) * min_height, np.ones(lat.shape) * max_height))
         lat_d = np.concatenate((lat, lat))

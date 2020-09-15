@@ -855,7 +855,7 @@ class OrbitCoordinates(object):
 
             # We use a oblique mercator projection.
             proj4 = '+proj=omerc +lonc=' + str(np.rad2deg(self.center_lambda)) + ' +lat_0=' + \
-                    str(np.rad2deg(self.center_phi)) + ' +gamma=' + str(gamma) + ' +ellps=WGS84'
+                    str(np.rad2deg(self.center_phi)) + ' +alpha=' + str(gamma) + ' +ellps=WGS84'
 
         return proj4
 

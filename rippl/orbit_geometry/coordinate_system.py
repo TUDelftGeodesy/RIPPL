@@ -279,6 +279,7 @@ class CoordinateSystem():
             self.ellipse_type = self.json_dict['ellipse_type']
             self.projection_type = self.json_dict['projection_type']
             self.proj4_str = self.json_dict['proj4_str']
+            self.proj4_str = str(self.proj4_str).replace('+gamma', '+alpha')
             self.x0 = self.json_dict['x0']
             self.y0 = self.json_dict['y0']
             self.dx = self.json_dict['dx']
@@ -677,7 +678,7 @@ class CoordinateSystem():
 
     def ell2proj(self, lat, lon):
 
-        if isinstance(self.proj, pyproj.Proj) and isinstance(self.geo, pyproj.Geod):
+        if isinstance(self.proj, pyproj.Proj):
             x, y = self.proj(lon, lat, inverse=False)
         else:
             print('Either the projection or geographic coordinate system is not loaded as pyproj class')
@@ -687,7 +688,7 @@ class CoordinateSystem():
 
     def proj2ell(self, x, y):
 
-        if isinstance(self.proj, pyproj.Proj) and isinstance(self.geo, pyproj.Geod):
+        if isinstance(self.proj, pyproj.Proj):
             lon, lat = self.proj(x, y, inverse=True)
         else:
             print('Either the projection or geographic coordinate system is not loaded as pyproj class')

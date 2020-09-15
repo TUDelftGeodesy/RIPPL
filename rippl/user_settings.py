@@ -5,9 +5,9 @@ import base64
 from six.moves import urllib
 import ftplib
 import subprocess
+from http.cookiejar import CookieJar
 
 import rippl
-from rippl.download_login import DownloadLogin
 
 
 class UserSettings(object):
@@ -15,12 +15,12 @@ class UserSettings(object):
     def __init__(self):
         
         # Passwords
-        self.ESA_username = ''
-        self.ESA_password = ''
-        self.NASA_username = ''
-        self.NASA_password = ''
-        self.DLR_username = ''
-        self.DLR_password = ''
+        self.ESA_username = 'None'
+        self.ESA_password = 'None'
+        self.NASA_username = 'None'
+        self.NASA_password = 'None'
+        self.DLR_username = 'None'
+        self.DLR_password = 'None'
     
         # Paths
         self.radar_database = ''
@@ -30,7 +30,7 @@ class UserSettings(object):
         self.GIS_database = ''
         self.NWP_model_database = ''
         self.rippl_folder = ''
-        self.snaphu_path = ''
+        self.snaphu_path = 'None'
 
         # And the path of the settings file itself
         self.settings_path = os.path.join(os.path.dirname(inspect.getfile(rippl)), 'user_settings.txt')
@@ -51,8 +51,17 @@ class UserSettings(object):
             urllib.request.urlopen(request)
             print('ESA password valid!')
         except:
-            print('Your ESA account is not valid.')
+            print('Your ESA account is not valid to use the API hub. Please wait one week after account registration '
+                  'before using it here. Details https://scihub.copernicus.eu/twiki/do/view/SciHubWebPortal/APIHubDescription'
+                  'You can run this notebook again later to add the ESA scihub account.')
             return False
+
+        if os.name != 'nt':
+            try:
+                subprocess.call('wget')
+            except:
+                print('You need to install the program wget to download Sentinel-1 data, or make it available from'
+                      'the terminal.')
 
         self.ESA_username = username
         self.ESA_password = password
@@ -64,34 +73,31 @@ class UserSettings(object):
 
         """
 
-        # check if wget is installed
+        # Just take one dataset as an example to login.
+        url = 'https://datapool.asf.alaska.edu/SLC/SA/S1A_IW_SLC__1SDV_20180511T161620_20180511T161639_021859_025BF8_9FF0.zip'
+        request = urllib.request.Request(url)
+        cj = CookieJar()
+        base64string = base64.b64encode(bytes('%s:%s' % (username, password), "utf-8")).decode()
+        request.add_header("Authorization", "Basic " + base64string)
+
+        # connect to server. Hopefully this works at once
+        try:
+            opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+            opener.open(request)
+            print('NASA password valid!')
+        except:
+            print('Your NASA account is not valid.')
+            return False
+
         if os.name != 'nt':
-            if os.system('wget') != 0:
-                print('Please install the program wget on your system to enable downloading from the ASF server.')
-                return False
-
-        # Check whether we are allowed to download a file
-        url = 'http://e4ftl01.cr.usgs.gov/MEASURES/SRTMGL1.003/2000.02.11/N17E055.SRTMGL1.hgt.zip.xml'
-        if os.name == 'nt':
             try:
-                check_download = DownloadLogin('', username, password)
-                path = os.path.join(os.path.dirname(self.settings_path), 'external_dems', 'test_file')
-                check_download.download_file(url, path)
-                os.remove(path)
+                subprocess.call('wget')
             except:
-                print('Your NASA account is not valid.')
-                return False
-        else:
-            command = 'wget ' + url + ' -O /dev/null --password ' + password + ' --user ' + username
-            output = os.system(command)
-
-            if output != 0:
-                print('Your NASA account is not valid.')
-                return False
+                print('You need to install the program wget to download Sentinel-1 data, or make it available from'
+                      'the terminal.')
 
         self.NASA_username = username
         self.NASA_password = password
-        print('NASA password valid!')
         return True
 
     def add_DLR_settings(self, username, password):
@@ -266,6 +272,11 @@ class UserSettings(object):
         Save user settings to file
 
         """
+
+        if len(self.radar_database) == 0 or len(self.radar_datastacks) == 0 or len(self.orbit_database) == 0 or \
+            len(self.NWP_model_database) == 0 or len(self.GIS_database) == 0 or len(self.DEM_database) == 0:
+            print('Paths to RIPPL processing paths are empty. Please create these paths first using the '
+                  'save_data_database function')
 
         # Create text file
         if os.path.exists(self.settings_path):
