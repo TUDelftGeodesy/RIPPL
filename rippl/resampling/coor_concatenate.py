@@ -18,11 +18,13 @@ from rippl.resampling.coor_new_extend import CoorNewExtend
 
 class CoorConcatenate():
 
-    def __init__(self, coor_systems, adjust_date=False):
+    def __init__(self, coor_systems, concat_coor='', adjust_date=False):
         # Input coordinate systems a list of coordinate systems.
 
+        self.concat_coor = concat_coor
         self.coor_systems = coor_systems
-        self.concat_coor, self.sync_coors = CoorConcatenate.create_concat_coordinates(self.coor_systems, adjust_date=adjust_date)
+        self.concat_coor, self.sync_coors = CoorConcatenate.create_concat_coordinates(
+            self.coor_systems, concat_coor=self.concat_coor, adjust_date=adjust_date)
 
         # Information on readfiles that will be updated.
         self.readfile = []
@@ -164,7 +166,11 @@ class CoorConcatenate():
         return new_coors
 
     @staticmethod
-    def create_concat_coordinates(coor_systems, adjust_date=True):
+    def create_concat_coordinates(coor_systems, concat_coor='', adjust_date=True):
+
+        if isinstance(concat_coor, CoordinateSystem):
+            coor_systems = coor_systems + [concat_coor]
+
         # type:
         # first synchronize all coordinate systems.
         sync_coors = CoorConcatenate.synchronize_coordinates(coor_systems)
@@ -183,23 +189,30 @@ class CoorConcatenate():
         max_pix = np.max([first_pixel + coor.shape[1] for first_pixel, coor in zip(first_pixels, sync_coors)])
 
         new_shape = [int(max_line - new_first_line), int(max_pix - new_first_pix)]
-        concat_coor = copy.deepcopy(sync_coors[0])              # type: CoordinateSystem
-        line_id = np.argmin(orig_lines)
-        concat_coor.az_time = orig_lines[line_id] * concat_coor.az_step
-        if adjust_date and concat_coor.az_time < 7200:
-            concat_coor.az_time += 86400
-        pix_id = np.argmin(orig_pixels)
-        concat_coor.ra_time = orig_pixels[pix_id] * concat_coor.ra_step
-        concat_coor.shape = new_shape
-        concat_coor.first_line = int(new_first_line)
-        concat_coor.first_pixel = int(new_first_pix)
-        concat_coor.center_lat = np.mean([coor.center_lat for coor in coor_systems])
-        concat_coor.center_lon = np.mean([coor.center_lon for coor in coor_systems])
-        concat_coor.center_heading = np.mean([coor.center_heading for coor in coor_systems])
-        concat_coor.center_pixel = np.int(np.mean([coor.center_pixel for coor in coor_systems]))
-        concat_coor.center_line = np.int(np.mean([coor.center_line for coor in coor_systems]))
 
-        return concat_coor, sync_coors
+        if not isinstance(concat_coor, CoordinateSystem):
+            concat_coor = copy.deepcopy(sync_coors[0])              # type: CoordinateSystem
+            line_id = np.argmin(orig_lines)
+            concat_coor.az_time = orig_lines[line_id] * concat_coor.az_step
+            if adjust_date and concat_coor.az_time < 7200:
+                concat_coor.az_time += 86400
+            pix_id = np.argmin(orig_pixels)
+            concat_coor.ra_time = orig_pixels[pix_id] * concat_coor.ra_step
+            concat_coor.shape = new_shape
+            concat_coor.first_line = int(new_first_line)
+            concat_coor.first_pixel = int(new_first_pix)
+            concat_coor.center_lat = np.mean([coor.center_lat for coor in coor_systems])
+            concat_coor.center_lon = np.mean([coor.center_lon for coor in coor_systems])
+            concat_coor.center_heading = np.mean([coor.center_heading for coor in coor_systems])
+            concat_coor.center_pixel = np.int(np.mean([coor.center_pixel for coor in coor_systems]))
+            concat_coor.center_line = np.int(np.mean([coor.center_line for coor in coor_systems]))
+
+            return concat_coor, sync_coors
+        else:
+            concat_coor.orig_ra_time = 0
+            concat_coor.orig_az_time = 0
+
+            return concat_coor, np.array(sync_coors)[:-1]
 
     @staticmethod
     def get_alignment(coor):

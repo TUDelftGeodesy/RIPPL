@@ -16,9 +16,11 @@ import zipfile
 from random import shuffle
 
 import numpy as np
-from multiprocessing import Pool
+from multiprocessing import get_context
 from lxml import etree
 from shapely.geometry import Polygon
+from shapely import speedups
+speedups.disable()
 import copy
 
 from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
@@ -72,6 +74,7 @@ class SentinelStack(SentinelDatabase, Stack):
 
         # Availability of the master/slave bursts in image
         self.burst_availability = []
+        self.burst_availability_dates = []
 
     def read_from_database(self, database_folder='', shapefile=None, track_no=None, orbit_folder=None,
                            start_date='', end_date='', date='', dates='', time_window='', master_date='', end_dates='', start_dates='',
@@ -140,9 +143,16 @@ class SentinelStack(SentinelDatabase, Stack):
     def extract_swath_xml_orbit(self, polarisation):
 
         print('Reading swath .xml files for new images:')
+        loaded_images = []
 
         for im in self.selected_images.keys():
             image = self.selected_images[im]
+
+            if im.split('.')[0] not in loaded_images:
+                loaded_images.append(im.split('.')[0])
+            else:
+                print('Skipping duplicate image ' + im)
+                continue
 
             for swath in image['swath_xml']:
                 if os.path.basename(swath)[12:14] == polarisation.lower():
@@ -168,7 +178,7 @@ class SentinelStack(SentinelDatabase, Stack):
     def create_slice_list(self, master_start):
         # master date should be in yyyy-mm-dd format
         # This function creates a list of all slices within the datastack and reads the needed meta_data.
-        self.iterate_swaths(master_start, adjust_date=False)
+        self.iterate_swaths(master_start, adjust_date=False, load_slave_slices=False)
 
         # Adjust timing for master if needed.
         for seconds in self.master_slice_seconds:
@@ -186,7 +196,7 @@ class SentinelStack(SentinelDatabase, Stack):
         # Reload the slices and calc coordinates
         self.iterate_swaths(master_start, adjust_date=True, adjust_type=adjust_type)
 
-    def iterate_swaths(self, master_start, adjust_date=False, adjust_type='low'):
+    def iterate_swaths(self, master_start, adjust_date=False, adjust_type='low', load_slave_slices=True):
 
         time_lim = 0.1
         if not isinstance(master_start, datetime.datetime):
@@ -241,7 +251,7 @@ class SentinelStack(SentinelDatabase, Stack):
 
                             self.master_slices.append(slice)
 
-                    elif self.shape.intersects(slice_coverage):
+                    elif self.shape.intersects(slice_coverage) and load_slave_slices:
                         # Check if this time already exists
                         dat_id = np.where(self.slice_date == slice_time[:10])[0]
 
@@ -334,7 +344,7 @@ class SentinelStack(SentinelDatabase, Stack):
         crop_coor.center_pixel += int(np.round((crop_coor.orig_ra_time - lowest_ra_time) / crop_coor.ra_step))
         crop_coor.ra_time = lowest_ra_time
 
-    def assign_slice_id(self):
+    def assign_slice_id(self, remove_partial_slaves=False):
         # Create new master ids if needed
         known_ids = len(self.master_slice_number)
         total_ids = len(self.master_slice_az_time)
@@ -408,15 +418,36 @@ class SentinelStack(SentinelDatabase, Stack):
             del self.slices[id]
 
         # Calculate the burst availability
-        s_dates = np.unique(np.array(self.slice_date))
-        m_names = np.array(self.master_slice_names)
+        s_dates = np.sort(np.unique(np.array(self.slice_date)))
+        m_names = np.sort(np.array(self.master_slice_names))
         n_burst = len(self.master_slice_names)
-        self.burst_availability = np.zeros((n_burst, len(s_dates)))
+        self.burst_availability = np.zeros((n_burst, len(s_dates))).astype(np.bool)
 
         for s_name, s_date in zip(self.slice_names, self.slice_date):
             date_id = np.where((s_dates == s_date))
             slice_id = np.where((m_names == s_name))
             self.burst_availability[slice_id, date_id] = 1
+            self.burst_availability_dates = s_dates
+
+        # In case we want only full coverage remove the not fully covered images.
+        if remove_partial_slaves:
+            no_full_date = s_dates[np.sum(self.burst_availability, axis=0) != len(m_names)]
+
+            for del_date in no_full_date:
+                burst_ids = np.sort(np.where(self.slice_date == np.array(del_date))[0])[::-1]
+                print('Removing slave bursts from date ' + del_date + ' because they are not fully covered. Use the ' +
+                      ' option remove_partial_slaves=False to included these dates.')
+                for id in burst_ids:
+                    del self.slice_swath_no[id]
+                    del self.slice_lat[id]
+                    del self.slice_lon[id]
+                    del self.slice_date[id]
+                    del self.slice_az_time[id]
+                    del self.slice_time[id]
+                    del self.slice_x[id]
+                    del self.slice_y[id]
+                    del self.slice_z[id]
+                    del self.slices[id]
 
     def write_master_slice_list(self):
         # az_time, yyyy-mm-ddThh:mm:ss.ssssss, swath x, slice i, x xxxx, y yyyy, z zzzz, lat ll.ll, lon ll.ll, pol pp
@@ -445,9 +476,6 @@ class SentinelStack(SentinelDatabase, Stack):
 
         # Create the crops in parallel
 
-        if num_cores > 1:
-            pool = Pool(num_cores)
-
         n = len(self.master_slices)
         id_num = np.arange(n)
         id = np.arange(n)
@@ -457,7 +485,13 @@ class SentinelStack(SentinelDatabase, Stack):
                       in zip(np.array(self.master_slices)[id], np.array(self.master_slice_number)[id],
                              np.array(self.master_slice_swath_no)[id], np.array(self.master_slice_date)[id], id_num)]
         if num_cores > 1:
-            res = pool.map(write_sentinel_burst, master_dat)
+            with get_context("spawn").Pool(processes=num_cores, maxtasksperchild=5) as pool:
+                # Process in blocks of 100
+                block_size = 100
+                for i in range(int(np.ceil(len(master_dat) / block_size))):
+                    last_dat = np.minimum((i + 1) * block_size, len(master_dat))
+                    print('Initializing master bursts ' + str(i*block_size) + ' to ' + str(last_dat) + ' from total of ' + str(len(master_dat)))
+                    res = pool.map(write_sentinel_burst, master_dat[i*block_size:last_dat])
         else:
             for m_dat in master_dat:
                 write_sentinel_burst(m_dat)
@@ -471,7 +505,13 @@ class SentinelStack(SentinelDatabase, Stack):
                      in zip(np.array(self.slices)[id], np.array(self.slice_number)[id],
                             np.array(self.slice_swath_no)[id], np.array(self.slice_date)[id], id_num)]
         if num_cores > 1:
-            res = pool.map(write_sentinel_burst, slave_dat)
+            with get_context("spawn").Pool(processes=num_cores, maxtasksperchild=5) as pool:
+                # Process in blocks of 25
+                block_size = 100
+                for i in range(int(np.ceil(len(slave_dat) / block_size))):
+                    last_dat = np.minimum((i + 1) * block_size, len(slave_dat))
+                    print('Initializing slave bursts ' + str(i * block_size) + ' to ' + str(last_dat) + ' from total of ' + str(len(slave_dat)))
+                    res = pool.map(write_sentinel_burst, slave_dat[i * block_size:last_dat])
         else:
             for s_dat in slave_dat:
                 write_sentinel_burst(s_dat)

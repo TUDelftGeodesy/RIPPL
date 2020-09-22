@@ -113,7 +113,11 @@ class Concatenate():
         :return:
         """
 
-        concat = CoorConcatenate(self.slice_coordinates, adjust_date=self.concat_image.adjust_date)
+        if len(self.coordinates.shape) == 2:
+            print('Using predefined grid size for concatenation of slices')
+            concat = CoorConcatenate(self.slice_coordinates, concat_coor=self.coordinates, adjust_date=self.concat_image.adjust_date)
+        else:
+            concat = CoorConcatenate(self.slice_coordinates, adjust_date=self.concat_image.adjust_date)
         self.slice_coordinates = concat.sync_coors
         concat_coor = concat.concat_coor
 

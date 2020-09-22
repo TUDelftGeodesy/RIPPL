@@ -257,4 +257,3 @@ class ImageConcatData(object):
         # Do the actual concatenation
         if succes:
             concatenate.concatenate(transition_type=transition_type, cut_off=cut_off, replace=replace, remove_input=remove_input)
-

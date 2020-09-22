@@ -2,6 +2,8 @@
 from collections import OrderedDict
 import datetime
 from shapely.geometry import Polygon
+from shapely import speedups
+speedups.disable()
 import json
 
 

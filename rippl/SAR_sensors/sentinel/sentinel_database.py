@@ -18,6 +18,8 @@ Finally we can check the overlap with the individual swaths too and unzip if nee
 """
 
 from shapely.geometry import Polygon
+from shapely import speedups
+speedups.disable()
 import copy
 import datetime
 from lxml import etree

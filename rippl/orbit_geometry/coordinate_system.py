@@ -2,8 +2,7 @@ import json
 from collections import OrderedDict
 import pyproj
 import numpy as np
-import osr
-import utm
+from osgeo import osr
 
 from rippl.meta_data.readfile import Readfile
 from rippl.meta_data.orbit import Orbit
