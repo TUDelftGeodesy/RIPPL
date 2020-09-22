@@ -2,6 +2,8 @@ import numpy as np
 from scipy.interpolate import RectBivariateSpline
 import os
 
+from rippl.download_login import DownloadLogin
+
 class GeoidInterp():
 
     @staticmethod
@@ -22,11 +24,14 @@ class GeoidInterp():
             # Download egm96 file
             if download:
                 if os.name == 'nt':
-                    command = 'curl -L http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC -o ' + egm_96_file
+                    download_data = DownloadLogin('', '', '')
+                    url = 'http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC'
+                    print('downloading from ' + url + ' to ' + egm_96_file)
+                    download_data.download_file(url[1:-1], egm_96_file, 3)
                 else:
-                    command = 'wget http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC -O ' + egm_96_file
-                print(command)
-                os.system(command)
+                    command = 'wget http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC -O ' + '"' + egm_96_file + '"'
+                    print(command)
+                    os.system(command)
             else:
                 raise LookupError('No geoid file can be found. Please set download to True and try again')
 

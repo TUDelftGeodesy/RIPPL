@@ -18,6 +18,7 @@ import shutil
 import zipfile
 import numpy as np
 import requests
+from multiprocessing import get_context
 from multiprocessing import Pool
 
 from rippl.external_dems.srtm.srtm_dir_listing import ParseHTMLDirectoryListing
@@ -70,7 +71,7 @@ class SrtmDownloadTile(object):
                     download.download_file(url, file_zip)
                 else:
                     command = 'wget ' + url + ' --user ' + self.username + ' --password ' \
-                              + self.password + ' -O ' + file_zip
+                              + self.password + ' -O ' + '"' + file_zip + '"'
                     os.system(command)
                 zip_data = zipfile.ZipFile(file_zip)
                 source = zip_data.open(zip_data.namelist()[0])
@@ -171,8 +172,12 @@ class SrtmDownload(object):
                      url, file_zip, file_unzip, lat, lon in
                      zip(urls, tiles_zip, download_tiles, tile_lats, tile_lons)]
         if parallel and self.n_processes > 1:
-            pool = Pool(self.n_processes)
-            pool.map(tile_download, download_dat)
+            with get_context("spawn").Pool(processes=self.n_processes, maxtasksperchild=5) as pool:
+                # Process in blocks of 25
+                block_size = 25
+                for i in range(int(np.ceil(len(download_dat) / block_size))):
+                    last_dat = np.minimum((i + 1) * block_size, len(download_dat))
+                    pool.map(tile_download, download_dat[i*block_size:last_dat])
         else:
             for download_info in download_dat:
                 tile_download(download_info)

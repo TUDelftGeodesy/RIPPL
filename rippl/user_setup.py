@@ -31,7 +31,7 @@ from rippl.external_dems.srtm.srtm_download import SrtmDownload
 settings = UserSettings()
 
 success = False
-while not success:
+while success == False:
 
     print('Enter your ESA username')
     ESA_username = input()
@@ -68,7 +68,7 @@ account complete.
 )
 
 success = False
-while not success:
+while success == False:
     print('Enter your Earthdata username')
     NASA_username = input()
     print('Enter your Earthdata password')
@@ -98,7 +98,7 @@ Running the next block will check you password for the DLR website.
 )
 
 success = False
-while not success:
+while success == False:
     print('Enter your DLR username')
     DLR_username = input()
     print('Enter your DLR password')
@@ -135,7 +135,7 @@ Be sure that you have around 50 GB of disk space free to do the processing!
 )
 
 success = False
-while not success:
+while success == False:
     print('Enter your main folder. Leave empty if you define other folders seperately. If used you can skip the other'
           'folders.')
     main_folder = input()
@@ -199,7 +199,7 @@ Make sure that the program is in your system path!
 )
 
 success = False
-while not success:
+while success == False:
     print('Enter snaphu path')
     snaphu_path = input()
 

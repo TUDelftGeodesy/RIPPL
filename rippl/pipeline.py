@@ -1,4 +1,4 @@
-import multiprocessing
+from multiprocessing import get_context
 import os
 import numpy as np
 import copy
@@ -158,12 +158,11 @@ class Pipeline():
                     self.json_dicts.extend(json_out[0])
                     self.json_files.extend(json_out[1])
             else:
-                pool = multiprocessing.Pool(processes=self.processes, maxtasksperchild=5)
+                with get_context("spawn").Pool(processes=self.processes, maxtasksperchild=5) as pool:
 
-                for json_out in pool.imap_unordered(run_parallel, self.block_pipelines, chunksize=1):
-                    self.json_dicts.extend(json_out[0])
-                    self.json_files.extend(json_out[1])
-                pool.close()
+                    for json_out in pool.imap_unordered(run_parallel, self.block_pipelines, chunksize=1):
+                        self.json_dicts.extend(json_out[0])
+                        self.json_files.extend(json_out[1])
 
             self.save_processing_results()
 

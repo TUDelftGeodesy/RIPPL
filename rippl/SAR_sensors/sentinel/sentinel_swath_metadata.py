@@ -11,6 +11,8 @@ import os
 from datetime import datetime
 from datetime import timedelta
 from shapely import geometry
+from shapely import speedups
+speedups.disable()
 import numpy as np
 import copy
 
@@ -190,7 +192,10 @@ class CreateSwathXmlRes():
             ('dopplerCoeff'                         , './/dopplerCentroid/dcEstimateList/dcEstimate/dataDcPolynomial'),
             ('azimuthFmRate_reference_Azimuth_time' , './/generalAnnotation/azimuthFmRateList/azimuthFmRate/azimuthTime'),
             ('azimuthFmRate_reference_Range_time'   , './/generalAnnotation/azimuthFmRateList/azimuthFmRate/t0'),
-            ('azimuthFmRatePolynomial'              , './/generalAnnotation/azimuthFmRateList/azimuthFmRate/azimuthFmRatePolynomial')
+            ('azimuthFmRatePolynomial'              , './/generalAnnotation/azimuthFmRateList/azimuthFmRate/azimuthFmRatePolynomial'),
+            ('azimuthFmRate_c0', './/generalAnnotation/azimuthFmRateList/azimuthFmRate/c0'),
+            ('azimuthFmRate_c1', './/generalAnnotation/azimuthFmRateList/azimuthFmRate/c1'),
+            ('azimuthFmRate_c2', './/generalAnnotation/azimuthFmRateList/azimuthFmRate/c2')
         ])
 
         # Now find the variables of self.swath_readfiles and self.swath_xml_update in the xml data.
@@ -281,6 +286,7 @@ class CreateSwathXmlRes():
         # Now calculate the center pixels of individual bursts.
         line_nums = np.array([int(n) for n in self.burst_xml_dat['sceneCenLine_number']])
         size = (len(np.unique(line_nums)), line_nums.size // len(np.unique(line_nums)))
+        unique_lines = np.unique(line_nums)
 
         lat = np.reshape([float(n) for n in self.burst_xml_dat['sceneCenLat']], size)
         lon = np.reshape([float(n) for n in self.burst_xml_dat['sceneCenLon']], size)
@@ -291,13 +297,22 @@ class CreateSwathXmlRes():
         self.burst_center_coors = []
 
         # Now calculate the polygons for the different bursts
-        for n in np.arange(size[0] - 1):
-            self.burst_coors.append([[lon[n, 0], lat[n, 0]],          [lon[n, -1], lat[n, -1]],
-                                     [lon[n+1, -1], lat[n+1, -1]],    [lon[n+1, 0], lat[n+1, 0]]])
-            self.burst_coverage.append(geometry.Polygon(self.burst_coors[n]))
+        for i in np.arange(self.swath_readfiles['Number_of_bursts']):
 
-            self.burst_center_coors.append([(lon[n, 0] + lon[n+1, 0] + lon[n, -1] + lon[n+1, -1]) / 4,
-                                            (lat[n, 0] + lat[n+1, 0] + lat[n, -1] + lat[n+1, -1]) / 4])
+            n = np.where((np.round(unique_lines / self.swath_readfiles['Number_of_lines'])).astype(np.int32) == i)[0][0]
+
+            if len(unique_lines) > n + 1:
+                self.burst_coors.append([[lon[n, 0], lat[n, 0]],          [lon[n, -1], lat[n, -1]],
+                                         [lon[n+1, -1], lat[n+1, -1]],    [lon[n+1, 0], lat[n+1, 0]]])
+                self.burst_center_coors.append([(lon[n, 0] + lon[n+1, 0] + lon[n, -1] + lon[n+1, -1]) / 4,
+                                                (lat[n, 0] + lat[n+1, 0] + lat[n, -1] + lat[n+1, -1]) / 4])
+            else:
+                # Otherwise fill with a fake shape
+                print('Invalid burst coordinates found in .xml data ' + self.swath_xml)
+                self.burst_coors.append([[999, 999], [1000, 999], [1000, 1000], [999, 1000]])
+                self.burst_center_coors.append([999.5, 999.5])
+
+            self.burst_coverage.append(geometry.Polygon(self.burst_coors[n]))
             self.burst_center.append(geometry.Point(self.burst_center_coors[n]))
 
         self.swath_coors = [[lon[0, 0], lat[0, 0]],    [lon[0, -1], lat[0, -1]],
@@ -368,12 +383,18 @@ class CreateSwathXmlRes():
             readfiles['Xtrack_f_DC_quadratic (Hz/s/s, early edge)'] = float(parameter[2])
 
             # Assign FM values to meta_data
-            parameter = self.burst_xml_dat['azimuthFmRatePolynomial'][frequency_id].split()
             readfiles['FM_reference_azimuth_time'] = frequency_times[frequency_id].strftime('%Y-%m-%dT%H:%M:%S.%f')
             readfiles['FM_reference_range_time'] = float(self.burst_xml_dat['azimuthFmRate_reference_Range_time'][frequency_id])
-            readfiles['FM_polynomial_constant_coeff (Hz, early edge)'] = float(parameter[0])
-            readfiles['FM_polynomial_linear_coeff (Hz/s, early edge)'] = float(parameter[1])
-            readfiles['FM_polynomial_quadratic_coeff (Hz/s/s, early edge)'] = float(parameter[2])
+
+            if len(self.burst_xml_dat['azimuthFmRatePolynomial']) > 0:
+                parameter = self.burst_xml_dat['azimuthFmRatePolynomial'][frequency_id].split()
+                readfiles['FM_polynomial_constant_coeff (Hz, early edge)'] = float(parameter[0])
+                readfiles['FM_polynomial_linear_coeff (Hz/s, early edge)'] = float(parameter[1])
+                readfiles['FM_polynomial_quadratic_coeff (Hz/s/s, early edge)'] = float(parameter[2])
+            else:
+                readfiles['FM_polynomial_constant_coeff (Hz, early edge)'] = float(self.burst_xml_dat['azimuthFmRate_c0'][frequency_id])
+                readfiles['FM_polynomial_linear_coeff (Hz/s, early edge)'] = float(self.burst_xml_dat['azimuthFmRate_c1'][frequency_id])
+                readfiles['FM_polynomial_quadratic_coeff (Hz/s/s, early edge)'] = float(self.burst_xml_dat['azimuthFmRate_c2'][frequency_id])
 
             readfile_burst = Readfile(json_data=readfiles, adjust_date=adjust_date)
 

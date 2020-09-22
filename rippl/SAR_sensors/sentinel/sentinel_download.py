@@ -11,13 +11,16 @@ import base64
 import subprocess
 from lxml import etree
 import json
-from shapely.geometry import Polygon
 import shapely
+from shapely.geometry import Polygon
+from shapely import speedups
+speedups.disable()
 from shapely.ops import cascaded_union
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon as mpl_polygon
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 
 from rippl.user_settings import UserSettings
 from rippl.download_login import DownloadLogin
@@ -379,7 +382,7 @@ class DownloadSentinel(object):
                     print('downloading from ' + url + ' to ' + file_dir)
                     download_data.download_file(url[1:-1], file_dir, size)
                 else:
-                    download_data = download_base + url + ' -O ' + file_dir
+                    download_data = download_base + url + ' -O ' + '"' + file_dir + '"'
                 print(download_data)
                 os.system(download_data)
 
@@ -410,7 +413,7 @@ class DownloadSentinel(object):
                     print('downloading from ' + url + ' to ' + file_dir)
                     download_data.download_file(url[1:-1], file_dir, size)
                 else:
-                    command_data = command_base + url + ' -O ' + file_dir
+                    command_data = command_base + url + ' -O ' + '"' + file_dir + '"'
                     print(command_data)
                     os.system(command_data)
 

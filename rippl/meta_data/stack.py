@@ -15,6 +15,8 @@ import os
 import datetime
 import numpy as np
 from shapely.ops import cascaded_union
+from shapely import speedups
+speedups.disable()
 
 from rippl.meta_data.slc import SLC
 from rippl.meta_data.interferogram import Interferogram

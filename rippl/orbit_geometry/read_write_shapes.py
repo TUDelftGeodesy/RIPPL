@@ -28,8 +28,10 @@ convert(shapefile)
 import ogr
 import fiona
 from fiona import collection
-from shapely.geometry import Polygon, mapping, MultiPolygon
 import shapely
+from shapely.geometry import Polygon, mapping, MultiPolygon
+from shapely import speedups
+speedups.disable()
 from shapely.wkt import loads
 import json
 import os

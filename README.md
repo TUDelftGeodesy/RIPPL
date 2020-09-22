@@ -53,7 +53,8 @@ If you downloaded RIPPL and did not setup your python environment yet, follow th
 1. Install Anaconda python 3 on your system. (https://www.anaconda.com/products/download)
 2. After installation go to your terminal (or powershell on windows) and create a new conda environment:
 
-> conda create --name rippl_env 
+
+    > conda create --name rippl_env 
 
 3. After installation activate this and install the needed packages. These are:
 - scipy
@@ -70,17 +71,19 @@ If you downloaded RIPPL and did not setup your python environment yet, follow th
 - utm
 - jupyter
 
-> conda activate rippl_env \
-> conda install -n rippl_env (package_name)
+
+    > conda activate rippl_env \
+    > conda install -n rippl_env (package_name)
 
 Possibly you will have to add the conda-forge channel first to install utm. You can add this channel using:
 
-> conda config --add channels https://conda.anaconda.org/conda-forge/
+    > conda config --add channels https://conda.anaconda.org/conda-forge/
 
-On some systems not all packages will give an error. In these cases you can install the packages using PIP too:
+On some systems not all packages will not directly install and give a dependencies error. In these cases you can 
+install the packages using PIP too:
 
-> conda activate rippl_env \
-> pip install (package_name)
+    > conda activate rippl_env \
+    > pip install (package_name)
 
 Still, if possible install the packages with the conda command, as this guarantees a stable environment.
 
@@ -88,7 +91,12 @@ Still, if possible install the packages with the conda command, as this guarante
 
 To start your first SAR processing using RIPPL you should also set your user and environment settings. You 
 can find the installation code as a jupyter notebook .../rippl/user_setup.ipynb or as a regular python script
-.../rippl/user_setup.py. This will set your accounts to download Sentinel-1 data and external DEMs and create
+.../rippl/user_setup.py. The latter can be run from the command line in the right folder: 
+
+
+    > python user_setup.py
+
+This will set your accounts to download Sentinel-1 data and external DEMs and create
 a folder structure for the SAR, orbit, DEM and GIS database as well as a place to store your radar datastacks.
 
 The output of the setup scripts will be saved as a .txt file (.../rippl/user_settings.txt), which you can edit

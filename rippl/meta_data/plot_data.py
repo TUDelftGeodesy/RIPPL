@@ -16,6 +16,8 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 import cartopy.crs as ccrs
 from shapely.geometry import Polygon, LinearRing
+from shapely import speedups
+speedups.disable()
 import cartopy.feature as cfeature
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from scipy.interpolate import RectBivariateSpline

@@ -6,6 +6,8 @@ from six.moves import urllib
 import ftplib
 import subprocess
 from http.cookiejar import CookieJar
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 
 import rippl
 
@@ -249,13 +251,13 @@ class UserSettings(object):
         user_settings = open(self.settings_path, 'r')
 
         # Get paths
-        self.radar_datastacks = user_settings.readline().split()[1]
-        self.radar_database = user_settings.readline().split()[1]
-        self.orbit_database = user_settings.readline().split()[1]
-        self.DEM_database = user_settings.readline().split()[1]
-        self.NWP_model_database = user_settings.readline().split()[1]
-        self.GIS_database = user_settings.readline().split()[1]
-        self.snaphu_path = user_settings.readline().split()[1]
+        self.radar_datastacks = ' '.join(user_settings.readline().split()[1:])
+        self.radar_database = ' '.join(user_settings.readline().split()[1:])
+        self.orbit_database = ' '.join(user_settings.readline().split()[1:])
+        self.DEM_database = ' '.join(user_settings.readline().split()[1:])
+        self.NWP_model_database = ' '.join(user_settings.readline().split()[1:])
+        self.GIS_database = ' '.join(user_settings.readline().split()[1:])
+        self.snaphu_path = ' '.join(user_settings.readline().split()[1:])
 
         # Get passwords
         self.ESA_username = user_settings.readline().split()[1]
@@ -301,3 +303,5 @@ class UserSettings(object):
         user_settings.write('DLR_password: ' + self.DLR_password + '\n')
 
         user_settings.close()
+
+        print('Settings saved to ' + self.settings_path)

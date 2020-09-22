@@ -2,16 +2,20 @@
 from rippl.meta_data.stack import Stack
 from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData, ImageProcessingMeta
+from rippl.meta_data.image_processing_concatenate import ImageConcatData
 from rippl.SAR_sensors.sentinel.sentinel_stack import SentinelStack
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.SAR_sensors.sentinel.sentinel_download import DownloadSentinelOrbit, DownloadSentinel
 from rippl.resampling.coor_new_extend import CoorNewExtend
 from rippl.user_settings import UserSettings
 from rippl.meta_data.plot_data import PlotData
+from rippl.resampling.coor_concatenate import CoorConcatenate
 import os
 import numpy as np
 import copy
 from shapely.geometry import Polygon
+from shapely import speedups
+speedups.disable()
 
 from rippl.processing_steps.resample import Resample
 from rippl.processing_steps.import_dem import ImportDem
@@ -387,12 +391,13 @@ class GeneralPipelines():
         self.radar_coor = CoordinateSystem()
         self.radar_coor.create_radar_coordinates()
 
-        coreg_image = self.get_data('coreg_master', slice=False, concat_meta=False)[0]  # type: ImageProcessingData
-        readfile = coreg_image.readfiles['original']
+        coreg_image = self.get_data('coreg_master', slice=False, concat_meta=True)[0] # type: ImageConcatData
+        coreg_image.load_full_meta()
+        coreg_image.load_slice_meta()
+        crop_coordinates = coreg_image.concat_image_data_iterator(['crop'], [self.radar_coor], slices=True)[3]
 
-        self.full_radar_coor = copy.deepcopy(self.radar_coor)
-        self.full_radar_coor.load_readfile(readfile)
-        self.full_radar_coor.shape = readfile.size
+        concat_coors = CoorConcatenate(crop_coordinates)
+        self.full_radar_coor = concat_coors.concat_coor
 
     def create_ifg_network(self, image_baselines=[], network_type='temp_baseline',
                                      temporal_baseline=60, temporal_no=3, spatial_baseline=2000):
@@ -531,10 +536,10 @@ class GeneralPipelines():
 
         for slc in slcs:
             slc.create_concatenate_image(process='calc_reramp', file_type='ramp',
-                                           coor=self.radar_coor, transition_type='cut_off', remove_input=False)
+                                           coor=self.full_radar_coor, transition_type='cut_off', remove_input=False)
             for pol in polarisation:
                 slc.create_concatenate_image(process='correct_phases', file_type='phase_corrected',
-                                               coor=self.radar_coor, transition_type='cut_off', polarisation=pol, remove_input=False)
+                                               coor=self.full_radar_coor, transition_type='cut_off', polarisation=pol, remove_input=False)
 
     def prepare_multilooking_grid(self, polarisation, block_orientation='lines'):
         """
@@ -551,7 +556,7 @@ class GeneralPipelines():
         coreg_image = self.get_data('coreg_master', slice=False, concat_meta=True)
 
         # Concatenate the files from the main folder if not already done
-        coreg_image[0].create_concatenate_image(process='crop', file_type='crop', polarisation=polarisation, coor=self.radar_coor, transition_type='cut_off', remove_input=False)
+        coreg_image[0].create_concatenate_image(process='crop', file_type='crop', polarisation=polarisation, coor=self.full_radar_coor, transition_type='cut_off', remove_input=False)
 
         coreg_image = self.get_data('coreg_master', slice=False)
         create_multilooking_grid = Pipeline(pixel_no=5000000, processes=self.processes, block_orientation=block_orientation)
@@ -635,7 +640,7 @@ class GeneralPipelines():
 
             for slc in slcs:
                 slc.create_concatenate_image(process='crop', file_type='crop',
-                                               coor=self.radar_coor, transition_type='cut_off', polarisation=pol, remove_input=False)
+                                               coor=self.full_radar_coor, transition_type='cut_off', polarisation=pol, remove_input=False)
 
         for pol in polarisation:
             self.reload_stack()
