@@ -221,7 +221,7 @@ in the next step. Indexing can take a few minutes...
 egm = GeoidInterp.create_geoid(egm_96_file=os.path.join(settings.DEM_database, 'geoid', 'egm96.dat'))
 
 # Then index the SRTM data
-filelist = SrtmDownload.srtm_listing(os.path.join(settings.DEM_database, 'SRTM'), settings.NASA_username, settings.NASA_password)
+filelist = SrtmDownload.srtm_listing(os.path.join(settings.DEM_database, settings.dem_sensors['srtm']), settings.NASA_username, settings.NASA_password)
 
 print(
 """
