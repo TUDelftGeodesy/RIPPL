@@ -344,7 +344,7 @@ class DownloadSentinel(object):
         if not password:
             password = self.settings.ESA_password
         if not database_folder:
-            database_folder = os.path.join(self.settings.radar_database, 'Sentinel-1')
+            database_folder = os.path.join(self.settings.radar_database, self.settings.sar_sensor_name['sentinel1'])
 
         if not self.products:
             raise FileNotFoundError('No images found!')
@@ -355,27 +355,27 @@ class DownloadSentinel(object):
         for product_name, date, track, polarisation, direction, size in zip(self.ids, self.dates, self.tracks, self.polarisations, self.orbit_directions, self.sizes):
             file_dir = DownloadSentinel.find_database_folder(database_folder, product_name, date, track, polarisation, direction)
             url = "https://scihub.copernicus.eu/dhus/odata/v1/Products?$filter=Name%20eq%20'" + product_name + "'"
-            request = urllib.request.Request(url)
 
-            base64string = base64.b64encode(bytes('%s:%s' % (username, password), "utf-8")).decode()
-            request.add_header("Authorization", "Basic " + base64string)
-            try:
-                dat = urllib.request.urlopen(request)
-                html_dat = ''
-                for line in dat:
-                    html_dat = html_dat + line.decode('UTF-8')
-
-                parser = etree.HTMLParser()
-                tree = etree.fromstring(html_dat.encode('utf-8'), parser)
-                uuid = [data.find('id').text.split("'")[-2] for data in tree.iter(tag='entry')][0]
-            except:
-                raise ConnectionError('Not possible to connect to ESA server')
-            # Now extract the uuid from here.
-
-            url = str('"' + "https://scihub.copernicus.eu/dhus/odata/v1/Products('" + uuid + "')/" + urllib.parse.quote_plus('$value') + '"')
-
-            # Download data files and create symbolic link
+            # Download data file
             if not os.path.exists(file_dir):
+                request = urllib.request.Request(url)
+
+                base64string = base64.b64encode(bytes('%s:%s' % (username, password), "utf-8")).decode()
+                request.add_header("Authorization", "Basic " + base64string)
+                try:
+                    dat = urllib.request.urlopen(request)
+                    html_dat = ''
+                    for line in dat:
+                        html_dat = html_dat + line.decode('UTF-8')
+
+                    parser = etree.HTMLParser()
+                    tree = etree.fromstring(html_dat.encode('utf-8'), parser)
+                    uuid = [data.find('id').text.split("'")[-2] for data in tree.iter(tag='entry')][0]
+                except:
+                    raise ConnectionError('Not possible to connect to ESA server')
+                # Now extract the uuid from here.
+
+                url = str('"' + "https://scihub.copernicus.eu/dhus/odata/v1/Products('" + uuid + "')/" + urllib.parse.quote_plus('$value') + '"')
 
                 if os.name == 'nt':
                     download_data = DownloadLogin('', username, password)
@@ -383,8 +383,8 @@ class DownloadSentinel(object):
                     download_data.download_file(url[1:-1], file_dir, size)
                 else:
                     download_data = download_base + url + ' -O ' + '"' + file_dir + '"'
-                print(download_data)
-                os.system(download_data)
+                    print(download_data)
+                    os.system(download_data)
 
     def sentinel_download_ASF(self, database_folder='', username='', password=''):
         # Download data from ASF (Generally easier and much faster to download from this platform.)
@@ -394,7 +394,7 @@ class DownloadSentinel(object):
         if not password:
             password = self.settings.NASA_password
         if not database_folder:
-            database_folder = os.path.join(self.settings.radar_database, 'Sentinel-1')
+            database_folder = os.path.join(self.settings.radar_database, self.settings.sar_sensor_name['sentinel1'])
 
         if not self.products:
             raise FileNotFoundError('No images found!')
@@ -492,11 +492,11 @@ class DownloadSentinel(object):
         # Finally print list available images with their coverage.
         print('Summary statistics for Sentinel-1 search:')
         for track, average_coverage, image_no, direc in zip(unique_tracks, average_coverages, image_nos, direction):
-            print('Stack for ' + direc.lower() + ' track ' + str(track) + ' contains ' + str(image_no) + ' images with ' + str(int(average_coverage * 100)) + '% coverage of area of interest')
+            print('Stack for ' + direc.lower() + ' track ' + str(track).zfill(3) + ' contains ' + str(image_no) + ' images with ' + str(int(average_coverage * 100)) + '% coverage of area of interest')
 
         for track in unique_tracks:
             print('')
-            print('Full list of images for track ' + str(track) + ':')
+            print('Full list of images for track ' + str(track).zfill(3) + ':')
 
             # Sort all images for this track
             id_dates = np.ravel(np.argwhere(tracks == track))
@@ -515,7 +515,7 @@ class DownloadSentinel(object):
         if not password:
             password = self.settings.ESA_password
         if not database_folder:
-            database_folder = os.path.join(self.settings.radar_database, 'Sentinel-1')
+            database_folder = os.path.join(self.settings.radar_database, self.settings.sar_sensor_name['sentinel1'])
 
         for product in self.products:
             uuid = product.find('id').text
@@ -561,7 +561,7 @@ class DownloadSentinel(object):
         elif direction == 'DESCENDING':
             direction = 'dsc'
 
-        track_folder = os.path.join(database_folder, 's1_' + direction + '_t' + str(track))
+        track_folder = os.path.join(database_folder, 's1_' + direction + '_t' + str(track).zfill(3))
         if not os.path.exists(track_folder):
             os.mkdir(track_folder)
         type_folder = os.path.join(track_folder, data_type + '_' + polarisation)
@@ -600,9 +600,9 @@ class DownloadSentinelOrbit(object):
         settings.load_settings()
 
         if not restituted_folder:
-            restituted_folder = os.path.join(settings.orbit_database, 'Sentinel-1', 'restituted')
+            restituted_folder = os.path.join(settings.orbit_database, settings.sar_sensor_name['sentinel1'], 'restituted')
         if not precise_folder:
-            precise_folder = os.path.join(settings.orbit_database, 'Sentinel-1', 'precise')
+            precise_folder = os.path.join(settings.orbit_database, settings.sar_sensor_name['sentinel1'], 'precise')
         self.precise_folder = precise_folder
         self.restituted_folder = restituted_folder
 

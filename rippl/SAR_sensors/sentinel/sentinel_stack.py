@@ -43,7 +43,7 @@ class SentinelStack(SentinelDatabase, Stack):
         if not datastack_folder:
             if not datastack_name:
                 raise NotADirectoryError('The datastack name is empty, so directory cannot be created!')
-            datastack_folder = os.path.join(self.settings.radar_datastacks, 'Sentinel-1', datastack_name)
+            datastack_folder = os.path.join(self.settings.radar_datastacks, self.settings.sar_sensor_name['sentinel1'], datastack_name)
 
         # Loads the class to read from the sentinel database
         SentinelDatabase.__init__(self)
@@ -81,7 +81,7 @@ class SentinelStack(SentinelDatabase, Stack):
                            mode='IW', product_type='SLC', polarisation='VV', cores=4):
 
         if not database_folder:
-            database_folder = os.path.join(self.settings.radar_database, 'Sentinel-1')
+            database_folder = os.path.join(self.settings.radar_database, self.settings.sar_sensor_name['sentinel1'])
         if not isinstance(shapefile, Polygon):
             if not shapefile:
                 raise FileExistsError('Shapefile entry is empty!')
@@ -92,7 +92,7 @@ class SentinelStack(SentinelDatabase, Stack):
         if not track_no:
             raise ValueError('Track_no is missing!')
         if not orbit_folder:
-            orbit_folder = os.path.join(self.settings.orbit_database, 'Sentinel-1')
+            orbit_folder = os.path.join(self.settings.orbit_database, self.settings.sar_sensor_name['sentinel1'])
 
         # Select data products
         SentinelDatabase.__call__(self, database_folder=database_folder, shapefile=shapefile, track_no=track_no,

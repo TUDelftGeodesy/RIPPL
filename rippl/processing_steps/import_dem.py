@@ -65,7 +65,9 @@ class ImportDem(Process):  # Change this name to the one of your processing step
         settings.load_settings()
         if not dem_folder:
             if dem_type.startswith('SRTM'):
-                self.dem_folder = os.path.join(settings.DEM_database, 'SRTM')
+                self.dem_folder = os.path.join(settings.DEM_database, settings.dem_sensor_name['srtm'])
+            elif dem_type == 'TanDEM-X':
+                self.dem_folder = os.path.join(settings.DEM_database, settings.dem_sensor_name['tdx'])
             else:
                 self.dem_folder = os.path.join(settings.DEM_database, dem_type)
         else:

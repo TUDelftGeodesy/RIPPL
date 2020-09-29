@@ -24,6 +24,9 @@ and password always manually to the user_settings.txt file.
 )
 
 import os
+import sys
+
+sys.path.extend(['/Users/gertmulder/software/rippl_main'])
 
 from rippl.user_settings import UserSettings
 from rippl.external_dems.geoid import GeoidInterp
@@ -131,8 +134,53 @@ Or:
 
 Be sure that you have around 50 GB of disk space free to do the processing!
 
+If you want you can also change the used names for the different satellite systems
+
 """
 )
+
+print('Do you want to change the default DEM (SRTM, TanDEM-X) or SAR sensor (Sentinel-1, TanDEM-X, Radarsat) names? '
+      'This will only affect the naming not the processing itself. Type y/yes to confirm or leave empty to skip.')
+change_names = input()
+if change_names in ['y', 'yes']:
+    print('Type your preferred naming or leave empty to use default')
+    sar_sensors = []
+    sar_names = []
+    dem_sensors = []
+    dem_names = []
+
+    print('Name for Sentinel-1 data (default > Sentinel-1)')
+    sentinel = input()
+    sar_sensors.append('sentinel1')
+    if input == '':
+        sar_names.append('Sentinel-1')
+    else:
+        sar_names.append(sentinel)
+
+    print('Name for TanDEM-X data (default > TanDEM-X)')
+    tdx = input()
+    sar_sensors.append('tdx')
+    dem_sensors.append('tdx')
+    if input == '':
+        sar_names.append('TanDEM-X')
+        dem_names.append('TanDEM-X')
+    else:
+        sar_names.append(tdx)
+        dem_names.append(tdx)
+
+    print('Name for SRTM data (default > SRTM)')
+    srtm = input()
+    dem_sensors.append('srtm')
+    if input == '':
+        dem_names.append('SRTM')
+    else:
+        dem_names.append(srtm)
+
+    # If other satellite systems are added later on, these can be added below.
+
+    settings.define_sensor_names(dem_sensors, dem_names, sar_sensors, sar_names)
+else:
+    settings.dem_sensors()
 
 success = False
 while success == False:
