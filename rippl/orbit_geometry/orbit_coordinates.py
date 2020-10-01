@@ -851,7 +851,7 @@ class OrbitCoordinates(object):
             self.manual_line_pixel_height(np.array([line]), np.array([pixel]), np.array([heights]))
             self.lph2xyz()
             self.xyz2scatterer_azimuth_elevation()
-            alpha = -1 * (float(self.azimuth_angle[0]) + 90)
+            alpha = float(self.azimuth_angle[0]) + 90
             if 90 < alpha < 270:
                 alpha -= 180
             elif -90 > alpha > -270:
