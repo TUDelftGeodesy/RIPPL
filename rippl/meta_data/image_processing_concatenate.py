@@ -56,7 +56,6 @@ class ImageConcatData(object):
             self.slice_data = dict()
 
         self.load_full_meta()
-        self.load_full_memmap()
 
     def concat_image_data_exists(self, process, coordinates, in_coordinates, data_id, polarisation, process_type,
                                  slice='', disk_data=True):
@@ -261,3 +260,6 @@ class ImageConcatData(object):
         # Do the actual concatenation
         if succes:
             concatenate.concatenate(transition_type=transition_type, cut_off=cut_off, replace=replace, remove_input=remove_input)
+        # Remove all memmap files after concatenation
+        self.remove_full_memmap()
+        self.remove_slice_memmap()

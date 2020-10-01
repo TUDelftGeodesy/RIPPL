@@ -196,8 +196,7 @@ class ImageData():
     def new_memory_data(self, shape, s_lin=0, s_pix=0):
         # Create a new memory dataset
 
-        self.memory['data'] = np.zeros(shape).astype(
-            self.dtype_memory[self.json_dict['dtype']])
+        self.memory['data'] = np.zeros(shape).astype(self.dtype_memory[self.json_dict['dtype']])
 
         # Updata meta data
         self.memory['meta']['s_lin'] = s_lin
@@ -277,6 +276,10 @@ class ImageData():
         # Check if the datasets are overlapping
         if not self.check_overlapping(data_type='data', shape=shape, s_lin=s_lin, s_pix=s_pix):
             return False
+
+        # Load data as memmap file
+        if len(self.disk['data']) == 0:
+            self.load_disk_data()
 
         # Get the data from disk
         disk_data = self.disk2memory(self.disk['data'][s_lin:s_lin + shape[0], s_pix:s_pix + shape[1]], self.json_dict['dtype'])

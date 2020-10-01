@@ -42,9 +42,7 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
         # Create the input and output info
         self.load_input_info()
 
-        for image_key in self.processing_images.keys():
-            self.processing_images[image_key].load_memmap_files()
-
+        self.load_input_data_files()
         self.create_output_data_files()
         self.create_memory()
         self.multilook_calculations()
