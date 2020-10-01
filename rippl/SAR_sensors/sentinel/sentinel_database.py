@@ -102,7 +102,7 @@ class SentinelDatabase(object):
         if not database_folder:
             settings = UserSettings()
             settings.load_settings()
-            self.folder = os.path.join(settings.radar_database, 'Sentinel-1')
+            self.folder = os.path.join(settings.radar_database, settings.sar_sensor_name['sentinel1'])
 
         self.folder = database_folder
 

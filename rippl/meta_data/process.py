@@ -136,10 +136,7 @@ class Process():
 
         # Create the input and output info
         self.load_input_info()
-
-        for image_key in self.processing_images.keys():
-            self.processing_images[image_key].load_memmap_files()
-
+        self.load_input_data_files()
         self.load_input_data()
         self.create_output_data_files()
         self.create_memory()
@@ -641,6 +638,21 @@ class Process():
         self.load_out_coor_input_data()
         self.load_in_coor_input_data()
 
+    def load_input_data_files(self):
+        """
+        Load needed input data files as memmap (Only needed for multilooking processes.
+        """
+
+        file_types = list(self.in_images.keys())
+
+        for file_type in file_types:
+            load_input = self.in_images[file_type].load_disk_data()
+            if not load_input:
+                raise FileNotFoundError('Data on disk not found.')
+
+        # If all files are succesfully loaded.
+        return True
+
     def load_in_coor_input_data(self):
         """
         This function is used to load the input data of a function with the input coordinate system.
@@ -694,6 +706,11 @@ class Process():
 
         elif 'in_irregular_grids' in self.settings.keys():
             in_grids = self.settings['in_irregular_grids']
+
+            for grid_no in [0, 1]:
+                if len(self.in_images[in_grids[grid_no]].disk['data']) == 0:
+                    self.in_images[in_grids[grid_no]].load_disk_data()
+
             first_line, first_pixel, shape = \
                 SelectInputWindow.input_irregular_rectangle(self.in_images[in_grids[0]].disk['data'],
                                                              self.in_images[in_grids[1]].disk['data'],
@@ -778,6 +795,23 @@ class Process():
                 load_new = self.out_images[file_type].load_disk_data()
                 if not load_new:
                     raise FileNotFoundError('Data on disk not found and not able to create')
+
+        # If all files are succesfully loaded.
+        return True
+
+    def load_output_data_files(self, file_types=[]):
+        """
+        Load output data files during processing. Return an error if files do not exist.
+
+        """
+
+        if len(file_types) == 0:
+            file_types = list(self.out_images.keys())
+
+        for file_type in file_types:
+            load_output = self.out_images[file_type].load_disk_data()
+            if not load_output:
+                raise FileNotFoundError('Data on disk not found')
 
         # If all files are succesfully loaded.
         return True

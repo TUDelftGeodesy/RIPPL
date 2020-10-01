@@ -196,8 +196,7 @@ class ImageData():
     def new_memory_data(self, shape, s_lin=0, s_pix=0):
         # Create a new memory dataset
 
-        self.memory['data'] = np.zeros(shape).astype(
-            self.dtype_memory[self.json_dict['dtype']])
+        self.memory['data'] = np.zeros(shape).astype(self.dtype_memory[self.json_dict['dtype']])
 
         # Updata meta data
         self.memory['meta']['s_lin'] = s_lin
@@ -277,6 +276,10 @@ class ImageData():
         # Check if the datasets are overlapping
         if not self.check_overlapping(data_type='data', shape=shape, s_lin=s_lin, s_pix=s_pix):
             return False
+
+        # Load data as memmap file
+        if len(self.disk['data']) == 0:
+            self.load_disk_data()
 
         # Get the data from disk
         disk_data = self.disk2memory(self.disk['data'][s_lin:s_lin + shape[0], s_pix:s_pix + shape[1]], self.json_dict['dtype'])
@@ -380,7 +383,7 @@ class ImageData():
         else:
             return True
 
-    def save_tiff(self, file_path='', main_folder=False, overwrite=False):
+    def save_tiff(self, file_path='', tiff_folder='', no_sub_folders=False, overwrite=False):
         """
         Save data as geotiff. Complex data will be saved as a two layer tiff with amplitude and phase values.
 
@@ -389,24 +392,51 @@ class ImageData():
         :return:
         """
 
-        if not file_path:
-            if main_folder:
+        self.coordinates.create_short_coor_id()
 
-                basename = os.path.basename(self.file_path)[:-4] + '.tiff'
-                folder_name = os.path.basename(os.path.dirname(self.file_path))
-                if folder_name.startswith('slice'):
-                    date_name = os.path.dirname(os.path.dirname(self.file_path))
-                    file_path = date_name + '_' + folder_name + '_' + basename
-                else:
-                    date_name = os.path.dirname(self.file_path)
-                    file_path = date_name + '_' + basename
+        if not file_path:
+            basename = os.path.basename(self.file_path)[:-4] + '.tiff'
+            folder_name = os.path.basename(os.path.dirname(self.file_path))
+
+            if folder_name.startswith('slice'):
+                slice_name = folder_name
+                date_name = os.path.basename(os.path.dirname(os.path.dirname(self.file_path)))
+                file_name = date_name + '_' + slice_name + '_' + basename
+                stack_folder = os.path.dirname(os.path.dirname(os.path.dirname(self.file_path)))
             else:
-                file_path = self.file_path[:-4] + '.tiff'
-        if not os.path.exists(os.path.dirname(file_path)):
-            raise FileExistsError('Folder to write tiff file ' + file_path + ' does not exist.')
-        if os.path.exists(file_path):
+                slice_name = ''
+                date_name = folder_name
+                file_name = date_name + '_' + basename
+                stack_folder = os.path.dirname(os.path.dirname(self.file_path))
+
+            if not tiff_folder:
+                tiff_folder = os.path.join(stack_folder, 'output_geotiffs')
+                if not os.path.exists(tiff_folder):
+                    os.mkdir(tiff_folder)
+
+            # Output folder. If no slice, slice name will be empty and therefore not added to path.
+            if no_sub_folders:
+                output_folder = tiff_folder
+            else:
+                output_folder = os.path.join(tiff_folder, self.process_name, self.coordinates.short_id_str, slice_name)
+
+            # Create file path by adding filename
+            file_path = os.path.join(output_folder, file_name)
+
+            if not os.path.exists(tiff_folder):
+                raise FileExistsError('Folder to write tiff files ' + tiff_folder + ' does not exist.')
+            if not os.path.exists(output_folder):
+                os.makedirs(output_folder)
+        else:
+            if not os.path.exists(tiff_folder):
+                raise FileExistsError('Folder to write tiff files ' +tiff_folder + ' does not exist.')
+
+        # Check if file already exists.
+        if os.path.exists(file_path) and not overwrite:
             print('File ' + file_path + ' does already exist')
             return
+        elif os.path.exists(file_path) and overwrite:
+            os.remove(file_path)
 
         projection, geo_transform, flipped = self.coordinates.create_gdal_projection()
         driver = gdal.GetDriverByName('GTiff')

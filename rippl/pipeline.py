@@ -15,7 +15,7 @@ from rippl.run_parallel import run_parallel
 class Pipeline():
 
 
-    def __init__(self, pixel_no=1000000, processes=1, run_no_datasets=25, block_orientation='lines'):
+    def __init__(self, pixel_no=1000000, processes=1, run_no_datasets=8, block_orientation='lines'):
         """
         The pipeline function is used to create pipelines of functions. This serves several purposes:
         1. Results from different functions can be saved to memory, reducing disk input/output
@@ -129,18 +129,6 @@ class Pipeline():
             # 1. It is not possible to write to the same file at the same moment, so it could cause an IO conflict
             # 2. This will result in two non-unique metadata outputs, so it will miss part of the outputs in the final
             #           resulting datastack.
-
-            """
-            This check is not really necessary...
-            
-            unique_images = []
-            for pipeline in self.pipelines:
-                for process, save_process in zip(pipeline['processes'], self.save_processsing_steps):
-                    if save_process:
-                        unique_images.append(process.out_processing_image)
-            if not len(unique_images) == len(set(unique_images)):
-                raise BlockingIOError('Not possible to run parallel processes that have the same output data files.')
-            """
 
             # Create the actual outputs.
             for pipeline in self.pipelines:

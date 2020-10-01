@@ -56,7 +56,6 @@ class ImageConcatData(object):
             self.slice_data = dict()
 
         self.load_full_meta()
-        self.load_full_memmap()
 
     def concat_image_data_exists(self, process, coordinates, in_coordinates, data_id, polarisation, process_type,
                                  slice='', disk_data=True):
@@ -102,7 +101,7 @@ class ImageConcatData(object):
             if not isinstance(self.data, ImageProcessingData):
                 self.load_full_meta()
             if data:
-                self.load_full_memmap()
+                self.load_full_memmap(processes=processes, file_types=file_types)
 
             processes_full, process_ids_full, coordinates_full, in_coordinates_full, file_types_full, images_full = \
                 self.data.processing_image_data_iterator(processes, coordinates, in_coordinates, data_ids, polarisations, file_types)
@@ -119,7 +118,11 @@ class ImageConcatData(object):
             if len(self.slice_data.keys()) == 0:
                 self.load_slice_meta()
             if data:
-                self.load_slice_memmap()
+                if len(processes) == 0 and len(file_types) == 0:
+                    print('Loading all memmap images of slices without defining processes or file_types could result '
+                          'in reaching the limit of maximum open memmap files! Consider loading with defined processes '
+                          'or file types to prevent this.')
+                self.load_slice_memmap(processes=processes, file_types=file_types)
 
             for slice_name in self.slice_data.keys():
                 processes_slice, process_ids_slice, coordinates_slice, in_coordinates_slice, file_types_slice, images_slice = \
@@ -147,15 +150,15 @@ class ImageConcatData(object):
         self.data = ImageProcessingData(self.folder, adjust_date=self.adjust_date)
         self.reference_images_iterator('load_full_meta', reference_images)
 
-    def load_full_memmap(self, reference_images=False):
+    def load_full_memmap(self, reference_images=False, processes=[], file_types=[]):
         # Read the result file again.
         self.load_full_meta()
-        self.data.load_memmap_files()
+        self.data.load_memmap_files(processes, file_types)
         self.reference_images_iterator('load_full_memmap', reference_images)
 
-    def remove_full_memmap(self, reference_images=False):
+    def remove_full_memmap(self, reference_images=False, processes=[], file_types=[]):
         # Remove all memmap files
-        self.data.remove_memmap_files()
+        self.data.remove_memmap_files(processes, file_types)
         self.reference_images_iterator('remove_full_memmap', reference_images)
 
     def load_slice_meta(self, reference_images=False):
@@ -167,18 +170,18 @@ class ImageConcatData(object):
 
         self.reference_images_iterator('load_slice_meta', reference_images)
 
-    def load_slice_memmap(self, reference_images=False):
+    def load_slice_memmap(self, reference_images=False, processes=[], file_types=[]):
         # Read slices including memmap files
         self.load_slice_meta()
         for slice_name in self.slice_names:
-            self.slice_data[slice_name].load_memmap_files()
+            self.slice_data[slice_name].load_memmap_files(processes, file_types)
 
         self.reference_images_iterator('load_slice_memmap', reference_images)
 
-    def remove_slice_memmap(self, reference_images=False):
+    def remove_slice_memmap(self, reference_images=False, processes=[], file_types=[]):
         # Remove memmap information
         for slice_name in self.slice_names:
-            self.slice_data[slice_name].remove_memmap_files()
+            self.slice_data[slice_name].remove_memmap_files(processes, file_types)
 
         self.reference_images_iterator('remove_slice_memmap', reference_images)
 
@@ -257,3 +260,6 @@ class ImageConcatData(object):
         # Do the actual concatenation
         if succes:
             concatenate.concatenate(transition_type=transition_type, cut_off=cut_off, replace=replace, remove_input=remove_input)
+        # Remove all memmap files after concatenation
+        self.remove_full_memmap()
+        self.remove_slice_memmap()

@@ -17,7 +17,7 @@ def run_parallel(dat):
     """
 
     # Get all processing image datasets
-    processing_images = []
+    processing_images = []              # type: list[ImageProcessingData]
     image_keys = []
 
     # Load data as memmaps
@@ -27,9 +27,6 @@ def run_parallel(dat):
                 processing_images.append(process.processing_images[key])
                 image_keys.append(key)
 
-    for processing_image in processing_images:      # type: ImageProcessingData
-        processing_image.load_memmap_files()
-
     # Loop over all processes.
     for process, save, memory_in in zip(dat['processes'], dat['save_processes'], dat['memory_in']):
         try:
@@ -37,6 +34,9 @@ def run_parallel(dat):
             process.load_coordinate_system_sizes(find_out_coor=False)
             # First init the process inputs and outputs.
             process.load_input_info()
+            # Load the output files if needed
+            if save:
+                process.load_output_data_files()
 
             # Only load or create files in memory if it is a normal Process type. Multilooking always works from disk.
             if not isinstance(process, MultilookProcess):
@@ -44,6 +44,9 @@ def run_parallel(dat):
                 process.load_input_data()
                 # Then create the output memory files to write the output data
                 process.create_memory()
+            else:
+                # Load the input memory mapped files
+                process.load_input_data_files()
 
             # Print processing
             dat['pixels'] = np.minimum(dat['pixels'], dat['total_pixels'] - dat['s_pix'])

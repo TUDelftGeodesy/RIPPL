@@ -34,6 +34,14 @@ class UserSettings(object):
         self.rippl_folder = ''
         self.snaphu_path = 'None'
 
+        # sensor names
+        self.sar_sensors = ''
+        self.sar_sensor_names = ''
+        self.sar_sensor_name = dict()
+        self.dem_sensors = ''
+        self.dem_sensor_names = ''
+        self.dem_sensor_name = dict()
+
         # And the path of the settings file itself
         self.settings_path = os.path.join(os.path.dirname(inspect.getfile(rippl)), 'user_settings.txt')
 
@@ -125,9 +133,64 @@ class UserSettings(object):
         self.DLR_password = password
         return True
 
+    def define_sensor_names(self, dem_sensors='', dem_sensor_names='', sar_sensors='', sar_sensor_names=''):
+        """
+
+        Parameters
+        ----------
+        dem_sensors
+        dem_names
+        sar_sensors
+        sar_names
+
+        Returns
+        -------
+
+        """
+
+        if dem_sensors == '':
+            self.dem_sensors = ['srtm', 'tdx']
+        else:
+            self.dem_sensors = dem_sensors
+        if dem_sensor_names == '':
+            self.dem_sensor_names = ['SRTM', 'TanDEM-X']
+        else:
+            self.dem_sensor_names = dem_sensor_names
+
+        if sar_sensors == '':
+            self.sar_sensors = ['sentinel1', 'tdx']
+        else:
+            self.sar_sensors = sar_sensors
+        if sar_sensor_names == '':
+            self.sar_sensor_names = ['Sentinel-1', 'TanDEM-X']
+        else:
+            self.sar_sensor_names = sar_sensor_names
+
+        # Finally create the dictionaries
+        self.create_sensor_dicts()
+
+    def create_sensor_dicts(self):
+        """
+
+        Returns
+        -------
+
+        """
+
+        self.dem_sensor_name = dict()
+        for sensor, sensor_name in zip(self.dem_sensors, self.dem_sensor_names):
+            self.dem_sensor_name[sensor] = sensor_name
+
+        self.sar_sensor_name = dict()
+        for sensor, sensor_name in zip(self.sar_sensors, self.sar_sensor_names):
+            self.sar_sensor_name[sensor] = sensor_name
+
     def save_data_database(self, main_folder='', radar_database='', radar_datastacks='', DEM_database='',
                            orbit_database='', NWP_model_database='', GIS_database=''):
-        
+
+        if not isinstance(self.sar_sensor_names, list) or not isinstance(self.dem_sensor_names, list):
+            print('First run the define_sensor_names functions before creating database folders.')
+
         if main_folder:
             if not os.path.isdir(os.path.dirname(main_folder)):
                 print('The folder to write the main folder does not exist.')
@@ -141,9 +204,9 @@ class UserSettings(object):
             if not radar_datastacks:
                 radar_datastacks = os.path.join(main_folder, 'radar_datastacks')
             if not DEM_database:
-                DEM_database = os.path.join(main_folder, 'DEM_data')
+                DEM_database = os.path.join(main_folder, 'DEM_database')
             if not orbit_database:
-                orbit_database = os.path.join(main_folder, 'orbit_folder')
+                orbit_database = os.path.join(main_folder, 'orbit_database')
             if not NWP_model_database:
                 NWP_model_database = os.path.join(main_folder, 'NWP_model_database')
             if not GIS_database:
@@ -155,7 +218,7 @@ class UserSettings(object):
         else:
             if not os.path.isdir(radar_database):
                 os.mkdir(radar_database)
-            for sensor_type in ['Sentinel-1', 'TanDEM-X', 'Radarsat']:
+            for sensor_type in self.sar_sensor_names:
                 if not os.path.isdir(os.path.join(radar_database, sensor_type)):
                     os.mkdir(os.path.join(radar_database, sensor_type))
 
@@ -165,7 +228,7 @@ class UserSettings(object):
         else:
             if not os.path.isdir(radar_datastacks):
                 os.mkdir(radar_datastacks)
-            for sensor_type in ['Sentinel-1', 'TanDEM-X', 'Radarsat']:
+            for sensor_type in self.sar_sensor_names:
                 if not os.path.isdir(os.path.join(radar_datastacks, sensor_type)):
                     os.mkdir(os.path.join(radar_datastacks, sensor_type))
 
@@ -175,7 +238,7 @@ class UserSettings(object):
         else:
             if not os.path.isdir(DEM_database):
                 os.mkdir(DEM_database)
-            for dat_type in ['SRTM', 'TanDEM-X', 'geoid']:
+            for dat_type in self.dem_sensor_names + ['geoid']:
                 if not os.path.isdir(os.path.join(DEM_database, dat_type)):
                     os.mkdir(os.path.join(DEM_database, dat_type))
         
@@ -185,14 +248,14 @@ class UserSettings(object):
         else:
             if not os.path.isdir(orbit_database):
                 os.mkdir(orbit_database)
-            for sensor_type in ['Sentinel-1']:
+            for sensor_type in self.sar_sensor_names:
                 if not os.path.isdir(os.path.join(orbit_database, sensor_type)):
                     os.mkdir(os.path.join(orbit_database, sensor_type))
 
-            if not os.path.isdir(os.path.join(orbit_database, 'Sentinel-1', 'precise')):
-                os.mkdir(os.path.join(orbit_database, 'Sentinel-1', 'precise'))
-            if not os.path.isdir(os.path.join(orbit_database, 'Sentinel-1', 'restituted')):
-                os.mkdir(os.path.join(orbit_database, 'Sentinel-1', 'restituted'))
+            if not os.path.isdir(os.path.join(orbit_database, self.sar_sensor_name['sentinel1'], 'precise')):
+                os.mkdir(os.path.join(orbit_database, self.sar_sensor_name['sentinel1'], 'precise'))
+            if not os.path.isdir(os.path.join(orbit_database, self.sar_sensor_name['sentinel1'], 'restituted')):
+                os.mkdir(os.path.join(orbit_database, self.sar_sensor_name['sentinel1'], 'restituted'))
 
         if not os.path.isdir(os.path.dirname(NWP_model_database)):
             print('The folder to write NWP database folder does not exist.')
@@ -267,6 +330,18 @@ class UserSettings(object):
         self.DLR_username = user_settings.readline().split()[1]
         self.DLR_password = user_settings.readline().split()[1]
 
+        # Finally get the sensor names if these lines are not empty
+        sar_sensor_line = user_settings.readline()
+
+        if sar_sensor_line != '':
+            self.dem_sensors = sar_sensor_line.split()[1:]
+            self.dem_sensor_names = user_settings.readline().split()[1:]
+            self.sar_sensors = user_settings.readline().split()[1:]
+            self.sar_sensor_names = user_settings.readline().split()[1:]
+            self.create_sensor_dicts()
+        else:
+            self.define_sensor_names()
+
         user_settings.close()
 
     def save_settings(self):
@@ -301,6 +376,12 @@ class UserSettings(object):
         user_settings.write('NASA_password: ' + self.NASA_password + '\n')
         user_settings.write('DLR_username: ' + self.DLR_username + '\n')
         user_settings.write('DLR_password: ' + self.DLR_password + '\n')
+
+        # Write satellite sensor names
+        user_settings.write('DEM_sensors: ' + ' '.join(self.dem_sensors) + '\n')
+        user_settings.write('DEM_sensor_names: ' + ' '.join(self.dem_sensor_names) + '\n')
+        user_settings.write('SAR_sensors: ' + ' '.join(self.sar_sensors) + '\n')
+        user_settings.write('SAR_sensor_names: ' + ' '.join(self.sar_sensor_names) + '\n')
 
         user_settings.close()
 

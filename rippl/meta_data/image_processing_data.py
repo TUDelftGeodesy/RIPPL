@@ -273,33 +273,39 @@ class ImageProcessingData(object):
         else:
             return False
 
-    def load_memmap_files(self):
+    def load_memmap_files(self, processes=[], file_types=[]):
         """
         Load all memmaps files of this image.
 
         :return:
         """
-        processes, process_ids, coordinates, in_coordinates, file_types, images = self.all_data_iterator()
+
+        processes, process_ids, coordinates, in_coordinates, file_types, images = \
+            self.processing_image_data_iterator(processes=processes, file_types=file_types)
         for image in images:
             image.load_disk_data()
 
-    def remove_memmap_files(self):
+    def remove_memmap_files(self, processes=[], file_types=[]):
         """
         Remove all memmaps files of this image.
 
         :return:
         """
-        processes, process_ids, coordinates, in_coordinates, file_types, images = self.all_data_iterator()
+
+        processes, process_ids, coordinates, in_coordinates, file_types, images = \
+            self.processing_image_data_iterator(processes=processes, file_types=file_types)
         for image in images:
             image.remove_disk_data_memmap()
 
-    def remove_memory_files(self):
+    def remove_memory_files(self, processes=[], file_types=[]):
         """
         Remove all memory data of this image.
 
         :return:
         """
-        processes, process_ids, coordinates, in_coordinates, file_types, images = self.all_data_iterator()
+
+        processes, process_ids, coordinates, in_coordinates, file_types, images = \
+            self.processing_image_data_iterator(processes=processes, file_types=file_types)
         for image in images:
             image.remove_memory_data()
 

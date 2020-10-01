@@ -69,6 +69,7 @@ class GeneralPipelines():
         self.end_dates = None
         self.time_window = None
         self.dates = None
+        self.tiff_folder = ''
 
     def get_data(self, data_type, slice=False, concat_meta=False, include_coreg_master=False):
         """
@@ -240,12 +241,14 @@ class GeneralPipelines():
 
         # Orbits
         if orbit:
+
+            settings = UserSettings()
+            settings.load_settings()
+
             if not orbit_folder:
-                settings = UserSettings()
-                settings.load_settings()
                 orbit_folder = settings.orbit_database
 
-            precise_folder = os.path.join(orbit_folder, 'Sentinel-1', 'precise')
+            precise_folder = os.path.join(orbit_folder, settings.sar_sensor_name['sentinel1'], 'precise')
             if data:
                 start_date = np.min(download_data.start_dates)
                 end_date = np.max(download_data.end_dates)
@@ -255,7 +258,7 @@ class GeneralPipelines():
     def create_sentinel_stack(self, start_date='', end_date='', master_date='', track='', polarisation='VV', shapefile='',
                               date='', dates='', time_window='', start_dates='', end_dates='',
                               stack_name=None, radar_database_folder=None, orbit_folder=None,
-                              stack_folder=None, mode='IW', product_type='SLC', cores=6):
+                              stack_folder=None, mode='IW', product_type='SLC', cores=6, tiff_folder=''):
         """
         Creation of datastack of Sentinel-1 images including the orbits.
 
@@ -276,6 +279,8 @@ class GeneralPipelines():
         if isinstance(polarisation, str):
             polarisation = [polarisation]
 
+        self.tiff_folder = tiff_folder
+
         # Prepare processing
         for pol in polarisation:
             self.stack = SentinelStack(datastack_folder=stack_folder, datastack_name=stack_name)
@@ -289,7 +294,7 @@ class GeneralPipelines():
             self.stack.create_coverage_shp_kml_geojson()
 
     def read_stack(self, stack_folder='', stack_name='', start_date='', end_date='', start_dates='', end_dates='',
-                   date='', dates='', time_window=''):
+                   date='', dates='', time_window='', tiff_folder=''):
         """
         Read information of stack
 
@@ -308,8 +313,12 @@ class GeneralPipelines():
         self.date = date
         self.stack_folder = stack_folder
         self.stack_name = stack_name
-        
-        self.stack = Stack(datastack_folder=self.stack_folder, datastack_name=self.stack_name, SAR_type='Sentinel-1')
+        self.tiff_folder = tiff_folder
+
+        settings = UserSettings()
+        settings.load_settings()
+
+        self.stack = Stack(datastack_folder=self.stack_folder, datastack_name=self.stack_name, SAR_type=settings.sar_sensor_name['sentinel1'])
         self.stack.read_master_slice_list()
         self.stack.read_stack(start_date=start_date, end_date=end_date, start_dates=start_dates, end_dates=end_dates,
                               date=date, dates=dates, time_window=time_window)
@@ -320,8 +329,11 @@ class GeneralPipelines():
         
         :return: 
         """
-    
-        self.stack = Stack(datastack_folder=self.stack_folder, datastack_name=self.stack_name, SAR_type='Sentinel-1')
+
+        settings = UserSettings()
+        settings.load_settings()
+
+        self.stack = Stack(datastack_folder=self.stack_folder, datastack_name=self.stack_name, SAR_type=settings.sar_sensor_name['sentinel1'])
         self.stack.read_master_slice_list()
         self.stack.read_stack(start_date=self.start_date, end_date=self.end_date, start_dates=self.start_dates,
                               date=self.date, end_dates=self.end_dates, dates=self.dates, time_window=self.time_window)
@@ -590,7 +602,7 @@ class GeneralPipelines():
             create_multilooked_ifg.add_processing_data(ifgs, 'ifg')
             create_multilooked_ifg.add_processing_step(
                 InterferogramMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                       slave='slave', coreg_master='coreg_master', ifg='ifg', master='master', batch_size=10000000), True, True)
+                                       slave='slave', coreg_master='coreg_master', ifg='ifg', master='master', batch_size=50000000), True, True)
             create_multilooked_ifg()
 
     def create_calibrated_amplitude_multilooked(self, polarisation, block_orientation='lines'):
@@ -614,13 +626,13 @@ class GeneralPipelines():
             create_multilooked_amp.add_processing_data(coreg_slave, 'slave')
             create_multilooked_amp.add_processing_step(
                 CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                       slave='slave', coreg_master='coreg_master', batch_size=10000000), True, True)
+                                       slave='slave', coreg_master='coreg_master', batch_size=50000000), True, True)
             create_multilooked_amp()
             create_multilooked_amp.save_processing_results()
 
             # Finally do the master image seperately
             amp_multilook = CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                                   slave=coreg_master[0], coreg_master=coreg_master[0], batch_size=10000000, no_of_looks=True)
+                                                   slave=coreg_master[0], coreg_master=coreg_master[0], batch_size=50000000, no_of_looks=True)
             amp_multilook()
 
     def create_calibrated_amplitude_approx_multilooked(self, polarisation, block_orientation='lines'):
@@ -651,7 +663,7 @@ class GeneralPipelines():
             create_multilooked_amp.add_processing_data(slcs, 'coreg_master')
             create_multilooked_amp.add_processing_step(
                 CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                       slave='slave', resampled=False, batch_size=10000000, no_line_pixel_input=True), True, True)
+                                       slave='slave', resampled=False, batch_size=50000000, no_line_pixel_input=True), True, True)
             create_multilooked_amp()
 
     def create_coherence_multilooked(self, polarisation, block_orientation='lines'):
@@ -675,12 +687,12 @@ class GeneralPipelines():
             create_multilooked_amp.add_processing_data(coreg_slave, 'slave')
             create_multilooked_amp.add_processing_step(
                 SquareAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                       slave='slave', coreg_master='coreg_master', batch_size=10000000), True, True)
+                                       slave='slave', coreg_master='coreg_master', batch_size=50000000), True, True)
             create_multilooked_amp()
 
             # Finally do the master image seperately
             amp_multilook = SquareAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                                   slave=coreg_master[0], coreg_master=coreg_master[0], master_image=False, batch_size=10000000)
+                                                   slave=coreg_master[0], coreg_master=coreg_master[0], master_image=False, batch_size=50000000)
             amp_multilook()
 
         # After creation of the square amplitude images, we can create the coherence values themselves.
@@ -781,32 +793,33 @@ class GeneralPipelines():
             create_baselines.add_processing_data(coreg_master, 'coreg_master')
             create_baselines.add_processing_data(coreg_slave, 'slave')
             create_baselines.add_processing_step(
-                Baseline(out_coor=self.full_ml_coor, slave='slave', coreg_master='coreg_master', batch_size=10000000),
+                Baseline(out_coor=self.full_ml_coor, slave='slave', coreg_master='coreg_master', batch_size=50000000),
                 True, True)
             create_baselines()
 
-    def create_output_tiffs_amplitude(self, block_orientation='lines'):
+    def create_output_tiffs_amplitude(self, tiff_folder=''):
         """
         Create the geotiff images
 
         :return:
         """
+
+        if not tiff_folder:
+            tiff_folder = self.tiff_folder
 
         calibrated_amplitudes = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor], ifg=False)[-1]
         for calibrated_amplitude in calibrated_amplitudes:          # type: ImageData
-            calibrated_amplitude.save_tiff(main_folder=True)
+            calibrated_amplitude.save_tiff(tiff_folder=tiff_folder)
 
-        geometry_datasets = self.stack.stack_data_iterator(['radar_ray_angles', 'geocode'], coordinates=[self.full_ml_coor],
-                                                           process_types=['lat', 'lon', 'incidence_angle'])[-1]
-        for geometry_dataset in geometry_datasets:                  # type: ImageData
-            geometry_dataset.save_tiff(main_folder=True)
-
-    def create_output_tiffs_geometry(self, block_orientation='lines'):
+    def create_output_tiffs_geometry(self, tiff_folder=''):
         """
         Create the geotiff images
 
         :return:
         """
+
+        if not tiff_folder:
+            tiff_folder = self.tiff_folder
 
         geometry_datasets = self.stack.stack_data_iterator(['radar_ray_angles', 'geocode', 'dem'], coordinates=[self.full_ml_coor],
                                                            process_types=['lat', 'lon', 'incidence_angle', 'dem'])[-1]
@@ -815,23 +828,26 @@ class GeneralPipelines():
 
         for geometry_dataset in geometry_datasets:  # type: ImageData
             geometry_dataset.coordinates.load_readfile(readfile)
-            geometry_dataset.save_tiff(main_folder=True)
+            geometry_dataset.save_tiff(tiff_folder=tiff_folder)
 
-    def create_output_tiffs_coherence_ifg(self):
+    def create_output_tiffs_coherence_ifg(self, tiff_folder=''):
         """
         Creates the geotiffs of coherence and unwrapped values.
 
         :return:
         """
 
+        if not tiff_folder:
+            tiff_folder = self.tiff_folder
+
         # Save the resulting coherences
         coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True)[-1]
         for coherence in coherences:          # type: ImageData
-            coherence.save_tiff(main_folder=True)
+            coherence.save_tiff(tiff_folder=tiff_folder)
 
         ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True)[-1]
         for ifg in ifgs:          # type: ImageData
-            ifg.save_tiff(main_folder=True)
+            ifg.save_tiff(tiff_folder=tiff_folder)
 
     def create_plots_coherence(self, overwrite=False):
         """
@@ -869,13 +885,16 @@ class GeneralPipelines():
                 plot.save_image()
                 plot.close_plot()
 
-    def create_output_tiffs_unwrap(self):
+    def create_output_tiffs_unwrap(self, tiff_folder=''):
         """
         Creates geotiffs of unwrapped images.
 
         """
 
+        if not tiff_folder:
+            tiff_folder = self.tiff_folder
+
         # Save the resulting coherences
         unwrapped_images = self.stack.stack_data_iterator(['unwrap'], [self.full_ml_coor], ifg=True)[-1]
         for unwrapped in unwrapped_images:          # type: ImageData
-            unwrapped.save_tiff(main_folder=True)
+            unwrapped.save_tiff(tiff_folder=tiff_folder)

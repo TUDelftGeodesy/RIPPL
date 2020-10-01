@@ -98,7 +98,7 @@ class SrtmDownload(object):
 
         # SRTM folder
         if not srtm_folder:
-            self.srtm_folder = os.path.join(settings.DEM_database, 'SRTM')
+            self.srtm_folder = os.path.join(settings.DEM_database, settings.dem_sensor_name['srtm'])
 
         # credentials
         if not username:
@@ -266,7 +266,7 @@ class SrtmDownload(object):
         # SRTM folder
         if not srtm_folder:
             settings.load_settings()
-            srtm_folder = os.path.join(settings.DEM_database, 'SRTM')
+            srtm_folder = os.path.join(settings.DEM_database, settings.dem_sensor_name['srtm'])
 
         # credentials
         if not username:

@@ -39,8 +39,8 @@ class Stack(object):
 
             if not datastack_name:
                 raise NotADirectoryError('The datastack name is empty, so directory cannot be created!')
-            if SAR_type not in ['Sentinel-1', 'TanDEM-X', 'Radarsat']:
-                raise ValueError('SAR_type should be Sentinel-1, TanDEM-X or Radarsat')
+            if SAR_type not in settings.sar_sensor_names:
+                raise ValueError('SAR_type should be ' + ' '.join(settings.sar_sensor_names))
             self.datastack_folder = os.path.join(settings.radar_datastacks, SAR_type, datastack_name)
         else:
             self.datastack_folder = datastack_folder
@@ -343,7 +343,7 @@ class Stack(object):
         settings = UserSettings()
         settings.load_settings()
         if not srtm_folder:
-            srtm_folder = os.path.join(settings.DEM_database, 'SRTM')
+            srtm_folder = os.path.join(settings.DEM_database, settings.dem_sensor_name['srtm'])
         if not username:
             username = settings.NASA_username
         if not password:
@@ -372,7 +372,7 @@ class Stack(object):
         settings = UserSettings()
         settings.load_settings()
         if not tandem_x_folder:
-            tandem_x_folder = os.path.join(settings.DEM_database, 'TanDEM-X')
+            tandem_x_folder = os.path.join(settings.DEM_database, settings.dem_sensor_name['tdx'])
         if not username:
             username = settings.DLR_username
         if not password:
