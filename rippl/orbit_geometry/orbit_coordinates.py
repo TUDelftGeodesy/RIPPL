@@ -851,15 +851,15 @@ class OrbitCoordinates(object):
             self.manual_line_pixel_height(np.array([line]), np.array([pixel]), np.array([heights]))
             self.lph2xyz()
             self.xyz2scatterer_azimuth_elevation()
-            gamma = -1 * (float(self.azimuth_angle[0]) + 90)
-            if 90 < gamma < 270:
-                gamma -= 180
-            elif -90 > gamma > -270:
-                gamma += 180
+            alpha = -1 * (float(self.azimuth_angle[0]) + 90)
+            if 90 < alpha < 270:
+                alpha -= 180
+            elif -90 > alpha > -270:
+                alpha += 180
 
             # We use a oblique mercator projection.
             proj4 = '+proj=omerc +lonc=' + str(np.rad2deg(self.center_lambda)) + ' +lat_0=' + \
-                    str(np.rad2deg(self.center_phi)) + ' +gamma=' + str(gamma) + ' +ellps=WGS84'
+                    str(np.rad2deg(self.center_phi)) + ' +gamma=0 +alpha=' + str(alpha) + ' +ellps=WGS84'
 
         return proj4
 
