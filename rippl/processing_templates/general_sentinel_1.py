@@ -602,7 +602,7 @@ class GeneralPipelines():
             create_multilooked_ifg.add_processing_data(ifgs, 'ifg')
             create_multilooked_ifg.add_processing_step(
                 InterferogramMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                       slave='slave', coreg_master='coreg_master', ifg='ifg', master='master', batch_size=10000000), True, True)
+                                       slave='slave', coreg_master='coreg_master', ifg='ifg', master='master', batch_size=50000000), True, True)
             create_multilooked_ifg()
 
     def create_calibrated_amplitude_multilooked(self, polarisation, block_orientation='lines'):
@@ -626,13 +626,13 @@ class GeneralPipelines():
             create_multilooked_amp.add_processing_data(coreg_slave, 'slave')
             create_multilooked_amp.add_processing_step(
                 CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                       slave='slave', coreg_master='coreg_master', batch_size=10000000), True, True)
+                                       slave='slave', coreg_master='coreg_master', batch_size=50000000), True, True)
             create_multilooked_amp()
             create_multilooked_amp.save_processing_results()
 
             # Finally do the master image seperately
             amp_multilook = CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                                   slave=coreg_master[0], coreg_master=coreg_master[0], batch_size=10000000, no_of_looks=True)
+                                                   slave=coreg_master[0], coreg_master=coreg_master[0], batch_size=50000000, no_of_looks=True)
             amp_multilook()
 
     def create_calibrated_amplitude_approx_multilooked(self, polarisation, block_orientation='lines'):
@@ -663,7 +663,7 @@ class GeneralPipelines():
             create_multilooked_amp.add_processing_data(slcs, 'coreg_master')
             create_multilooked_amp.add_processing_step(
                 CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                       slave='slave', resampled=False, batch_size=10000000, no_line_pixel_input=True), True, True)
+                                       slave='slave', resampled=False, batch_size=50000000, no_line_pixel_input=True), True, True)
             create_multilooked_amp()
 
     def create_coherence_multilooked(self, polarisation, block_orientation='lines'):
@@ -687,12 +687,12 @@ class GeneralPipelines():
             create_multilooked_amp.add_processing_data(coreg_slave, 'slave')
             create_multilooked_amp.add_processing_step(
                 SquareAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                       slave='slave', coreg_master='coreg_master', batch_size=10000000), True, True)
+                                       slave='slave', coreg_master='coreg_master', batch_size=50000000), True, True)
             create_multilooked_amp()
 
             # Finally do the master image seperately
             amp_multilook = SquareAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                                   slave=coreg_master[0], coreg_master=coreg_master[0], master_image=False, batch_size=10000000)
+                                                   slave=coreg_master[0], coreg_master=coreg_master[0], master_image=False, batch_size=50000000)
             amp_multilook()
 
         # After creation of the square amplitude images, we can create the coherence values themselves.
@@ -793,7 +793,7 @@ class GeneralPipelines():
             create_baselines.add_processing_data(coreg_master, 'coreg_master')
             create_baselines.add_processing_data(coreg_slave, 'slave')
             create_baselines.add_processing_step(
-                Baseline(out_coor=self.full_ml_coor, slave='slave', coreg_master='coreg_master', batch_size=10000000),
+                Baseline(out_coor=self.full_ml_coor, slave='slave', coreg_master='coreg_master', batch_size=50000000),
                 True, True)
             create_baselines()
 

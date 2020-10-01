@@ -852,10 +852,14 @@ class OrbitCoordinates(object):
             self.lph2xyz()
             self.xyz2scatterer_azimuth_elevation()
             gamma = -1 * (float(self.azimuth_angle[0]) + 90)
+            if 90 < gamma < 270:
+                gamma -= 180
+            elif -90 > gamma > -270:
+                gamma += 180
 
             # We use a oblique mercator projection.
             proj4 = '+proj=omerc +lonc=' + str(np.rad2deg(self.center_lambda)) + ' +lat_0=' + \
-                    str(np.rad2deg(self.center_phi)) + ' +alpha=' + str(gamma) + ' +ellps=WGS84'
+                    str(np.rad2deg(self.center_phi)) + ' +gamma=' + str(gamma) + ' +ellps=WGS84'
 
         return proj4
 
