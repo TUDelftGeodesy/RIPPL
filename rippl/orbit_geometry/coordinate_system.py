@@ -278,7 +278,6 @@ class CoordinateSystem():
             self.ellipse_type = self.json_dict['ellipse_type']
             self.projection_type = self.json_dict['projection_type']
             self.proj4_str = self.json_dict['proj4_str']
-            self.proj4_str = str(self.proj4_str).replace('+gamma', '+alpha')
             self.x0 = self.json_dict['x0']
             self.y0 = self.json_dict['y0']
             self.dx = self.json_dict['dx']
