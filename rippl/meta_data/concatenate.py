@@ -69,7 +69,8 @@ class Concatenate():
                                                         data_ids=[self.data_id],
                                                         polarisations=[self.polarisation],
                                                         slices=True,
-                                                        full_image=False)
+                                                        full_image=False,
+                                                        load_memmap=False)
 
         if len(process_ids) == 0:
             self.coordinates.create_coor_id()
@@ -213,8 +214,11 @@ class Concatenate():
                     else:
                         self.concat_data.disk['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] += \
                             image.disk['data'] * line_weight[:, None] * pixel_weight[None, :]
+
+                image.remove_disk_data_memmap()  # type: ImageData
             else:
                 raise TypeError('Not possible to load either memory or disk data')
+
 
             if remove_input:
                 image.remove_disk_data()
