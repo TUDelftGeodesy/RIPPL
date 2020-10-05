@@ -22,6 +22,7 @@ def sentinel_read_data(path_tiff, s_pix, s_lin, size):
 
     band = src_ds.GetRasterBand(1)
     dat = band.ReadAsArray(int(s_pix) + 1, int(s_lin) + 1, int(size[1]), int(size[0]))
+    del src_ds
 
     return dat
 

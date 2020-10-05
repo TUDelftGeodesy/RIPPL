@@ -115,9 +115,8 @@ class ProcessMeta():
         self.update_json(save_orbits, save_readfiles)
 
         if json_path:
-            file = open(json_path, 'w+')
-            json.dump(self.json_dict, file, indent=3)
-            file.close()
+            with open(json_path, 'w+') as file:
+                json.dump(self.json_dict, file, indent=3)
 
     def load_json(self, json_data='', json_path=''):
         # Load json data
@@ -125,9 +124,8 @@ class ProcessMeta():
         if isinstance(json_data, OrderedDict):
             self.json_dict = json_data
         else:
-            file = open(json_path)
-            self.json_dict = json.load(file, object_pairs_hook=OrderedDict)
-            file.close()
+            with open(json_path) as file:
+                self.json_dict = json.load(file, object_pairs_hook=OrderedDict)
 
         self.output_files = self.json_dict['output_files']
         self.input_files = self.json_dict['input_files']

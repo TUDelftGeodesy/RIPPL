@@ -688,9 +688,8 @@ class DownloadSentinelOrbit(object):
                 filename = os.path.join(self.precise_folder, orb)
                 if not os.path.exists(filename):
                     url_dat = urllib.request.urlopen(url, context=gcontext).read().decode("utf8")
-                    f = open(filename, 'w')
-                    f.write(url_dat)
-                    f.close()
+                    with open(filename, 'w') as f:
+                        f.write(url_dat)
                     print(filename + ' downloaded')
 
         if self.restituted_folder:
@@ -699,7 +698,6 @@ class DownloadSentinelOrbit(object):
                 filename = os.path.join(self.restituted_folder, orb)
                 if not os.path.exists(filename):
                     url_dat = urllib.request.urlopen(url, context=gcontext).read().decode("utf8")
-                    f = open(filename, 'w')
-                    f.write(url_dat)
-                    f.close()
+                    with open(filename, 'w') as f:
+                        f.write(url_dat)
                     print(filename + ' downloaded')

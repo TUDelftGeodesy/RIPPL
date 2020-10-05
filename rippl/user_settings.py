@@ -311,38 +311,35 @@ class UserSettings(object):
         if not os.path.exists(self.settings_path):
             raise ValueError('Settings file not found. First setup user settings using user_setup.ipynb before processing!')
 
-        user_settings = open(self.settings_path, 'r')
+        with open(self.settings_path, 'r') as user_settings:
+            # Get paths
+            self.radar_datastacks = ' '.join(user_settings.readline().split()[1:])
+            self.radar_database = ' '.join(user_settings.readline().split()[1:])
+            self.orbit_database = ' '.join(user_settings.readline().split()[1:])
+            self.DEM_database = ' '.join(user_settings.readline().split()[1:])
+            self.NWP_model_database = ' '.join(user_settings.readline().split()[1:])
+            self.GIS_database = ' '.join(user_settings.readline().split()[1:])
+            self.snaphu_path = ' '.join(user_settings.readline().split()[1:])
 
-        # Get paths
-        self.radar_datastacks = ' '.join(user_settings.readline().split()[1:])
-        self.radar_database = ' '.join(user_settings.readline().split()[1:])
-        self.orbit_database = ' '.join(user_settings.readline().split()[1:])
-        self.DEM_database = ' '.join(user_settings.readline().split()[1:])
-        self.NWP_model_database = ' '.join(user_settings.readline().split()[1:])
-        self.GIS_database = ' '.join(user_settings.readline().split()[1:])
-        self.snaphu_path = ' '.join(user_settings.readline().split()[1:])
+            # Get passwords
+            self.ESA_username = user_settings.readline().split()[1]
+            self.ESA_password = user_settings.readline().split()[1]
+            self.NASA_username = user_settings.readline().split()[1]
+            self.NASA_password = user_settings.readline().split()[1]
+            self.DLR_username = user_settings.readline().split()[1]
+            self.DLR_password = user_settings.readline().split()[1]
 
-        # Get passwords
-        self.ESA_username = user_settings.readline().split()[1]
-        self.ESA_password = user_settings.readline().split()[1]
-        self.NASA_username = user_settings.readline().split()[1]
-        self.NASA_password = user_settings.readline().split()[1]
-        self.DLR_username = user_settings.readline().split()[1]
-        self.DLR_password = user_settings.readline().split()[1]
+            # Finally get the sensor names if these lines are not empty
+            sar_sensor_line = user_settings.readline()
 
-        # Finally get the sensor names if these lines are not empty
-        sar_sensor_line = user_settings.readline()
-
-        if sar_sensor_line != '':
-            self.dem_sensors = sar_sensor_line.split()[1:]
-            self.dem_sensor_names = user_settings.readline().split()[1:]
-            self.sar_sensors = user_settings.readline().split()[1:]
-            self.sar_sensor_names = user_settings.readline().split()[1:]
-            self.create_sensor_dicts()
-        else:
-            self.define_sensor_names()
-
-        user_settings.close()
+            if sar_sensor_line != '':
+                self.dem_sensors = sar_sensor_line.split()[1:]
+                self.dem_sensor_names = user_settings.readline().split()[1:]
+                self.sar_sensors = user_settings.readline().split()[1:]
+                self.sar_sensor_names = user_settings.readline().split()[1:]
+                self.create_sensor_dicts()
+            else:
+                self.define_sensor_names()
 
     def save_settings(self):
         """
@@ -358,31 +355,29 @@ class UserSettings(object):
         # Create text file
         if os.path.exists(self.settings_path):
             os.remove(self.settings_path)
-        user_settings = open(self.settings_path, 'w')
+        with open(self.settings_path, 'w') as user_settings:
 
-        # Write paths
-        user_settings.write('radar_datastacks: ' + str(self.radar_datastacks) + '\n')
-        user_settings.write('radar_database: ' + str(self.radar_database) + '\n')
-        user_settings.write('orbit_database: ' + str(self.orbit_database) + '\n')
-        user_settings.write('DEM_database: ' + str(self.DEM_database) + '\n')
-        user_settings.write('NWP_model_database: ' + str(self.NWP_model_database) + '\n')
-        user_settings.write('GIS_database: ' + str(self.GIS_database) + '\n')
-        user_settings.write('Snaphu_path: ' + str(self.snaphu_path) + '\n')
+            # Write paths
+            user_settings.write('radar_datastacks: ' + str(self.radar_datastacks) + '\n')
+            user_settings.write('radar_database: ' + str(self.radar_database) + '\n')
+            user_settings.write('orbit_database: ' + str(self.orbit_database) + '\n')
+            user_settings.write('DEM_database: ' + str(self.DEM_database) + '\n')
+            user_settings.write('NWP_model_database: ' + str(self.NWP_model_database) + '\n')
+            user_settings.write('GIS_database: ' + str(self.GIS_database) + '\n')
+            user_settings.write('Snaphu_path: ' + str(self.snaphu_path) + '\n')
 
-        # Write passwords
-        user_settings.write('ESA_username: ' + self.ESA_username + '\n')
-        user_settings.write('ESA_password: ' + self.ESA_password + '\n')
-        user_settings.write('NASA_username: ' + self.NASA_username + '\n')
-        user_settings.write('NASA_password: ' + self.NASA_password + '\n')
-        user_settings.write('DLR_username: ' + self.DLR_username + '\n')
-        user_settings.write('DLR_password: ' + self.DLR_password + '\n')
+            # Write passwords
+            user_settings.write('ESA_username: ' + self.ESA_username + '\n')
+            user_settings.write('ESA_password: ' + self.ESA_password + '\n')
+            user_settings.write('NASA_username: ' + self.NASA_username + '\n')
+            user_settings.write('NASA_password: ' + self.NASA_password + '\n')
+            user_settings.write('DLR_username: ' + self.DLR_username + '\n')
+            user_settings.write('DLR_password: ' + self.DLR_password + '\n')
 
-        # Write satellite sensor names
-        user_settings.write('DEM_sensors: ' + ' '.join(self.dem_sensors) + '\n')
-        user_settings.write('DEM_sensor_names: ' + ' '.join(self.dem_sensor_names) + '\n')
-        user_settings.write('SAR_sensors: ' + ' '.join(self.sar_sensors) + '\n')
-        user_settings.write('SAR_sensor_names: ' + ' '.join(self.sar_sensor_names) + '\n')
-
-        user_settings.close()
+            # Write satellite sensor names
+            user_settings.write('DEM_sensors: ' + ' '.join(self.dem_sensors) + '\n')
+            user_settings.write('DEM_sensor_names: ' + ' '.join(self.dem_sensor_names) + '\n')
+            user_settings.write('SAR_sensors: ' + ' '.join(self.sar_sensors) + '\n')
+            user_settings.write('SAR_sensor_names: ' + ' '.join(self.sar_sensor_names) + '\n')
 
         print('Settings saved to ' + self.settings_path)

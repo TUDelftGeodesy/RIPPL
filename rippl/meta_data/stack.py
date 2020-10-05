@@ -92,32 +92,30 @@ class Stack(object):
             print('Master slice list already loaded!')
             return
 
-        l = open(list_file, 'r+')
-        for line in l:
-            sl = line.split(',')
-            time = sl[0].split(' ')[1]
-            t = datetime.datetime.strptime(time, '%Y-%m-%dT%H:%M:%S.%f')
-            name = 'slice_' + sl[2].split(' ')[1] + '_swath_' + sl[1].split(' ')[1]
-            if not name in self.master_slice_names:
-                self.master_slice_az_time.append(time)
-                self.master_slice_time.append(t)
-                self.master_slice_date.append(sl[0].split(' ')[1][:10])
-                self.master_slice_swath_no.append(int(sl[1].split(' ')[1]))
-                self.master_slice_number.append(int(sl[2].split(' ')[1]))
-                self.master_slice_x.append(int(sl[3].split(' ')[1]))
-                self.master_slice_y.append(int(sl[4].split(' ')[1]))
-                self.master_slice_z.append(int(sl[5].split(' ')[1]))
-                self.master_slice_lat.append(float(sl[6].split(' ')[1]))
-                self.master_slice_lon.append(float(sl[7].split(' ')[1]))
-                self.master_slice_seconds.append(float(t.hour * 3600 + t.minute * 60 + t.second) + float(t.microsecond) / 1000000)
-                self.master_slice_names.append(name)
-                self.master_date = t.strftime('%Y%m%d')
+        with open(list_file, 'r+') as l:
+            for line in l:
+                sl = line.split(',')
+                time = sl[0].split(' ')[1]
+                t = datetime.datetime.strptime(time, '%Y-%m-%dT%H:%M:%S.%f')
+                name = 'slice_' + sl[2].split(' ')[1] + '_swath_' + sl[1].split(' ')[1]
+                if not name in self.master_slice_names:
+                    self.master_slice_az_time.append(time)
+                    self.master_slice_time.append(t)
+                    self.master_slice_date.append(sl[0].split(' ')[1][:10])
+                    self.master_slice_swath_no.append(int(sl[1].split(' ')[1]))
+                    self.master_slice_number.append(int(sl[2].split(' ')[1]))
+                    self.master_slice_x.append(int(sl[3].split(' ')[1]))
+                    self.master_slice_y.append(int(sl[4].split(' ')[1]))
+                    self.master_slice_z.append(int(sl[5].split(' ')[1]))
+                    self.master_slice_lat.append(float(sl[6].split(' ')[1]))
+                    self.master_slice_lon.append(float(sl[7].split(' ')[1]))
+                    self.master_slice_seconds.append(float(t.hour * 3600 + t.minute * 60 + t.second) + float(t.microsecond) / 1000000)
+                    self.master_slice_names.append(name)
+                    self.master_date = t.strftime('%Y%m%d')
 
-        for seconds in self.master_slice_seconds:
-            if seconds < 3600 or seconds > 82800:
-                self.master_date_boundary = True
-
-        l.close()
+            for seconds in self.master_slice_seconds:
+                if seconds < 3600 or seconds > 82800:
+                    self.master_date_boundary = True
 
     def read_stack(self, start_date='', end_date='', start_dates='', end_dates='', date='', dates='', time_window=''):
         # This function reads the whole stack in memory. A stack consists of:
