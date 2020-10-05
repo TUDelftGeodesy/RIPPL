@@ -862,10 +862,10 @@ class Process():
     def remove_memmap_files(self):
         # Remove all loaded memmap files for this function.
         for file_type in self.out_images.keys():
-            self.out_images[file_type].remove_disk_data_memmap(self)            # type: ImageData
+            self.out_images[file_type].remove_disk_data_memmap()            # type: ImageData
 
         for file_type in self.in_images.keys():
-            self.in_images[file_type].remove_disk_data_memmap(self)             # type: ImageData
+            self.in_images[file_type].remove_disk_data_memmap()             # type: ImageData
 
     def clean_memory(self):
         """
