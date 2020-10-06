@@ -341,8 +341,8 @@ class UserSettings(object):
                 settings_dict[line.split(':')[0]] = line
 
         # Get paths
-        if 'radar_data_stacks' in settings_dict.keys():
-            self.radar_data_stacks = ' '.join(settings_dict.get('radar_data_stacks', 'None None').split()[1:])
+        if 'radar_datastacks' in settings_dict.keys():
+            self.radar_data_stacks = ' '.join(settings_dict.get('radar_datastacks', 'None None').split()[1:])
         else:
             self.radar_data_stacks = ' '.join(settings_dict.get('radar_data_stacks', 'None None').split()[1:])
         self.radar_database = ' '.join(settings_dict.get('radar_database', 'None None').split()[1:])
