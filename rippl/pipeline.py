@@ -128,7 +128,7 @@ class Pipeline():
             # outputs. This could cause problems in two ways:
             # 1. It is not possible to write to the same file at the same moment, so it could cause an IO conflict
             # 2. This will result in two non-unique metadata outputs, so it will miss part of the outputs in the final
-            #           resulting datastack.
+            #           resulting data_stack.
 
             # Create the actual outputs.
             for pipeline in self.pipelines:

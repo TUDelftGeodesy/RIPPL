@@ -230,11 +230,11 @@ class SrtmDownload(object):
                     continue
                 
                 if os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.hgt.zip') not in tiles_zip or not download:
-                    unzip = os.path.join(srtm_folder, srtm_type + '__' + latstr + lonstr + '.hgt')
+                    unzip = os.path.join(srtm_folder, srtm_type.lower(), srtm_type + '__' + latstr + lonstr + '.hgt')
                     tiles.append(unzip)
 
                     if not os.path.exists(unzip) or not download:
-                        tiles_zip.append(os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.hgt.zip'))
+                        tiles_zip.append(os.path.join(srtm_folder, srtm_type.lower(), latstr + lonstr + 'SRTMGL3.hgt.zip'))
 
                         download_tiles.append(unzip)
                         tile_lats.append(lat)
@@ -242,11 +242,11 @@ class SrtmDownload(object):
                         url.append(filelist[srtm_type][str(lat)][str(lon)])
 
                     if quality:
-                        unzip = os.path.join(srtm_folder, srtm_type + '__' + latstr + lonstr + '.q')
+                        unzip = os.path.join(srtm_folder, srtm_type.lower(), srtm_type + '__' + latstr + lonstr + '.q')
                         tiles.append(unzip)
 
                         if not os.path.exists(unzip) or not download:
-                            tiles_zip.append(os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.q.zip'))
+                            tiles_zip.append(os.path.join(srtm_folder, srtm_type.lower(), latstr + lonstr + 'SRTMGL3.q.zip'))
 
                             download_tiles.append(unzip)
                             tile_lats.append(lat)

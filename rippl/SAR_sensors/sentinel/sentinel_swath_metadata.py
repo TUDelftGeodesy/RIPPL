@@ -402,7 +402,7 @@ class CreateSwathXmlRes():
 
     def create_burst_crop(self):
         # This function returns a description of the crop files part, which defines how the burst is cropped out of the
-        # swath data. This function is generally called when the .res and raw data is written to the datastack and uses one
+        # swath data. This function is generally called when the .res and raw data is written to the data_stack and uses one
         # of the outputs from the burst_readfiles
 
         self.burst_crop = []

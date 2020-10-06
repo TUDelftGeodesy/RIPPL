@@ -197,7 +197,7 @@ class GeneralPipelines():
                               ESA_username=None, ESA_password=None, ASF_username=None, ASF_password=None, data=True, orbit=True,
                                source='ASF'):
         """
-        Creation of datastack of Sentinel-1 images including the orbits.
+        Creation of data_stack of Sentinel-1 images including the orbits.
 
         :param start_date:
         :param end_date:
@@ -260,7 +260,7 @@ class GeneralPipelines():
                               stack_name=None, radar_database_folder=None, orbit_folder=None,
                               stack_folder=None, mode='IW', product_type='SLC', cores=6, tiff_folder=''):
         """
-        Creation of datastack of Sentinel-1 images including the orbits.
+        Creation of data_stack of Sentinel-1 images including the orbits.
 
         :param start_date:
         :param end_date:
@@ -283,7 +283,7 @@ class GeneralPipelines():
 
         # Prepare processing
         for pol in polarisation:
-            self.stack = SentinelStack(datastack_folder=stack_folder, datastack_name=stack_name)
+            self.stack = SentinelStack(data_stack_folder=stack_folder, data_stack_name=stack_name)
             self.stack.read_from_database(database_folder=radar_database_folder, shapefile=shapefile, track_no=track,
                                           orbit_folder=orbit_folder, start_date=start_date, end_date=end_date,
                                           master_date=master_date, mode=mode, product_type=product_type,
@@ -318,7 +318,7 @@ class GeneralPipelines():
         settings = UserSettings()
         settings.load_settings()
 
-        self.stack = Stack(datastack_folder=self.stack_folder, datastack_name=self.stack_name, SAR_type=settings.sar_sensor_name['sentinel1'])
+        self.stack = Stack(data_stack_folder=self.stack_folder, data_stack_name=self.stack_name, SAR_type=settings.sar_sensor_name['sentinel1'])
         self.stack.read_master_slice_list()
         self.stack.read_stack(start_date=start_date, end_date=end_date, start_dates=start_dates, end_dates=end_dates,
                               date=date, dates=dates, time_window=time_window)
@@ -333,7 +333,7 @@ class GeneralPipelines():
         settings = UserSettings()
         settings.load_settings()
 
-        self.stack = Stack(datastack_folder=self.stack_folder, datastack_name=self.stack_name, SAR_type=settings.sar_sensor_name['sentinel1'])
+        self.stack = Stack(data_stack_folder=self.stack_folder, data_stack_name=self.stack_name, SAR_type=settings.sar_sensor_name['sentinel1'])
         self.stack.read_master_slice_list()
         self.stack.read_stack(start_date=self.start_date, end_date=self.end_date, start_dates=self.start_dates,
                               date=self.date, end_dates=self.end_dates, dates=self.dates, time_window=self.time_window)
