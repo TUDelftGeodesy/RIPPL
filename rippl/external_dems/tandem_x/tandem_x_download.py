@@ -104,9 +104,8 @@ class TandemXDownloadTile(object):
                 zip_data = zipfile.ZipFile(file_zip)
                 source = zip_data.open([path for path in zip_data.namelist() if
                                         os.path.basename(os.path.dirname(path)) == 'DEM' and path.endswith('.tif')][0])
-                target = open(file_unzip, 'wb')
-                shutil.copyfileobj(source, target)
-                target.close()
+                with open(file_unzip, 'wb') as target:
+                    shutil.copyfileobj(source, target)
         except:
             raise ConnectionError('Failed to download ' + ftp_path)
 
@@ -137,6 +136,7 @@ class TandemXDownloadTile(object):
         geo_transform = data_file.GetGeoTransform()
         lons = (np.arange(size[1]) + 0.5) * geo_transform[1] + geo_transform[0]
         lats = (np.arange(size[0]) + 0.5) * geo_transform[5] + geo_transform[3]
+        del data_file
 
         # Fill empty values with geoid values (most likely water/sea)
         coor = CoordinateSystem()
@@ -385,9 +385,8 @@ class TandemXDownload(object):
 
         data_file = os.path.join(tandem_x_folder, 'filelist')
         if os.path.exists(data_file):
-            dat = open(data_file, 'rb')
-            filelist = pickle.load(dat)
-            dat.close()
+            with open(data_file, 'rb') as dat:
+                filelist = pickle.load(dat)
             return filelist
 
         server = 'tandemx-90m.dlr.de'
@@ -415,9 +414,8 @@ class TandemXDownload(object):
             filelist[lat_str][lon_str] = dem_file
 
         # Get the tiff file path in the zip
-        file_list = open(os.path.join(tandem_x_folder, 'filelist'), 'wb')
-        pickle.dump(filelist, file_list)
-        file_list.close()
+        with open(os.path.join(tandem_x_folder, 'filelist'), 'wb') as file_list:
+            pickle.dump(filelist, file_list)
 
         return filelist
 

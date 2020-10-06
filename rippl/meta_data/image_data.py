@@ -8,6 +8,8 @@ import numpy as np
 import gdal
 from collections import OrderedDict
 import os
+from rippl.user_settings import UserSettings
+
 
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
@@ -410,7 +412,11 @@ class ImageData():
                 stack_folder = os.path.dirname(os.path.dirname(self.file_path))
 
             if not tiff_folder:
-                tiff_folder = os.path.join(stack_folder, 'output_geotiffs')
+                settings = UserSettings()
+                settings.load_settings()
+
+                satellite_folder = os.path.join(settings.radar_data_products, os.path.basename(os.path.dirname(stack_folder)))
+                tiff_folder = os.path.join(satellite_folder, os.path.basename(stack_folder))
                 if not os.path.exists(tiff_folder):
                     os.mkdir(tiff_folder)
 

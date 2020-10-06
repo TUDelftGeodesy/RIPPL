@@ -73,7 +73,7 @@ class ImageConcatData(object):
                                                                        process_type, disk_data)
 
     def concat_image_data_iterator(self, processes=[], coordinates=[], in_coordinates=[], data_ids=[], polarisations=[], file_types=[],
-                                   full_image=True, slices=True, data=True):
+                                   full_image=True, slices=True, data=True, load_memmap=True):
         """
         From the full_image and slices images are selected that fullfill the requirements given as an input.
 
@@ -100,7 +100,7 @@ class ImageConcatData(object):
         if full_image:
             if not isinstance(self.data, ImageProcessingData):
                 self.load_full_meta()
-            if data:
+            if data and load_memmap:
                 self.load_full_memmap(processes=processes, file_types=file_types)
 
             processes_full, process_ids_full, coordinates_full, in_coordinates_full, file_types_full, images_full = \
@@ -117,7 +117,7 @@ class ImageConcatData(object):
         if slices:
             if len(self.slice_data.keys()) == 0:
                 self.load_slice_meta()
-            if data:
+            if data and load_memmap:
                 if len(processes) == 0 and len(file_types) == 0:
                     print('Loading all memmap images of slices without defining processes or file_types could result '
                           'in reaching the limit of maximum open memmap files! Consider loading with defined processes '

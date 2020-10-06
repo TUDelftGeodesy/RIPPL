@@ -95,19 +95,18 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
         unwrap_name = 'unwrapped' + coh_file_name[len('coherence'):][:-4]
         out_file = os.path.join(folder, unwrap_name + '.data')
         conf_file = os.path.join(folder, unwrap_name + '.conf')
-        c = open(conf_file, 'w+')
 
-        c.write('INFILE ' + os.path.join(folder, ifg_file_name) + '\n')
-        c.write('LINELENGTH ' + str(pixels) + '\n')
+        with open(conf_file, 'w+') as c:
+            c.write('INFILE ' + os.path.join(folder, ifg_file_name) + '\n')
+            c.write('LINELENGTH ' + str(pixels) + '\n')
 
-        # Add coherence file
-        c.write('CORRFILE ' + os.path.join(folder, coh_file_name) + '\n')
-        c.write('CORRFILEFORMAT		FLOAT_DATA\n')
-        c.write('OUTFILE ' + os.path.join(folder, out_file) + '\n')
-        c.write('OUTFILEFORMAT		FLOAT_DATA\n')
-        c.write('LOGFILE ' + unwrap_name + '.log' + '\n')
-        c.write('STATCOSTMODE SMOOTH')
-        c.close()
+            # Add coherence file
+            c.write('CORRFILE ' + os.path.join(folder, coh_file_name) + '\n')
+            c.write('CORRFILEFORMAT		FLOAT_DATA\n')
+            c.write('OUTFILE ' + os.path.join(folder, out_file) + '\n')
+            c.write('OUTFILEFORMAT		FLOAT_DATA\n')
+            c.write('LOGFILE ' + unwrap_name + '.log' + '\n')
+            c.write('STATCOSTMODE SMOOTH')
 
         command = self.settings['snaphu_path'] + ' -f ' + conf_file
         os.system('cd ' + folder)

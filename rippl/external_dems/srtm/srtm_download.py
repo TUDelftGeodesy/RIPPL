@@ -75,9 +75,8 @@ class SrtmDownloadTile(object):
                     os.system(command)
                 zip_data = zipfile.ZipFile(file_zip)
                 source = zip_data.open(zip_data.namelist()[0])
-                target = open(file_unzip, 'wb')
-                shutil.copyfileobj(source, target, length=-1)
-                target.close()
+                with open(file_unzip, 'wb') as target:
+                    shutil.copyfileobj(source, target, length=-1)
                 zip_data.close()
                 source.close()
                 os.remove(file_zip)
@@ -231,11 +230,11 @@ class SrtmDownload(object):
                     continue
                 
                 if os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.hgt.zip') not in tiles_zip or not download:
-                    unzip = os.path.join(srtm_folder, srtm_type + '__' + latstr + lonstr + '.hgt')
+                    unzip = os.path.join(srtm_folder, srtm_type.lower(), srtm_type + '__' + latstr + lonstr + '.hgt')
                     tiles.append(unzip)
 
                     if not os.path.exists(unzip) or not download:
-                        tiles_zip.append(os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.hgt.zip'))
+                        tiles_zip.append(os.path.join(srtm_folder, srtm_type.lower(), latstr + lonstr + 'SRTMGL3.hgt.zip'))
 
                         download_tiles.append(unzip)
                         tile_lats.append(lat)
@@ -243,11 +242,11 @@ class SrtmDownload(object):
                         url.append(filelist[srtm_type][str(lat)][str(lon)])
 
                     if quality:
-                        unzip = os.path.join(srtm_folder, srtm_type + '__' + latstr + lonstr + '.q')
+                        unzip = os.path.join(srtm_folder, srtm_type.lower(), srtm_type + '__' + latstr + lonstr + '.q')
                         tiles.append(unzip)
 
                         if not os.path.exists(unzip) or not download:
-                            tiles_zip.append(os.path.join(srtm_folder, latstr + lonstr + 'SRTMGL3.q.zip'))
+                            tiles_zip.append(os.path.join(srtm_folder, srtm_type.lower(), latstr + lonstr + 'SRTMGL3.q.zip'))
 
                             download_tiles.append(unzip)
                             tile_lats.append(lat)
@@ -278,9 +277,9 @@ class SrtmDownload(object):
 
         data_file = os.path.join(srtm_folder, 'filelist')
         if os.path.exists(data_file):
-            dat = open(data_file, 'rb')
-            filelist = pickle.load(dat)
-            dat.close()
+            with open(data_file, 'rb') as dat:
+                filelist = pickle.load(dat)
+
             return filelist
 
         server = "http://e4ftl01.cr.usgs.gov"
@@ -350,8 +349,7 @@ class SrtmDownload(object):
                     filelist[key_value][str(n)] = dict()
                 filelist[key_value][str(n)][str(e)] = server + '/' + os.path.dirname(folder) + '/' + filename
 
-        file_list = open(os.path.join(srtm_folder, 'filelist'), 'wb')
-        pickle.dump(filelist, file_list)
-        file_list.close()
+        with open(os.path.join(srtm_folder, 'filelist'), 'wb') as file_list:
+            pickle.dump(filelist, file_list)
 
         return filelist

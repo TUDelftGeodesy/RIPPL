@@ -7,7 +7,7 @@ The code works in the following way.
 1. It reads the database (using sentinel_database.py) for a specific region, time span and polarisation
 2. From there it reads or creates a master image slice oversight list. This list contains all the slices.
 3. Using this list it searches for new slave slice files overlapping with the master slices.
-4. From the master and slice lists a datastack is created or extended. (Existing files/folders are not overwritten!)
+4. From the master and slice lists a data_stack is created or extended. (Existing files/folders are not overwritten!)
 '''
 
 import datetime
@@ -35,20 +35,20 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 class SentinelStack(SentinelDatabase, Stack):
 
-    def __init__(self, datastack_folder='', datastack_name=''):
+    def __init__(self, data_stack_folder='', data_stack_name=''):
 
         self.settings = UserSettings()
         self.settings.load_settings()
 
-        if not datastack_folder:
-            if not datastack_name:
-                raise NotADirectoryError('The datastack name is empty, so directory cannot be created!')
-            datastack_folder = os.path.join(self.settings.radar_datastacks, self.settings.sar_sensor_name['sentinel1'], datastack_name)
+        if not data_stack_folder:
+            if not data_stack_name:
+                raise NotADirectoryError('The data_stack name is empty, so directory cannot be created!')
+            data_stack_folder = os.path.join(self.settings.radar_data_stacks, self.settings.sar_sensor_name['sentinel1'], data_stack_name)
 
         # Loads the class to read from the sentinel database
         SentinelDatabase.__init__(self)
         # Loads the class to work with a doris stack
-        Stack.__init__(self, datastack_folder)
+        Stack.__init__(self, data_stack_folder)
 
         # Orbit and master information
         self.orbits = []
@@ -124,7 +124,7 @@ class SentinelStack(SentinelDatabase, Stack):
         elif len(self.master_slice_date) > 0:
             self.master_date = self.master_slice_date[0]
         else:
-            print('Provide a master date to create a datastack')
+            print('Provide a master date to create a data_stack')
             return
 
         self.create_slice_list(self.master_date)
@@ -177,7 +177,7 @@ class SentinelStack(SentinelDatabase, Stack):
 
     def create_slice_list(self, master_start):
         # master date should be in yyyy-mm-dd format
-        # This function creates a list of all slices within the datastack and reads the needed meta_data.
+        # This function creates a list of all slices within the data_stack and reads the needed meta_data.
         self.iterate_swaths(master_start, adjust_date=False, load_slave_slices=False)
 
         # Adjust timing for master if needed.
@@ -349,7 +349,7 @@ class SentinelStack(SentinelDatabase, Stack):
         known_ids = len(self.master_slice_number)
         total_ids = len(self.master_slice_az_time)
 
-        print('Assign found bursts to datastack. These can be part of current datastack already!')
+        print('Assign found bursts to data_stack. These can be part of current data_stack already!')
 
         if known_ids == total_ids:
             print('No new master slices found. Only new slave slices will be assigned')
@@ -452,7 +452,7 @@ class SentinelStack(SentinelDatabase, Stack):
     def write_master_slice_list(self):
         # az_time, yyyy-mm-ddThh:mm:ss.ssssss, swath x, slice i, x xxxx, y yyyy, z zzzz, lat ll.ll, lon ll.ll, pol pp
 
-        l = open(os.path.join(self.datastack_folder, 'master_slice_list'), 'w+')
+        l = open(os.path.join(self.data_stack_folder, 'master_slice_list'), 'w+')
         for az_time, swath_no, number, x, y, z, lat, lon in zip(
             self.master_slice_az_time, self.master_slice_swath_no, self.master_slice_number,
             self.master_slice_x, self.master_slice_y, self.master_slice_z,
@@ -480,7 +480,7 @@ class SentinelStack(SentinelDatabase, Stack):
         id_num = np.arange(n)
         id = np.arange(n)
         shuffle(id)
-        master_dat = [[self.datastack_folder, slice, number, swath_no, date, [no, n]]
+        master_dat = [[self.data_stack_folder, slice, number, swath_no, date, [no, n]]
                      for slice, number, swath_no, date, no
                       in zip(np.array(self.master_slices)[id], np.array(self.master_slice_number)[id],
                              np.array(self.master_slice_swath_no)[id], np.array(self.master_slice_date)[id], id_num)]
@@ -500,7 +500,7 @@ class SentinelStack(SentinelDatabase, Stack):
         id_num = np.arange(n)
         id = np.arange(n)
         shuffle(id)
-        slave_dat = [[self.datastack_folder, slice, number, swath_no, date, [no, n]]
+        slave_dat = [[self.data_stack_folder, slice, number, swath_no, date, [no, n]]
                      for slice, number, swath_no, date, no
                      in zip(np.array(self.slices)[id], np.array(self.slice_number)[id],
                             np.array(self.slice_swath_no)[id], np.array(self.slice_date)[id], id_num)]

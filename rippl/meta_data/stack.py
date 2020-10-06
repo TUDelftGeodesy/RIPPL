@@ -1,5 +1,5 @@
 """
-This class contains a full doris datastack. This links also to several functions which can be solved based on a
+This class contains a full doris data_stack. This links also to several functions which can be solved based on a
 full stack approach. This is also the basis from which we create network of interferograms, which can be used for
 different purposes.
 
@@ -31,19 +31,19 @@ from rippl.orbit_geometry.read_write_shapes import ReadWriteShapes
 
 class Stack(object):
 
-    def __init__(self, datastack_folder='', SAR_type='Sentinel-1', datastack_name=''):
+    def __init__(self, data_stack_folder='', SAR_type='Sentinel-1', data_stack_name=''):
 
-        if not datastack_folder:
+        if not data_stack_folder:
             settings = UserSettings()
             settings.load_settings()
 
-            if not datastack_name:
-                raise NotADirectoryError('The datastack name is empty, so directory cannot be created!')
+            if not data_stack_name:
+                raise NotADirectoryError('The data_stack name is empty, so directory cannot be created!')
             if SAR_type not in settings.sar_sensor_names:
                 raise ValueError('SAR_type should be ' + ' '.join(settings.sar_sensor_names))
-            self.datastack_folder = os.path.join(settings.radar_datastacks, SAR_type, datastack_name)
+            self.data_stack_folder = os.path.join(settings.radar_data_stacks, SAR_type, data_stack_name)
         else:
-            self.datastack_folder = datastack_folder
+            self.data_stack_folder = data_stack_folder
 
         # List of images and interferograms
         self.slcs = dict()
@@ -84,7 +84,7 @@ class Stack(object):
     def read_master_slice_list(self):
         # az_time, yyyy-mm-ddThh:mm:ss.ssssss, swath x, slice i, x xxxx, y yyyy, z zzzz, lat ll.ll, lon ll.ll, pol pp
 
-        list_file = os.path.join(self.datastack_folder, 'master_slice_list')
+        list_file = os.path.join(self.data_stack_folder, 'master_slice_list')
         if not os.path.exists(list_file):
             print('No existing master slices list found')
             return
@@ -92,32 +92,30 @@ class Stack(object):
             print('Master slice list already loaded!')
             return
 
-        l = open(list_file, 'r+')
-        for line in l:
-            sl = line.split(',')
-            time = sl[0].split(' ')[1]
-            t = datetime.datetime.strptime(time, '%Y-%m-%dT%H:%M:%S.%f')
-            name = 'slice_' + sl[2].split(' ')[1] + '_swath_' + sl[1].split(' ')[1]
-            if not name in self.master_slice_names:
-                self.master_slice_az_time.append(time)
-                self.master_slice_time.append(t)
-                self.master_slice_date.append(sl[0].split(' ')[1][:10])
-                self.master_slice_swath_no.append(int(sl[1].split(' ')[1]))
-                self.master_slice_number.append(int(sl[2].split(' ')[1]))
-                self.master_slice_x.append(int(sl[3].split(' ')[1]))
-                self.master_slice_y.append(int(sl[4].split(' ')[1]))
-                self.master_slice_z.append(int(sl[5].split(' ')[1]))
-                self.master_slice_lat.append(float(sl[6].split(' ')[1]))
-                self.master_slice_lon.append(float(sl[7].split(' ')[1]))
-                self.master_slice_seconds.append(float(t.hour * 3600 + t.minute * 60 + t.second) + float(t.microsecond) / 1000000)
-                self.master_slice_names.append(name)
-                self.master_date = t.strftime('%Y%m%d')
+        with open(list_file, 'r+') as l:
+            for line in l:
+                sl = line.split(',')
+                time = sl[0].split(' ')[1]
+                t = datetime.datetime.strptime(time, '%Y-%m-%dT%H:%M:%S.%f')
+                name = 'slice_' + sl[2].split(' ')[1] + '_swath_' + sl[1].split(' ')[1]
+                if not name in self.master_slice_names:
+                    self.master_slice_az_time.append(time)
+                    self.master_slice_time.append(t)
+                    self.master_slice_date.append(sl[0].split(' ')[1][:10])
+                    self.master_slice_swath_no.append(int(sl[1].split(' ')[1]))
+                    self.master_slice_number.append(int(sl[2].split(' ')[1]))
+                    self.master_slice_x.append(int(sl[3].split(' ')[1]))
+                    self.master_slice_y.append(int(sl[4].split(' ')[1]))
+                    self.master_slice_z.append(int(sl[5].split(' ')[1]))
+                    self.master_slice_lat.append(float(sl[6].split(' ')[1]))
+                    self.master_slice_lon.append(float(sl[7].split(' ')[1]))
+                    self.master_slice_seconds.append(float(t.hour * 3600 + t.minute * 60 + t.second) + float(t.microsecond) / 1000000)
+                    self.master_slice_names.append(name)
+                    self.master_date = t.strftime('%Y%m%d')
 
-        for seconds in self.master_slice_seconds:
-            if seconds < 3600 or seconds > 82800:
-                self.master_date_boundary = True
-
-        l.close()
+            for seconds in self.master_slice_seconds:
+                if seconds < 3600 or seconds > 82800:
+                    self.master_date_boundary = True
 
     def read_stack(self, start_date='', end_date='', start_dates='', end_dates='', date='', dates='', time_window=''):
         # This function reads the whole stack in memory. A stack consists of:
@@ -161,10 +159,10 @@ class Stack(object):
         self.start_dates = np.array(self.start_dates)
         self.end_dates = np.array(self.end_dates)
 
-        dirs = next(os.walk(self.datastack_folder))[1]
-        all_image_dirs = sorted([os.path.join(self.datastack_folder, x) for x in dirs if len(x) == 8])
+        dirs = next(os.walk(self.data_stack_folder))[1]
+        all_image_dirs = sorted([os.path.join(self.data_stack_folder, x) for x in dirs if len(x) == 8 and x != 'coverage'])
         image_dirs = []
-        all_ifg_dirs = sorted([os.path.join(self.datastack_folder, x) for x in dirs if len(x) == 17])
+        all_ifg_dirs = sorted([os.path.join(self.data_stack_folder, x) for x in dirs if len(x) == 17])
         ifg_dirs = []
 
         for image_dir in all_image_dirs:
@@ -232,7 +230,7 @@ class Stack(object):
     def create_interferogram_network(self, image_baselines=[], network_type='temp_baseline',
                                      temporal_baseline=60, temporal_no=3, spatial_baseline=2000):
         # This method will call the create interferogram network class.
-        # Run after reading in the datastack.
+        # Run after reading in the data_stack.
 
         network = InterferogramNetwork(self.slcs.keys(), self.master_date, image_baselines, network_type,
                                        temporal_baseline, temporal_no, spatial_baseline)
@@ -252,7 +250,7 @@ class Stack(object):
             ifg_key_2 = slave_key + '_' + master_key
 
             if not ifg_key_1 in ifg_ids and not ifg_key_2 in ifg_ids:
-                folder = os.path.join(self.datastack_folder, ifg_key_1)
+                folder = os.path.join(self.data_stack_folder, ifg_key_1)
                 ifg = Interferogram(folder, slave_slc=self.slcs[slave_key], master_slc=self.slcs[master_key], coreg_slc=self.slcs[cmaster_key])
                 self.ifgs[ifg_key_1] = ifg
 
@@ -322,7 +320,7 @@ class Stack(object):
 
     def download_SRTM_dem(self, srtm_folder=None, username=None, password=None, buffer=0.5, rounding=0.5, srtm_type='SRTM3', parallel=True, n_processes=4):
         """
-        Downloads the needed srtm data for this datastack. srtm_folder is the folder the downloaded srtm tiles are
+        Downloads the needed srtm data for this data_stack. srtm_folder is the folder the downloaded srtm tiles are
         stored.
         Username and password can be obtained at https://lpdaac.usgs.gov
         Documentation: https://lpdaac.usgs.gov/sites/default/files/public/measures/docs/NASA_SRTM_V3.pdf
@@ -355,7 +353,7 @@ class Stack(object):
     def download_Tandem_X_dem(self, tandem_x_folder=None, username=None, password=None, buffer=0.5, rounding=0.5, lon_resolution=3,
                               parallel=True, n_processes=1):
         """
-        Downloads the needed TanDEM-X data for this datastack. srtm_folder is the folder the downloaded srtm tiles are
+        Downloads the needed TanDEM-X data for this data_stack. srtm_folder is the folder the downloaded srtm tiles are
         stored. Details on the product and login can be found under: https://geoservice.dlr.de/web/dataguide/tdm90/
 
         :param TanDEM-X_folder:
@@ -401,13 +399,16 @@ class Stack(object):
             slice_shapes.append(slice.readfiles['original'].polygon.buffer(0.0001))
             slice_names.append(key)
 
+        if not os.path.exists(os.path.join(self.data_stack_folder, 'coverage')):
+            os.mkdir(os.path.join(self.data_stack_folder, 'coverage'))
+
         # Create the burst image file
         shapes = ReadWriteShapes()
         shapes.shapes = slice_shapes
         shapes.shape_names = slice_names
-        shapes.write_kml(os.path.join(self.datastack_folder, 'bursts.kml'))
-        shapes.write_geo_json(os.path.join(self.datastack_folder, 'bursts.geojson'))
-        shapes.write_shapefile(os.path.join(self.datastack_folder, 'bursts.shp'))
+        shapes.write_kml(os.path.join(self.data_stack_folder, 'coverage', 'bursts.kml'))
+        shapes.write_geo_json(os.path.join(self.data_stack_folder, 'coverage', 'bursts.geojson'))
+        shapes.write_shapefile(os.path.join(self.data_stack_folder, 'coverage', 'bursts.shp'))
 
         # Now concatenate the individual swaths and create the swath shp/kml/geojson files
         swath_names = [slice_name[-7:] for slice_name in slice_names]
@@ -420,15 +421,15 @@ class Stack(object):
         swaths = ReadWriteShapes()
         swaths.shapes = swath_shapes
         swaths.shape_names = list(swath_unique_names)
-        swaths.write_kml(os.path.join(self.datastack_folder, 'swaths.kml'))
-        swaths.write_geo_json(os.path.join(self.datastack_folder, 'swaths.geojson'))
-        swaths.write_shapefile(os.path.join(self.datastack_folder, 'swaths.shp'))
+        swaths.write_kml(os.path.join(self.data_stack_folder, 'coverage', 'swaths.kml'))
+        swaths.write_geo_json(os.path.join(self.data_stack_folder, 'coverage', 'swaths.geojson'))
+        swaths.write_shapefile(os.path.join(self.data_stack_folder, 'coverage', 'swaths.shp'))
 
         # Finally do the same thing for the full image
         full_image_shape = cascaded_union(slice_shapes)
         full_image = ReadWriteShapes()
         full_image.shapes = [full_image_shape]
         full_image.shape_names = ['full_image']
-        full_image.write_kml(os.path.join(self.datastack_folder, 'full_image.kml'))
-        full_image.write_geo_json(os.path.join(self.datastack_folder, 'full_image.geojson'))
-        full_image.write_shapefile(os.path.join(self.datastack_folder, 'full_image.shp'))
+        full_image.write_kml(os.path.join(self.data_stack_folder, 'coverage', 'full_image.kml'))
+        full_image.write_geo_json(os.path.join(self.data_stack_folder, 'coverage', 'full_image.geojson'))
+        full_image.write_shapefile(os.path.join(self.data_stack_folder, 'coverage', 'full_image.shp'))

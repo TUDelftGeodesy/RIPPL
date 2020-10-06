@@ -106,17 +106,15 @@ class Readfile():
         # Save .json file
         self.update_json()
 
-        file = open(json_path, 'w+')
-        json.dump(self.json_dict, file, indent=3)
-        file.close()
+        with open(json_path, 'w+') as file:
+            json.dump(self.json_dict, file, indent=3)
 
     def load_json(self, json_data='', json_path=''):
         # Load from json data source
 
         if json_path:
-            file = open(json_path)
-            self.json_dict = json.load(file, object_pairs_hook=OrderedDict)
-            file.close()
+            with open(json_path) as file:
+                self.json_dict = json.load(file, object_pairs_hook=OrderedDict)
         else:
             self.json_dict = json_data
 

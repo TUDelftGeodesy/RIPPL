@@ -126,7 +126,7 @@ To do so you will need to create a folder to store:
 2. A folder to store the downloaded DEM data.
 3. A folder to store the orbit files. These files are used to determine the exact location at satellite overpass and 
 is needed to apply a correct geolocation on the ground. 
-4. A folder to write the datastacks you process. 
+4. A folder to write the data_stacks you process. 
 
 Or:
 
@@ -191,19 +191,22 @@ while success == False:
     radar_database = input()
     print('Define DEM database folder')
     DEM_database = input()
+    print('Define radar data products folder')
+    radar_data_products = input()
     print('Define orbit database folder')
     orbit_database = input()
-    print('Define radar datastacks folder')
-    radar_datastacks = input()
+    print('Define radar data stacks folder')
+    radar_data_stacks = input()
     print('Define NWP model database')
     NWP_model_database = input()
 
     success = settings.save_data_database(main_folder=main_folder,
                             radar_database=radar_database,
-                            radar_datastacks=radar_datastacks,
+                            radar_data_stacks=radar_data_stacks,
                             orbit_database=orbit_database,
                             DEM_database=DEM_database,
-                            NWP_model_database=NWP_model_database)
+                            NWP_model_database=NWP_model_database,
+                            radar_data_products=radar_data_products)
 
     if success:
         print('Folders for processing are set!')

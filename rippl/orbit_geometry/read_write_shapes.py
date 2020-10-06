@@ -118,6 +118,7 @@ class ReadWriteShapes():
         self.shapes = []
         for feat in layer:
             self.shapes.append(loads(feat.geometry().ExportToWkt()))
+        del dataSource, layer
 
     def read_geo_json(self, geojson):
         """

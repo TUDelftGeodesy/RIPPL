@@ -155,11 +155,11 @@ class ImageProcessingMeta(object):
         self.update_json()
 
         if json_path:
-            file = open(json_path, 'w+')
+            file_path = json_path
         else:
-            file = open(os.path.join(self.folder, 'info.json'), 'w+')
-        json.dump(self.json_dict, file, indent=3)
-        file.close()
+            file_path = os.path.join(self.folder, 'info.json')
+        with open(file_path, 'w+') as file:
+            json.dump(self.json_dict, file, indent=3)
 
     def get_json(self, json_path=''):
         # Update and get json file.
@@ -174,13 +174,13 @@ class ImageProcessingMeta(object):
         # Load json data from file.
 
         if json_path:
-            file = open(json_path, 'r+')
+            file_path = json_path
         else:
-            file = open(os.path.join(self.folder, 'info.json'), 'r+')
+            file_path = os.path.join(self.folder, 'info.json')
 
         try:
-            self.json_dict = json.load(file, object_pairs_hook=OrderedDict)
-            file.close()
+            with open(file_path, 'r+') as json_file:
+                self.json_dict = json.load(json_file, object_pairs_hook=OrderedDict)
         except:
             raise ImportError('Not able to load ' + os.path.join(self.folder, 'info.json') + ' as .json info file.')
 

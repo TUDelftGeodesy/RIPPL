@@ -128,13 +128,14 @@ class Pipeline():
             # outputs. This could cause problems in two ways:
             # 1. It is not possible to write to the same file at the same moment, so it could cause an IO conflict
             # 2. This will result in two non-unique metadata outputs, so it will miss part of the outputs in the final
-            #           resulting datastack.
+            #           resulting data_stack.
 
             # Create the actual outputs.
             for pipeline in self.pipelines:
                 for process, save_process in zip(pipeline['processes'], self.save_processsing_steps):
                     if save_process:
                         process.create_output_data_files()
+                        process.remove_memmap_files()
 
             # Now run the individual blocks using multiprocessing of cores > 1
             self.json_dicts = []
@@ -163,10 +164,9 @@ class Pipeline():
         # Load the existing .json dictionaries.
         unique_json_dicts = []
         for unique_json_file in unique_json_files:
-            old_json_file = open(unique_json_file, 'r+')
-            old_json_dict = json.load(old_json_file)
-            old_json_file.close()
-            unique_json_dicts.append(old_json_dict)
+            with open(unique_json_file, 'r+') as old_json_file:
+                old_json_dict = json.load(old_json_file)
+                unique_json_dicts.append(old_json_dict)
 
             [copy.deepcopy(self.json_dicts[json_id]) for json_id in unique_ids]
 
@@ -177,9 +177,8 @@ class Pipeline():
 
         # Finally write the relevant .json files to disk.
         for unique_json_dict, unique_json_file in zip(unique_json_dicts, unique_json_files):
-            file = open(unique_json_file, 'w+')
-            json.dump(unique_json_dict, file, indent=3)
-            file.close()
+            with open(unique_json_file, 'w+') as file:
+                json.dump(unique_json_dict, file, indent=3)
 
     def check_processing_data(self):
         """

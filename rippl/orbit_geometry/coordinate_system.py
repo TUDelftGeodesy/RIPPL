@@ -224,9 +224,8 @@ class CoordinateSystem():
         # Save .json file
         self.update_json(save_orbit, save_readfile)
 
-        file = open(json_path, 'w+')
-        json.dump(self.json_dict, file, indent=3)
-        file.close()
+        with open(json_path, 'w+') as file:
+            json.dump(self.json_dict, file, indent=3)
 
     def load_json(self, json_data, json_path=''):
         # type: (CoordinateSystem, OrderedDict, str) -> None

@@ -859,6 +859,14 @@ class Process():
         # If all files are succesfully saved.
         return True
 
+    def remove_memmap_files(self):
+        # Remove all loaded memmap files for this function.
+        for file_type in self.out_images.keys():
+            self.out_images[file_type].remove_disk_data_memmap()            # type: ImageData
+
+        for file_type in self.in_images.keys():
+            self.in_images[file_type].remove_disk_data_memmap()             # type: ImageData
+
     def clean_memory(self):
         """
         Clean all data from memory related to this processing step (in and output data). This is generally done after
