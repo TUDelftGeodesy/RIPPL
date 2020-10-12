@@ -97,7 +97,7 @@ can find the installation code as a jupyter notebook .../rippl/user_setup.ipynb 
     > python user_setup.py
 
 This will set your accounts to download Sentinel-1 data and external DEMs and create
-a folder structure for the SAR, orbit, DEM and GIS database as well as a place to store your radar datastacks.
+a folder structure for the SAR, orbit, DEM and GIS database as well as a place to store your radar data_stacks.
 
 The output of the setup scripts will be saved as a .txt file (.../rippl/user_settings.txt), which you can edit
 later on if you want to change your account or data folder settings.

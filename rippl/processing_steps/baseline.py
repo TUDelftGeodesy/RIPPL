@@ -11,6 +11,7 @@ from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
+from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 
 class Baseline(Process):  # Change this name to the one of your processing step.
@@ -99,20 +100,36 @@ class Baseline(Process):  # Change this name to the one of your processing step.
         s_orbit = OrbitInterpolate(orbit_slave)
         m_orbit = OrbitInterpolate(orbit_coreg_master)
 
-        coor_slave = self.in_images['lines'].in_coordinates
+        readfile_slave = self.processing_images['slave'].readfiles['original']
+        readfile_master = self.processing_images['coreg_master'].readfiles['original']
+        coor_slave = CoordinateSystem()
+        coor_slave.create_radar_coordinates()
+        coor_slave.load_readfile(readfile=readfile_slave)
         s_az = self['lines'] * coor_slave.az_step + coor_slave.az_time
-        self.block_coor.create_radar_lines()
-        m_az = self.block_coor.interval_lines * self.block_coor.az_step + self.block_coor.az_time
+
+        # Get xyz of points on the ground.
+        p_xyz = np.concatenate((np.ravel(self['X'])[None, :], np.ravel(self['Y'])[None, :], np.ravel(self['Z'])[None, :]))
+
+        if self.coordinate_systems['block_coor'].grid_type == 'radar_coordinates':
+            self.coordinate_systems['block_coor'].create_radar_lines()
+            m_az = self.coordinate_systems['block_coor'].interval_lines * self.block_coor.az_step + self.block_coor.az_time
+        else:
+            calc_az = OrbitCoordinates(orbit=orbit_coreg_master, readfile=readfile_master)
+            lines, pixels = calc_az.xyz2lp(p_xyz)
+            m_az = readfile_master.az_first_pix_time + readfile_master.az_time_step * lines
 
         # Calc xyz coreg master and slave.
         s_orbit.fit_orbit_spline()
         s_xyz = s_orbit.evaluate_orbit_spline(np.ravel(s_az))[0]
         lines = np.ravel(np.tile(np.arange(self.block_coor.shape[0])[:, None], (1, self.block_coor.shape[1]))).astype(np.int32)
         m_orbit.fit_orbit_spline()
-        m_xyz = m_orbit.evaluate_orbit_spline(m_az)[0][:, lines]
+        if self.coordinate_systems['block_coor'].grid_type == 'radar_coordinates':
+            m_xyz = m_orbit.evaluate_orbit_spline(m_az)[0][:, lines]
+        else:
+            m_xyz = m_orbit.evaluate_orbit_spline(m_az)[0]
 
         baseline_squared = np.reshape(np.sum((m_xyz - s_xyz) ** 2, axis=0), self.block_coor.shape)
-        p_xyz = np.concatenate((np.ravel(self['X'])[None, :], np.ravel(self['Y'])[None, :], np.ravel(self['Z'])[None, :]))
+
         s_xyz -= p_xyz
         m_xyz -= p_xyz
         self['parallel_baseline'] = np.reshape(np.sqrt(np.sum((m_xyz) ** 2, axis=0)) - np.sqrt(np.sum((s_xyz) ** 2, axis=0)), self.block_coor.shape)

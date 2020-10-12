@@ -217,59 +217,6 @@ class ProcessData():
         self.data_disk[file_type] = self.images[file_type].disk
         self.data_memory[file_type] = self.images[file_type].memory
 
-    def export_tiff(self, file_type):
-        """
-        Method to export data files to geotiff format. This step is mainly used as a last part of the processing to
-        generate output files which are readable using GIS programs.
-
-        :param str file_type: Name of the file type that is converted to geotiff
-        :return:
-        """
-
-        file_type = self.check_file_type_exists(file_type)
-        if file_type == False:
-            return False
-
-        # Get geo transform and projection
-        projection, geo_transform = self.coordinates.create_gdal_projection(self)
-
-        # Save data to geotiff (if complex a file with two bands)
-        file_name = self.data_disk_meta[file_type]['file_name'][:-4] + '.tiff'
-        file_path = os.path.join(self.folder, file_name)
-        data_type = self.data_disk_meta[file_type]['data_type']
-        data = ImageData.disk2memory(self.data_disk[file_type], data_type)
-
-        # Create an empty geotiff with the right coordinate system
-        gtiff_type = self.dtype_gdal[data_type]
-        np_type = self.dtype_gdal_numpy[data_type]
-        driver = gdal.GetDriverByName('GTiff')
-
-        # For complex numbers
-        if data_type in ['complex_int', 'complex_short', 'complex_real4']:
-            layers = 2
-        else:
-            layers = 1
-
-        amp_data = driver.Create(file_path, self.coordinates.shape[1], self.coordinates.shape[0], layers,
-                                 gtiff_type, )
-        amp_data.SetGeoTransform(tuple(geo_transform))
-        amp_data.SetProjection(projection.ExportToWkt())
-
-        # Save data to tiff file
-        if data_type in ['complex_int', 'complex_short', 'complex_real4']:
-            print('File converted to amplitude and phase image')
-
-            amp_data.GetRasterBand(1).WriteArray(np.abs(data).astype(np_type))
-            amp_data.FlushCache()
-            amp_data.GetRasterBand(2).WriteArray(np.angle(data).astype(np_type))
-            amp_data.FlushCache()
-        else:
-            amp_data.GetRasterBand(1).WriteArray(np.abs(data).astype(np_type))
-            amp_data.FlushCache()
-
-        print('Saved ' + file_type + ' from ' + self.process_name + ' step of ' +
-              os.path.dirname(self.data_disk_meta[file_type]['path_name']))
-
     # Delegate to process ProcessMeta class describing the
     def update_json(self, save=True, json_path=''):
         self.meta.update_json(save, json_path)

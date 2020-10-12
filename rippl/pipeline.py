@@ -12,10 +12,10 @@ from rippl.meta_data.process import Process
 from rippl.run_parallel import run_parallel
 
 
-class Pipeline():
+class Pipeline(object):
 
 
-    def __init__(self, pixel_no=1000000, processes=1, run_no_datasets=8, block_orientation='lines'):
+    def __init__(self, pixel_no=1000000, processes=1, run_no_datasets=32, block_orientation='lines', tmp_directory='', coreg_tmp_directory=''):
         """
         The pipeline function is used to create pipelines of functions. This serves several purposes:
         1. Results from different functions can be saved to memory, reducing disk input/output
@@ -30,6 +30,10 @@ class Pipeline():
         self.processing_steps = []
         self.save_processsing_steps = []
         self.memory_in_processing_steps = []
+
+        # If disk I/O is an issue we can work with a tmp directory
+        self.tmp_directory = tmp_directory
+        self.coreg_tmp_directory = coreg_tmp_directory
 
         # The processing data that will be processed.
         # This should be defined beforehand otherwise it is not possible to divide it in blocks. The placeholders in
@@ -258,6 +262,8 @@ class Pipeline():
             pipeline['processes'] = []
             pipeline['save_processes'] = []
             pipeline['memory_in'] = []
+            pipeline['tmp_directory'] = self.tmp_directory
+            pipeline['coreg_tmp_directory'] = self.coreg_tmp_directory
 
             save_anything = False
 

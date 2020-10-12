@@ -29,6 +29,7 @@ from rippl.processing_steps.calc_reramp import CalcReramp
 from rippl.processing_steps.correct_phases import CorrectPhases
 from rippl.processing_steps.radar_ray_angles import RadarRayAngles
 from rippl.processing_steps.baseline import Baseline
+from rippl.processing_steps.height_to_phase import HeightToPhase
 from rippl.processing_steps.coherence import Coherence
 from rippl.processing_steps.deramp_resample_radar_grid import DerampResampleRadarGrid
 from rippl.processing_steps.interferogram_multilook import InterferogramMultilook
@@ -509,7 +510,8 @@ class GeneralPipelines():
         coreg_image.create_concatenate_image(process='geocode', file_type='lon', coor=self.radar_coor, transition_type='cut_off', remove_input=False)
         coreg_image.create_concatenate_image(process='radar_ray_angles', file_type='incidence_angle', coor=self.radar_coor, transition_type='cut_off', remove_input=False)
 
-    def geometric_coregistration_resampling(self, polarisation, output_phase_correction=False, block_orientation='lines'):
+    def geometric_coregistration_resampling(self, polarisation, output_phase_correction=False, block_orientation='lines',
+                                            coreg_tmp_directory='', baselines=False, height_to_phase=False):
         """
         Coregistration and resampling based on topography only.
 
@@ -524,7 +526,8 @@ class GeneralPipelines():
         self.reload_stack()
         [slave_slices, coreg_slices] = self.get_data('coreg_slave', slice=True, include_coreg_master=True)
 
-        resampling_pipeline = Pipeline(pixel_no=5000000, processes=self.processes, block_orientation=block_orientation)
+        resampling_pipeline = Pipeline(pixel_no=5000000, processes=self.processes, block_orientation=block_orientation,
+                                       coreg_tmp_directory=coreg_tmp_directory)
         resampling_pipeline.add_processing_data(coreg_slices, 'coreg_master')
         resampling_pipeline.add_processing_data(slave_slices, 'slave')
         resampling_pipeline.add_processing_step(GeometricCoregistration(out_coor=self.radar_coor,
@@ -539,10 +542,20 @@ class GeneralPipelines():
                                                                             polarisation=pol, slave='slave'), False)
             resampling_pipeline.add_processing_step(CorrectPhases(out_coor=self.radar_coor, polarisation=pol, slave='slave'), True)
 
+        if baselines or height_to_phase:
+            if baselines:
+                resampling_pipeline.add_processing_step(
+                    Baseline(out_coor=self.radar_coor, slave='slave', coreg_master='coreg_master'), True)
+            else:
+                resampling_pipeline.add_processing_step(
+                    Baseline(out_coor=self.radar_coor, slave='slave', coreg_master='coreg_master'), False)
+            if height_to_phase:
+                resampling_pipeline.add_processing_step(
+                    HeightToPhase(out_coor=self.radar_coor, slave='slave', coreg_master='coreg_master'), True)
+
         resampling_pipeline()
 
         # Concatenate the images
-
         self.reload_stack()
         slcs = self.get_data('slc', slice=False, concat_meta=True)
 
@@ -579,7 +592,7 @@ class GeneralPipelines():
                              slave='coreg_master', coreg_master='coreg_master'), True)
         create_multilooking_grid()
 
-    def create_interferogram_multilooked(self, polarisation, block_orientation='lines'):
+    def create_interferogram_multilooked(self, polarisation, block_orientation='lines', tmp_directory='', coreg_tmp_directory=''):
         """
         Create the interferograms using a multilooking in a geographic grid.
 
@@ -595,7 +608,8 @@ class GeneralPipelines():
             self.reload_stack()
             [ifgs, masters, slaves, coreg_master] = self.get_data('ifg', slice=False)
 
-            create_multilooked_ifg = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation)
+            create_multilooked_ifg = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation,
+                                              tmp_directory=tmp_directory, coreg_tmp_directory=coreg_tmp_directory)
             create_multilooked_ifg.add_processing_data(coreg_master, 'coreg_master')
             create_multilooked_ifg.add_processing_data(slaves, 'slave')
             create_multilooked_ifg.add_processing_data(masters, 'master')
@@ -605,7 +619,8 @@ class GeneralPipelines():
                                        slave='slave', coreg_master='coreg_master', ifg='ifg', master='master', batch_size=50000000), True, True)
             create_multilooked_ifg()
 
-    def create_calibrated_amplitude_multilooked(self, polarisation, block_orientation='lines'):
+    def create_calibrated_amplitude_multilooked(self, polarisation, block_orientation='lines',
+                                                tmp_directory='', coreg_tmp_directory=''):
         """
         Create a geographic grid for the calibrated amplitude images.
 
@@ -621,7 +636,8 @@ class GeneralPipelines():
             [coreg_slave, coreg_master] = self.get_data('coreg_slave')
 
             # First create the multilooked square amplitudes.
-            create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation)
+            create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation,
+                                              tmp_directory=tmp_directory, coreg_tmp_directory=coreg_tmp_directory)
             create_multilooked_amp.add_processing_data(coreg_master, 'coreg_master')
             create_multilooked_amp.add_processing_data(coreg_slave, 'slave')
             create_multilooked_amp.add_processing_step(
@@ -633,9 +649,10 @@ class GeneralPipelines():
             # Finally do the master image seperately
             amp_multilook = CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
                                                    slave=coreg_master[0], coreg_master=coreg_master[0], batch_size=50000000, no_of_looks=True)
-            amp_multilook()
+            amp_multilook(coreg_tmp_directory=coreg_tmp_directory, tmp_directory=tmp_directory)
 
-    def create_calibrated_amplitude_approx_multilooked(self, polarisation, block_orientation='lines'):
+    def create_calibrated_amplitude_approx_multilooked(self, polarisation, block_orientation='lines',
+                                                       tmp_directory='', coreg_tmp_directory=''):
         """
         Create a geographic grid for the calibrated amplitude images.
 
@@ -658,7 +675,8 @@ class GeneralPipelines():
             self.reload_stack()
             slcs = self.get_data('slc')
             # First create the multilooked square amplitudes.
-            create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation)
+            create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation,
+                                              coreg_tmp_directory=coreg_tmp_directory, tmp_directory=tmp_directory)
             create_multilooked_amp.add_processing_data(slcs, 'slave')
             create_multilooked_amp.add_processing_data(slcs, 'coreg_master')
             create_multilooked_amp.add_processing_step(
@@ -666,7 +684,8 @@ class GeneralPipelines():
                                        slave='slave', resampled=False, batch_size=50000000, no_line_pixel_input=True), True, True)
             create_multilooked_amp()
 
-    def create_coherence_multilooked(self, polarisation, block_orientation='lines'):
+    def create_coherence_multilooked(self, polarisation, block_orientation='lines',
+                                     tmp_directory='', coreg_tmp_directory=''):
         """
         Create the coherence values for the interferogram. Make sure that you created the interferograms first!
 
@@ -682,7 +701,8 @@ class GeneralPipelines():
             self.reload_stack()
             [coreg_slave, coreg_master] = self.get_data('coreg_slave')
 
-            create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation)
+            create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation,
+                                              tmp_directory=tmp_directory, coreg_tmp_directory=coreg_tmp_directory)
             create_multilooked_amp.add_processing_data(coreg_master, 'coreg_master')
             create_multilooked_amp.add_processing_data(coreg_slave, 'slave')
             create_multilooked_amp.add_processing_step(
@@ -730,7 +750,8 @@ class GeneralPipelines():
             create_unwrapped_image.add_processing_step(Unwrap(polarisation=pol, out_coor=self.full_ml_coor, ifg='ifg'), True)
             create_unwrapped_image()
 
-    def create_geometry_mulitlooked(self, dem_folder=None, dem_type=None, dem_buffer=None, dem_rounding=None, lon_resolution=None, block_orientation='lines', baselines=False):
+    def create_geometry_mulitlooked(self, dem_folder=None, dem_type=None, dem_buffer=None, dem_rounding=None, lon_resolution=None, block_orientation='lines',
+                                    baselines=False, height_to_phase=False):
         """
         Create the geometry for a geographic grid used for multilooking
 
@@ -784,8 +805,8 @@ class GeneralPipelines():
         geocode_pipeline.add_processing_step(RadarRayAngles(out_coor=self.full_ml_coor, coreg_master='coreg_master'), True)
         geocode_pipeline()
 
-        # Finally create the baselines for the interograms
-        if baselines:
+        # Finally create the baselines for the slave images.
+        if baselines or height_to_phase:
             self.reload_stack()
             [coreg_slave, coreg_master] = self.get_data('coreg_slave')
 
@@ -793,8 +814,17 @@ class GeneralPipelines():
             create_baselines.add_processing_data(coreg_master, 'coreg_master')
             create_baselines.add_processing_data(coreg_slave, 'slave')
             create_baselines.add_processing_step(
-                Baseline(out_coor=self.full_ml_coor, slave='slave', coreg_master='coreg_master', batch_size=50000000),
-                True, True)
+                GeometricCoregistration(out_coor=self.full_ml_coor, in_coor=self.radar_coor, slave='slave', coreg_master='coreg_master'), False)
+            if baselines:
+                create_baselines.add_processing_step(
+                    Baseline(out_coor=self.full_ml_coor, slave='slave', coreg_master='coreg_master'), True)
+            else:
+                create_baselines.add_processing_step(
+                    Baseline(out_coor=self.full_ml_coor, slave='slave', coreg_master='coreg_master'), False)
+            if height_to_phase:
+                create_baselines.add_processing_step(
+                    HeightToPhase(out_coor=self.full_ml_coor, slave='slave', coreg_master='coreg_master'), True)
+
             create_baselines()
 
     def create_output_tiffs_amplitude(self, tiff_folder=''):
@@ -821,8 +851,8 @@ class GeneralPipelines():
         if not tiff_folder:
             tiff_folder = self.tiff_folder
 
-        geometry_datasets = self.stack.stack_data_iterator(['radar_ray_angles', 'geocode', 'dem'], coordinates=[self.full_ml_coor],
-                                                           process_types=['lat', 'lon', 'incidence_angle', 'dem'])[-1]
+        geometry_datasets = self.stack.stack_data_iterator(['radar_ray_angles', 'geocode', 'dem', 'baseline', 'height_to_phase'], coordinates=[self.full_ml_coor],
+                                                           process_types=['lat', 'lon', 'incidence_angle', 'dem', 'perpendicular_baseline', 'height_to_phase'])[-1]
         coreg_master = self.get_data('coreg_master', slice=False)[0]
         readfile = coreg_master.readfiles['original']
 
