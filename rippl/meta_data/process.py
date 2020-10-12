@@ -70,7 +70,9 @@ class Process():
 
         # Input and output image data. To load from disk to memory and save results
         self.in_images = dict()                              # type: dict(ImageData)
+        self.in_images_types = dict()
         self.out_images = dict()                             # type: dict(ImageData)
+        self.out_images_types = dict()
 
         # Create the process metadata and images. Load the input images too.
         if not overwrite:
@@ -115,7 +117,7 @@ class Process():
         self.ml_in_data = dict()
         self.ml_out_data = dict()
 
-    def __call__(self, memory_in=True):
+    def __call__(self, memory_in=True, tmp_directory='', coreg_tmp_directory=''):
         """
         This function does basically the same as the __call__ function, but assumes that we apply no multiprocessing
         and or pipeline processing. Therefore it includes an extended number of steps:
@@ -136,8 +138,8 @@ class Process():
 
         # Create the input and output info
         self.load_input_info()
-        self.load_input_data_files()
-        self.load_input_data()
+        self.load_input_data_files(tmp_directory=tmp_directory, coreg_tmp_directory=coreg_tmp_directory)
+        self.load_input_data(tmp_directory=tmp_directory, coreg_tmp_directory=coreg_tmp_directory)
         self.create_output_data_files()
         self.create_memory()
         self.process_calculations()
@@ -621,10 +623,11 @@ class Process():
             else:
                 self.process_data.add_input_image(image_data, name)
                 self.in_images[name] = image_data
+                self.in_images_types[name] = image_type
 
         return True
 
-    def load_input_data(self):
+    def load_input_data(self, tmp_directory='', coreg_tmp_directory=''):
         """
         Here we actually load the needed input data. The images should already be loaded
 
@@ -635,29 +638,38 @@ class Process():
             return
 
         # We first load the output data grids. Because they can contain information for loading the input grids.
-        self.load_out_coor_input_data()
-        self.load_in_coor_input_data()
+        self.load_out_coor_input_data(tmp_directory=tmp_directory, coreg_tmp_directory=coreg_tmp_directory)
+        self.load_in_coor_input_data(tmp_directory=tmp_directory, coreg_tmp_directory=coreg_tmp_directory)
 
-    def load_input_data_files(self):
+    def load_input_data_files(self, tmp_directory='', coreg_tmp_directory=''):
         """
         Load needed input data files as memmap (Only needed for multilooking processes.
         """
 
+        if not coreg_tmp_directory:
+            coreg_tmp_directory = tmp_directory
+
         file_types = list(self.in_images.keys())
 
         for file_type in file_types:
-            load_input = self.in_images[file_type].load_disk_data()
+            if self.in_images_types[file_type] == 'coreg_master':
+                load_input = self.in_images[file_type].load_disk_data(coreg_tmp_directory)
+            else:
+                load_input = self.in_images[file_type].load_disk_data(tmp_directory)
             if not load_input:
                 raise FileNotFoundError('Data on disk not found.')
 
         # If all files are succesfully loaded.
         return True
 
-    def load_in_coor_input_data(self):
+    def load_in_coor_input_data(self, tmp_directory='', coreg_tmp_directory=''):
         """
         This function is used to load the input data of a function with the input coordinate system.
 
         """
+
+        if not coreg_tmp_directory:
+            coreg_tmp_directory = tmp_directory
 
         if not self.blocks:
             s_lin = 0
@@ -730,16 +742,22 @@ class Process():
 
         keys = [key for key, input_type in zip(self.in_images.keys(), self.input_info['coor_types']) if input_type == 'in_coor']
         for key in keys:
-            success = self.in_images[key].load_memory_data(shape, s_lin, s_pix)
+            if self.in_images_types[key] == 'coreg_master':
+                success = self.in_images[key].load_memory_data(shape, s_lin, s_pix, tmp_directory=coreg_tmp_directory)
+            else:
+                success = self.in_images[key].load_memory_data(shape, s_lin, s_pix, tmp_directory=tmp_directory)
             if not success:
                 raise ValueError('Input data ' + key + ' for ' + self.process_name + ' from image ' +
                                  self.in_images[key].folder + ' cannot be loaded.')
 
-    def load_out_coor_input_data(self):
+    def load_out_coor_input_data(self, tmp_directory='', coreg_tmp_directory=''):
         """
         This function is used to load the input data of a function with the output coordinate system.
 
         """
+
+        if not coreg_tmp_directory:
+            coreg_tmp_directory = tmp_directory
 
         if not self.blocks:
             s_lin = 0
@@ -754,7 +772,10 @@ class Process():
         keys = [key for key, input_type in zip(self.in_images.keys(), self.input_info['coor_types']) if
                 input_type == 'out_coor']
         for key in keys:
-            success = self.in_images[key].load_memory_data(shape, s_lin, s_pix)
+            if self.in_images_types[key] == 'coreg_master':
+                success = self.in_images[key].load_memory_data(shape, s_lin, s_pix, tmp_directory=coreg_tmp_directory)
+            else:
+                success = self.in_images[key].load_memory_data(shape, s_lin, s_pix, tmp_directory=tmp_directory)
             if not success:
                 raise ValueError('Input data ' + key + ' for ' + self.process_name + ' from image ' +
                                  self.in_images[key].folder + ' cannot be loaded.')

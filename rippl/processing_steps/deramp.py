@@ -202,7 +202,7 @@ class Deramp(Process):  # Change this name to the one of your processing step.
         alpha_nom = []
 
         # Reference time
-        az_dc = -(df_az_ctr / k_fm)  + (f_dc_ref_0 / k_fm_0)
+        az_dc = -(df_az_ctr / k_fm) + (f_dc_ref_0 / k_fm_0)
         k_fm = []
         k_fm_0 = []
         t_az_vec = az_time_grid - az_dc

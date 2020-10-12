@@ -20,7 +20,7 @@ from rippl.resampling.grid_transforms import GridTransforms
 # noinspection PyUnboundLocalVariable
 class MultilookProcess(Process):  # Change this name to the one of your processing step.
 
-    def __call__(self, memory_in=True):
+    def __call__(self, memory_in=True, tmp_directory='', coreg_tmp_directory=''):
         """
         This function does basically the same as the __call__ function, but assumes that we apply no multiprocessing
         and or pipeline processing. Therefore it includes an extended number of steps:
@@ -42,7 +42,7 @@ class MultilookProcess(Process):  # Change this name to the one of your processi
         # Create the input and output info
         self.load_input_info()
 
-        self.load_input_data_files()
+        self.load_input_data_files(tmp_directory=tmp_directory, coreg_tmp_directory=coreg_tmp_directory)
         self.create_output_data_files()
         self.create_memory()
         self.multilook_calculations()

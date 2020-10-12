@@ -15,20 +15,14 @@ from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
 
 class HeightToPhase(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='',
-                 in_coor=[], radar_coor=[],
-                 in_image_types=[], in_processes=[], in_file_types=[],
-                 in_data_ids=[],
-                 slave='slave', coreg_master='coreg_master', overwrite=False):
+    def __init__(self, data_id='', out_coor=[], slave='slave', coreg_master='coreg_master', overwrite=False):
 
         """
-
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
                     the same process.
 
-        :param CoordinateSystem in_coor: Coordinate system of the input grids.
+        :param CoordinateSystem out_coor: Coordinate system of the input grids.
 
-        :param list[str] in_image_types: The type of the input ImageProcessingData objects (e.g. slave/master/ifg etc.)
         :param list[str] in_processes: Which process outputs are we using as an input
         :param list[str] in_file_types: What are the exact outputs we use from these processes
         :param list[str] in_data_ids: If processes are used multiple times in different parts of the processing they can be
@@ -38,71 +32,60 @@ class HeightToPhase(Process):  # Change this name to the one of your processing 
         :param ImageProcessingData coreg_master: Image used to coregister the slave image for resampline etc.
         """
 
-        """
-        First define the name and output types of this processing step.
-        1. process_name > name of process
-        2. file_types > name of process types that will be given as output
-        3. data_types > names 
-        """
+        # Output data information
+        self.output_info = dict()
+        self.output_info['process_name'] = 'height_to_phase'
+        self.output_info['image_type'] = 'slave'
+        self.output_info['polarisation'] = ''
+        self.output_info['data_id'] = data_id
+        self.output_info['coor_type'] = 'out_coor'
+        self.output_info['file_types'] = ['height_to_phase']
+        self.output_info['data_types'] = ['real4']
 
-        self.process_name = 'height_to_phase'
-        file_types = ['height_to_phase']
-        data_types = ['real4']
+        # Input data information
+        self.input_info = dict()
+        self.input_info['image_types'] = ['coreg_master', 'slave']
+        self.input_info['process_types'] = ['radar_ray_angles', 'baseline']
+        self.input_info['file_types'] = ['incidence_angle', 'perpendicular_baseline']
+        self.input_info['polarisations'] = ['', '']
+        self.input_info['data_ids'] = [data_id, data_id]
+        self.input_info['coor_types'] = ['out_coor', 'out_coor']
+        self.input_info['in_coor_types'] = ['', '']
+        self.input_info['type_names'] = ['incidence', 'baseline']
 
-        if radar_coor:
-            if isinstance(radar_coor, CoordinateSystem):
-                self.radar_coor = radar_coor
-            else:
-                raise TypeError('If a radar coordinate system is defined it should be an CoordinateSystem object')
+        if out_coor.grid_type != 'radar_coordinates':
+            self.input_info['image_types'].extend(['coreg_master', 'coreg_master', 'coreg_master'])
+            self.input_info['process_types'].extend(['geocode', 'geocode', 'geocode'])
+            self.input_info['file_types'].extend(['X', 'Y', 'Z'])
+            self.input_info['polarisations'].extend(['', '', ''])
+            self.input_info['data_ids'].extend([data_id, data_id, data_id])
+            self.input_info['coor_types'].extend(['out_coor', 'out_coor', 'out_coor'])
+            self.input_info['in_coor_types'].extend(['', '', ''])
+            self.input_info['type_names'].extend(['X', 'Y', 'Z'])
 
-        """
-        Then give the default input steps for the processing. The given input values will be overridden when other input
-        values are given.
-        """
+        # Coordinate systems
+        self.coordinate_systems = dict()
+        self.coordinate_systems['out_coor'] = out_coor
 
-        if in_coor.grid_type == 'radar_coordinates':
-            if len(in_image_types) == 0:
-                in_image_types = ['coreg_master', 'coreg_master']
-            in_coor_types = ['out_coor', 'out_coor']  # Same here but then for the out_coor and coordinate_systems
-            if len(in_data_ids) == 0:
-                in_data_ids = ['', '']
-            in_polarisations = ['none', 'none']
-            if len(in_processes) == 0:
-                in_processes = ['baseline', 'radar_ray_angles']
-            if len(in_file_types) == 0:
-                in_file_types = ['perpendicular_baseline', 'incidence_angle']
+        # image data processing
+        self.processing_images = dict()
+        self.processing_images['slave'] = slave
+        self.processing_images['coreg_master'] = coreg_master
 
-            in_type_names = ['baseline', 'incidence_angle']
-        else:
-            if len(in_image_types) == 0:
-                in_image_types = ['coreg_master', 'coreg_master', 'coreg_master', 'coreg_master', 'coreg_master']
-            in_coor_types = ['out_coor', 'out_coor', 'out_coor']  # Same here but then for the out_coor and coordinate_systems
-            if len(in_data_ids) == 0:
-                in_data_ids = ['', '', '', '', '']
-            in_polarisations = ['none', 'none', 'none', 'none', 'none']
-            if len(in_processes) == 0:
-                in_processes = ['baseline', 'radar_ray_angles', 'geocode', 'geocode', 'geocode']
-            if len(in_file_types) == 0:
-                in_file_types = ['perpendicular_baseline', 'incidence_angle', 'X', 'Y', 'Z']
+        # Finally define whether we overwrite or not
+        self.overwrite = overwrite
+        self.settings = dict()
 
-            in_type_names = ['baseline', 'incidence_angle', 'X', 'Y', 'Z']
+    def init_super(self):
 
+        self.load_coordinate_system_sizes()
         super(HeightToPhase, self).__init__(
-            process_name=self.process_name,
-            data_id=data_id,
-            file_types=file_types,
-            process_dtypes=data_types,
-            in_coor=in_coor,
-            in_coor_types=in_coor_types,
-            in_type_names=in_type_names,
-            in_image_types=in_image_types,
-            in_processes=in_processes,
-            in_file_types=in_file_types,
-            in_polarisations=in_polarisations,
-            in_data_ids=in_data_ids,
-            slave=slave,
-            coreg_master=coreg_master,
-            overwrite=overwrite)
+            input_info=self.input_info,
+            output_info=self.output_info,
+            coordinate_systems=self.coordinate_systems,
+            processing_images=self.processing_images,
+            overwrite=self.overwrite,
+            settings=self.settings)
 
     def process_calculations(self):
         """
@@ -116,20 +99,30 @@ class HeightToPhase(Process):  # Change this name to the one of your processing 
         :return:
         """
 
+        readfile_slave = self.processing_images['slave'].readfiles['original']
+        wavelength = readfile_slave.wavelength
         sol = 299792458
 
-        if self.coordinate_systems['in_coor'].grid_type == 'radar_coordinates':
+        if self.coordinate_systems['in_block_coor'].grid_type == 'radar_coordinates':
 
-            self.coordinate_systems['in_coor'].create_radar_lines()
-            R = (self.coordinate_systems['in_coor'].ra_time + self.coordinate_systems['in_coor'].interval_pixels * self.coordinate_systems['in_coor'].ra_step) / 2 * sol
+            coordinates = self.coordinate_systems['in_block_coor']
+            coordinates.create_radar_lines()
+            R = (coordinates.ra_time + coordinates.interval_pixels * coordinates.ra_step) * sol
 
-            self['height_to_phase'] = self['baseline'] / (R[None, :] * np.sin(self['incidence'] / 180 * np.pi))
+            self['height_to_phase'] = self['baseline'] / (R[None, :] * np.sin(np.deg2rad(self['incidence'])))
 
         else:
+            orbit_slave = self.processing_images['slave'].find_best_orbit('original')
+
+            # Now initialize the orbit estimation.
+            coordinates = CoordinateSystem()
+            coordinates.create_radar_coordinates()
+            coordinates.load_readfile(readfile=readfile_slave)
+
             xyz = np.vstack((np.ravel(self['X'])[None, :], np.ravel(self['Y'])[None, :], np.ravel(self['Z'])[None, :]))
-            orbit_coordinates = OrbitCoordinates(self.radar_coor)
+            orbit_coordinates = OrbitCoordinates(coordinates=coordinates, orbit=orbit_slave)
             lines, pixels = orbit_coordinates.xyz2lp(xyz)
 
-            R = (self.radar_coor.ra_time + np.reshape(pixels, self.block_coor.shape) * self.radar_coor.ra_step) / 2 * sol
+            R = (coordinates.ra_time + np.reshape(pixels, self.block_coor.shape) * coordinates.ra_step) * sol
 
-            self['height_to_phase'] = self['baseline'] / (R * np.sin(self['incidence'] / 180 * np.pi))
+            self['height_to_phase'] = self['baseline'] / (R * np.sin(np.deg2rad(self['incidence'])))

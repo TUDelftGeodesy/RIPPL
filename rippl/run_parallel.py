@@ -41,12 +41,12 @@ def run_parallel(dat):
             # Only load or create files in memory if it is a normal Process type. Multilooking always works from disk.
             if not isinstance(process, MultilookProcess):
                 # Start with loading the inputs. If they are already loaded in memory then this step is not needed.
-                process.load_input_data()
+                process.load_input_data(tmp_directory=dat['tmp_directory'], coreg_tmp_directory=dat['coreg_tmp_directory'])
                 # Then create the output memory files to write the output data
                 process.create_memory()
             else:
                 # Load the input memory mapped files
-                process.load_input_data_files()
+                process.load_input_data_files(tmp_directory=dat['tmp_directory'], coreg_tmp_directory=dat['coreg_tmp_directory'])
 
             # Print processing
             dat['pixels'] = np.minimum(dat['pixels'], dat['total_pixels'] - dat['s_pix'])

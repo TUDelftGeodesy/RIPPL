@@ -46,14 +46,14 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
 
         # Input data information
         self.input_info = dict()
-        self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master', 'slave']
-        self.input_info['process_types'] = ['geocode', 'geocode', 'geocode', 'crop']
-        self.input_info['file_types'] = ['X', 'Y', 'Z', 'crop']
-        self.input_info['polarisations'] = ['', '', '', '']
-        self.input_info['data_ids'] = [data_id, data_id, data_id, '']
-        self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor', 'in_coor']
-        self.input_info['in_coor_types'] = ['', '', '', '']
-        self.input_info['type_names'] = ['X_coreg', 'Y_coreg', 'Z_coreg', 'in_coor_grid']
+        self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master']
+        self.input_info['process_types'] = ['geocode', 'geocode', 'geocode']
+        self.input_info['file_types'] = ['X', 'Y', 'Z']
+        self.input_info['polarisations'] = ['', '', '']
+        self.input_info['data_ids'] = [data_id, data_id, data_id]
+        self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor']
+        self.input_info['in_coor_types'] = ['', '', '']
+        self.input_info['type_names'] = ['X_coreg', 'Y_coreg', 'Z_coreg']
 
         # Coordinate systems
         self.coordinate_systems = dict()
@@ -89,10 +89,13 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
 
         # Get the orbits
         orbit_slave = self.processing_images['slave'].find_best_orbit('original')
-        orbit_coreg_master = self.processing_images['coreg_master'].find_best_orbit('original')
+        readfile_slave = self.processing_images['slave'].readfiles['original']
 
         # Now initialize the orbit estimation.
-        orbit_interp = OrbitCoordinates(coordinates=self.coordinate_systems['in_coor'], orbit=orbit_slave)
+        coordinates = CoordinateSystem()
+        coordinates.create_radar_coordinates()
+        coordinates.load_readfile(readfile=readfile_slave)
+        orbit_interp = OrbitCoordinates(coordinates=coordinates, orbit=orbit_slave)
         xyz = np.vstack((np.ravel(self['X_coreg'])[None, :], np.ravel(self['Y_coreg'])[None, :], np.ravel(self['Z_coreg'])[None, :]))
         lines, pixels = orbit_interp.xyz2lp(xyz)
 

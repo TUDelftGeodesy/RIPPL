@@ -6,9 +6,11 @@ Class to read and write image data from and to memory.
 
 import numpy as np
 import gdal
+import shutil
 from collections import OrderedDict
 import os
 from rippl.user_settings import UserSettings
+import time
 
 
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
@@ -143,11 +145,10 @@ class ImageData():
         if self.check_data_disk_valid()[1] and not overwrite:
             return False
 
-        meta = self.json_dict
         self.disk['data'] = np.memmap(self.file_path, mode='w+', dtype=self.dtype_disk[self.dtype], shape=tuple(self.shape))
         return True
 
-    def load_disk_data(self):
+    def load_disk_data(self, tmp_directory=''):
         """
         Load the data from disk as a memmap file.
 
@@ -158,8 +159,35 @@ class ImageData():
         if not self.check_data_disk_valid()[1]:
             return False
 
-        meta = self.json_dict
-        self.disk['data'] = np.memmap(self.file_path, mode='r+', dtype=self.dtype_disk[self.dtype], shape=tuple(self.shape))
+        if tmp_directory:
+            if os.name == 'nt':
+                tmp_file = self.file_path.replace('\\', '_')
+            else:
+                tmp_file = self.file_path.replace('/', '_')
+            if not os.path.exists(tmp_directory):
+                raise FileExistsError('Temp directory ' + tmp_directory + ' does not exist. Aborting...')
+            tmp_path = os.path.join(tmp_directory, tmp_file)
+            tmp_tmp_path = os.path.join(tmp_directory, tmp_file + '.temporary')
+
+            if not os.path.exists(tmp_path) and not os.path.exists(tmp_tmp_path):
+                shutil.copyfile(self.file_path, tmp_tmp_path)
+                print('Copying ' + self.file_path + ' to temporary storage ' + tmp_path)
+                os.rename(tmp_tmp_path, tmp_path)
+
+            n = 0
+            while n < 12:
+                if os.path.exists(tmp_path):
+                    # In this case the tmp_tmp_path did exist, so the file is actually being copied.
+                    self.disk['data'] = np.memmap(tmp_path, mode='r+', dtype=self.dtype_disk[self.dtype], shape=tuple(self.shape))
+                    break
+                else:
+                    print('File ' + tmp_path + ' is not readable. Likely because it is being copied. Trying again in 10 seconds')
+                    n += 1
+                    time.sleep(10)
+            else:
+                raise FileExistsError('File ' + tmp_path + ' is not readable!')
+        else:
+            self.disk['data'] = np.memmap(self.file_path, mode='r+', dtype=self.dtype_disk[self.dtype], shape=tuple(self.shape))
         return True
 
     def remove_disk_data_memmap(self):
@@ -218,7 +246,7 @@ class ImageData():
         self.memory['meta']['s_pix'] = s_pix
         self.memory['meta']['shape'] = data.shape
 
-    def load_memory_data(self, shape=[], s_lin=0, s_pix=0):
+    def load_memory_data(self, shape=[], s_lin=0, s_pix=0, tmp_directory=''):
         """
         This function uses the following steps:
         1. Check if this file type exists > if not return error
@@ -247,7 +275,7 @@ class ImageData():
         if self.subset_memory_data(shape=shape, s_lin=s_lin, s_pix=s_pix):
             return True
         # Try to load from disk. As a last step.
-        if self.load_memory_data_from_disk(shape=shape, s_lin=s_lin, s_pix=s_pix):
+        if self.load_memory_data_from_disk(shape=shape, s_lin=s_lin, s_pix=s_pix, tmp_directory=tmp_directory):
             return True
         else:
             return False
@@ -272,7 +300,7 @@ class ImageData():
 
         return True
 
-    def load_memory_data_from_disk(self, shape, s_lin=0, s_pix=0):
+    def load_memory_data_from_disk(self, shape, s_lin=0, s_pix=0, tmp_directory=''):
         # Load data from data on disk. This can be slice used for multiprocessing.
 
         # Check if the datasets are overlapping
@@ -281,7 +309,7 @@ class ImageData():
 
         # Load data as memmap file
         if len(self.disk['data']) == 0:
-            self.load_disk_data()
+            self.load_disk_data(tmp_directory)
 
         # Get the data from disk
         disk_data = self.disk2memory(self.disk['data'][s_lin:s_lin + shape[0], s_pix:s_pix + shape[1]], self.json_dict['dtype'])
@@ -294,7 +322,7 @@ class ImageData():
 
         return True
 
-    def save_memory_data_to_disk(self):
+    def save_memory_data_to_disk(self, tmp_directory=''):
         # Save data to disk from memory
 
         # Check if a memory file is loaded

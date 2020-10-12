@@ -188,6 +188,9 @@ class SentinelStack(SentinelDatabase, Stack):
             self.master_slice_seconds = [seconds + 86400 for seconds in self.master_slice_seconds if seconds < 7200]
             self.slice_seconds = [seconds + 86400 for seconds in self.slice_seconds if seconds < 7200]
 
+        if len(self.master_slice_seconds) == 0:
+            raise FileNotFoundError('No master date images found. Check if you selected a valid master date! Aborting..')
+
         if np.mean(self.master_slice_seconds) > 86400:
             adjust_type = 'high'
         elif np.mean(self.master_slice_seconds) <= 86400:
