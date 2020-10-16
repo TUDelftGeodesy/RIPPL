@@ -1,4 +1,7 @@
+
+
 # Import script to embed geolocation.
+from IPython.display import HTML
 import datetime
 import sys
 import shutil
@@ -7,8 +10,8 @@ import os
 
 sys.path.extend(['/Users/gertmulder/software/rippl_main'])
 import getopt
-import argparse
 import rippl
+import argparse
 
 from rippl.orbit_geometry.read_write_shapes import ReadWriteShapes
 from rippl.SAR_sensors.sentinel.sentinel_download import DownloadSentinel
@@ -20,6 +23,11 @@ if __name__ == '__main__':
     parser.add_argument("-s", "--start_date", help="Start date of processing yyyymmdd")
     parser.add_argument("-e", "--end_date", help="End date of processing yyyymmdd")
     parser.add_argument("-c", "--cores", help="Number of cores processing")
+    parser.add_argument("-t", "--temp", help="Temp directory location", default='')
+    parser.add_argument("-r", "--resampling_temp",
+                        help="Temp directory used for master image coordinates for resampling", default='')
+    parser.add_argument("-m", "--multilooking_temp",
+                        help="Temp directory used for master image coordinates for multilooking", default='')
 
     args = parser.parse_args()
     start_date = datetime.datetime.strptime(args.start_date, '%Y%m%d')
@@ -28,6 +36,22 @@ if __name__ == '__main__':
     print('start date is ' + str(end_date.date()))
     no_processes = int(args.cores)
     print('running code with ' + str(no_processes) + ' cores.')
+
+    # Define temporary directories
+    tmp_directory = args.temp
+    resampling_tmp_directory = args.resampling_temp
+    if resampling_tmp_directory == '':
+        resampling_tmp_directory = tmp_directory
+    ml_grid_tmp_directory = args.multilooking_temp
+    if ml_grid_tmp_directory == '':
+        ml_grid_tmp_directory = tmp_directory
+
+    if not os.path.exists(tmp_directory):
+        os.mkdir(tmp_directory)
+    if not os.path.exists(resampling_tmp_directory):
+        os.mkdir(resampling_tmp_directory)
+    if not os.path.exists(ml_grid_tmp_directory):
+        os.mkdir(ml_grid_tmp_directory)
 
     Benelux_shape = [[7.218017578125001, 53.27178347923819],
                      [7.00927734375, 53.45534913802113],
@@ -92,16 +116,7 @@ if __name__ == '__main__':
 
     # Create the list of the 4 different stacks.
     track_no = 37
-    stack_name = 'Benelux_track_37'
-    tmp_directory = '/tmp/gertmulder'
-    if not os.path.exists(tmp_directory):
-        os.mkdir(tmp_directory)
-    coreg_tmp_directory = '/tmp/gertmulder'
-    if not os.path.exists(coreg_tmp_directory):
-        os.mkdir(coreg_tmp_directory)
-    ml_grid_tmp_directory = '/dev/shm/gertmulder'
-    if not os.path.exists(ml_grid_tmp_directory):
-        os.mkdir(ml_grid_tmp_directory)
+    stack_name = 'France_old_data'
 
     # For every track we have to select a master date. This is based on the search results earlier.
     # Choose the date with the lowest coverage to create an image with only the overlapping parts.
@@ -114,10 +129,11 @@ if __name__ == '__main__':
     # no_processes = 4
 
     s1_processing = GeneralPipelines(processes=no_processes)
-    s1_processing.create_sentinel_stack(start_date=start_date, end_date=end_date, master_date=master_date,
-                                        cores=no_processes,
-                                        track=track_no, stack_name=stack_name, polarisation=polarisation,
-                                        shapefile=study_area.shape, mode=mode, product_type=product_type)
+    # s1_processing.download_sentinel_data(start_date=start_date, end_date=end_date, track=track_no,
+    #                                           polarisation=polarisation, shapefile=study_area.shape, data=True, source='ASF')
+    # s1_processing.create_sentinel_stack(start_date=start_date, end_date=end_date, master_date=master_date, cores=no_processes,
+    #                                          track=track_no,stack_name=stack_name, polarisation=polarisation,
+    #                                          shapefile=study_area.shape, mode=mode, product_type=product_type)
 
     # Finally load the stack itself. If you want to skip the download step later, run this line before other steps!
     s1_processing.read_stack(start_date=start_date, end_date=end_date, stack_name=stack_name)
@@ -181,11 +197,11 @@ if __name__ == '__main__':
     # Because with the geometric coregistrtation we load the X,Y,Z files of the main image for every calculation it can
     # be beneficial to load them to a fast temporary disk. (If enough space you should load them to memory disk)
     s1_processing.geometric_coregistration_resampling(polarisation=polarisation, output_phase_correction=True,
-                                                      coreg_tmp_directory=coreg_tmp_directory,
+                                                      coreg_tmp_directory=resampling_tmp_directory,
                                                       tmp_directory=tmp_directory, baselines=False,
                                                       height_to_phase=True)
-    shutil.rmtree(coreg_tmp_directory)
-    os.mkdir(coreg_tmp_directory)
+    shutil.rmtree(resampling_tmp_directory)
+    os.mkdir(resampling_tmp_directory)
     shutil.rmtree(tmp_directory)
     os.mkdir(tmp_directory)
 
@@ -231,12 +247,13 @@ if __name__ == '__main__':
                                                     rounding=0)
                 s1_processing.prepare_multilooking_grid(polarisation)
                 s1_processing.create_calibrated_amplitude_multilooked(polarisation,
-                                                                      coreg_tmp_directory=coreg_tmp_directory,
+                                                                      coreg_tmp_directory=resampling_tmp_directory,
                                                                       tmp_directory=tmp_directory)
                 s1_processing.create_output_tiffs_amplitude()
 
                 s1_processing.create_ifg_network(temporal_baseline=temporal_baseline)
-                s1_processing.create_interferogram_multilooked(polarisation, coreg_tmp_directory=ml_grid_tmp_directory,
+                s1_processing.create_interferogram_multilooked(polarisation,
+                                                               coreg_tmp_directory=ml_grid_tmp_directory,
                                                                tmp_directory=tmp_directory)
                 s1_processing.create_coherence_multilooked(polarisation, coreg_tmp_directory=ml_grid_tmp_directory,
                                                            tmp_directory=tmp_directory)
@@ -249,14 +266,14 @@ if __name__ == '__main__':
                 s1_processing.create_output_tiffs_geometry()
 
                 # Do unwrapping
-                if dx in [500, 1000, 2000]:
+                if dx in [200, 500, 1000, 2000]:
                     s1_processing.create_unwrapped_images(polarisation)
                     s1_processing.create_output_tiffs_unwrap()
 
                 # The coreg temp directory will only contain the loaded input lines/pixels to do the multilooking. These
                 # files will be called by every process so it can be usefull to load them in memory the whole time.
                 # If not given, these files will be loaded in the regular tmp folder.
-                if coreg_tmp_directory:
+                if resampling_tmp_directory:
                     if os.path.exists(ml_grid_tmp_directory):
                         shutil.rmtree(ml_grid_tmp_directory)
                         os.mkdir(ml_grid_tmp_directory)
@@ -266,12 +283,13 @@ if __name__ == '__main__':
                 s1_processing.create_ml_coordinates(standard_type='UTM', dx=dx, dy=dy, buffer=0, rounding=0)
                 s1_processing.prepare_multilooking_grid(polarisation)
                 s1_processing.create_calibrated_amplitude_multilooked(polarisation,
-                                                                      coreg_tmp_directory=coreg_tmp_directory,
+                                                                      coreg_tmp_directory=resampling_tmp_directory,
                                                                       tmp_directory=tmp_directory)
                 s1_processing.create_output_tiffs_amplitude()
 
                 s1_processing.create_ifg_network(temporal_baseline=temporal_baseline)
-                s1_processing.create_interferogram_multilooked(polarisation, coreg_tmp_directory=ml_grid_tmp_directory,
+                s1_processing.create_interferogram_multilooked(polarisation,
+                                                               coreg_tmp_directory=ml_grid_tmp_directory,
                                                                tmp_directory=tmp_directory)
                 s1_processing.create_coherence_multilooked(polarisation, coreg_tmp_directory=ml_grid_tmp_directory,
                                                            tmp_directory=tmp_directory)
@@ -284,29 +302,32 @@ if __name__ == '__main__':
                 s1_processing.create_output_tiffs_geometry()
 
                 # Do unwrapping
-                if dx in [500, 1000, 2000]:
+                if dx in [200, 500, 1000, 2000]:
                     s1_processing.create_unwrapped_images(polarisation)
                     s1_processing.create_output_tiffs_unwrap()
 
                 # The coreg temp directory will only contain the loaded input lines/pixels to do the multilooking. These
                 # files will be called by every process so it can be usefull to load them in memory the whole time.
                 # If not given, these files will be loaded in the regular tmp folder.
-                if coreg_tmp_directory:
+                if resampling_tmp_directory:
                     if os.path.exists(ml_grid_tmp_directory):
                         shutil.rmtree(ml_grid_tmp_directory)
                         os.mkdir(ml_grid_tmp_directory)
 
-            for dlat, dlon in zip([0.0005, 0.001, 0.002, 0.005, 0.01, 0.02], [0.0005, 0.001, 0.002, 0.005, 0.01, 0.02]):
+            for dlat, dlon in zip([0.0005, 0.001, 0.002, 0.005, 0.01, 0.02],
+                                  [0.0005, 0.001, 0.002, 0.005, 0.01, 0.02]):
                 # The actual creation of the calibrated amplitude images
-                s1_processing.create_ml_coordinates(dlat=dlat, dlon=dlon, coor_type='geographic', buffer=0, rounding=0)
+                s1_processing.create_ml_coordinates(dlat=dlat, dlon=dlon, coor_type='geographic', buffer=0,
+                                                    rounding=0)
                 s1_processing.prepare_multilooking_grid(polarisation)
                 s1_processing.create_calibrated_amplitude_multilooked(polarisation,
-                                                                      coreg_tmp_directory=coreg_tmp_directory,
+                                                                      coreg_tmp_directory=resampling_tmp_directory,
                                                                       tmp_directory=tmp_directory)
                 s1_processing.create_output_tiffs_amplitude()
 
                 s1_processing.create_ifg_network(temporal_baseline=temporal_baseline)
-                s1_processing.create_interferogram_multilooked(polarisation, coreg_tmp_directory=ml_grid_tmp_directory,
+                s1_processing.create_interferogram_multilooked(polarisation,
+                                                               coreg_tmp_directory=ml_grid_tmp_directory,
                                                                tmp_directory=tmp_directory)
                 s1_processing.create_coherence_multilooked(polarisation, coreg_tmp_directory=ml_grid_tmp_directory,
                                                            tmp_directory=tmp_directory)
@@ -318,14 +339,14 @@ if __name__ == '__main__':
                 s1_processing.create_geometry_mulitlooked(baselines=True, height_to_phase=True)
                 s1_processing.create_output_tiffs_geometry()
 
-                if dlat in [0.005, 0.01, 0.02]:
+                if dlat in [0.002, 0.005, 0.01, 0.02]:
                     s1_processing.create_unwrapped_images(polarisation)
                     s1_processing.create_output_tiffs_unwrap()
 
                 # The coreg temp directory will only contain the loaded input lines/pixels to do the multilooking. These
                 # files will be called by every process so it can be usefull to load them in memory the whole time.
                 # If not given, these files will be loaded in the regular tmp folder.
-                if coreg_tmp_directory:
+                if resampling_tmp_directory:
                     if os.path.exists(ml_grid_tmp_directory):
                         shutil.rmtree(ml_grid_tmp_directory)
                         os.mkdir(ml_grid_tmp_directory)

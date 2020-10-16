@@ -90,7 +90,6 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
         pixels = str(shape[1])
 
         unwrap_name = 'unwrapped' + coh_file_name[len('coherence'):][:-4]
-        out_file = os.path.join(folder, unwrap_name + '.data')
         conf_file = os.path.join(folder, unwrap_name + '.conf')
 
         with open(conf_file, 'w+') as c:
@@ -100,9 +99,9 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
             # Add coherence file
             c.write('CORRFILE ' + os.path.join(folder, coh_file_name) + '\n')
             c.write('CORRFILEFORMAT		FLOAT_DATA\n')
-            c.write('OUTFILE ' + os.path.join(folder, out_file) + '\n')
+            c.write('OUTFILE ' + os.path.join(folder, unwrap_name + '.data') + '\n')
             c.write('OUTFILEFORMAT		FLOAT_DATA\n')
-            c.write('LOGFILE ' + unwrap_name + '.log' + '\n')
+            c.write('LOGFILE ' + os.path.join(folder, unwrap_name + '.log') + '\n')
             c.write('STATCOSTMODE SMOOTH')
 
         settings = UserSettings()
@@ -112,5 +111,5 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
         print(command)
         os.system(command)
 
-        unwrap_data = np.memmap(os.path.join(folder, out_file), np.float32, 'r', shape=shape)
+        unwrap_data = np.memmap(os.path.join(folder, os.path.join(folder, unwrap_name + '.data')), np.float32, 'r', shape=shape)
         self['unwrapped'] = unwrap_data[:, :]
