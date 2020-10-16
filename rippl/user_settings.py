@@ -350,7 +350,7 @@ class UserSettings(object):
         self.DEM_database = ' '.join(settings_dict.get('DEM_database', 'None None').split()[1:])
         self.NWP_model_database = ' '.join(settings_dict.get('NWP_model_database', 'None None').split()[1:])
         self.GIS_database = ' '.join(settings_dict.get('GIS_database', 'None None').split()[1:])
-        self.snaphu_path = ' '.join(settings_dict.get('snaphu_path', 'None None').split()[1:])
+        self.snaphu_path = ' '.join(settings_dict.get('Snaphu_path', 'None None').split()[1:])
         self.radar_data_products = ' '.join(settings_dict.get('radar_data_products', 'None None').split()[1:])
 
         # Get passwords

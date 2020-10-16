@@ -7,6 +7,7 @@ import os
 
 sys.path.extend(['/Users/gertmulder/software/rippl_main'])
 import getopt
+import argparse
 import rippl
 
 from rippl.orbit_geometry.read_write_shapes import ReadWriteShapes
@@ -15,22 +16,18 @@ from rippl.processing_templates.general_sentinel_1 import GeneralPipelines
 
 if __name__ == '__main__':
     # First we read the input start and end date for the processing
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "s:e:c:", ["start_date=", "end_date=", "cores="])
-    except getopt.GetoptError:
-        print(
-            'missing input dates for processing -s <start_date (yyyymmdd)> -e <end_date (yyyymmdd)> -c <number_of_cores>')
-        sys.exit(2)
-    for opt, arg in opts:
-        if opt in ("-s", "--start_date"):
-            start_date = datetime.datetime.strptime(arg, '%Y%m%d')
-            print('start date is ' + str(start_date.date()))
-        elif opt in ("-e", "--end_date"):
-            end_date = datetime.datetime.strptime(arg, '%Y%m%d')
-            print('start date is ' + str(end_date.date()))
-        elif opt in ("-c", "--cores"):
-            no_processes = int(arg)
-            print('running code with ' + str(no_processes) + ' cores.')
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-s", "--start_date", help="Start date of processing yyyymmdd")
+    parser.add_argument("-e", "--end_date", help="End date of processing yyyymmdd")
+    parser.add_argument("-c", "--cores", help="Number of cores processing")
+
+    args = parser.parse_args()
+    start_date = datetime.datetime.strptime(args.start_date, '%Y%m%d')
+    print('start date is ' + str(start_date.date()))
+    end_date = datetime.datetime.strptime(args.end_date, '%Y%m%d')
+    print('start date is ' + str(end_date.date()))
+    no_processes = int(args.cores)
+    print('running code with ' + str(no_processes) + ' cores.')
 
     Benelux_shape = [[7.218017578125001, 53.27178347923819],
                      [7.00927734375, 53.45534913802113],
@@ -117,8 +114,6 @@ if __name__ == '__main__':
     # no_processes = 4
 
     s1_processing = GeneralPipelines(processes=no_processes)
-    s1_processing.download_sentinel_data(start_date=start_date, end_date=end_date, track=track_no,
-                                         polarisation=polarisation, shapefile=study_area.shape, data=True, source='ASF')
     s1_processing.create_sentinel_stack(start_date=start_date, end_date=end_date, master_date=master_date,
                                         cores=no_processes,
                                         track=track_no, stack_name=stack_name, polarisation=polarisation,

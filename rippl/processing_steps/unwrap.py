@@ -57,10 +57,7 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
 
         # Finally define whether we overwrite or not
         self.overwrite = overwrite
-        settings = UserSettings()
-        settings.load_settings()
         self.settings = dict()
-        self.settings['snaphu_path'] = settings.snaphu_path
 
     def init_super(self):
 
@@ -108,8 +105,11 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
             c.write('LOGFILE ' + unwrap_name + '.log' + '\n')
             c.write('STATCOSTMODE SMOOTH')
 
-        command = self.settings['snaphu_path'] + ' -f ' + conf_file
+        settings = UserSettings()
+        settings.load_settings()
+        command = settings.snaphu_path + ' -f ' + conf_file
         os.system('cd ' + folder)
+        print(command)
         os.system(command)
 
         unwrap_data = np.memmap(os.path.join(folder, out_file), np.float32, 'r', shape=shape)

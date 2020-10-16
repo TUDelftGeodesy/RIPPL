@@ -183,14 +183,23 @@ class ImageData():
             tmp_path = os.path.join(tmp_directory, tmp_file)
             tmp_tmp_path = os.path.join(tmp_directory, tmp_file + '.temporary')
 
-            if not os.path.exists(tmp_path) and not os.path.exists(tmp_tmp_path):
-                # Copy using blocks of 100MB
-                with open(self.file_path, 'rb') as src:
-                    with open(tmp_tmp_path, 'wb') as dst:
-                        shutil.copyfileobj(src, dst, 100000000)
-                print('Copying ' + self.file_path + ' to temporary storage ' + tmp_path)
-                time.sleep(0.5)
-                os.rename(tmp_tmp_path, tmp_path)
+            # A random sleep time before starting to copy (max 0.1 second)
+            time.sleep(np.random.random(1)[0] / 10)
+
+            if not os.path.exists(tmp_path):
+                if not os.path.exists(tmp_tmp_path):
+                    # Copy using blocks of 100MB
+                    with open(self.file_path, 'rb') as src:
+                        # We add an extra check for the case that 2 processes enter this loop at the same time.
+                        if not os.path.exists(tmp_tmp_path):
+                            with open(tmp_tmp_path, 'wb') as dst:
+                                shutil.copyfileobj(src, dst, 100000000)
+                                print('Copying ' + self.file_path + ' to temporary storage ' + tmp_path)
+                                # Another sleep to make sure copying finished
+                                time.sleep(0.1)
+                    # If by accident two processes where copying at the same time, the filename can be changed already.
+                    if os.path.exists(tmp_tmp_path):
+                        os.rename(tmp_tmp_path, tmp_path)
 
             n = 0
             while n < 300:

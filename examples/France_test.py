@@ -9,6 +9,7 @@ import os
 sys.path.extend(['/Users/gertmulder/software/rippl_main'])
 import getopt
 import rippl
+import argparse
 
 from rippl.orbit_geometry.read_write_shapes import ReadWriteShapes
 from rippl.SAR_sensors.sentinel.sentinel_download import DownloadSentinel
@@ -16,21 +17,18 @@ from rippl.processing_templates.general_sentinel_1 import GeneralPipelines
 
 if __name__ == '__main__':
     # First we read the input start and end date for the processing
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "s:e:c:", ["start_date=", "end_date=", "cores="])
-    except getopt.GetoptError:
-        print('missing input dates for processing -s <start_date (yyyymmdd)> -e <end_date (yyyymmdd)> -c <number_of_cores>')
-        sys.exit(2)
-    for opt, arg in opts:
-        if opt in ("-s", "--start_date"):
-            start_date = datetime.datetime.strptime(arg, '%Y%m%d')
-            print('start date is ' + str(start_date.date()))
-        elif opt in ("-e", "--end_date"):
-            end_date = datetime.datetime.strptime(arg, '%Y%m%d')
-            print('start date is ' + str(end_date.date()))
-        elif opt in ("-c", "--cores"):
-            no_processes = int(arg)
-            print('running code with ' + str(no_processes) + ' cores.')
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-s", "--start_date", help="Start date of processing yyyymmdd")
+    parser.add_argument("-e", "--end_date", help="End date of processing yyyymmdd")
+    parser.add_argument("-c", "--cores", help="Number of cores processing")
+
+    args = parser.parse_args()
+    start_date = datetime.datetime.strptime(args.start_date, '%Y%m%d')
+    print('start date is ' + str(start_date.date()))
+    end_date = datetime.datetime.strptime(args.end_date, '%Y%m%d')
+    print('start date is ' + str(end_date.date()))
+    no_processes = int(args.cores)
+    print('running code with ' + str(no_processes) + ' cores.')
 
     France_shape = [(7.20, 43.75), (7.50, 43.75), (7.50, 43.90), (7.20, 43.90), (7.20, 43.75)]
     study_area = ReadWriteShapes()
