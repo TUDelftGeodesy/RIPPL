@@ -8,7 +8,6 @@ from rippl.meta_data.process_data import ProcessMeta, ProcessData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.resampling.coor_concatenate import CoorConcatenate
 
-
 class Concatenate():
 
     """
@@ -107,7 +106,7 @@ class Concatenate():
             print('Please specify polarisation, data id or in coordinates to select the right process')
             return
 
-    def create_image(self):
+    def create_image(self, tmp_directory=''):
         """
         Create the output image.
 
@@ -158,7 +157,11 @@ class Concatenate():
         if self.output_type == 'memory':
             self.concat_data.new_memory_data(self.concat_data.coordinates.shape)
         else:
-            self.concat_data.create_disk_data(overwrite=True)
+            if tmp_directory:
+                self.tmp_directory = tmp_directory
+                self.concat_data.create_disk_data(tmp_directory=tmp_directory)
+            else:
+                self.concat_data.create_disk_data(overwrite=True)
 
         return True
 
@@ -169,7 +172,7 @@ class Concatenate():
         :param str transition_type: This defines the type of transition between the
         :return:
         """
-        
+
         if transition_type == 'full_weight':
             self.full_weight()
         elif transition_type in ['linear', 'cut_off']:
@@ -219,10 +222,13 @@ class Concatenate():
             else:
                 raise TypeError('Not possible to load either memory or disk data')
 
-
             if remove_input:
                 image.remove_disk_data()
                 image.remove_memory_data()
+
+        # Copy from temporary file if needed.
+        if self.concat_data.tmp_path:           # type: ImageData
+            self.concat_data.save_tmp_data()
 
         # Finally save the .json data.
         self.concat_image.data.save_json()

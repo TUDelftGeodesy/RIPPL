@@ -43,6 +43,7 @@ class ImageData():
         self.polarisation = polarisation
         self.data_id = data_id
         self.dtype_disk, self.dtype_memory, self.dtype_size, self.dtype_gdal, self.dtype_gdal_numpy = self.load_dtypes()
+        self.tmp_path = ''
 
         self.disk = OrderedDict()                   # type: OrderedDict(OrderedDict or np.memmap)
         self.disk['data'] = []                      # type: np.memmap
@@ -130,7 +131,7 @@ class ImageData():
     - remove_disk_data > removes the data file from disk
     '''
 
-    def create_disk_data(self, overwrite=False):
+    def create_disk_data(self, overwrite=False, tmp_directory=''):
         """
         Create data on disk for this image data.
 
@@ -145,7 +146,20 @@ class ImageData():
         if self.check_data_disk_valid()[1] and not overwrite:
             return False
 
-        self.disk['data'] = np.memmap(self.file_path, mode='w+', dtype=self.dtype_disk[self.dtype], shape=tuple(self.shape))
+        if tmp_directory:
+            if os.name == 'nt':
+                tmp_file = self.file_path.replace('\\', '_')
+            else:
+                tmp_file = self.file_path.replace('/', '_')
+            if not os.path.exists(tmp_directory):
+                raise FileExistsError('Temp directory ' + tmp_directory + ' does not exist. Aborting...')
+            self.tmp_path = os.path.join(tmp_directory, tmp_file)
+
+            self.disk['data'] = np.memmap(self.tmp_path, mode='w+', dtype=self.dtype_disk[self.dtype],
+                                          shape=tuple(self.shape))
+        else:
+            self.disk['data'] = np.memmap(self.file_path, mode='w+', dtype=self.dtype_disk[self.dtype], shape=tuple(self.shape))
+
         return True
 
     def load_disk_data(self, tmp_directory=''):
@@ -170,15 +184,20 @@ class ImageData():
             tmp_tmp_path = os.path.join(tmp_directory, tmp_file + '.temporary')
 
             if not os.path.exists(tmp_path) and not os.path.exists(tmp_tmp_path):
-                shutil.copyfile(self.file_path, tmp_tmp_path)
+                # Copy using blocks of 100MB
+                with open(self.file_path, 'rb') as src:
+                    with open(tmp_tmp_path, 'wb') as dst:
+                        shutil.copyfileobj(src, dst, 100000000)
                 print('Copying ' + self.file_path + ' to temporary storage ' + tmp_path)
+                time.sleep(0.5)
                 os.rename(tmp_tmp_path, tmp_path)
 
             n = 0
-            while n < 12:
+            while n < 300:
                 if os.path.exists(tmp_path):
                     # In this case the tmp_tmp_path did exist, so the file is actually being copied.
                     self.disk['data'] = np.memmap(tmp_path, mode='r+', dtype=self.dtype_disk[self.dtype], shape=tuple(self.shape))
+                    self.tmp_path = tmp_path
                     break
                 else:
                     print('File ' + tmp_path + ' is not readable. Likely because it is being copied. Trying again in 10 seconds')
@@ -189,6 +208,26 @@ class ImageData():
         else:
             self.disk['data'] = np.memmap(self.file_path, mode='r+', dtype=self.dtype_disk[self.dtype], shape=tuple(self.shape))
         return True
+
+    def save_tmp_data(self):
+        """
+        Save created tmp file to disk
+
+        Returns
+        -------
+
+        """
+
+        if not self.tmp_path:
+            raise FileNotFoundError('Temporary file does not exist')
+        if os.path.exists(self.file_path):
+            os.remove(self.file_path)
+
+        # Copy using blocks of 100MB
+        with open(self.tmp_path, 'rb') as src:
+            with open(self.file_path, 'wb') as dst:
+                shutil.copyfileobj(src, dst, 100000000)
+        os.remove(self.tmp_path)
 
     def remove_disk_data_memmap(self):
         """

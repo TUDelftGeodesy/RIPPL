@@ -13,6 +13,7 @@ from rippl.resampling.coor_concatenate import CoorConcatenate
 import os
 import numpy as np
 import copy
+import shutil
 from shapely.geometry import Polygon
 from shapely import speedups
 speedups.disable()
@@ -511,7 +512,7 @@ class GeneralPipelines():
         coreg_image.create_concatenate_image(process='radar_ray_angles', file_type='incidence_angle', coor=self.radar_coor, transition_type='cut_off', remove_input=False)
 
     def geometric_coregistration_resampling(self, polarisation, output_phase_correction=False, block_orientation='lines',
-                                            coreg_tmp_directory='', baselines=False, height_to_phase=False):
+                                            coreg_tmp_directory='', tmp_directory='', baselines=False, height_to_phase=False):
         """
         Coregistration and resampling based on topography only.
 
@@ -555,16 +556,21 @@ class GeneralPipelines():
 
         resampling_pipeline()
 
-        # Concatenate the images
-        self.reload_stack()
-        slcs = self.get_data('slc', slice=False, concat_meta=True)
+        if coreg_tmp_directory:
+            shutil.rmtree(coreg_tmp_directory)
+            os.mkdir(coreg_tmp_directory)
+        if tmp_directory:
+            shutil.rmtree(tmp_directory)
+            os.mkdir(tmp_directory)
 
-        for slc in slcs:
-            slc.create_concatenate_image(process='calc_reramp', file_type='ramp',
-                                           coor=self.full_radar_coor, transition_type='cut_off', remove_input=False)
-            for pol in polarisation:
-                slc.create_concatenate_image(process='correct_phases', file_type='phase_corrected',
-                                               coor=self.full_radar_coor, transition_type='cut_off', polarisation=pol, remove_input=False)
+        # Concatenate the images using parallel processing
+        self.reload_stack()
+        self.stack.create_concatenate_images(image_type='slc', process='calc_reramp', file_type='ramp', coor=self.full_radar_coor,
+                                             transition_type='cut_off', remove_input=False, no_processes=self.processes, tmp_directory=tmp_directory)
+        for pol in polarisation:
+            self.stack.create_concatenate_images(image_type='slc', process='correct_phases', file_type='phase_corrected',
+                                                 coor=self.full_radar_coor, transition_type='cut_off', remove_input=False,
+                                                 no_processes=self.processes, polarisation=pol, tmp_directory=tmp_directory)
 
     def prepare_multilooking_grid(self, polarisation, block_orientation='lines'):
         """
