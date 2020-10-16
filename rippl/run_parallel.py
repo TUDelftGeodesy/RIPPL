@@ -4,6 +4,7 @@ import gc
 from rippl.meta_data.process import Process
 from rippl.meta_data.multilook_process import MultilookProcess
 from rippl.meta_data.image_processing_data import ImageProcessingData
+from rippl.meta_data.image_processing_concatenate import ImageConcatData
 import numpy as np
 
 
@@ -15,6 +16,28 @@ def run_parallel(dat):
 
     :return:
     """
+
+    if 'concat_data' in dat.keys():
+        process = dat['process']
+        file_type = dat['file_type']
+        coor = dat['coor']
+        transition_type = dat['transition_type']
+        remove_input = dat['remove_input']
+        tmp_directory = dat['tmp_directory']
+        output_type = dat['output_type']
+        polarisation = dat['polarisation']
+        data_id = dat['data_id']
+        cut_off = dat['cut_off']
+        overwrite = dat['overwrite']
+        replace = dat['replace']
+
+        image_data = dat['concat_data']
+        image_data.create_concatenate_image(process=process, file_type=file_type, coor=coor, tmp_directory=tmp_directory,
+                                            transition_type=transition_type, remove_input=remove_input,
+                                            output_type=output_type, polarisation=polarisation, data_id=data_id,
+                                            cut_off=cut_off, overwrite=overwrite, replace=replace)
+
+        return True
 
     # Get all processing image datasets
     processing_images = []              # type: list[ImageProcessingData]

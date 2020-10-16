@@ -191,7 +191,7 @@ class Deramp(Process):  # Change this name to the one of your processing step.
         # Computes sensor velocity from orbits
 
         # Frequency rate
-        ks_hz = 2 * np.mean(orbit_velocity) / readfile.wavelength * readfile.steering_rate / 180 * np.pi
+        ks_hz = 2 * np.mean(orbit_velocity) / readfile.wavelength * np.deg2rad(readfile.steering_rate)
 
         # Time ratio
         alpha_nom = 1 - ks_hz / k_fm

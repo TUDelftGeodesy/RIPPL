@@ -17,7 +17,10 @@ import numpy as np
 from shapely.ops import cascaded_union
 from shapely import speedups
 speedups.disable()
+from multiprocessing import get_context
+from multiprocessing import Pool
 
+from rippl.run_parallel import run_parallel
 from rippl.meta_data.slc import SLC
 from rippl.meta_data.interferogram import Interferogram
 from rippl.external_dems.srtm.srtm_download import SrtmDownload
@@ -433,3 +436,68 @@ class Stack(object):
         full_image.write_kml(os.path.join(self.data_stack_folder, 'coverage', 'full_image.kml'))
         full_image.write_geo_json(os.path.join(self.data_stack_folder, 'coverage', 'full_image.geojson'))
         full_image.write_shapefile(os.path.join(self.data_stack_folder, 'coverage', 'full_image.shp'))
+
+    def create_concatenate_images(self, image_type, process, file_type, coor, data_id='', polarisation='', overwrite=False,
+                                 output_type='disk', transition_type='full_weight', replace=False, cut_off=10,
+                                 remove_input=False, tmp_directory='', no_processes=1, parallel=True):
+        """
+        This method is used to concatenate slices. Be sure that before this step is run the meta data is first created
+        using the create_concatenate_meta_data function.
+
+        :param str process: The process of which the result should be concatenated
+        :param str file_type: Actual file type of the process that will be concatenated
+        :param CoordinateSystem coor: Coordinatesystem of image. If size is already defined these will be used,
+                    otherwise it will be calculated.
+        :param str data_id: Data ID of process/file_type. Normally left empty
+        :param str polarisation: Polarisation of data set
+        :param bool overwrite: If data already exist, should we overwrite?
+        :param str output_type: This is either memory or disk (Generally disk is preferred unless this dataset is not
+                    saved to disk and is part of a processing pipeline.)
+        :param str transition_type: Type of transition between burst. There are 3 types possible: 1) full weight, this
+                    simply adds all values on top of each other. 2) linear, creates a linear transition zone between
+                    the bursts. 3) cut_off, this creates a hard break between the different bursts and swaths without
+                    overlap. (Note that option 2 and 3 are only possible when working in radar coordinates!)
+        :param int cut_off: Number of pixels of the outer part of the image that will not be used because it could still
+                    contain zeros.
+        :param bool remove_input: Remove the disk data of the input images.
+        :return:
+        """
+
+        if image_type == 'slc':
+            images = [self.slcs[key] for key in self.slcs.keys()]
+        elif image_type == 'ifg':
+            images = [self.ifgs[key] for key in self.ifgs.keys()]
+        else:
+            raise TypeError('Only types slc or ifg are possible for concatenation!')
+
+        # Now create the parallel blocks
+        datasets = []
+        for image in images:
+            dat = dict()
+            dat['concat_data'] = image
+            dat['process'] = process
+            dat['file_type'] = file_type
+            dat['coor'] = coor
+            dat['transition_type'] = transition_type
+            dat['remove_input'] = remove_input
+            dat['polarisation'] = polarisation
+            dat['data_id'] = data_id
+            dat['output_type'] = output_type
+            dat['tmp_directory'] = tmp_directory
+            dat['replace'] = replace
+            dat['overwrite'] = overwrite
+            dat['cut_off'] = cut_off
+
+            datasets.append(dat)
+        datasets = np.array(datasets)
+
+        if parallel and no_processes > 1:
+            with get_context("spawn").Pool(processes=no_processes, maxtasksperchild=5) as pool:
+                # Process in blocks of 16
+                block_size = 16
+                for i in range(int(np.ceil(len(datasets) / block_size))):
+                    last_dat = np.minimum((i + 1) * block_size, len(datasets))
+                    success = pool.map(run_parallel, list(datasets[i*block_size:last_dat]))
+        else:
+            for dat in datasets:
+                success = run_parallel(dat)

@@ -180,7 +180,7 @@ if change_names in ['y', 'yes']:
 
     settings.define_sensor_names(dem_sensors, dem_names, sar_sensors, sar_names)
 else:
-    settings.dem_sensors()
+    settings.define_sensor_names()
 
 success = False
 while success == False:

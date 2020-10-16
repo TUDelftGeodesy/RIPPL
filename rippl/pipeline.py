@@ -14,8 +14,7 @@ from rippl.run_parallel import run_parallel
 
 class Pipeline(object):
 
-
-    def __init__(self, pixel_no=1000000, processes=1, run_no_datasets=32, block_orientation='lines', tmp_directory='', coreg_tmp_directory=''):
+    def __init__(self, pixel_no=1000000, processes=1, run_no_datasets=64, block_orientation='lines', tmp_directory='', coreg_tmp_directory=''):
         """
         The pipeline function is used to create pipelines of functions. This serves several purposes:
         1. Results from different functions can be saved to memory, reducing disk input/output

@@ -272,13 +272,14 @@ class TandemXDownload(object):
         download_dat = [[ftp_path, file_zip, file_unzip, lat, lon] for
                      ftp_path, file_zip, file_unzip, lat, lon in
                      zip(ftp_paths, tiles_zip, download_tiles, tile_lats, tile_lons)]
+        download_dat = np.array(download_dat)
         if self.n_processes > 1:
             with get_context("spawn").Pool(processes=self.n_processes, maxtasksperchild=5) as pool:
                 # Process in blocks of 25
                 block_size = 25
                 for i in range(int(np.ceil(len(download_dat) / block_size))):
                     last_dat = np.minimum((i + 1) * block_size, len(download_dat))
-                    pool.map(tile_download, download_dat[i*block_size:last_dat])
+                    pool.map(tile_download, list(download_dat[i*block_size:last_dat]))
         else:
             for download_info in download_dat:
                 tile_download(download_info)
