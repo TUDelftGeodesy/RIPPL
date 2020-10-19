@@ -161,6 +161,11 @@ class ImageConcatData(object):
         self.data.remove_memmap_files(processes, file_types)
         self.reference_images_iterator('remove_full_memmap', reference_images)
 
+    def remove_full_memory(self, reference_images=False, processes=[], file_types=[]):
+        # Remove all memmap files
+        self.data.remove_memory_files(processes, file_types)
+        self.reference_images_iterator('remove_full_memory', reference_images)
+
     def load_slice_meta(self, reference_images=False):
         # Read the information for individual slices
         self.slice_json_paths = []
@@ -184,6 +189,13 @@ class ImageConcatData(object):
             self.slice_data[slice_name].remove_memmap_files(processes, file_types)
 
         self.reference_images_iterator('remove_slice_memmap', reference_images)
+
+    def remove_slice_memory(self, reference_images=False, processes=[], file_types=[]):
+        # Remove memmap information
+        for slice_name in self.slice_names:
+            self.slice_data[slice_name].remove_memory_files(processes, file_types)
+
+        self.reference_images_iterator('remove_slice_memory', reference_images)
 
     def create_concatenate_meta_data(self):
         # This function creates a new concatenated image based on the crop information of the slices.

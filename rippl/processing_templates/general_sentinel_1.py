@@ -816,7 +816,7 @@ class GeneralPipelines():
             self.reload_stack()
             [coreg_slave, coreg_master] = self.get_data('coreg_slave')
 
-            create_baselines = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation)
+            create_baselines = Pipeline(pixel_no=5000000, processes=self.processes, block_orientation=block_orientation)
             create_baselines.add_processing_data(coreg_master, 'coreg_master')
             create_baselines.add_processing_data(coreg_slave, 'slave')
             create_baselines.add_processing_step(
