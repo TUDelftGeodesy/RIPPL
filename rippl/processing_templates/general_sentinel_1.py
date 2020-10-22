@@ -639,7 +639,7 @@ class GeneralPipelines():
 
         for pol in polarisation:
             self.reload_stack()
-            [coreg_slave, coreg_master] = self.get_data('coreg_slave')
+            [coreg_slave, coreg_master] = self.get_data('coreg_slave', include_coreg_master=True)
 
             # First create the multilooked square amplitudes.
             create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation,
@@ -651,11 +651,6 @@ class GeneralPipelines():
                                        slave='slave', coreg_master='coreg_master', batch_size=50000000), True, True)
             create_multilooked_amp()
             create_multilooked_amp.save_processing_results()
-
-            # Finally do the master image seperately
-            amp_multilook = CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                                   slave=coreg_master[0], coreg_master=coreg_master[0], batch_size=50000000, no_of_looks=True)
-            amp_multilook(coreg_tmp_directory=coreg_tmp_directory, tmp_directory=tmp_directory)
 
     def create_calibrated_amplitude_approx_multilooked(self, polarisation, block_orientation='lines',
                                                        tmp_directory='', coreg_tmp_directory=''):
@@ -705,7 +700,7 @@ class GeneralPipelines():
         # First create the multilooked square amplitudes.
         for pol in polarisation:
             self.reload_stack()
-            [coreg_slave, coreg_master] = self.get_data('coreg_slave')
+            [coreg_slave, coreg_master] = self.get_data('coreg_slave', include_coreg_master=True)
 
             create_multilooked_amp = Pipeline(pixel_no=0, processes=self.processes, block_orientation=block_orientation,
                                               tmp_directory=tmp_directory, coreg_tmp_directory=coreg_tmp_directory)
@@ -715,11 +710,6 @@ class GeneralPipelines():
                 SquareAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
                                        slave='slave', coreg_master='coreg_master', batch_size=50000000), True, True)
             create_multilooked_amp()
-
-            # Finally do the master image seperately
-            amp_multilook = SquareAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                                   slave=coreg_master[0], coreg_master=coreg_master[0], master_image=False, batch_size=50000000)
-            amp_multilook()
 
         # After creation of the square amplitude images, we can create the coherence values themselves.
         # Create coherences for multilooked grid
