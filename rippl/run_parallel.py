@@ -6,6 +6,7 @@ from rippl.meta_data.multilook_process import MultilookProcess
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.meta_data.image_processing_concatenate import ImageConcatData
 import numpy as np
+import datetime
 
 
 def run_parallel(dat):
@@ -16,6 +17,8 @@ def run_parallel(dat):
 
     :return:
     """
+
+    start_time = datetime.datetime.now()
 
     if 'concat_data' in dat.keys():
         process = dat['process']
@@ -31,11 +34,16 @@ def run_parallel(dat):
         overwrite = dat['overwrite']
         replace = dat['replace']
 
-        image_data = dat['concat_data']
+        image_data = dat['concat_data']             # type: ImageConcatData
         image_data.create_concatenate_image(process=process, file_type=file_type, coor=coor, tmp_directory=tmp_directory,
                                             transition_type=transition_type, remove_input=remove_input,
                                             output_type=output_type, polarisation=polarisation, data_id=data_id,
                                             cut_off=cut_off, overwrite=overwrite, replace=replace)
+        image_data.remove_full_memmap()
+        image_data.remove_slice_memmap()
+        image_data.remove_full_memory()
+        image_data.remove_slice_memory()
+        del dat
 
         return True
 
@@ -81,12 +89,14 @@ def run_parallel(dat):
                   + ' and pixels ' + str(dat['s_pix'] + 1) + ' > ' + str(dat['s_pix'] + dat['pixels']) +
                   ' with size ' + str(dat['lines']) + ' x ' + str(dat['pixels']) +
                   ' from total image size ' + str(dat['total_lines']) + ' x ' + str(dat['total_pixels']))
+            print('Processing start time is ' + str(datetime.datetime.now()))
 
             # Then do the final calculations. (For multilooking apply the multilooking calculation)
             if isinstance(process, MultilookProcess):
                 process.multilook_calculations()
             else:
                 process.process_calculations()
+
         except:
             raise BrokenPipeError('Pipeline processing for ' + process.out_processing_image.folder + ' failed.')
 
@@ -94,6 +104,7 @@ def run_parallel(dat):
         if save and not isinstance(process, MultilookProcess):
             process.save_to_disk()
 
+    print('Finished processing pipeline in ' + str(datetime.datetime.now() - start_time))
     json_dicts = []
     json_files = []
 
@@ -101,6 +112,8 @@ def run_parallel(dat):
         json_dict, json_file = processing_image.get_json()
         json_dicts.append(json_dict)
         json_files.append(json_file)
+        processing_image.remove_memory_files()
+        processing_image.remove_memmap_files()
     del processing_images, dat
 
     return [json_dicts, json_files]

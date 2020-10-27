@@ -14,7 +14,7 @@ from rippl.run_parallel import run_parallel
 
 class Pipeline(object):
 
-    def __init__(self, pixel_no=1000000, processes=1, run_no_datasets=64, block_orientation='lines', tmp_directory='', coreg_tmp_directory=''):
+    def __init__(self, pixel_no=1000000, processes=1, run_no_datasets=32, block_orientation='lines', tmp_directory='', coreg_tmp_directory=''):
         """
         The pipeline function is used to create pipelines of functions. This serves several purposes:
         1. Results from different functions can be saved to memory, reducing disk input/output
@@ -113,6 +113,8 @@ class Pipeline(object):
         for block in range(blocks):
             # Print which block we are processing.
             print('Processing pipeline block ' + str(block + 1) + ' out of ' + str(blocks))
+            start_time = datetime.datetime.now()
+            print('Start time block ' + str(block + 1) + ' is ' + str(start_time))
 
             # Then assign the processing data and coordinate systems.
             self.assign_coordinate_systems_processing_data(block)
@@ -152,10 +154,13 @@ class Pipeline(object):
             else:
                 with get_context("spawn").Pool(processes=self.processes, maxtasksperchild=5) as pool:
 
-                    for json_out in pool.imap_unordered(run_parallel, self.block_pipelines, chunksize=1):
+                    json_outs = pool.map_async(run_parallel, self.block_pipelines, chunksize=1).get()
+                    for json_out in json_outs:
                         self.json_dicts.extend(json_out[0])
                         self.json_files.extend(json_out[1])
 
+            print('Finished processing pipeline block ' + str(block + 1) + ' out of ' + str(blocks))
+            print('Finished block ' + str(block + 1) + ' in ' + str(datetime.datetime.now() - start_time))
             self.save_processing_results()
 
     def save_processing_results(self):

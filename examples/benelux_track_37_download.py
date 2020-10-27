@@ -1,10 +1,9 @@
 import datetime
-import sys, getopt
+import sys
 import argparse
 
-sys.path.extend(['/Users/gertmulder/software/rippl_main'])
+sys.path.extend(['/home/gert/Software/rippl_main'])
 from rippl.orbit_geometry.read_write_shapes import ReadWriteShapes
-from rippl.SAR_sensors.sentinel.sentinel_download import DownloadSentinel
 from rippl.processing_templates.general_sentinel_1 import GeneralPipelines
 
 if __name__ == '__main__':
@@ -65,18 +64,9 @@ if __name__ == '__main__':
 
     # Create the list of the 4 different stacks.
     track_no = 37
-    stack_name = 'Benelux_track_37'
-    # For every track we have to select a master date. This is based on the search results earlier.
-    # Choose the date with the lowest coverage to create an image with only the overlapping parts.
-    master_date = datetime.datetime(year=2020, month=4, day=27)
-
-    # Uncomment for testing
-    # find_track = DownloadSentinel(start_date=start_date, end_date=end_date, shape=study_area.shape, sensor_mode=mode, polarisation=polarisation)
-    # find_track.sentinel_search_ASF()
-    # find_track.summarize_search_results(plot_cartopy=True, buffer=2)
 
     # Number of processes for parallel processing. Make sure that for every process at least 2GB of RAM is available
     no_processes = 1
     s1_processing = GeneralPipelines(processes=no_processes)
     s1_processing.download_sentinel_data(start_date=start_date, end_date=end_date, track=track_no,
-                                               polarisation=polarisation, shapefile=study_area_shape, data=True, source='ASF')
+                                         polarisation=polarisation, shapefile=study_area_shape, data=True, source='ASF')

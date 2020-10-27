@@ -202,7 +202,7 @@ class ImageData():
                         os.rename(tmp_tmp_path, tmp_path)
 
             n = 0
-            while n < 300:
+            while n < 360:
                 if os.path.exists(tmp_path):
                     # In this case the tmp_tmp_path did exist, so the file is actually being copied.
                     self.disk['data'] = np.memmap(tmp_path, mode='r+', dtype=self.dtype_disk[self.dtype], shape=tuple(self.shape))
