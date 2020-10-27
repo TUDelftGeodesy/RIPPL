@@ -843,7 +843,7 @@ class GeneralPipelines():
         if not tiff_folder:
             tiff_folder = self.tiff_folder
 
-        calibrated_amplitudes = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor], ifg=False)[-1]
+        calibrated_amplitudes = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor], ifg=False, load_memmap=False)[-1]
         for calibrated_amplitude in calibrated_amplitudes:          # type: ImageData
             calibrated_amplitude.save_tiff(tiff_folder=tiff_folder)
 
@@ -858,7 +858,7 @@ class GeneralPipelines():
             tiff_folder = self.tiff_folder
 
         geometry_datasets = self.stack.stack_data_iterator(['radar_ray_angles', 'geocode', 'dem', 'baseline', 'height_to_phase'], coordinates=[self.full_ml_coor],
-                                                           process_types=['lat', 'lon', 'incidence_angle', 'dem', 'perpendicular_baseline', 'height_to_phase'])[-1]
+                                                           process_types=['lat', 'lon', 'incidence_angle', 'dem', 'perpendicular_baseline', 'height_to_phase'], load_memmap=False)[-1]
         coreg_master = self.get_data('coreg_master', slice=False)[0]
         readfile = coreg_master.readfiles['original']
 
@@ -877,13 +877,14 @@ class GeneralPipelines():
             tiff_folder = self.tiff_folder
 
         # Save the resulting coherences
-        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True)[-1]
+        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
         for coherence in coherences:          # type: ImageData
             coherence.save_tiff(tiff_folder=tiff_folder)
 
-        ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True)[-1]
+        ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
         for ifg in ifgs:          # type: ImageData
             ifg.save_tiff(tiff_folder=tiff_folder)
+
 
     def create_plots_coherence(self, overwrite=False):
         """
@@ -893,7 +894,7 @@ class GeneralPipelines():
         """
 
         cmap = 'Greys_r'
-        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True)[-1]
+        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
         for coherence in coherences:
             plot = PlotData(coherence, data_cmap=cmap, margins=0.1, data_quantiles=[0.05, 0.95], overwrite=overwrite)
             succes = plot()
@@ -910,8 +911,8 @@ class GeneralPipelines():
         """
 
         cmap = 'jet'
-        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True)[-1]
-        ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True)[-1]
+        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
+        ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
         for ifg, coherence in zip(ifgs, coherences):
             plot = PlotData(ifg, data_cmap=cmap, margins=0.1, data_min_max=[-np.pi, np.pi], transparency_in=coherence,
                             transparency_scale='linear', complex_plot='phase', transparency_min_max=[0.1, 0.3], overwrite=overwrite)
@@ -931,6 +932,6 @@ class GeneralPipelines():
             tiff_folder = self.tiff_folder
 
         # Save the resulting coherences
-        unwrapped_images = self.stack.stack_data_iterator(['unwrap'], [self.full_ml_coor], ifg=True)[-1]
+        unwrapped_images = self.stack.stack_data_iterator(['unwrap'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
         for unwrapped in unwrapped_images:          # type: ImageData
             unwrapped.save_tiff(tiff_folder=tiff_folder)

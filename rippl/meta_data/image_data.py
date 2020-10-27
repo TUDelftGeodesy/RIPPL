@@ -547,6 +547,7 @@ class ImageData():
         data.FlushCache()
         data = None
         self.remove_memory_data()
+        self.remove_disk_data_memmap()
 
     # Conversion between data on disk and in memory.
     @staticmethod

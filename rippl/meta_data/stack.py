@@ -258,7 +258,7 @@ class Stack(object):
                 self.ifgs[ifg_key_1] = ifg
 
     def stack_data_iterator(self, processes=[], coordinates=[], in_coordinates=[], data_ids=[], polarisations=[], process_types=[],
-                            slc_date=False, ifg_date=False, slc=True, ifg=True, full_image=True, slices=False, data=True):
+                            slc_date=False, ifg_date=False, slc=True, ifg=True, full_image=True, slices=False, data=True, load_memmap=True):
 
         processes_out = []
         process_ids_out = []
@@ -289,7 +289,7 @@ class Stack(object):
             for date in slc_dates:
                 slice_names_slc, processes_slc, process_ids_slc, coordinates_slc, in_coordinates_slc, file_types_slc, images_slc \
                     = self.slcs[date].concat_image_data_iterator(processes, coordinates, in_coordinates, data_ids, polarisations,
-                                                                 process_types, full_image, slices, data)
+                                                                 process_types, full_image, slices, data, load_memmap=load_memmap)
                 process_ids_out += process_ids_slc
                 file_types_out += file_types_slc
                 slice_names_out += slice_names_slc
