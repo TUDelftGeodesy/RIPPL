@@ -648,7 +648,7 @@ class GeneralPipelines():
             create_multilooked_amp.add_processing_data(coreg_slave, 'slave')
             create_multilooked_amp.add_processing_step(
                 CalibratedAmplitudeMultilook(polarisation=pol, in_coor=self.radar_coor, out_coor=self.full_ml_coor,
-                                       slave='slave', coreg_master='coreg_master', batch_size=50000000), True, True)
+                                       slave='slave', coreg_master='coreg_master', batch_size=50000000, no_of_looks=True), True, True)
             create_multilooked_amp()
             create_multilooked_amp.save_processing_results()
 
