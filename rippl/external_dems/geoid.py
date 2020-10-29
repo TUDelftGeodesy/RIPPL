@@ -27,7 +27,7 @@ class GeoidInterp():
                     download_data = DownloadLogin('', '', '')
                     url = 'http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC'
                     print('downloading from ' + url + ' to ' + egm_96_file)
-                    download_data.download_file(url[1:-1], egm_96_file, 3)
+                    download_data.download_file(url, egm_96_file, 3)
                 else:
                     command = 'wget http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC -O ' + '"' + egm_96_file + '"'
                     print(command)

@@ -258,7 +258,7 @@ while success == False:
 
     if snaphu_path == '':
         print('Skipping snaphu path installation. Unwrapping will not be possible.')
-
+        success = True
 
 # Save all settings to disk.
 settings.save_settings()

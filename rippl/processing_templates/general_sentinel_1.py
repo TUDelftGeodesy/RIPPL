@@ -804,7 +804,7 @@ class GeneralPipelines():
         # Finally create the baselines for the slave images.
         if baselines or height_to_phase:
             self.reload_stack()
-            [coreg_slave, coreg_master] = self.get_data('coreg_slave')
+            [coreg_slave, coreg_master] = self.get_data('coreg_slave', include_coreg_master=True)
 
             create_baselines = Pipeline(pixel_no=5000000, processes=self.processes, block_orientation=block_orientation)
             create_baselines.add_processing_data(coreg_master, 'coreg_master')
