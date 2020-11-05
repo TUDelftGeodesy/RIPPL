@@ -66,10 +66,11 @@ class SrtmDownloadTile(object):
         # Download and unzip
         try:
             if not os.path.exists(file_unzip):
-                if os.name == 'nt':
+                print('Downloading ' + file_zip)
+                try:
                     download = DownloadLogin('', username=self.username, password=self.password)
                     download.download_file(url, file_zip)
-                else:
+                except:
                     command = 'wget ' + url + ' --user ' + self.username + ' --password ' \
                               + self.password + ' -O ' + '"' + file_zip + '"'
                     os.system(command)

@@ -5,6 +5,7 @@
 # Try to do all calculations using numpy functions.
 import os
 import numpy as np
+import time
 
 # Import the parent class Process for processing steps.
 from rippl.meta_data.process import Process
@@ -111,5 +112,6 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
         print(command)
         os.system(command)
 
+        time.sleep(10)
         unwrap_data = np.memmap(os.path.join(folder, os.path.join(folder, unwrap_name + '.data')), np.float32, 'r', shape=shape)
         self['unwrapped'] = unwrap_data[:, :]
