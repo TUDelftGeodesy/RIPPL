@@ -176,6 +176,7 @@ class ImageData():
         if tmp_directory:
             if os.name == 'nt':
                 tmp_file = self.file_path.replace('\\', '_')
+                tmp_file = tmp_file.replace('/', '_')
             else:
                 tmp_file = self.file_path.replace('/', '_')
             if not os.path.exists(tmp_directory):

@@ -166,13 +166,14 @@ class SentinelStack(SentinelDatabase, Stack):
                         xml_path = os.path.join(image['path'], swath)
                         swath_data = etree.parse(xml_path)
 
-                    xml_meta = CreateSwathXmlRes(xml_path, swath_data)
                     print('Read meta_data ' + os.path.basename(xml_path))
-                    xml_meta.read_xml()
-                    xml_meta.burst_swath_coverage()
-
-                    self.swaths.append(xml_meta)
-
+                    try:
+                        xml_meta = CreateSwathXmlRes(xml_path, swath_data)
+                        xml_meta.read_xml()
+                        xml_meta.burst_swath_coverage()
+                        self.swaths.append(xml_meta)
+                    except:
+                        print('Failed to read meta_data ' + os.path.basename(xml_path))
         print('')
 
     def create_slice_list(self, master_start):
@@ -210,7 +211,13 @@ class SentinelStack(SentinelDatabase, Stack):
         for swath in self.swaths:
             # Select if it overlaps with area of interest
             if self.shape.intersects(swath.swath_coverage):
-                slices = swath(self.orbits, adjust_date=adjust_date)
+                print('Reading burst information from ' + os.path.basename(swath.swath_xml))
+                try:
+                    slices = swath(self.orbits, adjust_date=adjust_date)
+
+                except:
+                    print('Failed reading burst information from ' + os.path.basename(swath.swath_xml))
+                    continue
                 interp_orbit = OrbitInterpolate(slices[0].meta.orbits[list(slices[0].meta.orbits.keys())[0]])
                 interp_orbit.fit_orbit_spline(vel=False, acc=False)
 
