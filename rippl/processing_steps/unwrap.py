@@ -113,5 +113,10 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
         os.system(command)
 
         time.sleep(10)
-        unwrap_data = np.memmap(os.path.join(folder, os.path.join(folder, unwrap_name + '.data')), np.float32, 'r', shape=shape)
+        if os.path.exists(os.path.join(folder, os.path.join(folder, unwrap_name + '.data'))):
+            unwrap_data = np.memmap(os.path.join(folder, os.path.join(folder, unwrap_name + '.data')), np.float32, 'r', shape=shape)
+        else:
+            print('Failed to finish unwrapping for ' + os.path.join(folder, os.path.join(folder, unwrap_name + '.data')))
+            unwrap_data = np.zeros(shape)
+
         self['unwrapped'] = unwrap_data[:, :]
