@@ -184,23 +184,30 @@ class ImageData():
             tmp_path = os.path.join(tmp_directory, tmp_file)
             tmp_tmp_path = os.path.join(tmp_directory, tmp_file + '.temporary')
 
-            # A random sleep time before starting to copy (max 0.1 second)
-            time.sleep(np.random.random(1)[0] / 10)
+            # A random sleep time before starting to copy (max 1 second)
+            time.sleep(np.random.random(1)[0])
 
             if not os.path.exists(tmp_path):
+                time.sleep(np.random.random(1)[0])      # Another wait to get one of the processes ahead of the others
                 if not os.path.exists(tmp_tmp_path):
                     # Copy using blocks of 100MB
                     with open(self.file_path, 'rb') as src:
                         # We add an extra check for the case that 2 processes enter this loop at the same time.
                         if not os.path.exists(tmp_tmp_path):
                             with open(tmp_tmp_path, 'wb') as dst:
-                                shutil.copyfileobj(src, dst, 100000000)
                                 print('Copying ' + self.file_path + ' to temporary storage ' + tmp_path)
+                                shutil.copyfileobj(src, dst, 100000000)
                                 # Another sleep to make sure copying finished
                                 time.sleep(0.1)
+                        else:
+                            print('Temporary file already created when reading original file, skipping.')
+
                     # If by accident two processes where copying at the same time, the filename can be changed already.
+                    time.sleep(np.random.random(1)[0]) # Another wait to make sure not 2 processes are doing this at the same time.
                     if os.path.exists(tmp_tmp_path):
                         os.rename(tmp_tmp_path, tmp_path)
+                else:
+                    print('Temporary file does not exist, but is being copied.')
 
             n = 0
             while n < 360:
@@ -210,7 +217,8 @@ class ImageData():
                     self.tmp_path = tmp_path
                     break
                 else:
-                    print('File ' + tmp_path + ' is not readable. Likely because it is being copied. Trying again in 10 seconds')
+                    print('File ' + tmp_path + ' is not readable. Likely because it is being copied. Trying again in '
+                                               '10 seconds. Total waiting time is ' + str(n * 10) + ' seconds.')
                     n += 1
                     time.sleep(10)
             else:
