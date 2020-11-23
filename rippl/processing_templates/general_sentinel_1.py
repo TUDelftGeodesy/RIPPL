@@ -810,7 +810,8 @@ class GeneralPipelines():
             create_baselines.add_processing_data(coreg_master, 'coreg_master')
             create_baselines.add_processing_data(coreg_slave, 'slave')
             create_baselines.add_processing_step(
-                GeometricCoregistration(out_coor=self.full_ml_coor, in_coor=self.radar_coor, slave='slave', coreg_master='coreg_master'), False)
+                GeometricCoregistration(out_coor=self.full_ml_coor, in_coor=self.radar_coor, slave='slave',
+                                        coreg_master='coreg_master', coreg_crop=False), False)
             if baselines:
                 create_baselines.add_processing_step(
                     Baseline(out_coor=self.full_ml_coor, slave='slave', coreg_master='coreg_master'), True)

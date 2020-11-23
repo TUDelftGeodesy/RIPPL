@@ -304,11 +304,11 @@ class SentinelStack(SentinelDatabase, Stack):
         # Final step is to adjust all azimuth and range values.
 
         # Find lowest azimuth value
-        lowest_az_time = np.min(self.master_slice_seconds)
-        lowest_ra_time = np.min(self.master_slice_range_seconds)
+        master_lowest_az_time = np.min(self.master_slice_seconds)
+        master_lowest_ra_time = np.min(self.master_slice_range_seconds)
 
         for slice in self.master_slices:
-            self.adjust_pixel_line(slice, lowest_az_time, lowest_ra_time)
+            self.adjust_pixel_line(slice, master_lowest_az_time, master_lowest_ra_time)
 
         # Now do the same thing for the slave pixels.
         dates = list(set(self.slice_date))
@@ -426,6 +426,8 @@ class SentinelStack(SentinelDatabase, Stack):
             del self.slice_y[id]
             del self.slice_z[id]
             del self.slices[id]
+            del self.slice_seconds[id]
+            del self.slice_range_seconds[id]
 
         # Calculate the burst availability
         s_dates = np.sort(np.unique(np.array(self.slice_date)))
@@ -458,6 +460,8 @@ class SentinelStack(SentinelDatabase, Stack):
                     del self.slice_y[id]
                     del self.slice_z[id]
                     del self.slices[id]
+                    del self.slice_seconds[id]
+                    del self.slice_range_seconds[id]
 
     def write_master_slice_list(self):
         # az_time, yyyy-mm-ddThh:mm:ss.ssssss, swath x, slice i, x xxxx, y yyyy, z zzzz, lat ll.ll, lon ll.ll, pol pp

@@ -16,7 +16,7 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
 
     def __init__(self, data_id='', in_coor=[], out_coor=[], dem_type='SRTM1',
                  in_image_types=[], in_processes=[], in_file_types=[], in_data_ids=[],
-                 slave='slave', coreg_master='coreg_master', overwrite=False):
+                 slave='slave', coreg_master='coreg_master', overwrite=False, coreg_crop=True):
 
         """
         :param str data_id: Data ID of image. Only used in specific cases where the processing chain contains 2 times
@@ -46,14 +46,24 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
 
         # Input data information
         self.input_info = dict()
-        self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master', 'slave']
-        self.input_info['process_types'] = ['geocode', 'geocode', 'geocode', 'crop']
-        self.input_info['file_types'] = ['X', 'Y', 'Z', 'crop']
-        self.input_info['polarisations'] = ['', '', '', '']
-        self.input_info['data_ids'] = [data_id, data_id, data_id, '']
-        self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor', 'in_coor']
-        self.input_info['in_coor_types'] = ['', '', '', '']
-        self.input_info['type_names'] = ['X_coreg', 'Y_coreg', 'Z_coreg', 'in_coor_grid']
+        self.input_info['image_types'] = ['coreg_master', 'coreg_master', 'coreg_master']
+        self.input_info['process_types'] = ['geocode', 'geocode', 'geocode']
+        self.input_info['file_types'] = ['X', 'Y', 'Z']
+        self.input_info['polarisations'] = ['', '', '',]
+        self.input_info['data_ids'] = [data_id, data_id, data_id]
+        self.input_info['coor_types'] = ['out_coor', 'out_coor', 'out_coor']
+        self.input_info['in_coor_types'] = ['', '', '']
+        self.input_info['type_names'] = ['X_coreg', 'Y_coreg', 'Z_coreg']
+
+        if coreg_crop:
+            self.input_info['image_types'].append('slave')
+            self.input_info['process_types'].append('crop')
+            self.input_info['file_types'].append('crop')
+            self.input_info['polarisations'].append('')
+            self.input_info['data_ids'].append('')
+            self.input_info['coor_types'].append('in_coor')
+            self.input_info['in_coor_types'].append('')
+            self.input_info['type_names'].append('in_coor_grid')
 
         # Coordinate systems
         self.coordinate_systems = dict()
@@ -68,6 +78,7 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
         # Finally define whether we overwrite or not
         self.overwrite = overwrite
         self.settings = dict()
+        self.settings['crop'] = coreg_crop
 
     def init_super(self):
 
@@ -92,7 +103,14 @@ class GeometricCoregistration(Process):  # Change this name to the one of your p
         orbit_coreg_master = self.processing_images['coreg_master'].find_best_orbit('original')
 
         # Now initialize the orbit estimation.
-        orbit_interp = OrbitCoordinates(coordinates=self.coordinate_systems['in_coor'], orbit=orbit_slave)
+        if self.settings['crop']:
+            orbit_interp = OrbitCoordinates(coordinates=self.coordinate_systems['in_coor'], orbit=orbit_slave)
+        else:
+            readfile_slave = self.processing_images['slave'].readfiles['original']
+            coordinates = CoordinateSystem()
+            coordinates.create_radar_coordinates()
+            coordinates.load_readfile(readfile=readfile_slave)
+            orbit_interp = OrbitCoordinates(coordinates=coordinates, orbit=orbit_slave)
         xyz = np.vstack((np.ravel(self['X_coreg'])[None, :], np.ravel(self['Y_coreg'])[None, :], np.ravel(self['Z_coreg'])[None, :]))
         lines, pixels = orbit_interp.xyz2lp(xyz)
 
