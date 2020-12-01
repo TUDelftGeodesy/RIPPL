@@ -174,6 +174,8 @@ class ImageData():
             return False
 
         if tmp_directory:
+            # Files are copied to the same temporary folder using all the child folders within the path name as the
+            # filename. This prevents any unnecessary creation of folders without issues due to the
             if os.name == 'nt':
                 tmp_file = self.file_path.replace('\\', '_')
                 tmp_file = tmp_file.replace('/', '_')
@@ -184,9 +186,7 @@ class ImageData():
             tmp_path = os.path.join(tmp_directory, tmp_file)
             tmp_tmp_path = os.path.join(tmp_directory, tmp_file + '.temporary')
 
-            # A random sleep time before starting to copy (max 1 second)
-            time.sleep(np.random.random(1)[0])
-
+            time.sleep(np.random.random(1)[0])      # A random sleep time before starting to copy (max 1 second)
             if not os.path.exists(tmp_path):
                 time.sleep(np.random.random(1)[0])      # Another wait to get one of the processes ahead of the others
                 if not os.path.exists(tmp_tmp_path):
@@ -194,6 +194,7 @@ class ImageData():
                     with open(self.file_path, 'rb') as src:
                         # We add an extra check for the case that 2 processes enter this loop at the same time.
                         if not os.path.exists(tmp_tmp_path):
+                            file_copied = True
                             with open(tmp_tmp_path, 'wb') as dst:
                                 print('Copying ' + self.file_path + ' to temporary storage ' + tmp_path)
                                 shutil.copyfileobj(src, dst, 100000000)
@@ -201,14 +202,29 @@ class ImageData():
                                 time.sleep(0.1)
                         else:
                             print('Temporary file already created when reading original file, skipping.')
+                            file_copied = False
 
-                    # If by accident two processes where copying at the same time, the filename can be changed already.
-                    time.sleep(np.random.random(1)[0]) # Another wait to make sure not 2 processes are doing this at the same time.
-                    if os.path.exists(tmp_tmp_path):
-                        os.rename(tmp_tmp_path, tmp_path)
+                    # Now if the the temporary file is copied, we rename it. Because it sometimes takes some time
+                    # before the file becomes available we add a try/except loop to make sure it works.
+                    # In the very unlikely event two processes copied the file at the same time (think this is not
+                    # possible...) the process just moves on and tries to load the renamed file without renaming.
+                    name_changed = False
+                    no_tries = 0
+                    while not name_changed and no_tries < 10 and file_copied:
+                        try:
+                            if os.path.exists(tmp_tmp_path):
+                                os.rename(tmp_tmp_path, tmp_path)
+                                name_changed = True
+                        except:
+                            print('Cannot find the temporary file. Trying again in 10 seconds')
+                            time.sleep(10)
+                            no_tries += 1
                 else:
                     print('Temporary file does not exist, but is being copied.')
 
+            # If the temporary file exists, maybe the file is in the process of being copied. This can take several
+            # minutes but we check for a full hour every 10 seconds whether the file is safely copied and load the file
+            # if available.
             n = 0
             while n < 360:
                 if os.path.exists(tmp_path):

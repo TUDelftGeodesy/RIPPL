@@ -90,10 +90,10 @@ class Stack(object):
         list_file = os.path.join(self.data_stack_folder, 'master_slice_list')
         if not os.path.exists(list_file):
             print('No existing master slices list found')
-            return
+            return False
         if len(self.master_slice_az_time) != 0:
             print('Master slice list already loaded!')
-            return
+            return False
 
         with open(list_file, 'r+') as l:
             for line in l:
@@ -119,6 +119,8 @@ class Stack(object):
             for seconds in self.master_slice_seconds:
                 if seconds < 3600 or seconds > 82800:
                     self.master_date_boundary = True
+
+        return True
 
     def read_stack(self, start_date='', end_date='', start_dates='', end_dates='', date='', dates='', time_window=''):
         # This function reads the whole stack in memory. A stack consists of:

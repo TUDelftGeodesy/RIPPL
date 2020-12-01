@@ -824,7 +824,7 @@ class GeneralPipelines():
 
             create_baselines()
 
-    def create_output_tiffs_amplitude(self, tiff_folder=''):
+    def create_output_tiffs_amplitude(self, tiff_folder='', polarisation=''):
         """
         Create the geotiff images
 
@@ -834,7 +834,8 @@ class GeneralPipelines():
         if not tiff_folder:
             tiff_folder = self.tiff_folder
 
-        calibrated_amplitudes = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor], ifg=False, load_memmap=False)[-1]
+        calibrated_amplitudes = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor],
+                                                               polarisations=[polarisation], ifg=False, load_memmap=False)[-1]
         for calibrated_amplitude in calibrated_amplitudes:          # type: ImageData
             calibrated_amplitude.save_tiff(tiff_folder=tiff_folder)
 
@@ -857,7 +858,7 @@ class GeneralPipelines():
             geometry_dataset.coordinates.load_readfile(readfile)
             geometry_dataset.save_tiff(tiff_folder=tiff_folder)
 
-    def create_output_tiffs_coherence_ifg(self, tiff_folder=''):
+    def create_output_tiffs_coherence_ifg(self, tiff_folder='', polarisation=''):
         """
         Creates the geotiffs of coherence and unwrapped values.
 
@@ -868,11 +869,13 @@ class GeneralPipelines():
             tiff_folder = self.tiff_folder
 
         # Save the resulting coherences
-        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
+        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], polarisations=[polarisation],
+                                                    ifg=True, load_memmap=False)[-1]
         for coherence in coherences:          # type: ImageData
             coherence.save_tiff(tiff_folder=tiff_folder)
 
-        ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
+        ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], polarisations=[polarisation],
+                                               ifg=True, load_memmap=False)[-1]
         for ifg in ifgs:          # type: ImageData
             ifg.save_tiff(tiff_folder=tiff_folder)
 
@@ -913,7 +916,7 @@ class GeneralPipelines():
                 plot.save_image()
                 plot.close_plot()
 
-    def create_output_tiffs_unwrap(self, tiff_folder=''):
+    def create_output_tiffs_unwrap(self, tiff_folder='', polarisation=''):
         """
         Creates geotiffs of unwrapped images.
 
@@ -923,6 +926,7 @@ class GeneralPipelines():
             tiff_folder = self.tiff_folder
 
         # Save the resulting coherences
-        unwrapped_images = self.stack.stack_data_iterator(['unwrap'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
+        unwrapped_images = self.stack.stack_data_iterator(['unwrap'], [self.full_ml_coor], polarisations=[polarisation],
+                                                          ifg=True, load_memmap=False)[-1]
         for unwrapped in unwrapped_images:          # type: ImageData
             unwrapped.save_tiff(tiff_folder=tiff_folder)

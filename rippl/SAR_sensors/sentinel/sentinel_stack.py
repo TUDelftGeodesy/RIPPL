@@ -127,8 +127,8 @@ class SentinelStack(SentinelDatabase, Stack):
             print('Provide a master date to create a data_stack')
             return
 
-        self.create_slice_list(self.master_date)
-        self.read_master_slice_list()
+        existing_master = self.read_master_slice_list()
+        self.create_slice_list(self.master_date, existing_master)
 
         # Now assign ids to new master and slave slices
         self.assign_slice_id()
@@ -176,10 +176,10 @@ class SentinelStack(SentinelDatabase, Stack):
                         print('Failed to read meta_data ' + os.path.basename(xml_path))
         print('')
 
-    def create_slice_list(self, master_start):
+    def create_slice_list(self, master_start, existing_master=False):
         # master date should be in yyyy-mm-dd format
         # This function creates a list of all slices within the data_stack and reads the needed meta_data.
-        self.iterate_swaths(master_start, adjust_date=False, load_slave_slices=False)
+        self.iterate_swaths(master_start, adjust_date=False, load_slave_slices=False, load_master_slices=existing_master)
 
         # Adjust timing for master if needed.
         for seconds in self.master_slice_seconds:
@@ -198,9 +198,9 @@ class SentinelStack(SentinelDatabase, Stack):
             adjust_type = 'low'
 
         # Reload the slices and calc coordinates
-        self.iterate_swaths(master_start, adjust_date=True, adjust_type=adjust_type)
+        self.iterate_swaths(master_start, adjust_date=True, adjust_type=adjust_type, load_master_slices=existing_master)
 
-    def iterate_swaths(self, master_start, adjust_date=False, adjust_type='low', load_slave_slices=True):
+    def iterate_swaths(self, master_start, adjust_date=False, adjust_type='low', load_slave_slices=True, load_master_slices=True):
 
         time_lim = 0.1
         if not isinstance(master_start, datetime.datetime):
@@ -230,7 +230,7 @@ class SentinelStack(SentinelDatabase, Stack):
                                                                '%Y-%m-%dT%H:%M:%S.%f')
 
                     if master_start < az_date < master_end:
-                        if self.master_shape.intersects(slice_coverage):
+                        if self.master_shape.intersects(slice_coverage) and load_master_slices:
                             # Check if this time already exists
 
                             if len(self.master_slice_seconds) > 0:
