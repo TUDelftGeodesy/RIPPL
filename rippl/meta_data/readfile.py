@@ -100,6 +100,9 @@ class Readfile():
         self.json_dict['First_line'] = self.first_line
         self.json_dict['First_pixel'] = self.first_pixel
 
+        # adjust date
+        self.json_dict['Adjust_date'] = self.adjust_date
+
         return self.json_dict
 
     def save_json(self, json_path):
@@ -125,6 +128,12 @@ class Readfile():
 
         # First find the azimuth and range timing
         self.first_line_str = self.json_dict['First_pixel_azimuth_time (UTC)']
+
+        # Adjust date
+        if 'Adjust_date' in self.json_dict.keys():
+            self.adjust_date = self.json_dict['Adjust_date']
+        else:
+            self.adjust_date = False
 
         if self.json_dict['First_pixel_azimuth_time (UTC)'] != 'None':
             self.az_first_pix_time, self.date = self.time2seconds(self.json_dict['First_pixel_azimuth_time (UTC)'], self.adjust_date)

@@ -850,7 +850,7 @@ class GeneralPipelines():
             tiff_folder = self.tiff_folder
 
         geometry_datasets = self.stack.stack_data_iterator(['radar_ray_angles', 'geocode', 'dem', 'baseline', 'height_to_phase'], coordinates=[self.full_ml_coor],
-                                                           process_types=['lat', 'lon', 'incidence_angle', 'dem', 'perpendicular_baseline', 'height_to_phase'], load_memmap=False)[-1]
+                                                           process_types=['lat', 'lon', 'incidence_angle', 'heading', 'dem', 'perpendicular_baseline', 'height_to_phase'], load_memmap=False)[-1]
         coreg_master = self.get_data('coreg_master', slice=False)[0]
         readfile = coreg_master.readfiles['original']
 

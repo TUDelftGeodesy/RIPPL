@@ -172,7 +172,8 @@ class Stack(object):
 
         for image_dir in all_image_dirs:
             date = datetime.datetime.strptime(os.path.basename(image_dir), '%Y%m%d')
-            if np.sum((self.start_dates < date) * (self.end_dates > date)) > 0 or os.path.basename(image_dir) == self.master_date:
+            if np.sum((self.start_dates < date) * (self.end_dates > date)) > 0 or (
+                    os.path.basename(image_dir) == self.master_date and not exclude_master_date):
                 image_dirs.append(image_dir)
 
         for ifg_dir in all_ifg_dirs:

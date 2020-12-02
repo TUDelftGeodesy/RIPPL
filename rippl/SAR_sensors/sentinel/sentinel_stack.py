@@ -186,19 +186,21 @@ class SentinelStack(SentinelDatabase, Stack):
             if seconds < 3600 or seconds > 82800:
                 self.master_date_boundary = True
         if self.master_date_boundary:
-            self.master_slice_seconds = [seconds + 86400 for seconds in self.master_slice_seconds if seconds < 7200]
-            self.slice_seconds = [seconds + 86400 for seconds in self.slice_seconds if seconds < 7200]
+            self.master_slice_seconds = np.array(self.master_slice_seconds)
+            self.master_slice_seconds[self.master_slice_seconds < 7200] += 86400
+            self.master_slice_seconds = list(self.master_slice_seconds)
+            self.slice_seconds = np.array(self.slice_seconds)
+            self.slice_seconds[self.slice_seconds < 7200] += 86400
+            self.slice_seconds = list(self.slice_seconds)
 
         if len(self.master_slice_seconds) == 0:
             raise FileNotFoundError('No master date images found. Check if you selected a valid master date! Aborting..')
 
-        if np.mean(self.master_slice_seconds) > 86400:
-            adjust_type = 'high'
-        elif np.mean(self.master_slice_seconds) <= 86400:
-            adjust_type = 'low'
-
         # Reload the slices and calc coordinates
-        self.iterate_swaths(master_start, adjust_date=True, adjust_type=adjust_type, load_master_slices=existing_master)
+        if self.master_date_boundary:
+            self.iterate_swaths(master_start, adjust_date=True)
+        else:
+            self.iterate_swaths(master_start, adjust_date=False)
 
     def iterate_swaths(self, master_start, adjust_date=False, adjust_type='low', load_slave_slices=True, load_master_slices=True):
 
