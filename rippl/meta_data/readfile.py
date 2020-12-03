@@ -191,7 +191,7 @@ class Readfile():
         self.orig_first_line = self.json_dict['Orig_first_pixel']
 
     @staticmethod
-    def time2seconds(date_string, adjust_date=False, adjust_type='low'):
+    def time2seconds(date_string, adjust_date=False):
 
         if date_string == 0:
             return 0, 'no date'
@@ -201,16 +201,10 @@ class Readfile():
         seconds = time.seconds + time.microseconds / 1000000.0
         date = date_string[:10]
 
-        if adjust_date:
+        if adjust_date and seconds < 43200: # If the date is adjusted and in the first half of the day.
             orig_date = datetime.datetime.strptime(date_string[:10], '%Y-%m-%d')
-
-            if adjust_type == 'low' and seconds < 7200:
-                date = (orig_date - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-            elif adjust_type == 'high' and seconds > 79200:
-                date = (orig_date + datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-
-            if seconds < 7200:
-                seconds += 86400
+            date = (orig_date - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+            seconds += 86400
 
         return seconds, date
 

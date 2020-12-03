@@ -88,9 +88,10 @@ class Concatenate():
             polarisations.append(pol_str)
             in_coordinates_str.append(in_coor_str)
 
-        self.slice_data = images_out
-        self.slice_coordinates = coordinates
-        self.slice_names = slice_names
+        sort_ids = np.argsort(slice_names)
+        self.slice_data = list(np.array(images_out)[sort_ids])
+        self.slice_coordinates = list(np.array(coordinates)[sort_ids])
+        self.slice_names = list(np.array(slice_names)[sort_ids])
         self.process_id = process_ids[0]
         self.data_id = data_ids[0]
         self.polarisation = polarisations[0]
@@ -165,7 +166,7 @@ class Concatenate():
 
         return True
 
-    def concatenate(self, transition_type='full_weight', replace=False, cut_off=10, remove_input=False):
+    def concatenate(self, transition_type='coverage_cut_off', replace=False, cut_off=10, remove_input=False):
         """
         Here the actual concatenation is done.
 
@@ -173,17 +174,12 @@ class Concatenate():
         :return:
         """
 
-        if transition_type == 'full_weight':
-            self.full_weight()
-        elif transition_type in ['linear', 'cut_off']:
-            self.transition_zones(transition_type=transition_type, cut_off=cut_off)
-        else:
-            raise TypeError('Transition type not recognized. Use full_weight, linear or cut_off')
-                
+        if transition_type != 'coverage_cut_off':
+            self.transition_zones(transition_type, cut_off)
+
         for image, coordinates, slice_name in zip(self.slice_data, self.slice_coordinates, self.slice_names):
 
-            line_weight = self.line_weights[slice_name]
-            pixel_weight = self.pixel_weights[slice_name]
+            self.calc_coverage(transition_type=transition_type, cut_off=cut_off, coordinates=coordinates, slice_name=slice_name)
 
             lin_0 = int(coordinates.first_line - self.concat_data.coordinates.first_line)
             pix_0 = int(coordinates.first_pixel - self.concat_data.coordinates.first_pixel)
@@ -197,10 +193,10 @@ class Concatenate():
 
                 if self.output_type == 'memory':
                     self.concat_data.memory['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] += \
-                        image.memory['data'] * line_weight[:, None] * pixel_weight[None, :]
+                        image.memory['data'] * self.coverage
                 else:
                     self.concat_data.memory['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] += \
-                        image.memory2disk(image.memory['data'] * line_weight[:, None] * pixel_weight[None, :], image.dtype)
+                        image.memory2disk(image.memory['data'] * self.coverage, image.dtype)
             elif image.load_disk_data():
                 if replace:
                     # Set data that is going to be filled to zero.
@@ -208,15 +204,15 @@ class Concatenate():
 
                 if self.output_type == 'memory':
                     self.concat_data.memory['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] += \
-                        image.disk2memory(image.disk['data'], image.dtype)  * line_weight[:, None] * pixel_weight[None, :]
+                        image.disk2memory(image.disk['data'], image.dtype)  * self.coverage
                 else:
                     if image.dtype in ['complex_short', 'complex_int']:
                         self.concat_data.disk['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] = \
-                            image.memory2disk((image.disk2memory(image.disk['data'], image.dtype) * line_weight[:, None] * pixel_weight[None, :]).astype(np.complex64) +
+                            image.memory2disk((image.disk2memory(image.disk['data'], image.dtype) * self.coverage).astype(np.complex64) +
                                               image.disk2memory(copy.copy(self.concat_data.disk['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size]), image.dtype).astype(np.complex64), image.dtype)
                     else:
                         self.concat_data.disk['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] += \
-                            image.disk['data'] * line_weight[:, None] * pixel_weight[None, :]
+                            image.disk['data'] * self.coverage
 
                 image.remove_disk_data_memmap()  # type: ImageData
             else:
@@ -246,6 +242,51 @@ class Concatenate():
             # We give weights of one to all lines/pixels
             self.line_weights[slice_name] = np.ones(coordinates.shape[0])
             self.pixel_weights[slice_name] = np.ones(coordinates.shape[1])
+
+    def calc_coverage(self, transition_type='coverage_cut_off', cut_off=10, coordinates='', slice_name=''):
+        """
+        Here we calculate the coverage the current burst, including cutoffs
+
+        """
+
+        if not isinstance(coordinates, CoordinateSystem):
+            return
+
+        if transition_type == 'full_weight':
+            self.coverage = np.ones(coordinates.shape)
+            return
+        elif transition_type != 'coverage_cut_off':
+            self.coverage = self.line_weights[slice_name][:, None] * self.pixel_weights[None, :][slice_name]
+            return
+
+        # Otherwise we will have individual coverage cases.
+        self.coverage = np.zeros(coordinates.shape)
+        self.coverage[cut_off:-cut_off, cut_off:-cut_off] = 1
+        shape = coordinates.shape
+
+        # Then loop over the available other images, and if they are earlier in the list, remove that part of the coverage
+        for name, coor in zip(self.slice_names, self.slice_coordinates):
+
+            # Only the images upto the current slice are used. So slices with smaller burst of swath numbers are preferred.
+            if name == slice_name:
+                break
+
+            first_line = coor.first_line - coordinates.first_line + cut_off
+            first_pixel = coor.first_pixel - coordinates.first_pixel + cut_off
+
+            last_line = first_line + coor.shape[0] - 2 * cut_off
+            last_pixel = first_pixel + coor.shape[1] - 2 * cut_off
+
+            # Check if there is an overlap.
+            if (first_line < shape[0] and last_line >= 0) and (first_pixel < shape[1] and last_pixel >= 0):
+                first_line = np.maximum(first_line, 0)
+                last_line = np.minimum(last_line, shape[0])
+                first_pixel = np.maximum(first_pixel, 0)
+                last_pixel = np.minimum(last_pixel, shape[1])
+
+                self.coverage[first_line:last_line, first_pixel:last_pixel] = 0
+            else:
+                continue
 
     def transition_zones(self, transition_type='linear', cut_off=10):
         """
@@ -284,6 +325,8 @@ class Concatenate():
                 before_slice_coordinates = [self.slice_coordinates[id] for id in np.ravel(np.argwhere(swaths == swath - 1))]
                 before_last_pixel = np.min([coor.first_pixel + coor.shape[1] for coor in before_slice_coordinates])
 
+                if (before_last_pixel - swath_first_pixel) < 1:
+                    raise ValueError('Not possible to concatenate using this transition type. Use coverage_cut_off instead.')
                 overlap = np.zeros(before_last_pixel - swath_first_pixel)
 
                 if transition_type == 'linear':
@@ -299,6 +342,9 @@ class Concatenate():
             if swath + 1 in swaths:
                 after_slice_coordinates = [self.slice_coordinates[id] for id in np.ravel(np.argwhere(swaths == swath + 1))]
                 after_first_pixel = np.max([coor.first_pixel for coor in after_slice_coordinates])
+
+                if (swath_last_pixel - after_first_pixel) < 1:
+                    raise ValueError('Not possible to concatenate using this transition type. Use coverage_cut_off instead.')
 
                 overlap = np.zeros(swath_last_pixel - after_first_pixel)
 
