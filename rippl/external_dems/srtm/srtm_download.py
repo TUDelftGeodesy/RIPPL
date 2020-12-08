@@ -65,7 +65,11 @@ class SrtmDownloadTile(object):
 
         # Download and unzip
         try:
-            if not os.path.exists(file_unzip):
+            if os.path.exists(file_zip) and os.stat(file_zip).st_size == 0:
+                os.remove(file_zip)
+
+            if not os.path.exists(file_zip):
+
                 print('Downloading ' + file_zip)
                 try:
                     download = DownloadLogin('', username=self.username, password=self.password)
@@ -74,15 +78,21 @@ class SrtmDownloadTile(object):
                     command = 'wget ' + url + ' --user ' + self.username + ' --password ' \
                               + self.password + ' -O ' + '"' + file_zip + '"'
                     os.system(command)
+            if not os.path.exists(file_unzip):
                 zip_data = zipfile.ZipFile(file_zip)
                 source = zip_data.open(zip_data.namelist()[0])
                 with open(file_unzip, 'wb') as target:
                     shutil.copyfileobj(source, target, length=-1)
                 zip_data.close()
                 source.close()
-                os.remove(file_zip)
         except:
-            print('Failed to download ' + url)
+            # Remove erroneous files
+            if os.path.exists(file_unzip):
+                os.remove(file_unzip)
+            if os.path.exists(file_zip):
+                os.remove(file_zip)
+
+            raise ConnectionError('Failed to download ' + url)
             return False
 
         return True
@@ -163,9 +173,19 @@ class SrtmDownload(object):
 
         tiles, download_tiles, [tile_lats, tile_lons], urls, tiles_zip = \
             self.select_tiles(self.filelist, self.coordinates, self.srtm_folder, self.srtm_type, self.quality)
+        if len(urls) == 0:
+            print('All needed SRTM DEM files already downloaded.')
+            return
 
         # First create a download class.
         tile_download = SrtmDownloadTile(self.username, self.password)
+
+        # Tiles to be downloaded
+        print('SRTM tiles to be downloaded to ' + os.path.dirname(download_tiles[0]))
+        print('If downloading fails you can try again later or try and download the files yourself using your EarthData '
+              'credentials')
+        for url in urls:
+            print(url)
 
         # Loop over all images
         download_dat = [[url, file_zip, file_unzip, lat, lon] for

@@ -86,6 +86,11 @@ class TandemXDownloadTile(object):
 
         # Download and unzip
         try:
+            if os.path.exists(file_zip) and os.stat(file_zip).st_size == 0:
+                os.remove(file_zip)
+                if os.path.exists(file_unzip):
+                    os.remove(file_unzip)
+
             if not os.path.exists(file_zip):
                 # Make FTP connection
                 server = 'tandemx-90m.dlr.de'
@@ -107,6 +112,10 @@ class TandemXDownloadTile(object):
                 with open(file_unzip, 'wb') as target:
                     shutil.copyfileobj(source, target)
         except:
+            if os.path.exists(file_zip):
+                os.remove(file_zip)
+            if os.path.exists(file_unzip):
+                os.remove(file_unzip)
             raise ConnectionError('Failed to download ' + ftp_path)
 
     def resize_dem_file(self, file_unzip, lon_resolution=3):
@@ -178,6 +187,7 @@ class TandemXDownloadTile(object):
             print('Saved DEM file ' + new_file_name)
             new_data = np.memmap(new_file_name, np.float32, 'w+', shape=(size[0], len(new_lons)))
             new_data[:, :] = np.flipud(tdx_dem_interp(lats, new_lons))
+            print('Average TanDEM-X DEM value is ' + str(np.mean(new_data)) + ' for tile ' + new_file_name)
             new_data.flush()
 
 class TandemXDownload(object):
@@ -264,6 +274,16 @@ class TandemXDownload(object):
 
         resampled_tiles, tiles, download_tiles, [tile_lats, tile_lons], ftp_paths, tiles_zip = \
             self.select_tiles(self.filelist, self.coordinates, self.tandem_x_folder, lon_resolution=self.lon_resolution)
+        if len(ftp_paths) == 0:
+            print('All needed TanDEM-X DEM files already downloaded.')
+            return
+
+        # Tiles to be downloaded
+        print('TanDEM-X DEM tiles to be downloaded to ' + os.path.dirname(download_tiles[0]))
+        print('If downloading fails you can try again later or try and download the files yourself over FTP using your '
+              'DLR credentials')
+        for ftp_path in ftp_paths:
+            print('tandemx-90m.dlr.de' + ftp_path)
 
         # First create a download class.
         tile_download = TandemXDownloadTile(self.tandem_x_folder, self.username, self.password, self.lon_resolution)

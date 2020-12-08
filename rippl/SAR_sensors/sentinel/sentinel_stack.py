@@ -179,7 +179,9 @@ class SentinelStack(SentinelDatabase, Stack):
     def create_slice_list(self, master_start, existing_master=False):
         # master date should be in yyyy-mm-dd format
         # This function creates a list of all slices within the data_stack and reads the needed meta_data.
-        self.iterate_swaths(master_start, adjust_date=False, load_slave_slices=False, load_master_slices=existing_master)
+        load_master_slices = not existing_master
+        if load_master_slices:
+            self.iterate_swaths(master_start, adjust_date=False, load_slave_slices=False, load_master_slices=True)
 
         # Adjust timing for master if needed.
         for seconds in self.master_slice_seconds:
@@ -189,24 +191,23 @@ class SentinelStack(SentinelDatabase, Stack):
             self.master_slice_seconds = np.array(self.master_slice_seconds)
             self.master_slice_seconds[self.master_slice_seconds < 7200] += 86400
             self.master_slice_seconds = list(self.master_slice_seconds)
-            self.slice_seconds = np.array(self.slice_seconds)
-            self.slice_seconds[self.slice_seconds < 7200] += 86400
-            self.slice_seconds = list(self.slice_seconds)
 
         if len(self.master_slice_seconds) == 0:
             raise FileNotFoundError('No master date images found. Check if you selected a valid master date! Aborting..')
 
         # Reload the slices and calc coordinates
         if self.master_date_boundary:
-            self.iterate_swaths(master_start, adjust_date=True)
+            self.iterate_swaths(master_start, adjust_date=True, load_master_slices=load_master_slices)
+            self.adjust_date = True
         else:
-            self.iterate_swaths(master_start, adjust_date=False)
+            self.iterate_swaths(master_start, adjust_date=False, load_master_slices=load_master_slices)
+            self.adjust_date = False
 
-    def iterate_swaths(self, master_start, adjust_date=False, adjust_type='low', load_slave_slices=True, load_master_slices=True):
+    def iterate_swaths(self, master_start, adjust_date=False, load_slave_slices=True, load_master_slices=True):
 
         time_lim = 0.1
         if not isinstance(master_start, datetime.datetime):
-            master_start = datetime.datetime.strptime(master_start, '%Y-%m-%d') - datetime.timedelta(seconds=3600)
+            master_start = datetime.datetime.strptime(master_start, '%Y%m%d') - datetime.timedelta(seconds=3600)
         master_end = master_start + datetime.timedelta(days=1, seconds=3600)
 
         # Iterate over swath list
@@ -227,7 +228,7 @@ class SentinelStack(SentinelDatabase, Stack):
                         slices, swath.burst_coverage, swath.burst_xml_dat['azimuthTimeStart'], swath.burst_center_coors):
 
                     readfile = slice.readfiles['original']
-                    az_time, az_date_str = readfile.time2seconds(readfile.json_dict['Orig_first_pixel_azimuth_time (UTC)'], adjust_date=adjust_date, adjust_type=adjust_type)
+                    az_time, az_date_str = readfile.time2seconds(readfile.json_dict['Orig_first_pixel_azimuth_time (UTC)'], adjust_date=adjust_date)
                     az_date = datetime.datetime.strptime(readfile.json_dict['Orig_first_pixel_azimuth_time (UTC)'],
                                                                '%Y-%m-%dT%H:%M:%S.%f')
 
@@ -261,11 +262,12 @@ class SentinelStack(SentinelDatabase, Stack):
                             self.master_slice_time.append(readfile.json_dict['Orig_first_pixel_azimuth_time (UTC)'])
                             self.master_slice_range_seconds.append(readfile.json_dict['Orig_range_time_to_first_pixel (2way) (ms)'] * 1e-3)
 
+                            slice.readfiles['original'].adjust_date = adjust_date
                             self.master_slices.append(slice)
 
                     elif self.shape.intersects(slice_coverage) and load_slave_slices:
                         # Check if this time already exists
-                        dat_id = np.where(self.slice_date == slice_time[:10])[0]
+                        dat_id = np.where(self.slice_date == az_date_str)[0]
 
                         if len(dat_id) >= 1:
 
@@ -293,6 +295,7 @@ class SentinelStack(SentinelDatabase, Stack):
                         self.slice_time.append(readfile.json_dict['Orig_first_pixel_azimuth_time (UTC)'])
                         self.slice_range_seconds.append(readfile.json_dict['Orig_range_time_to_first_pixel (2way) (ms)'] * 1e-3)
 
+                        slice.readfiles['original'].adjust_date = adjust_date
                         self.slices.append(slice)
 
     def adjust_pixel_line_selected_bursts(self):
@@ -306,11 +309,13 @@ class SentinelStack(SentinelDatabase, Stack):
         # Final step is to adjust all azimuth and range values.
 
         # Find lowest azimuth value
-        master_lowest_az_time = np.min(self.master_slice_seconds)
-        master_lowest_ra_time = np.min(self.master_slice_range_seconds)
+        if len(self.master_slices) != 0:
+            # This is only needed when the master slices are assigned for the first time
+            master_lowest_az_time = np.min(self.master_slice_seconds)
+            master_lowest_ra_time = np.min(self.master_slice_range_seconds)
 
-        for slice in self.master_slices:
-            self.adjust_pixel_line(slice, master_lowest_az_time, master_lowest_ra_time)
+            for slice in self.master_slices:
+                self.adjust_pixel_line(slice, master_lowest_az_time, master_lowest_ra_time, adjust_date=self.adjust_date)
 
         # Now do the same thing for the slave pixels.
         dates = list(set(self.slice_date))
@@ -320,10 +325,10 @@ class SentinelStack(SentinelDatabase, Stack):
             lowest_ra_time = np.min(np.array(self.slice_range_seconds)[slice_ids])
 
             for slice_id in slice_ids:
-                self.adjust_pixel_line(self.slices[slice_id], lowest_az_time, lowest_ra_time)
+                self.adjust_pixel_line(self.slices[slice_id], lowest_az_time, lowest_ra_time, adjust_date=self.adjust_date)
 
     @staticmethod
-    def adjust_pixel_line(slice, lowest_az_time, lowest_ra_time):
+    def adjust_pixel_line(slice, lowest_az_time, lowest_ra_time, adjust_date):
         """
         Adjust the first pixel and line values.
 
@@ -341,6 +346,11 @@ class SentinelStack(SentinelDatabase, Stack):
         pol = slice.readfiles['original'].json_dict['Polarisation']
         crop_key = [key for key in slice.processes['crop'].keys() if pol in key][0]
         crop_coor = slice.processes['crop'][crop_key].coordinates  # type:CoordinateSystem
+
+        if adjust_date:
+            crop_coor.orig_az_time += 86400     # Add number of seconds in a day.
+            orig_date = datetime.datetime.strptime(slice.readfiles['original'].date, '%Y-%m-%d')
+            slice.readfiles['original'].date = (orig_date - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
 
         slice.readfiles['original'].first_line = int(np.round((crop_coor.orig_az_time - lowest_az_time) / crop_coor.az_step))
         slice.readfiles['original'].first_pixel = int(np.round((crop_coor.orig_ra_time - lowest_ra_time) / crop_coor.ra_step))

@@ -240,10 +240,10 @@ class ImportDem(Process):  # Change this name to the one of your processing step
                 lat = float(os.path.basename(tile)[s_id+1:s_id+3])
             else:
                 lat = - float(os.path.basename(tile)[s_id+1:s_id+3])
-            if os.path.basename(tile)[10] == 'E':
+            if os.path.basename(tile)[s_id + 3] == 'E':
                 lon = float(os.path.basename(tile)[s_id+4:s_id+7])
             else:
-                lon = - float(os.path.basename(tile)[s_id+4:s_id+7])
+                lon = -float(os.path.basename(tile)[s_id+4:s_id+7])
 
             # print('adding ' + tile)
 

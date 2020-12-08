@@ -46,7 +46,7 @@ from rippl.pipeline import Pipeline
 class GeneralPipelines():
 
 
-    def __init__(self, processes=6):
+    def __init__(self, processes=6, concat_type='cut_off'):
         """
         Initialize the general S1 processing chain.
 
@@ -72,6 +72,7 @@ class GeneralPipelines():
         self.time_window = None
         self.dates = None
         self.tiff_folder = ''
+        self.concat_type = concat_type
 
     def get_data(self, data_type, slice=False, concat_meta=False, include_coreg_master=False):
         """
@@ -505,11 +506,11 @@ class GeneralPipelines():
         coreg_image = self.get_data('coreg_master', slice=False, concat_meta=True)[0]
 
         # Finally concatenate bursts
-        coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.dem_coor, replace=True, remove_input=False)
-        coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.radar_coor, transition_type='cut_off')
-        coreg_image.create_concatenate_image(process='geocode', file_type='lat', coor=self.radar_coor, transition_type='cut_off', remove_input=False)
-        coreg_image.create_concatenate_image(process='geocode', file_type='lon', coor=self.radar_coor, transition_type='cut_off', remove_input=False)
-        coreg_image.create_concatenate_image(process='radar_ray_angles', file_type='incidence_angle', coor=self.radar_coor, transition_type='cut_off', remove_input=False)
+        coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.dem_coor, transition_type=self.concat_type, remove_input=False)
+        coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.radar_coor, transition_type=self.concat_type)
+        coreg_image.create_concatenate_image(process='geocode', file_type='lat', coor=self.radar_coor, transition_type=self.concat_type, remove_input=False)
+        coreg_image.create_concatenate_image(process='geocode', file_type='lon', coor=self.radar_coor, transition_type=self.concat_type, remove_input=False)
+        coreg_image.create_concatenate_image(process='radar_ray_angles', file_type='incidence_angle', coor=self.radar_coor, transition_type=self.concat_type, remove_input=False)
 
     def geometric_coregistration_resampling(self, polarisation, output_phase_correction=False, block_orientation='lines',
                                             coreg_tmp_directory='', tmp_directory='', baselines=False, height_to_phase=False):
@@ -566,10 +567,10 @@ class GeneralPipelines():
         # Concatenate the images using parallel processing
         self.reload_stack()
         self.stack.create_concatenate_images(image_type='slc', process='calc_reramp', file_type='ramp', coor=self.full_radar_coor,
-                                             transition_type='cut_off', remove_input=False, no_processes=self.processes, tmp_directory=tmp_directory)
+                                             transition_type=self.concat_type, remove_input=False, no_processes=self.processes, tmp_directory=tmp_directory)
         for pol in polarisation:
             self.stack.create_concatenate_images(image_type='slc', process='correct_phases', file_type='phase_corrected',
-                                                 coor=self.full_radar_coor, transition_type='cut_off', remove_input=False,
+                                                 coor=self.full_radar_coor, transition_type=self.concat_type, remove_input=False,
                                                  no_processes=self.processes, polarisation=pol, tmp_directory=tmp_directory)
 
     def prepare_multilooking_grid(self, polarisation, block_orientation='lines'):
@@ -587,7 +588,7 @@ class GeneralPipelines():
         coreg_image = self.get_data('coreg_master', slice=False, concat_meta=True)
 
         # Concatenate the files from the main folder if not already done
-        coreg_image[0].create_concatenate_image(process='crop', file_type='crop', polarisation=polarisation, coor=self.full_radar_coor, transition_type='cut_off', remove_input=False)
+        coreg_image[0].create_concatenate_image(process='crop', file_type='crop', polarisation=polarisation, coor=self.full_radar_coor, transition_type=self.concat_type, remove_input=False)
 
         coreg_image = self.get_data('coreg_master', slice=False)
         create_multilooking_grid = Pipeline(pixel_no=5000000, processes=self.processes, block_orientation=block_orientation)
@@ -670,7 +671,7 @@ class GeneralPipelines():
 
             for slc in slcs:
                 slc.create_concatenate_image(process='crop', file_type='crop',
-                                               coor=self.full_radar_coor, transition_type='cut_off', polarisation=pol, remove_input=False)
+                                               coor=self.full_radar_coor, transition_type=self.concat_type, polarisation=pol, remove_input=False)
 
         for pol in polarisation:
             self.reload_stack()
