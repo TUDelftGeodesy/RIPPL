@@ -256,7 +256,7 @@ class Concatenate():
             self.coverage = np.ones(coordinates.shape)
             return
         elif transition_type != 'coverage_cut_off':
-            self.coverage = self.line_weights[slice_name][:, None] * self.pixel_weights[None, :][slice_name]
+            self.coverage = self.line_weights[slice_name][:, None] * self.pixel_weights[slice_name][None, :]
             return
 
         # Otherwise we will have individual coverage cases.
