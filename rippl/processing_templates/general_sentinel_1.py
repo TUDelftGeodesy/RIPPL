@@ -506,7 +506,7 @@ class GeneralPipelines():
         coreg_image = self.get_data('coreg_master', slice=False, concat_meta=True)[0]
 
         # Finally concatenate bursts
-        coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.dem_coor, transition_type=self.concat_type, remove_input=False)
+        coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.dem_coor, transition_type='coverage_cut_off', remove_input=False)
         coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.radar_coor, transition_type=self.concat_type)
         coreg_image.create_concatenate_image(process='geocode', file_type='lat', coor=self.radar_coor, transition_type=self.concat_type, remove_input=False)
         coreg_image.create_concatenate_image(process='geocode', file_type='lon', coor=self.radar_coor, transition_type=self.concat_type, remove_input=False)
