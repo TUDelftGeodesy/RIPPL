@@ -1,0 +1,24 @@
+# create environment : conda env create -f environment.yml
+# update dependencies: conda env update -f environment.yml
+# remove environment : conda env remove -n rippl
+# enter  environment : conda activate rippl
+# exit   environment : conda deactivate
+name: rippl
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.6,<3.9
+  - scipy
+  - numpy
+  - scikit-image
+  - requests
+  - lxml
+  - gdal
+  - fiona
+  - shapely
+  - matplotlib
+  - cartopy
+  - pyproj
+  - utm
+  - jupyter
