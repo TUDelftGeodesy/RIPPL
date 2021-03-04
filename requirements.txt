@@ -1,0 +1,13 @@
+scipy
+numpy
+scikit-image
+requests
+lxml
+gdal
+fiona
+shapely
+matplotlib
+cartopy
+pyproj
+utm
+jupyter
