@@ -3,7 +3,7 @@ numpy
 scikit-image
 requests
 lxml
-gdal
+gdal==2.2.3
 fiona
 shapely
 matplotlib
