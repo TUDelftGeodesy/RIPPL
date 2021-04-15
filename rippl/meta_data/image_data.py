@@ -5,7 +5,7 @@ Class to read and write image data from and to memory.
 """
 
 import numpy as np
-import gdal
+from osgeo import gdal
 import shutil
 from collections import OrderedDict
 import os

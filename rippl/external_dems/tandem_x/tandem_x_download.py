@@ -33,7 +33,7 @@ import numpy as np
 import ftplib
 from scipy.interpolate import RectBivariateSpline
 from multiprocessing import get_context
-import gdal
+from osgeo import gdal
 
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.meta_data.image_processing_data import ImageProcessingData
