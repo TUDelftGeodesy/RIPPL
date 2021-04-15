@@ -1,6 +1,6 @@
 # Code to read a sentinel data file using gdal
 
-import gdal
+from osgeo import gdal
 import numpy as np
 import os
 from rippl.meta_data.image_processing_data import ImageProcessingData

@@ -25,7 +25,7 @@ convert(shapefile)
 
 """
 
-import ogr
+from osgeo import ogr
 import fiona
 from fiona import collection
 import shapely

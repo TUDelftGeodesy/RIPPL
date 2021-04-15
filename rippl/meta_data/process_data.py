@@ -2,7 +2,7 @@
 import numpy as np
 from collections import OrderedDict
 import os
-import gdal
+from osgeo import gdal
 
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.meta_data.process_meta import ProcessMeta

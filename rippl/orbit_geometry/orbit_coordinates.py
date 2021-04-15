@@ -1,6 +1,6 @@
 # Class to calculate the geometry of a radar image based on the orbits.
 import numpy as np
-import osr
+from osgeo import osr
 import utm
 import os
 
