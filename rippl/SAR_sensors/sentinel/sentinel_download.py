@@ -21,6 +21,10 @@ import cartopy.feature as cfeature
 import matplotlib.pyplot as plt
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
+import requests
+from dateutil import parser as dateutil_parser
+import progressbar as pb
+from spatialist.ancillary import finder, urlQueryParser
 
 from rippl.user_settings import UserSettings
 from rippl.download_login import DownloadLogin
@@ -591,113 +595,487 @@ class DownloadSentinel(object):
 
 
 class DownloadSentinelOrbit(object):
-
-    def __init__(self, start_date='', end_date='', precise_folder='', restituted_folder='', download_source='ESA'):
-        # This script downloads all orbits files from the precise orbits website, when pages is set to a very high number.
-        # By default only the first page for the last two days (restituted) is checked.
-
+    #
+    # def __init__(self, start_date='', end_date='', precise_folder='', restituted_folder='', download_source='ESA'):
+    #     # This script downloads all orbits files from the precise orbits website, when pages is set to a very high number.
+    #     # By default only the first page for the last two days (restituted) is checked.
+    #
+    #     settings = UserSettings()
+    #     settings.load_settings()
+    #
+    #     if not restituted_folder:
+    #         restituted_folder = os.path.join(settings.orbit_database, settings.sar_sensor_name['sentinel1'], 'restituted')
+    #     if not precise_folder:
+    #         precise_folder = os.path.join(settings.orbit_database, settings.sar_sensor_name['sentinel1'], 'precise')
+    #     self.precise_folder = precise_folder
+    #     self.restituted_folder = restituted_folder
+    #
+    #     last_precise = ''  # Last precise orbit file. Used to remove unused restituted orbit files.
+    #     gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+    #
+    #     # From now on the start date and end date should be given to find the right path.
+    #     if not isinstance(start_date, datetime.datetime):
+    #         start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+    #     t_step = datetime.timedelta(days=1)
+    #     if not isinstance(end_date, datetime.datetime):
+    #         end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+    #
+    #     self.precise_files = []
+    #     self.precise_links = []
+    #     self.precise_dates = []
+    #
+    #     date = start_date
+    #     print('Loading available orbit data files')
+    #
+    #     if download_source == 'ESA':
+    #         if self.precise_folder:
+    #             while (end_date + t_step * 21) > date:
+    #                 # First extract the orbitfiles from the page.
+    #                 url = 'https://aux.sentinel1.eo.esa.int/POEORB/' + str(date.year) + '/' + str(date.month).zfill(
+    #                     2) + '/' + str(date.day).zfill(2) + '/'
+    #
+    #                 try:
+    #                     page = urllib.request.urlopen(url, context=gcontext)
+    #                     html = page.read().decode("utf8").split('\n')
+    #
+    #                     for line in html:
+    #                         if re.search('<a .*href=.*>', line):
+    #                             if re.search('EOF', line):
+    #                                 dat = re.search('<a href=.*>(.*)</a>', line)
+    #                                 self.precise_files.append(dat.group(1))
+    #                                 self.precise_links.append(url + dat.group(1))
+    #                                 date_poeorb = datetime.datetime.strptime(dat.group(1)[42:50], '%Y%m%d') + t_step
+    #                                 self.precise_dates.append(date_poeorb)
+    #                 except:
+    #                     print('No precise orbit found for ' + date.strftime('%Y-%m-%d'))
+    #
+    #                 date += t_step
+    #
+    #         self.restituted_files = []
+    #         self.restituted_links = []
+    #         self.restituted_dates = []
+    #
+    #         date = np.max(self.precise_dates)
+    #
+    #         # Download only restituted files for the last 3 weeks.
+    #         if self.restituted_folder and (datetime.datetime.today() - end_date).days < 21:
+    #             while (end_date + 2 * t_step) > date:
+    #                 # First extract the orbitfiles from the page.
+    #                 url = 'https://aux.sentinel1.eo.esa.int/RESORB/' + str(date.year) + '/' + str(date.month).zfill(
+    #                     2) + '/' + str(date.day).zfill(2) + '/'
+    #
+    #                 try:
+    #                     page = urllib.request.urlopen(url, context=gcontext)
+    #                     html = page.read().decode("utf8").split('\n')
+    #
+    #                     for line in html:
+    #                         if re.search('<a .*href=.*>', line):
+    #                             if re.search('EOF', line):
+    #                                 dat = re.search('<a href=.*>(.*)</a>', line)
+    #                                 self.restituted_files.append(dat.group(1))
+    #                                 self.restituted_links.append(url + dat.group(1))
+    #                 except:
+    #                     print('No restituted orbit found for ' + date.strftime('%Y-%m-%d'))
+    #
+    #                 date += t_step
+    #
+    #     print('Finished loading date files')
+    #
+    # def download_orbits(self):
+    #     # Do the actual download
+    #
+    #     gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+    #
+    #     if self.precise_folder:
+    #         for orb, url in zip(self.precise_files, self.precise_links):
+    #             # Download the orbit files
+    #             filename = os.path.join(self.precise_folder, orb)
+    #             if not os.path.exists(filename):
+    #                 url_dat = urllib.request.urlopen(url, context=gcontext).read().decode("utf8")
+    #                 with open(filename, 'w') as f:
+    #                     f.write(url_dat)
+    #                 print(filename + ' downloaded')
+    #
+    #     if self.restituted_folder:
+    #         for orb, url in zip(self.restituted_files, self.restituted_links):
+    #             # Download the orbit files
+    #             filename = os.path.join(self.restituted_folder, orb)
+    #             if not os.path.exists(filename):
+    #                 url_dat = urllib.request.urlopen(url, context=gcontext).read().decode("utf8")
+    #                 with open(filename, 'w') as f:
+    #                     f.write(url_dat)
+    #                 print(filename + ' downloaded')
+    def __init__(self, start_date='', end_date='', precise_folder='', restituted_folder='', timeout=20):
         settings = UserSettings()
         settings.load_settings()
-
+        self.timeout = timeout
         if not restituted_folder:
-            restituted_folder = os.path.join(settings.orbit_database, settings.sar_sensor_name['sentinel1'], 'restituted')
+            restituted_folder = os.path.join(settings.orbit_database, settings.sar_sensor_name['sentinel1'],
+                                             'restituted')
         if not precise_folder:
             precise_folder = os.path.join(settings.orbit_database, settings.sar_sensor_name['sentinel1'], 'precise')
         self.precise_folder = precise_folder
         self.restituted_folder = restituted_folder
+        self.start_date = start_date
+        self.end_date = end_date
+        self.pattern = r'S1[AB]_OPER_AUX_(?:POE|RES)ORB_OPOD_[0-9TV_]{48}\.EOF'
+        self.pattern_fine = r'(?P<sensor>S1[AB])_OPER_AUX_' \
+                            r'(?P<type>(?:POE|RES)ORB)_OPOD_' \
+                            r'(?P<publish>[0-9]{8}T[0-9]{6})_V' \
+                            r'(?P<start>[0-9]{8}T[0-9]{6})_' \
+                            r'(?P<stop>[0-9]{8}T[0-9]{6})\.EOF'
 
-        last_precise = ''  # Last precise orbit file. Used to remove unused restituted orbit files.
-        gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+    def _parse(self, file):
+        basename = os.path.basename(file)
+        groups = re.match(self.pattern_fine, basename).groupdict()
+        return groups
 
-        # From now on the start date and end date should be given to find the right path.
-        if not isinstance(start_date, datetime.datetime):
-            start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
-        t_step = datetime.timedelta(days=1)
-        if not isinstance(end_date, datetime.datetime):
-            end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+    def _typeEvaluate(self, osvtype):
+        """
+        evaluate the 'osvtype' method argument and return the corresponding remote repository and local directory
 
-        self.precise_files = []
-        self.precise_links = []
-        self.precise_dates = []
+        Parameters
+        ----------
+        osvtype: str
+            the type of orbit files required; either 'POE' or 'RES'
 
-        date = start_date
-        print('Loading available orbit data files')
+        Returns
+        -------
+        tuple of str
+            the remote repository and local directory of the osv type
+        """
+        if osvtype not in ['POE', 'RES']:
+            raise IOError('type must be either "POE" or "RES"')
+        if osvtype == 'POE':
+            return self.precise_folder
+        else:
+            return self.restituted_folder
 
-        if download_source == 'ESA':
-            if self.precise_folder:
-                while (end_date + t_step * 21) > date:
-                    # First extract the orbitfiles from the page.
-                    url = 'https://aux.sentinel1.eo.esa.int/POEORB/' + str(date.year) + '/' + str(date.month).zfill(
-                        2) + '/' + str(date.day).zfill(2) + '/'
+    def __catch_gnss(self, osvtype='POE'):
+        url = 'https://scihub.copernicus.eu/gnss/search/'
+        auth = ('gnssguest', 'gnssguest')
+        # a dictionary for storing the url arguments
+        query = {}
 
-                    try:
-                        page = urllib.request.urlopen(url, context=gcontext)
-                        html = page.read().decode("utf8").split('\n')
+        if osvtype == 'POE':
+            query['producttype'] = 'AUX_POEORB'
+        elif osvtype == 'RES':
+            query['producttype'] = 'AUX_RESORB'
+        else:
+            raise RuntimeError("osvtype must be either 'POE' or 'RES'")
 
-                        for line in html:
-                            if re.search('<a .*href=.*>', line):
-                                if re.search('EOF', line):
-                                    dat = re.search('<a href=.*>(.*)</a>', line)
-                                    self.precise_files.append(dat.group(1))
-                                    self.precise_links.append(url + dat.group(1))
-                                    date_poeorb = datetime.datetime.strptime(dat.group(1)[42:50], '%Y%m%d') + t_step
-                                    self.precise_dates.append(date_poeorb)
-                    except:
-                        print('No precise orbit found for ' + date.strftime('%Y-%m-%d'))
+        query['platformname'] = 'Sentinel-1'
 
-                    date += t_step
+        # the collection of files to be returned
+        collection = []
+        # set the defined date or the date of the first existing OSV file otherwise
+        # two days are added/subtracted from the defined start and stop dates since the
+        # online query does only allow for searching the start time; hence, if e.g.
+        # the start date is 2018-01-01T000000, the query would not return the corresponding
+        # file, whose start date is 2017-12-31 (V20171231T225942_20180102T005942)
+        date_start = self.start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+        date_stop = self.end_date.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-            self.restituted_files = []
-            self.restituted_links = []
-            self.restituted_dates = []
+        # append the time frame to the query dictionary
+        query['beginPosition'] = '[{} TO {}]'.format(date_start, date_stop)
+        query['endPosition'] = '[{} TO {}]'.format(date_start, date_stop)
+        print('searching for new {} files'.format(osvtype))
+        query_list = []
+        for keyword, value in query.items():
+            query_elem = '{}:{}'.format(keyword, value)
+            query_list.append(query_elem)
+        query_str = ' '.join(query_list)
+        target = '{}?q={}&format=json'.format(url, query_str)
+        print(target)
 
-            date = np.max(self.precise_dates)
+        def _parse_gnsssearch_json(search_dict):
+            parsed_dict = {}
+            # Will return ['entry'] as dict if only one item
+            # If so just make a list
+            if isinstance(search_dict, dict):
+                search_dict = [search_dict]
+            for entry in search_dict:
+                id = entry['id']
+                entry_dict = {}
 
-            # Download only restituted files for the last 3 weeks.
-            if self.restituted_folder and (datetime.datetime.today() - end_date).days < 21:
-                while (end_date + 2 * t_step) > date:
-                    # First extract the orbitfiles from the page.
-                    url = 'https://aux.sentinel1.eo.esa.int/RESORB/' + str(date.year) + '/' + str(date.month).zfill(
-                        2) + '/' + str(date.day).zfill(2) + '/'
+                for key, value in entry.items():
+                    if key == 'title':
+                        entry_dict[key] = value
+                    elif key == 'id':
+                        entry_dict[key] = value
+                    elif key == 'ondemand':
+                        if value.lower() == 'true':
+                            entry_dict[key] = True
+                        else:
+                            entry_dict[key] = False
+                    elif key == 'str':
+                        for elem in value:
+                            entry_dict[elem['name']] = elem['content']
+                    elif key == 'link':
+                        for elem in value:
+                            if 'rel' in elem.keys():
+                                href_key = 'href_' + elem['rel']
+                                entry_dict[href_key] = elem['href']
+                            else:
+                                entry_dict['href'] = elem['href']
+                    elif key == 'date':
+                        for elem in value:
+                            entry_dict[elem['name']] = dateutil_parser.parse(elem['content'])
 
-                    try:
-                        page = urllib.request.urlopen(url, context=gcontext)
-                        html = page.read().decode("utf8").split('\n')
+                parsed_dict[id] = entry_dict
+            return parsed_dict
 
-                        for line in html:
-                            if re.search('<a .*href=.*>', line):
-                                if re.search('EOF', line):
-                                    dat = re.search('<a href=.*>(.*)</a>', line)
-                                    self.restituted_files.append(dat.group(1))
-                                    self.restituted_links.append(url + dat.group(1))
-                    except:
-                        print('No restituted orbit found for ' + date.strftime('%Y-%m-%d'))
+        def _parse_gnsssearch_response(response_json):
+            if 'entry' in response_json.keys():
+                search_dict = response_json['entry']
+                parsed_dict = _parse_gnsssearch_json(search_dict)
+            else:
+                parsed_dict = {}
+            return parsed_dict
 
-                    date += t_step
+        response = requests.get(target, auth=auth, timeout=self.timeout)
+        response.raise_for_status()
+        response_json = response.json()['feed']
+        total_results = response_json['opensearch:totalResults']
+        print('found {} OSV results'.format(total_results))
+        subquery = [link['href'] for link in response_json['link'] if link['rel'] == 'self'][0]
+        if int(total_results) > 10:
+            subquery = subquery.replace('rows=10', 'rows=100')
+        while subquery:
+            subquery_response = requests.get(subquery, auth=auth, timeout=self.timeout)
+            subquery_response.raise_for_status()
+            subquery_json = subquery_response.json()['feed']
+            subquery_products = _parse_gnsssearch_response(subquery_json)
+            items = list(subquery_products.values())
+            for item in items:
+                item['auth'] = auth
+            collection += list(subquery_products.values())
+            if 'next' in [link['rel'] for link in subquery_json['link']]:
+                subquery = [link['href'] for link in subquery_json['link'] if link['rel'] == 'next'][0]
+            else:
+                subquery = None
+        if osvtype == 'RES' and self.maxdate('POE', 'stop') is not None:
+            collection = [x for x in collection
+                          if self.date(x['filename'], 'start') > self.maxdate('POE', 'stop')]
+        return collection
 
-        print('Finished loading date files')
+    def catch(self, osvtype='POE'):
+        """
+        check a server for files
+
+        Parameters
+        ----------
+        osvtype: {'POE', 'RES'}
+            the type of orbit files required
+        the URL to query for scenes: https://scihub.copernicus.eu/gnss
+
+        Returns
+        -------
+        list
+            the product dictionary of the remote OSV files, with href
+        """
+        items = self.__catch_gnss(osvtype)
+        return items
+
+    def date(self, file, datetype):
+        """
+        extract a date from an OSV file name
+
+        Parameters
+        ----------
+        file: str
+            the OSV file
+        datetype: {'publish', 'start', 'stop'}
+            one of three possible date types contained in the OSV filename
+
+        Returns
+        -------
+        str
+            a time stamp in the format YYYYmmddTHHMMSS
+        """
+        return self._parse(file)[datetype]
+
+    def clean_res(self):
+        """
+        delete all RES files for whose date a POE file exists
+        """
+        maxdate_poe = self.maxdate('POE', 'stop')
+        if maxdate_poe is not None:
+            deprecated = [x for x in self.getLocals('RES') if self.date(x, 'stop') < maxdate_poe]
+            print('deleting {} RES file{}'.format(len(deprecated), '' if len(deprecated) == 1 else 's'))
+            for item in deprecated:
+                os.remove(item)
+
+    def getLocals(self, osvtype='POE'):
+        """
+        get a list of local files of specific type
+
+        Parameters
+        ----------
+        osvtype: {'POE', 'RES'}
+            the type of orbit files required
+
+        Returns
+        -------
+        list
+            a selection of local OSV files
+        """
+        directory = self._typeEvaluate(osvtype)
+        return finder(directory, [self.pattern], regex=True)
+
+    def maxdate(self, osvtype='POE', datetype='stop'):
+        """
+        return the latest date of locally existing POE/RES files
+
+        Parameters
+        ----------
+        osvtype: {'POE', 'RES'}
+            the type of orbit files required
+        datetype: {'publish', 'start', 'stop'}
+            one of three possible date types contained in the OSV filename
+
+        Returns
+        -------
+        str
+            a timestamp in format YYYYmmddTHHMMSS
+        """
+        directory = self._typeEvaluate(osvtype)
+        files = finder(directory, [self.pattern], regex=True)
+        return max([self.date(x, datetype) for x in files]) if len(files) > 0 else None
+
+    def mindate(self, osvtype='POE', datetype='start'):
+        """
+        return the earliest date of locally existing POE/RES files
+
+        Parameters
+        ----------
+        osvtype: {'POE', 'RES'}
+            the type of orbit files required
+        datetype: {'publish', 'start', 'stop'}
+            one of three possible date types contained in the OSV filename
+
+        Returns
+        -------
+        str
+            a timestamp in format YYYYmmddTHHMMSS
+        """
+        directory = self._typeEvaluate(osvtype)
+        files = finder(directory, [self.pattern], regex=True)
+        return min([self.date(x, datetype) for x in files]) if len(files) > 0 else None
+
+    def match(self, sensor, timestamp, osvtype='POE'):
+        """
+        return the corresponding OSV file for the provided sensor and time stamp.
+        The file returned is one which covers the acquisition time and, if multiple exist,
+        the one which was published last.
+        In case a list of options is provided as osvtype, the file of higher accuracy (i.e. POE over RES) is returned.
+
+        Parameters
+        ----------
+        sensor: str
+            The S1 mission:
+             - 'S1A'
+             - 'S1B'
+        timestamp: str
+            the time stamp in the format 'YYYmmddTHHMMSS'
+        osvtype: str or list
+            the type of orbit files required; either 'POE', 'RES' or a list of both
+
+        Returns
+        -------
+        str
+            the best matching orbit file (overlapping time plus latest publication date)
+        """
+        # list all locally existing files of the defined type
+        if osvtype in ['POE', 'RES']:
+            locals = self.getLocals(osvtype)
+            # filter the files to those which contain data for the defined time stamp
+            files = [x for x in locals if self.date(x, 'start') <= timestamp <= self.date(x, 'stop')]
+            files = [x for x in files if os.path.basename(x).startswith(sensor)]
+            if len(files) > 0:
+                # select the file which was published last
+                best = self.sortByDate(files, 'publish')[-1]
+                return best
+            elif len(files) == 1:
+                return files[0]
+            return None
+        elif sorted(osvtype) == ['POE', 'RES']:
+            best = self.match(sensor=sensor, timestamp=timestamp, osvtype='POE')
+            if not best:
+                best = self.match(sensor=sensor, timestamp=timestamp, osvtype='RES')
+            return best
+
+    def retrieve(self, products, pbar=False):
+        """
+        download a list of product dictionaries into the respective subdirectories, i.e. POEORB or RESORB
+
+        Parameters
+        ----------
+        files: list
+            a list of remotely existing OSV product dictionaries as returned by method :meth:`catch`
+        pbar: bool
+            add a progressbar?
+
+        Returns
+        -------
+        """
+        downloads = []
+        for product in products:
+            if all(key not in ['filename', 'href'] for key in product.keys()):
+                raise RuntimeError("product dictionaries must contain 'filename' and 'href' keys")
+            basename = product['filename']
+            remote = product['href']
+            auth = product['auth']
+
+            outdir = self._subdir(basename)
+            local = os.path.join(outdir, basename)
+            if not os.path.isfile(local):
+                downloads.append((remote, local, basename, auth))
+        if len(downloads) == 0:
+            return
+        print('downloading {} file{}'.format(len(downloads), '' if len(downloads) == 1 else 's'))
+        if pbar:
+            progress = pb.ProgressBar(max_value=len(downloads))
+        i = 0
+        for remote, local, basename, auth in downloads:
+            infile = requests.get(remote, auth=auth, timeout=self.timeout)
+            with open(local, 'w') as outfile:
+                outfile.write(infile.content.decode("utf8"))
+            infile.close()
+            if pbar:
+                i += 1
+                progress.update(i)
+        if pbar:
+            progress.finish()
+        self.clean_res()
+
+    def sortByDate(self, files, datetype='start'):
+        """
+        sort a list of OSV files by a specific date type
+
+        Parameters
+        ----------
+        files: list
+            some OSV files
+        datetype: {'publish', 'start', 'stop'}
+            one of three possible date types contained in the OSV filename
+
+        Returns
+        -------
+        list
+            the input OSV files sorted by the defined date
+        """
+        return sorted(files, key=lambda x: self.date(x, datetype))
+
+    def _subdir(self, file):
+        """
+        | return the subdirectory in which to store the EOF file,
+        """
+        attr = self._parse(file)
+        outdir = self._typeEvaluate(attr['type'][:3])
+        return outdir
 
     def download_orbits(self):
         # Do the actual download
-
-        gcontext = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-
-        if self.precise_folder:
-            for orb, url in zip(self.precise_files, self.precise_links):
-                # Download the orbit files
-                filename = os.path.join(self.precise_folder, orb)
-                if not os.path.exists(filename):
-                    url_dat = urllib.request.urlopen(url, context=gcontext).read().decode("utf8")
-                    with open(filename, 'w') as f:
-                        f.write(url_dat)
-                    print(filename + ' downloaded')
-
-        if self.restituted_folder:
-            for orb, url in zip(self.restituted_files, self.restituted_links):
-                # Download the orbit files
-                filename = os.path.join(self.restituted_folder, orb)
-                if not os.path.exists(filename):
-                    url_dat = urllib.request.urlopen(url, context=gcontext).read().decode("utf8")
-                    with open(filename, 'w') as f:
-                        f.write(url_dat)
-                    print(filename + ' downloaded')
+        files = self.catch()
+        self.retrieve(products=files)
