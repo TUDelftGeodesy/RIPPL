@@ -47,5 +47,5 @@ ipython_config.py
 # user settings for downloading.
 user_settings.txt
 
-# vscode dev env
-.vscode
+# vscode
+\.vscode/
