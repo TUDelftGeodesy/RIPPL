@@ -506,7 +506,6 @@ class GeneralPipelines():
         coreg_image = self.get_data('coreg_master', slice=False, concat_meta=True)[0]
 
         # Finally concatenate bursts
-        coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.dem_coor, transition_type='coverage_cut_off', remove_input=False)
         coreg_image.create_concatenate_image(process='dem', file_type='dem', coor=self.radar_coor, transition_type=self.concat_type)
         coreg_image.create_concatenate_image(process='geocode', file_type='lat', coor=self.radar_coor, transition_type=self.concat_type, remove_input=False)
         coreg_image.create_concatenate_image(process='geocode', file_type='lon', coor=self.radar_coor, transition_type=self.concat_type, remove_input=False)
@@ -880,8 +879,74 @@ class GeneralPipelines():
         for ifg in ifgs:          # type: ImageData
             ifg.save_tiff(tiff_folder=tiff_folder)
 
+    def create_plot_incidence_angle(self, overwrite=False, margins=0.1):
+        """
+        Create plots for the coherences
 
-    def create_plots_coherence(self, overwrite=False):
+        :return:
+        """
+
+        cmap = 'jet_r'
+        incidence_angle = self.stack.stack_data_iterator(['radar_ray_angles'], coordinates=[self.full_ml_coor],
+              process_types=['incidence_angle'], load_memmap=False)[-1][0]
+        plot = PlotData(incidence_angle, data_cmap=cmap, margins=margins, data_quantiles=[0.01, 0.99], overwrite=overwrite)
+        succes = plot()
+        if succes:
+            plot.add_labels('Incidence angle', 'Degrees')
+            plot.save_image()
+            plot.close_plot()
+
+    def create_plot_dem(self, overwrite=False, margins=0.1):
+        """
+        Create plots for the coherences
+
+        :return:
+        """
+
+        cmap = 'terrain'
+        dem = self.stack.stack_data_iterator(['dem'], coordinates=[self.full_ml_coor],
+              process_types=['dem'], load_memmap=False)[-1][0]
+        plot = PlotData(dem, data_cmap=cmap, margins=margins, data_quantiles=[0.01, 0.99], overwrite=overwrite)
+        succes = plot()
+        if succes:
+            plot.add_labels('DEM', 'Meters')
+            plot.save_image()
+            plot.close_plot()
+
+    def create_plots_looks(self, overwrite=False, margins=0.1):
+        """
+        Create plots for the coherences
+
+        :return:
+        """
+
+        cmap = 'Greys_r'
+        no_looks = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor], process_types=['no_of_looks'], ifg=False, load_memmap=False)[-1][0]
+        plot = PlotData(no_looks, data_cmap=cmap, margins=margins, data_quantiles=[0.05, 0.95], overwrite=overwrite)
+        succes = plot()
+        if succes:
+            plot.add_labels('Number of looks', '#')
+            plot.save_image()
+            plot.close_plot()
+
+    def create_plots_amplitude(self, overwrite=False, margins=0.1):
+        """
+        Create plots for the coherences
+
+        :return:
+        """
+
+        cmap = 'Greys_r'
+        amplitudes = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor], process_types=['calibrated_amplitude_db'], ifg=False, load_memmap=False)[-1]
+        for amplitude in amplitudes:
+            plot = PlotData(amplitude, data_cmap=cmap, margins=margins, data_quantiles=[0.05, 0.95], overwrite=overwrite)
+            succes = plot()
+            if succes:
+                plot.add_labels('Calibrated amplitude ' + os.path.basename(amplitude.folder), 'dB')
+                plot.save_image()
+                plot.close_plot()
+
+    def create_plots_coherence(self, overwrite=False, margins=0.1):
         """
         Create plots for the coherences
 
@@ -891,14 +956,36 @@ class GeneralPipelines():
         cmap = 'Greys_r'
         coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
         for coherence in coherences:
-            plot = PlotData(coherence, data_cmap=cmap, margins=0.1, data_quantiles=[0.05, 0.95], overwrite=overwrite)
+            plot = PlotData(coherence, data_cmap=cmap, margins=margins, data_quantiles=[0.05, 0.95], overwrite=overwrite)
             succes = plot()
             if succes:
                 plot.add_labels('Coherence ' + os.path.basename(coherence.folder), 'Coherence')
                 plot.save_image()
                 plot.close_plot()
 
-    def create_plots_ifg(self, overwrite=False):
+    def create_plots_ifg(self, overwrite=False, margins=0.1, transparency_min_max=[0.15, 0.2], transparency_smooth=1):
+        """
+
+        :param overwrite:
+        :return:
+        """
+
+        cmap = 'jet'
+        no_looks = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor], process_types=['no_of_looks'], ifg=False, load_memmap=False)[-1][0]
+        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
+        ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
+        for ifg, coherence in zip(ifgs, coherences):
+            plot = PlotData(ifg, data_cmap=cmap, margins=margins, data_min_max=[-np.pi, np.pi], transparency_in=coherence,
+                            transparency_scale='linear', complex_plot='phase', transparency_min_max=transparency_min_max, overwrite=overwrite,
+                            no_looks_in=no_looks, no_looks_cutoff_percentage=20,
+                            transparency_smooth=transparency_smooth)
+            succes = plot()
+            if succes:
+                plot.add_labels('Interferogram ' + os.path.basename(ifg.folder), 'Radians')
+                plot.save_image()
+                plot.close_plot()
+
+    def create_plots_unwrapped(self, overwrite=False, margins=0.1, transparency_min_max=[0.15, 0.2], transparency_smooth=1):
         """
 
         :param overwrite:
@@ -907,13 +994,18 @@ class GeneralPipelines():
 
         cmap = 'jet'
         coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
-        ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
-        for ifg, coherence in zip(ifgs, coherences):
-            plot = PlotData(ifg, data_cmap=cmap, margins=0.1, data_min_max=[-np.pi, np.pi], transparency_in=coherence,
-                            transparency_scale='linear', complex_plot='phase', transparency_min_max=[0.1, 0.3], overwrite=overwrite)
+        unwrapped = self.stack.stack_data_iterator(['unwrap'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
+        no_looks = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor],
+                                                  process_types=['no_of_looks'], ifg=False, load_memmap=False)[-1][0]
+        for coherence, unwrap in zip(coherences, unwrapped):
+
+            plot = PlotData(unwrap, data_cmap=cmap, margins=margins, transparency_in=coherence, factor= 0.056 / np.pi / 4,
+                            transparency_scale='linear', complex_plot='phase', transparency_min_max=transparency_min_max,
+                            overwrite=overwrite, no_looks_in=no_looks, no_looks_cutoff_percentage=20,
+                            transparency_smooth=transparency_smooth)
             succes = plot()
             if succes:
-                plot.add_labels('Interferogram ' + os.path.basename(ifg.folder), 'Radians')
+                plot.add_labels('Unwrapped interferogram ' + os.path.basename(unwrap.folder), 'Meter')
                 plot.save_image()
                 plot.close_plot()
 

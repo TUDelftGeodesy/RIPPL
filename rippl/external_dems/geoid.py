@@ -49,10 +49,7 @@ class GeoidInterp():
         egm96_interp = RectBivariateSpline(lats, lons, egm96)
 
         if not coordinates:
-            if not lat or not lon:
-                egm96_grid = egm96
-            else:
-                egm96_grid = egm96_interp(lon, lat)
+            egm96_grid = np.transpose(egm96_interp(lon, lat))
 
         elif coordinates.grid_type == 'geographic':
             lats = coordinates.lat0 + (np.arange(coordinates.shape[0]) + coordinates.first_line) * coordinates.dlat

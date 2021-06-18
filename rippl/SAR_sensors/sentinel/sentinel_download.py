@@ -18,7 +18,10 @@ speedups.disable()
 from shapely.ops import cascaded_union
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+import cartopy.io.img_tiles as cimgt
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 import requests
@@ -473,13 +476,25 @@ class DownloadSentinel(object):
                 polygons = [pol for pol in polygon]
 
             if plot_cartopy:
-                ax = plt.axes(projection=ccrs.PlateCarree())
+                stamen_terrain = cimgt.StamenTerrain()
+                ax = plt.axes(projection=stamen_terrain.crs)
                 ax.set_title(title)
-                ax.add_feature(cfeature.NaturalEarthFeature('physical', 'land', '50m', edgecolor='face', facecolor='g'))
+                # Add the Stamen data at zoom level 8.
+                ax.add_image(stamen_terrain, 8)
                 ax.add_feature(cfeature.BORDERS, linestyle='-', alpha=.5)
                 ax.add_geometries(polygons, ccrs.PlateCarree(), facecolor='b', alpha=0.5)
-                ax.add_geometries([self.shape], ccrs.PlateCarree(), facecolor='r', alpha=0.8)
+                ax.add_geometries([self.shape], ccrs.PlateCarree(), facecolor='r', alpha=0.5)
                 ax.set_extent(list(bb_buffer), ccrs.PlateCarree())
+                # Add the coordinates on the sides
+                gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True, alpha=0)
+                gl.xlabels_top = None
+                gl.ylabels_right = None
+                xgrid = np.arange(-180, 180, 2)
+                ygrid = np.arange(-90, 90, 1)
+                gl.xlocator = mticker.FixedLocator(xgrid.tolist())
+                gl.ylocator = mticker.FixedLocator(ygrid.tolist())
+                gl.xformatter = LONGITUDE_FORMATTER
+                gl.yformatter = LATITUDE_FORMATTER
                 plt.show()
             else:
                 ax = plt.axes()
@@ -1029,6 +1044,7 @@ class DownloadSentinelOrbit(object):
 
             outdir = self._subdir(basename)
             local = os.path.join(outdir, basename)
+            print(local)
             if not os.path.isfile(local):
                 downloads.append((remote, local, basename, auth))
         if len(downloads) == 0:

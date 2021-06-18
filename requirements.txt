@@ -11,3 +11,6 @@ cartopy
 pyproj
 utm
 jupyter
+joblib
+ecmwfapi
+pygrib
