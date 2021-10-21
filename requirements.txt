@@ -3,7 +3,7 @@ numpy
 scikit-image
 requests
 lxml
-gdal==2.2.3
+gdal
 fiona
 shapely
 matplotlib
@@ -12,5 +12,5 @@ pyproj
 utm
 jupyter
 joblib
-ecmwfapi
+ecmwf-api-client
 pygrib
