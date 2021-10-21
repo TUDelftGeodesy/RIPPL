@@ -4,9 +4,9 @@ The [R]adar [I]nterferometric [P]arallel [P]rocessing [L]ab is a python package 
 individual or stacks of InSAR processing data. The name refers to the fringe pattern or ripples that we see
 in InSAR products. The main user case is the creation of individual interferograms or stacks of interferograms
 for specific areas. To ease the use of this package the search and download of Sentinel-1 data is covered by
-the package. 
+the package.
 
-Common InSAR products covered by this package are: 
+Common InSAR products covered by this package are:
 - complex interferograms
 - absolute coherence values
 - radiomatic calibrated amplitude data
@@ -14,7 +14,7 @@ Common InSAR products covered by this package are:
 - download and creation of SRTM and TanDEM-X DEMs
 - common SAR geometry values as incidence angles, azimuth angles, off-nadir angles and satellite heading
 - baselines and height to phase values
-- creation of projected and geocoded output grids 
+- creation of projected and geocoded output grids
 
 To create InSAR products it includes functions to:
 - Geocode SAR images
@@ -22,15 +22,15 @@ To create InSAR products it includes functions to:
 - Calculate and apply earth and topographic phase corrections
 - Resampling of SAR data using different kernels
 
-## Rationale 
+## Rationale
 
 The rationale behind this software package is that we want to simplify the implementation of new processing
 steps as much as possible, while maintaining the processing speed needed for InSAR processing. This is also
-the reason why it is called the processing lab. At the same time we want to make the connection between 
+the reason why it is called the processing lab. At the same time we want to make the connection between
 the processing package with post-processing operation as easy as possbile. Therefore, the data is outputted
 as projected geotiff images and the stack is easily searchable for results of specific processing steps
 and can be loaded as numpy memmap files, which gives access to the full stack while the use of active
-memory is limited.  
+memory is limited.
 
 The implementation of your own processing steps within the package is encouraged and can be added to later
 versions of the package after testing.
@@ -41,9 +41,9 @@ The RIPPL package includes both a tutorial and several examples. Please try the 
 to get familiar with the processing. You can find it under .../tutorial/tutorial_Hawaii_earthquake_May_2018.ipynb.
 
 To show a wider set of applications you can also check the examples folder, where a few different example cases
-are given. 
+are given.
 
-Note that before you can run these examples you should prepare your python setup and the RIPPL package setup. 
+Note that before you can run these examples you should prepare your python setup and the RIPPL package setup.
 (see next sections for details)
 
 
@@ -57,7 +57,7 @@ git clone git clone git@bitbucket.org:grsradartudelft/rippl.git $HOME/rippl
 
 ### 2. Install Dependencies
 
-To keep your system tidy, we recommend creating a virtual environment ([What is a virtual environment?](https://realpython.com/python-virtual-environments-a-primer/)). There are multiple ways of doing this, here we recommend  `conda` and python `venv`.  
+To keep your system tidy, we recommend creating a virtual environment ([What is a virtual environment?](https://realpython.com/python-virtual-environments-a-primer/)). There are multiple ways of doing this, here we recommend  `conda` and python `venv`.
 
 #### a). Conda (recommended)
 
@@ -65,7 +65,7 @@ To keep your system tidy, we recommend creating a virtual environment ([What is 
 Linux (and Windows with Ubuntu subsystem):
 
 ```bash
-# download latest miniconda3 
+# download latest miniconda3
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 chmod +x Miniconda3-latest-Linux-x86_64.sh
 # install miniconda into your home directory
@@ -76,7 +76,7 @@ conda init bash
 
 Mac OS
 ```zsh
-# download latest miniconda3 
+# download latest miniconda3
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
 chmod +x Miniconda3-latest-MacOSX-x86_64.sh.sh
 # install miniconda into your home directory
@@ -89,7 +89,7 @@ conda init zsh
 
 ```bash
 # create new virtual environment
-RIPPL_PATH="$HOME/rippl" 
+RIPPL_PATH="$HOME/rippl"
 conda env create -f $RIPPL_PATH/environment.yml
 ```
 
@@ -112,7 +112,7 @@ The steps should be identical for Mac OS, Linux and Windows (with ubuntu subsyst
 ```bash
 which python3
 ```
-to check if you have python3 on your system path. 
+to check if you have python3 on your system path.
 
 ##### Step 1: Create virtual environment
 
@@ -122,10 +122,10 @@ Please make sure you have **python>=3.6**. Then do:
  source $HOME/.venv/rippl/bin/activate
 ```
 
-ℹ️ You can also use [`virtualenvwrapper`](https://virtualenvwrapper.readthedocs.io/en/latest/) or other virtual environment manage tools if you're familiar with those tools, but we will not elaborate here. 
+ℹ️ You can also use [`virtualenvwrapper`](https://virtualenvwrapper.readthedocs.io/en/latest/) or other virtual environment manage tools if you're familiar with those tools, but we will not elaborate here.
 
 ##### Step 2: Install gdal
-⚠️ `RIPPL` uses gdal ([what is gdal?](https://gdal.org)) and it's [python binding](https://pypi.org/project/GDAL/). Although it comes in handy, `gdal` is rather infamous for its [complexity in installation](https://www.google.com/search?q=why+is+it+so+hard+to+install+gdal?). So before you start installing python dependencies, please make sure you have `gdal` installed on your system. 
+⚠️ `RIPPL` uses gdal ([what is gdal?](https://gdal.org)) and it's [python binding](https://pypi.org/project/GDAL/). Although it comes in handy, `gdal` is rather infamous for its [complexity in installation](https://www.google.com/search?q=why+is+it+so+hard+to+install+gdal?). So before you start installing python dependencies, please make sure you have `gdal` installed on your system.
 
 Ubuntu:
 ```bash
@@ -159,14 +159,14 @@ pip install -e $HOME/rippl
 ```
 gdal==<YOUR GDAL VERSION>
 ```
-to avoid running into installation error. 
+to avoid running into installation error.
 
 
 ## Package setup
 
-To start your first SAR processing using RIPPL you should also set your user and environment settings. You 
+To start your first SAR processing using RIPPL you should also set your user and environment settings. You
 can find the installation code as a jupyter notebook .../rippl/user_setup.ipynb or as a regular python script
-.../rippl/user_setup.py. The latter can be run from the command line in the right folder: 
+.../rippl/user_setup.py. The latter can be run from the command line in the right folder:
 
 
     > python user_setup.py
