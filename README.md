@@ -124,7 +124,7 @@ Please make sure you have **python>=3.6**. Then do:
 
 ℹ️ You can also use [`virtualenvwrapper`](https://virtualenvwrapper.readthedocs.io/en/latest/) or other virtual environment manage tools if you're familiar with those tools, but we will not elaborate here.
 
-##### Step 2: Install gdal
+##### Step 2: Install gdal and other dependencies
 ⚠️ `RIPPL` uses gdal ([what is gdal?](https://gdal.org)) and it's [python binding](https://pypi.org/project/GDAL/). Although it comes in handy, `gdal` is rather infamous for its [complexity in installation](https://www.google.com/search?q=why+is+it+so+hard+to+install+gdal?). So before you start installing python dependencies, please make sure you have `gdal` installed on your system.
 
 Ubuntu:
@@ -141,6 +141,8 @@ export C_INCLUDE_PATH=/usr/include/gdal
 Mac OS (homebrew)
 ```zsh
 brew install gdal
+# proj is required by cartopy module.
+brew install proj
 ```
 
 **Check your gdal version:**
