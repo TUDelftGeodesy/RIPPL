@@ -7,6 +7,7 @@ for specific areas. To ease the use of this package the search and download of S
 the package.
 
 Common InSAR products covered by this package are:
+
 - complex interferograms
 - absolute coherence values
 - radiomatic calibrated amplitude data
@@ -17,6 +18,7 @@ Common InSAR products covered by this package are:
 - creation of projected and geocoded output grids
 
 To create InSAR products it includes functions to:
+
 - Geocode SAR images
 - Coregister SAR images
 - Calculate and apply earth and topographic phase corrections
@@ -46,22 +48,22 @@ are given.
 Note that before you can run these examples you should prepare your python setup and the RIPPL package setup.
 (see next sections for details)
 
-
 ## Installation
 
 ### 1. Download RIPPL
 
 ```bash
-git clone git clone git@bitbucket.org:grsradartudelft/rippl.git $HOME/rippl
+git clone git@bitbucket.org:grsradartudelft/rippl.git $HOME/rippl
 ```
 
 ### 2. Install Dependencies
 
 To keep your system tidy, we recommend creating a virtual environment ([What is a virtual environment?](https://realpython.com/python-virtual-environments-a-primer/)). There are multiple ways of doing this, here we recommend  `conda` and python `venv`.
 
-#### a). Conda (recommended)
+#### a). Conda
 
 ##### Step 1: Download miniconda
+
 Linux (and Windows with Ubuntu subsystem):
 
 ```bash
@@ -69,12 +71,15 @@ Linux (and Windows with Ubuntu subsystem):
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 chmod +x Miniconda3-latest-Linux-x86_64.sh
 # install miniconda into your home directory
+# by default it will be installed in $HOME/miniconda3. You can also specify a
+# different directory to install miniconda to.
 ./Miniconda3-latest-Linux-x86_64 -b -p $HOME/miniconda
 # conda initialization in bash
 conda init bash
 ```
 
 Mac OS
+
 ```zsh
 # download latest miniconda3
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
@@ -90,13 +95,15 @@ conda init zsh
 ```bash
 # create new virtual environment
 RIPPL_PATH="$HOME/rippl"
+# install packages defined in environment.yml inside the virtual environment.
 conda env create -f $RIPPL_PATH/environment.yml
 ```
 
 ##### Step 3: Activate virtual environment
 
 After the installation, all you need to do each time is to activate the virtual environment:
-```
+
+```bash
 conda activate rippl
 ```
 
@@ -106,9 +113,10 @@ When you finished processing using `RIPPL`, you can deactivate the virtual envir
 conda deactivate
 ```
 
-#### b). Python `venv`
+#### b). Python `venv` (recommended)
 
 The steps should be identical for Mac OS, Linux and Windows (with ubuntu subsystem), as long as `python3` is installed on your system. If you're not sure, do:
+
 ```bash
 which python3
 ```
@@ -117,6 +125,7 @@ to check if you have python3 on your system path.
 ##### Step 1: Create virtual environment
 
 Please make sure you have **python>=3.6**. Then do:
+
 ```bash
  python3 -m venv $HOME/.venv/rippl
  source $HOME/.venv/rippl/bin/activate
@@ -125,9 +134,11 @@ Please make sure you have **python>=3.6**. Then do:
 ℹ️ You can also use [`virtualenvwrapper`](https://virtualenvwrapper.readthedocs.io/en/latest/) or other virtual environment manage tools if you're familiar with those tools, but we will not elaborate here.
 
 ##### Step 2: Install gdal and other dependencies
-⚠️ `RIPPL` uses gdal ([what is gdal?](https://gdal.org)) and it's [python binding](https://pypi.org/project/GDAL/). Although it comes in handy, `gdal` is rather infamous for its [complexity in installation](https://www.google.com/search?q=why+is+it+so+hard+to+install+gdal?). So before you start installing python dependencies, please make sure you have `gdal` installed on your system.
+
+⚠️ `RIPPL` uses gdal ([what is gdal?](https://gdal.org)) _for now_ and it's [python binding](https://pypi.org/project/GDAL/). Although it comes in handy, `gdal` is rather infamous for its [complexity in installation](https://www.google.com/search?q=why+is+it+so+hard+to+install+gdal?). So before you start installing python dependencies, please make sure you have `gdal` installed on your system.
 
 Ubuntu:
+
 ```bash
 # https://mothergeo-py.readthedocs.io/en/latest/development/how-to/gdal-ubuntu-pkg.html
 sudo add-apt-repository ppa:ubuntugis/ppa && sudo apt-get update
@@ -139,13 +150,15 @@ export C_INCLUDE_PATH=/usr/include/gdal
 ```
 
 Mac OS (homebrew)
-```zsh
+
+```bash
 brew install gdal
 # proj is required by cartopy module.
 brew install proj
 ```
 
 **Check your gdal version:**
+
 ```bash
 gdal-config --version
 ```
@@ -154,15 +167,16 @@ gdal-config --version
 
 ```bash
 pip install --upgrade pip
+# change to your rippl directory if necessary.
 pip install -e $HOME/rippl
 ```
 
-⚠️ By default `gdal` v2.2.3 is installed. If your `gdal` version is different, then update the `requirements.txt` with:
-```
-gdal==<YOUR GDAL VERSION>
-```
-to avoid running into installation error.
+If you run into compiling error while trying to install gdal, try the following:
 
+```bash
+# https://stackoverflow.com/questions/69123406/error-building-pygdal-unknown-distribution-option-use-2to3-fixers-and-use-2
+pip3 install setuptools==57.5.0
+```
 
 ## Package setup
 
@@ -170,8 +184,7 @@ To start your first SAR processing using RIPPL you should also set your user and
 can find the installation code as a jupyter notebook .../rippl/user_setup.ipynb or as a regular python script
 .../rippl/user_setup.py. The latter can be run from the command line in the right folder:
 
-
-    > python user_setup.py
+> python user_setup.py
 
 This will set your accounts to download Sentinel-1 data and external DEMs and create
 a folder structure for the SAR, orbit, DEM and GIS database as well as a place to store your radar data_stacks.
