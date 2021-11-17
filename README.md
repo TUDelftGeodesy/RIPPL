@@ -60,7 +60,7 @@ git clone git@bitbucket.org:grsradartudelft/rippl.git $HOME/rippl
 
 To keep your system tidy, we recommend creating a virtual environment ([What is a virtual environment?](https://realpython.com/python-virtual-environments-a-primer/)). There are multiple ways of doing this, here we recommend  `conda` and python `venv`.
 
-#### a). Conda
+#### a). Conda (recommended)
 
 ##### Step 1: Download miniconda
 
@@ -113,7 +113,7 @@ When you finished processing using `RIPPL`, you can deactivate the virtual envir
 conda deactivate
 ```
 
-#### b). Python `venv` (recommended)
+#### b). Python `venv`
 
 The steps should be identical for Mac OS, Linux and Windows (with ubuntu subsystem), as long as `python3` is installed on your system. If you're not sure, do:
 
