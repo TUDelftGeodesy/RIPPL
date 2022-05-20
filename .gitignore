@@ -49,3 +49,6 @@ user_settings.txt
 
 # vscode
 \.vscode/
+
+# pyright
+pyrightconfig.json
