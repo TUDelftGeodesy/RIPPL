@@ -76,43 +76,80 @@ class SentinelStack(SentinelDatabase, Stack):
         self.burst_availability = []
         self.burst_availability_dates = []
 
-    def read_from_database(self, database_folder='', shapefile=None, track_no=None, orbit_folder=None,
-                           start_date='', end_date='', date='', dates='', time_window='', master_date='', end_dates='', start_dates='',
-                           mode='IW', product_type='SLC', polarisation='VV', cores=4):
+    def read_from_database(
+        self,
+        database_folder="",
+        shapefile=None,
+        track_no=None,
+        orbit_folder=None,
+        start_date="",
+        end_date="",
+        date="",
+        dates="",
+        time_window="",
+        master_date="",
+        end_dates="",
+        start_dates="",
+        mode="IW",
+        product_type="SLC",
+        polarisation="VV",
+        cores=4,
+    ):
 
         if not database_folder:
-            database_folder = os.path.join(self.settings.radar_database, self.settings.sar_sensor_name['sentinel1'])
+            database_folder = os.path.join(
+                self.settings.radar_database, self.settings.sar_sensor_name["sentinel1"]
+            )
         if not isinstance(shapefile, Polygon):
             if not shapefile:
-                raise FileExistsError('Shapefile entry is empty!')
+                raise FileExistsError("Shapefile entry is empty!")
             elif not os.path.exists(shapefile):
                 shapefile = os.path.join(self.settings.GIS_database, shapefile)
             if not os.path.exists(shapefile):
-                raise FileExistsError('Shapefile not found! Either give the full path or the filename in the GIS database folder.')
+                raise FileExistsError(
+                    "Shapefile not found! Either give the full path or the filename in the GIS database folder."
+                )
         if not track_no:
-            raise ValueError('Track_no is missing!')
+            raise ValueError("Track_no is missing!")
         if not orbit_folder:
-            orbit_folder = os.path.join(self.settings.orbit_database, self.settings.sar_sensor_name['sentinel1'])
+            orbit_folder = os.path.join(
+                self.settings.orbit_database, self.settings.sar_sensor_name["sentinel1"]
+            )
 
         # Select data products
-        SentinelDatabase.__call__(self, database_folder=database_folder, shapefile=shapefile, track_no=track_no,
-                                  start_date=start_date, start_dates=start_dates, end_date=end_date, end_dates=end_dates,
-                                  date=date, dates=dates, time_window=time_window, mode=mode, product_type=product_type, polarisation=polarisation)
-        print('Selected images:')
+        SentinelDatabase.__call__(
+            self,
+            database_folder=database_folder,
+            shapefile=shapefile,
+            track_no=track_no,
+            start_date=start_date,
+            start_dates=start_dates,
+            end_date=end_date,
+            end_dates=end_dates,
+            date=date,
+            dates=dates,
+            time_window=time_window,
+            mode=mode,
+            product_type=product_type,
+            polarisation=polarisation,
+        )
+        print("Selected images:")
 
         if len(self.selected_images) == 0:
-            print('No SAR images found! Aborting')
+            print("No SAR images found! Aborting")
             return
 
         for info in self.selected_images:
             print(info)
-        print('')
+        print("")
 
         # Read the orbit database
-        precise = os.path.join(orbit_folder, 'precise')
-        restituted = os.path.join(orbit_folder, 'restituted')
+        precise = os.path.join(orbit_folder, "precise")
+        restituted = os.path.join(orbit_folder, "restituted")
         if not os.path.exists(precise) or not os.path.exists(restituted):
-            print('The orbit folder and or precise/restituted sub-folder do not exist. Will use the database folder for orbits')
+            print(
+                "The orbit folder and or precise/restituted sub-folder do not exist. Will use the database folder for orbits"
+            )
             self.orbits = SentinelOrbitsDatabase(database_folder, database_folder)
         else:
             self.orbits = SentinelOrbitsDatabase(precise, restituted)
@@ -124,7 +161,7 @@ class SentinelStack(SentinelDatabase, Stack):
         elif len(self.master_slice_date) > 0:
             self.master_date = self.master_slice_date[0]
         else:
-            print('Provide a master date to create a data_stack')
+            print("Provide a master date to create a data_stack")
             return
 
         existing_master = self.read_master_slice_list()
@@ -139,6 +176,7 @@ class SentinelStack(SentinelDatabase, Stack):
         # Finally write data to data files
         self.update_stack(cores)
         self.write_master_slice_list()
+
 
     def extract_swath_xml_orbit(self, polarisation):
 
