@@ -258,12 +258,30 @@ class GeneralPipelines():
             download_orbit = DownloadSentinelOrbit(start_date=start_date, end_date=end_date, precise_folder=precise_folder)
             download_orbit.download_orbits()
 
-    def create_sentinel_stack(self, start_date='', end_date='', master_date='', track='', polarisation='VV', shapefile='',
-                              date='', dates='', time_window='', start_dates='', end_dates='',
-                              stack_name=None, radar_database_folder=None, orbit_folder=None,
-                              stack_folder=None, mode='IW', product_type='SLC', cores=6, tiff_folder=''):
+    def create_sentinel_stack(
+        self,
+        start_date="",
+        end_date="",
+        master_date="",
+        track="",
+        polarisation="VV",
+        shapefile="",
+        date="",
+        dates="",
+        time_window="",
+        start_dates="",
+        end_dates="",
+        stack_name=None,
+        radar_database_folder=None,
+        orbit_folder=None,
+        stack_folder=None,
+        mode="IW",
+        product_type="SLC",
+        cores=6,
+        tiff_folder="",
+    ):
         """
-        Creation of data_stack of Sentinel-1 images including the orbits.
+        Creation of datastack of Sentinel-1 images including the orbits.
 
         :param start_date:
         :param end_date:
@@ -294,10 +312,22 @@ class GeneralPipelines():
                                           start_dates=start_dates, end_dates=end_dates)
             self.read_stack(stack_folder=stack_folder, stack_name=stack_name, start_date=start_date, end_date=end_date,
                             date=date, dates=dates, time_window=time_window, start_dates=start_dates, end_dates=end_dates)
+
             self.stack.create_coverage_shp_kml_geojson()
 
-    def read_stack(self, stack_folder='', stack_name='', start_date='', end_date='', start_dates='', end_dates='',
-                   date='', dates='', time_window='', tiff_folder=''):
+    def read_stack(
+        self,
+        stack_folder="",
+        stack_name="",
+        start_date="",
+        end_date="",
+        start_dates="",
+        end_dates="",
+        date="",
+        dates="",
+        time_window="",
+        tiff_folder="",
+    ):
         """
         Read information of stack
 
@@ -321,11 +351,23 @@ class GeneralPipelines():
         settings = UserSettings()
         settings.load_settings()
 
-        self.stack = Stack(data_stack_folder=self.stack_folder, data_stack_name=self.stack_name, SAR_type=settings.sar_sensor_name['sentinel1'])
+        self.stack = Stack(
+            data_stack_folder=self.stack_folder,
+            data_stack_name=self.stack_name,
+            SAR_type=settings.sar_sensor_name["sentinel1"],
+        )
         self.stack.read_master_slice_list()
-        self.stack.read_stack(start_date=start_date, end_date=end_date, start_dates=start_dates, end_dates=end_dates,
-                              date=date, dates=dates, time_window=time_window)
-    
+        self.stack.read_stack(
+            start_date=start_date,
+            end_date=end_date,
+            start_dates=start_dates,
+            end_dates=end_dates,
+            date=date,
+            dates=dates,
+            time_window=time_window,
+        )
+
+
     def reload_stack(self):
         """
         Reload stack
