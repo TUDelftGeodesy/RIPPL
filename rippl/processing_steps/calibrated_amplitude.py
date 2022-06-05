@@ -92,11 +92,11 @@ class CalibratedAmplitude(Process):  # Change this name to the one of your proce
 
         beta_0 = 237.0    # TODO Read in from meta data files.
         if self.db_only:
-            cal_amplitude = np.abs(self['complex_data'])**2 * np.sin(self['incidence_angle'] / 180 * np.pi) / beta_0**2
+            cal_amplitude = np.sqrt(np.abs(self['complex_data'])**2 * np.sin(self['incidence_angle'] / 180 * np.pi) / beta_0**2)
             valid_pixels = (cal_amplitude != 0)
             self['calibrated_amplitude_db'] = np.zeros(cal_amplitude)
             self['calibrated_amplitude_db'][valid_pixels] = 10 * np.log10(cal_amplitude[valid_pixels])
         else:
-            self['calibrated_amplitude'] = np.abs(self['complex_data'])**2 * np.sin(self['incidence_angle'] / 180 * np.pi) / beta_0**2
+            self['calibrated_amplitude'] = np.sqrt(np.abs(self['complex_data'])**2 * np.sin(self['incidence_angle'] / 180 * np.pi) / beta_0**2)
             valid_pixels = (self['calibrated_amplitude'] != 0)
             self['calibrated_amplitude_db'][valid_pixels] = 10 * np.log10(self['calibrated_amplitude'][valid_pixels])
