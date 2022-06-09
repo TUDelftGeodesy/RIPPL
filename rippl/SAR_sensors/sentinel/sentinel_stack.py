@@ -76,43 +76,80 @@ class SentinelStack(SentinelDatabase, Stack):
         self.burst_availability = []
         self.burst_availability_dates = []
 
-    def read_from_database(self, database_folder='', shapefile=None, track_no=None, orbit_folder=None,
-                           start_date='', end_date='', date='', dates='', time_window='', master_date='', end_dates='', start_dates='',
-                           mode='IW', product_type='SLC', polarisation='VV', cores=4):
+    def read_from_database(
+        self,
+        database_folder="",
+        shapefile=None,
+        track_no=None,
+        orbit_folder=None,
+        start_date="",
+        end_date="",
+        date="",
+        dates="",
+        time_window="",
+        master_date="",
+        end_dates="",
+        start_dates="",
+        mode="IW",
+        product_type="SLC",
+        polarisation="VV",
+        cores=4,
+    ):
 
         if not database_folder:
-            database_folder = os.path.join(self.settings.radar_database, self.settings.sar_sensor_name['sentinel1'])
+            database_folder = os.path.join(
+                self.settings.radar_database, self.settings.sar_sensor_name["sentinel1"]
+            )
         if not isinstance(shapefile, Polygon):
             if not shapefile:
-                raise FileExistsError('Shapefile entry is empty!')
+                raise FileExistsError("Shapefile entry is empty!")
             elif not os.path.exists(shapefile):
                 shapefile = os.path.join(self.settings.GIS_database, shapefile)
             if not os.path.exists(shapefile):
-                raise FileExistsError('Shapefile not found! Either give the full path or the filename in the GIS database folder.')
+                raise FileExistsError(
+                    "Shapefile not found! Either give the full path or the filename in the GIS database folder."
+                )
         if not track_no:
-            raise ValueError('Track_no is missing!')
+            raise ValueError("Track_no is missing!")
         if not orbit_folder:
-            orbit_folder = os.path.join(self.settings.orbit_database, self.settings.sar_sensor_name['sentinel1'])
+            orbit_folder = os.path.join(
+                self.settings.orbit_database, self.settings.sar_sensor_name["sentinel1"]
+            )
 
         # Select data products
-        SentinelDatabase.__call__(self, database_folder=database_folder, shapefile=shapefile, track_no=track_no,
-                                  start_date=start_date, start_dates=start_dates, end_date=end_date, end_dates=end_dates,
-                                  date=date, dates=dates, time_window=time_window, mode=mode, product_type=product_type, polarisation=polarisation)
-        print('Selected images:')
+        SentinelDatabase.__call__(
+            self,
+            database_folder=database_folder,
+            shapefile=shapefile,
+            track_no=track_no,
+            start_date=start_date,
+            start_dates=start_dates,
+            end_date=end_date,
+            end_dates=end_dates,
+            date=date,
+            dates=dates,
+            time_window=time_window,
+            mode=mode,
+            product_type=product_type,
+            polarisation=polarisation,
+        )
+        print("Selected images:")
 
         if len(self.selected_images) == 0:
-            print('No SAR images found! Aborting')
+            print("No SAR images found! Aborting")
             return
 
         for info in self.selected_images:
             print(info)
-        print('')
+        print("")
 
         # Read the orbit database
-        precise = os.path.join(orbit_folder, 'precise')
-        restituted = os.path.join(orbit_folder, 'restituted')
+        precise = os.path.join(orbit_folder, "precise")
+        restituted = os.path.join(orbit_folder, "restituted")
         if not os.path.exists(precise) or not os.path.exists(restituted):
-            print('The orbit folder and or precise/restituted sub-folder do not exist. Will use the database folder for orbits')
+            print(
+                "The orbit folder and or precise/restituted sub-folder do not exist. Will use the database folder for orbits"
+            )
             self.orbits = SentinelOrbitsDatabase(database_folder, database_folder)
         else:
             self.orbits = SentinelOrbitsDatabase(precise, restituted)
@@ -124,7 +161,7 @@ class SentinelStack(SentinelDatabase, Stack):
         elif len(self.master_slice_date) > 0:
             self.master_date = self.master_slice_date[0]
         else:
-            print('Provide a master date to create a data_stack')
+            print("Provide a master date to create a data_stack")
             return
 
         existing_master = self.read_master_slice_list()
@@ -139,6 +176,7 @@ class SentinelStack(SentinelDatabase, Stack):
         # Finally write data to data files
         self.update_stack(cores)
         self.write_master_slice_list()
+
 
     def extract_swath_xml_orbit(self, polarisation):
 
@@ -179,9 +217,8 @@ class SentinelStack(SentinelDatabase, Stack):
     def create_slice_list(self, master_start, existing_master=False):
         # master date should be in yyyy-mm-dd format
         # This function creates a list of all slices within the data_stack and reads the needed meta_data.
-        load_master_slices = not existing_master
-        if load_master_slices:
-            self.iterate_swaths(master_start, adjust_date=False, load_slave_slices=False, load_master_slices=True)
+        load_new_master_slices = not existing_master
+        self.iterate_swaths(master_start, adjust_date=False, load_slave_slices=False, load_new_master_slices=load_new_master_slices)
 
         # Adjust timing for master if needed.
         for seconds in self.master_slice_seconds:
@@ -197,18 +234,18 @@ class SentinelStack(SentinelDatabase, Stack):
 
         # Reload the slices and calc coordinates
         if self.master_date_boundary:
-            self.iterate_swaths(master_start, adjust_date=True, load_master_slices=load_master_slices)
+            self.iterate_swaths(master_start, adjust_date=True, load_new_master_slices=load_new_master_slices)
             self.adjust_date = True
         else:
-            self.iterate_swaths(master_start, adjust_date=False, load_master_slices=load_master_slices)
+            self.iterate_swaths(master_start, adjust_date=False, load_new_master_slices=load_new_master_slices)
             self.adjust_date = False
 
-    def iterate_swaths(self, master_start, adjust_date=False, load_slave_slices=True, load_master_slices=True):
+    def iterate_swaths(self, master_start, adjust_date=False, load_slave_slices=True, load_new_master_slices=True):
 
         time_lim = 0.1
         if not isinstance(master_start, datetime.datetime):
-            master_start = datetime.datetime.strptime(master_start, '%Y%m%d') - datetime.timedelta(seconds=3600)
-        master_end = master_start + datetime.timedelta(days=1, seconds=3600)
+            master_start = datetime.datetime.strptime(master_start, '%Y%m%d') - datetime.timedelta(seconds=7200)
+        master_end = master_start + datetime.timedelta(days=1, seconds=14400)
 
         # Iterate over swath list
         for swath in self.swaths:
@@ -233,7 +270,7 @@ class SentinelStack(SentinelDatabase, Stack):
                                                                '%Y-%m-%dT%H:%M:%S.%f')
 
                     if master_start < az_date < master_end:
-                        if self.master_shape.intersects(slice_coverage) and load_master_slices:
+                        if self.master_shape.intersects(slice_coverage):
                             # Check if this time already exists
 
                             if len(self.master_slice_seconds) > 0:
@@ -241,13 +278,16 @@ class SentinelStack(SentinelDatabase, Stack):
                                 min_id = np.argmin(time_min)
 
                                 if time_min[min_id] < time_lim:
-                                    if not adjust_date:
-                                        print('Duplicate slice found. Old slice replaced with new one.')
+                                    print('Duplicate slice found. Old slice replaced with new one.')
                                     for list_dat in [self.master_slice_x, self.master_slice_y, self.master_slice_z,
                                                      self.master_slice_lat, self.master_slice_lon, self.master_slice_date,
                                                      self.master_slice_swath_no, self.master_slice_az_time, self.master_slice_seconds,
                                                      self.master_slice_time, self.master_slice_range_seconds, self.master_slices]:
                                         list_dat.pop(min_id)
+                                else:
+                                    if not load_new_master_slices:
+                                        print('Skipping master slice because it does not exist in original dataset')
+                                        continue
 
                             xyz = interp_orbit.evaluate_orbit_spline([az_time])[0]
                             self.master_slice_x.append(xyz[0, 0])
@@ -309,13 +349,16 @@ class SentinelStack(SentinelDatabase, Stack):
         # Final step is to adjust all azimuth and range values.
 
         # Find lowest azimuth value
-        if len(self.master_slices) != 0:
+        if np.sum(np.array(self.master_slice_range_seconds) == 0) == 0:
             # This is only needed when the master slices are assigned for the first time
             master_lowest_az_time = np.min(self.master_slice_seconds)
             master_lowest_ra_time = np.min(self.master_slice_range_seconds)
 
             for slice in self.master_slices:
                 self.adjust_pixel_line(slice, master_lowest_az_time, master_lowest_ra_time, adjust_date=self.adjust_date)
+            self.skip_master = False
+        else:
+            self.skip_master = True
 
         # Now do the same thing for the slave pixels.
         dates = list(set(self.slice_date))
@@ -348,7 +391,6 @@ class SentinelStack(SentinelDatabase, Stack):
         crop_coor = slice.processes['crop'][crop_key].coordinates  # type:CoordinateSystem
 
         if adjust_date:
-            crop_coor.orig_az_time += 86400     # Add number of seconds in a day.
             orig_date = datetime.datetime.strptime(slice.readfiles['original'].date, '%Y-%m-%d')
             slice.readfiles['original'].date = (orig_date - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
 
@@ -373,9 +415,7 @@ class SentinelStack(SentinelDatabase, Stack):
 
         print('Assign found bursts to data_stack. These can be part of current data_stack already!')
 
-        if known_ids == total_ids:
-            print('No new master slices found. Only new slave slices will be assigned')
-        else:
+        if known_ids != total_ids:
             times = self.master_slice_seconds[known_ids:]
             swaths = self.master_slice_swath_no[known_ids:]
             dates = self.master_slice_date[known_ids:]
@@ -502,25 +542,27 @@ class SentinelStack(SentinelDatabase, Stack):
 
         # Create the crops in parallel
 
-        n = len(self.master_slices)
-        id_num = np.arange(n)
-        id = np.arange(n)
-        shuffle(id)
-        master_dat = [[self.data_stack_folder, slice, number, swath_no, date, [no, n]]
-                     for slice, number, swath_no, date, no
-                      in zip(np.array(self.master_slices)[id], np.array(self.master_slice_number)[id],
-                             np.array(self.master_slice_swath_no)[id], np.array(self.master_slice_date)[id], id_num)]
-        if num_cores > 1:
-            with get_context("spawn").Pool(processes=num_cores, maxtasksperchild=5) as pool:
-                # Process in blocks of 100
-                block_size = 100
-                for i in range(int(np.ceil(len(master_dat) / block_size))):
-                    last_dat = np.minimum((i + 1) * block_size, len(master_dat))
-                    print('Initializing master bursts ' + str(i*block_size) + ' to ' + str(last_dat) + ' from total of ' + str(len(master_dat)))
-                    res = pool.map(write_sentinel_burst, master_dat[i*block_size:last_dat])
-        else:
-            for m_dat in master_dat:
-                write_sentinel_burst(m_dat)
+        if not self.skip_master:
+            n = len(self.master_slices)
+            id_num = np.arange(n)
+            id_num = [id for id, slice in zip(id_num, self.master_slices) if slice != []]
+            id = copy.deepcopy(id_num)
+            shuffle(id)
+            master_dat = [[self.data_stack_folder, slice, number, swath_no, date, [no, len(id_num)]]
+                         for slice, number, swath_no, date, no
+                          in zip(np.array(self.master_slices)[id], np.array(self.master_slice_number)[id],
+                                 np.array(self.master_slice_swath_no)[id], np.array(self.master_slice_date)[id], id_num)]
+            if num_cores > 1:
+                with get_context("spawn").Pool(processes=num_cores, maxtasksperchild=5) as pool:
+                    # Process in blocks of 100
+                    block_size = 100
+                    for i in range(int(np.ceil(len(master_dat) / block_size))):
+                        last_dat = np.minimum((i + 1) * block_size, len(master_dat))
+                        print('Initializing master bursts ' + str(i*block_size) + ' to ' + str(last_dat) + ' from total of ' + str(len(master_dat)))
+                        res = pool.map(write_sentinel_burst, master_dat[i*block_size:last_dat])
+            else:
+                for m_dat in master_dat:
+                    write_sentinel_burst(m_dat)
 
         n = len(self.slices)
         id_num = np.arange(n)

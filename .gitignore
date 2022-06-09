@@ -28,7 +28,8 @@ share/python-wheels/
 MANIFEST
 
 # Sphinx documentation
-docs/_build/
+docs/build/
+docs/source/_build/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -45,3 +46,9 @@ ipython_config.py
 
 # user settings for downloading.
 user_settings.txt
+
+# vscode
+\.vscode/
+
+# pyright
+pyrightconfig.json

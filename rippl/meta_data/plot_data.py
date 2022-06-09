@@ -21,6 +21,7 @@ speedups.disable()
 import cartopy.feature as cfeature
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from scipy.interpolate import RectBivariateSpline
+from scipy.ndimage.filters import gaussian_filter
 import matplotlib as mpl
 import scipy as sp
 
@@ -31,10 +32,12 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 class PlotData(object):
 
-    def __init__(self, data_in, coordinates=None, transparency_in=None, complex_plot='phase', complex_transparency='',
+    def __init__(self, data_in, coordinates=None, transparency_in=None, no_looks_in=None, no_looks_cutoff_percentage=50,
+                 complex_plot='phase', complex_transparency='', transparency_smooth=1,
                  data_min_max=[], data_quantiles=[], data_scale='linear', data_cmap='viridis', data_cmap_midpoint=None,
                  transparency_min_max=[], transparency_quantiles=[], transparency_scale='linear',
-                 lat_in=[], lon_in=[], max_pixels=10000000, margins=0, overwrite=False):
+                 lat_in=[], lon_in=[], max_pixels=10000000, margins=0, overwrite=False, dpi=600, font_size=6, factor=1,
+                 remove_sea=False, remove_land=False):
 
         """
         :param ImageData data_in:
@@ -56,6 +59,8 @@ class PlotData(object):
         self.plot_shape = []
         self.color_bar = []
         self.overwrite = overwrite
+        self.remove_sea = remove_sea
+        self.remove_land = remove_land
 
         # Information on dataset
         if not isinstance(data_in, ImageData) and not isinstance(data_in, np.ndarray):
@@ -69,12 +74,21 @@ class PlotData(object):
         self.norm = ''
         self.complex_plot = complex_plot
         self.complex_transparency = complex_transparency
+        self.dpi = dpi
+        self.font_size = font_size
+        self.factor = factor
 
         # Information on transparency dataset
         self.transparency_in = transparency_in
         self.transparency_min_max = transparency_min_max
         self.transparency_quantiles = transparency_quantiles
         self.transparency_scale = transparency_scale
+        self.transparency_smooth = transparency_smooth
+
+        # Information on number of looks
+        self.no_looks_in = no_looks_in
+        self.no_looks_cutoff = no_looks_cutoff_percentage
+        self.no_looks_data = []
 
         # Coordinate system of in image
         if coordinates is None and isinstance(data_in, ImageData):
@@ -108,9 +122,9 @@ class PlotData(object):
         total_pixels = self.coordinates.shape[0] * self.coordinates.shape[1]
         self.interval = int(np.ceil(np.sqrt(total_pixels / self.max_pixels)))
 
-    def __call__(self, filename=''):
+    def __call__(self, file_path='', file_folder=''):
 
-        self.image_filename(filename=filename)
+        self.image_filename(file_path=file_path)
         if not os.path.exists(self.filename) or self.overwrite:
             self.define_plot_limits()
             self.prepare_plotting_data()
@@ -120,7 +134,7 @@ class PlotData(object):
             self.create_inset()
             return True
         else:
-            print('Filename already exists and overwrite is False')
+            print('Filename ' + self.filename + ' already exists and overwrite is False')
             return False
 
     def prepare_plotting_data(self):
@@ -134,9 +148,11 @@ class PlotData(object):
 
         if isinstance(self.data_in, ImageData):
             self.data_in.load_disk_data()
-            plot_data = self.data_in.disk2memory(self.data_in.disk['data'][::self.interval, ::self.interval], self.data_in.dtype_disk)
+            plot_data_in = self.data_in.disk2memory(self.data_in.disk['data'][::self.interval, ::self.interval], self.data_in.dtype_disk)
         else:
-            plot_data = self.data_in[::self.interval, ::self.interval]
+            plot_data_in = self.data_in[::self.interval, ::self.interval]
+
+        plot_data = copy.deepcopy(plot_data_in)
 
         if plot_data.dtype == np.complex64:
             if self.complex_plot == 'phase':
@@ -154,8 +170,11 @@ class PlotData(object):
             self.plot_data = plot_data
 
         # Adjust scale of plot data
+        self.plot_data = self.plot_data.astype(dtype=np.float64)
         self.plot_data[self.plot_data == 0] = np.nan
         self.plot_data = self.adjust_scale(self.plot_data, self.data_scale)
+
+        self.plot_data *= self.factor
 
         # Find limits of plot data
         if len(self.min_max) == 2:
@@ -181,9 +200,28 @@ class PlotData(object):
             if self.transparency_data.dtype == np.complex64:
                 raise TypeError('Not possible to use complex data as transparency band!')
 
+            self.transparency_data = copy.deepcopy(self.transparency_data)
+            self.transparency_data = gaussian_filter(self.transparency_data, self.transparency_smooth)
+
+        if isinstance(self.no_looks_in, ImageData) or isinstance(self.no_looks_in, np.ndarray):
+            if isinstance(self.no_looks_in, ImageData):
+                self.no_looks_in.load_disk_data()
+                no_looks_data = self.no_looks_in.disk2memory(self.no_looks_in.disk['data'][::self.interval, ::self.interval], self.data_in.dtype_disk)
+            elif isinstance(self.no_looks_in, np.ndarray):
+                no_looks_data = self.no_looks_in[::self.interval, ::self.interval]
+
+            if no_looks_data.dtype == np.complex64:
+                raise TypeError('Not possible to use complex data as no_looks band!')
+
+            self.no_looks_data = copy.deepcopy(no_looks_data)
+
         if len(self.transparency_data) > 0:
             # Adjust scale of data
             self.transparency_data[self.transparency_data == 0] = np.nan
+            if len(self.no_looks_data) > 0:
+                max_no_looks = np.percentile(self.no_looks_data, 99)
+                cutoff_no_looks = self.no_looks_data < (self.no_looks_cutoff * max_no_looks / 100)
+                self.transparency_data[cutoff_no_looks] = np.nan
             self.transparency_data = self.adjust_scale(self.transparency_data, self.transparency_scale)
 
             # Find min/max values
@@ -302,11 +340,17 @@ class PlotData(object):
                                                 edgecolor='face',
                                                 facecolor=cfeature.COLORS['land'])
 
-        self.figure = plt.figure(dpi=300)
+        self.figure = plt.figure(dpi=self.dpi)
         self.main_axis = self.figure.add_subplot(111, projection=self.crs)
         self.main_axis.coastlines(resolution='10m', zorder=10, alpha=0.5)
-        self.main_axis.add_feature(ocean_10m, zorder=5)
-        self.main_axis.add_feature(land_10m, zorder=1)
+        if self.remove_sea:
+            self.main_axis.add_feature(ocean_10m, zorder=9)
+        else:
+            self.main_axis.add_feature(ocean_10m, zorder=5)
+        if self.remove_land:
+            self.main_axis.add_feature(land_10m, zorder=9)
+        else:
+            self.main_axis.add_feature(land_10m, zorder=1)
         self.main_axis.set_extent([self.lon_lim[0], self.lon_lim[1], self.lat_lim[0], self.lat_lim[1]])
 
     def create_inset(self, lat_extend=20, lon_extend=30):
@@ -355,8 +399,8 @@ class PlotData(object):
         gl.ylocator = mticker.FixedLocator(ygrid.tolist())
         gl.xformatter = LONGITUDE_FORMATTER
         gl.yformatter = LATITUDE_FORMATTER
-        gl.xlabel_style = {'size': 11, 'color': 'black'}
-        gl.ylabel_style = {'size': 11, 'color': 'black'}
+        gl.xlabel_style = {'size': self.font_size, 'color': 'black'}
+        gl.ylabel_style = {'size': self.font_size, 'color': 'black'}
 
     def plot_figure_data(self):
         """
@@ -371,16 +415,19 @@ class PlotData(object):
                 rgb = self.norm(self.plot_data)
             else:
                 rgb = Normalize(self.min_max[0], self.min_max[1], clip=True)(self.plot_data)
-            rgb = plt.get_cmap(self.data_cmap)(rgb)
-
-            rgb[:, :, -1] = self.transparency_data
-            color_tuples = np.array([rgb[:, :, 0].flatten(), rgb[:, :, 1].flatten(),
-                                     rgb[:, :, 2].flatten(), rgb[:, :, 3].flatten()]).transpose()
+            rgba_raw = plt.get_cmap(self.data_cmap)(rgb)
+            rgba = rgba_raw[:-1, :-1, :]
+            rgba[:, :, -1] = self.transparency_data[:-1, :-1]
+            # rgba = np.swapaxes(rgba, 0, 1)
+            color_tuple = np.reshape(rgba, (rgba.shape[0] * rgba.shape[1], rgba.shape[2]))
 
             self.plot_main = self.main_axis.pcolormesh(self.lons, self.lats, self.plot_data,
-                                             color=color_tuples,
-                                             zorder=6,
-                                             transform=ccrs.PlateCarree())
+                                                       cmap=self.data_cmap,
+                                                       color=color_tuple,
+                                                       zorder=6,
+                                                       transform=ccrs.PlateCarree())
+            self.plot_main.set_array(None)
+
         else:
             if self.data_cmap_midpoint == None:
                 self.plot_main = self.main_axis.pcolormesh(self.lons, self.lats, self.plot_data,
@@ -398,6 +445,7 @@ class PlotData(object):
 
         # Plot colorbar
         self.color_bar = self.figure.colorbar(self.plot_main, shrink=0.8, orientation='vertical')
+        self.color_bar.ax.tick_params(labelsize=self.font_size)
 
     def add_labels(self, title, value_name):
         """
@@ -408,8 +456,8 @@ class PlotData(object):
         :return:
         """
 
-        self.main_axis.set_title(title)
-        self.color_bar.set_label(value_name)
+        self.main_axis.set_title(title, size=self.font_size)
+        self.color_bar.set_label(value_name, size=self.font_size)
 
     def add_shape(self, shape, linewidth=1, color='black'):
         """
@@ -444,7 +492,7 @@ class PlotData(object):
         if colorbar:
             self.color_bar = plt.colorbar(self.plot_dem, shrink=0.8)
 
-    def image_filename(self, filename=''):
+    def image_filename(self, file_path='', file_folder=''):
         """
         Check image filename if file is going to be saved.
 
@@ -452,21 +500,10 @@ class PlotData(object):
         :return:
         """
 
-        if len(filename) > 0:
-            if not os.path.exists(os.path.dirname(filename)):
-                print("Path to " + filename + ' does not exist!')
-            else:
-                self.filename = filename
-        elif isinstance(self.data_in, ImageData):
-            # Get filepath from ImageData object.
-            basename = os.path.basename(self.data_in.file_path)[:-4] + '.png'
-            folder_name = os.path.basename(os.path.dirname(self.data_in.file_path))
-            if folder_name.startswith('slice'):
-                date_name = os.path.dirname(os.path.dirname(self.data_in.file_path))
-                self.filename = date_name + '_' + folder_name + '_' + basename
-            else:
-                date_name = os.path.dirname(self.data_in.file_path)
-                self.filename = date_name + '_' + basename
+        if not file_path or not isinstance(self.data_in, ImageData):
+            self.filename = self.data_in.get_output_filename(file_path, file_folder, type_str='.png')
+        else:
+            self.filename = file_path
 
     def save_image(self):
         """
@@ -475,7 +512,7 @@ class PlotData(object):
         :return:
         """
 
-        self.figure.savefig(self.filename, bbox_inches='tight', pad_inches=0.2)
+        self.figure.savefig(self.filename, bbox_inches='tight', pad_inches = 0)
 
     def plot_image(self):
         """
@@ -485,6 +522,15 @@ class PlotData(object):
         """
 
         plt.show()
+
+    def close_plot(self):
+        """
+        Close plot
+
+        """
+
+        plt.close(self.figure)
+
 
 class MidpointNormalize(mpl.colors.Normalize):
     def __init__(self, vmin, vmax, midpoint=0, clip=False):

@@ -77,6 +77,7 @@ class Stack(object):
         self.master_slice_time = []
         self.master_slice_seconds = []
         self.master_slice_range_seconds = []
+        self.master_slices = []
         self.master_date_boundary = False
 
         # Finally also give the slice numbers (we will start with 500 so we can count down if needed.)
@@ -95,6 +96,20 @@ class Stack(object):
             print('Master slice list already loaded!')
             return False
 
+        self.master_slice_swath_no = []
+        self.master_slice_pol = []
+        self.master_slice_lat = []
+        self.master_slice_lon = []
+        self.master_slice_date = []
+        self.master_slice_az_time = []
+        self.master_slice_x = []
+        self.master_slice_y = []
+        self.master_slice_z = []
+        self.master_slice_time = []
+        self.master_slice_seconds = []
+        self.master_slice_range_seconds = []
+        self.master_slices = []
+
         with open(list_file, 'r+') as l:
             for line in l:
                 sl = line.split(',')
@@ -112,9 +127,11 @@ class Stack(object):
                     self.master_slice_z.append(int(sl[5].split(' ')[1]))
                     self.master_slice_lat.append(float(sl[6].split(' ')[1]))
                     self.master_slice_lon.append(float(sl[7].split(' ')[1]))
+                    self.master_slice_range_seconds.append(0)
                     self.master_slice_seconds.append(float(t.hour * 3600 + t.minute * 60 + t.second) + float(t.microsecond) / 1000000)
                     self.master_slice_names.append(name)
                     self.master_date = t.strftime('%Y%m%d')
+                    self.master_slices.append([])
 
             for seconds in self.master_slice_seconds:
                 if seconds < 3600:

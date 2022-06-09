@@ -129,8 +129,8 @@ class CalibratedAmplitudeMultilook(MultilookProcess):  # Change this name to the
 
         beta_0 = 237.0  # TODO Read in from meta data files.
 
-        self['calibrated_amplitude'] = np.abs(self['complex_data'])**2 * np.sin(self['incidence_angle'] / 180 * np.pi) \
-                                                   / (beta_0 ** 2)
+        self['calibrated_amplitude'] = np.sqrt(np.abs(self['complex_data'])**2 * np.sin(self['incidence_angle'] / 180 * np.pi) \
+                                                   / (beta_0 ** 2))
 
     def after_multilook_calculations(self):
 

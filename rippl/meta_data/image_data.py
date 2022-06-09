@@ -486,6 +486,47 @@ class ImageData():
         else:
             return True
 
+    def get_output_filename(self, file_path, file_folder, type_str='.tiff'):
+        """
+        Get the output tiff name
+
+        """
+
+        if not file_path:
+            file_path = self.file_path
+
+        basename = os.path.basename(file_path)[:-4] + type_str
+        folder_name = os.path.basename(os.path.dirname(file_path))
+
+        if folder_name.startswith('slice'):
+            slice_name = folder_name
+            date_name = os.path.basename(os.path.dirname(os.path.dirname(file_path)))
+            file_name = date_name + '_' + slice_name + '_' + basename
+            stack_folder = os.path.dirname(os.path.dirname(os.path.dirname(file_path)))
+        else:
+            slice_name = ''
+            date_name = folder_name
+            file_name = date_name + '_' + basename
+            stack_folder = os.path.dirname(os.path.dirname(file_path))
+
+        if not file_folder:
+            file_folder = stack_folder + '_output_products'
+            if not os.path.exists(file_folder):
+                os.mkdir(file_folder)
+
+        # Output folder. If no slice, slice name will be empty and therefore not added to path.
+        output_folder = os.path.join(file_folder, self.process_name, self.coordinates.short_id_str, slice_name)
+
+        # Create file path by adding filename
+        out_file_path = os.path.join(output_folder, file_name)
+
+        if not os.path.exists(file_folder):
+            os.makedir(file_folder)
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+
+        return out_file_path
+
     def save_tiff(self, file_path='', tiff_folder='', no_sub_folders=False, overwrite=False):
         """
         Save data as geotiff. Complex data will be saved as a two layer tiff with amplitude and phase values.
@@ -498,45 +539,7 @@ class ImageData():
         self.coordinates.create_short_coor_id()
 
         if not file_path:
-            basename = os.path.basename(self.file_path)[:-4] + '.tiff'
-            folder_name = os.path.basename(os.path.dirname(self.file_path))
-
-            if folder_name.startswith('slice'):
-                slice_name = folder_name
-                date_name = os.path.basename(os.path.dirname(os.path.dirname(self.file_path)))
-                file_name = date_name + '_' + slice_name + '_' + basename
-                stack_folder = os.path.dirname(os.path.dirname(os.path.dirname(self.file_path)))
-            else:
-                slice_name = ''
-                date_name = folder_name
-                file_name = date_name + '_' + basename
-                stack_folder = os.path.dirname(os.path.dirname(self.file_path))
-
-            if not tiff_folder:
-                settings = UserSettings()
-                settings.load_settings()
-
-                satellite_folder = os.path.join(settings.radar_data_products, os.path.basename(os.path.dirname(stack_folder)))
-                tiff_folder = os.path.join(satellite_folder, os.path.basename(stack_folder))
-                if not os.path.exists(tiff_folder):
-                    os.mkdir(tiff_folder)
-
-            # Output folder. If no slice, slice name will be empty and therefore not added to path.
-            if no_sub_folders:
-                output_folder = tiff_folder
-            else:
-                output_folder = os.path.join(tiff_folder, self.process_name, self.coordinates.short_id_str, slice_name)
-
-            # Create file path by adding filename
-            file_path = os.path.join(output_folder, file_name)
-
-            if not os.path.exists(tiff_folder):
-                raise FileExistsError('Folder to write tiff files ' + tiff_folder + ' does not exist.')
-            if not os.path.exists(output_folder):
-                os.makedirs(output_folder)
-        else:
-            if not os.path.exists(tiff_folder):
-                raise FileExistsError('Folder to write tiff files ' +tiff_folder + ' does not exist.')
+            file_path = self.get_output_filename(file_path, tiff_folder, type_str='.tiff')
 
         # Check if file already exists.
         if os.path.exists(file_path) and not overwrite:
