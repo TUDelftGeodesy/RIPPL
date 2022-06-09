@@ -17,7 +17,7 @@ docs_require=[ # packages for doc
 ]
 
 setup(
-    name="rippl",
+    name="RIPPL",
     version=version_info["__version__"],
     author="Gert Mulder",
     author_email="g.mulder-1@tudelft.nl",

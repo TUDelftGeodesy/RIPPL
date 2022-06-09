@@ -18,7 +18,7 @@ We will follow the git workflow guide from https://nvie.com/posts/a-successful-g
 3. All development work should be `checkout` from `develop` branch. When your work is done, submit a pull request to merge your work back to `develop` branch. 
 4. All development work MUST have a corresponding ticket in Jira: https://doris.atlassian.net/jira for keeping track of your work. UNDOCUMENTED branches will NOT be accepted for pull request, and might be deleted by the administrator!
 
-## Start your Development 
+## Start your Development
 
 For setting up the development environment, please refer to `README.md`. 
 
