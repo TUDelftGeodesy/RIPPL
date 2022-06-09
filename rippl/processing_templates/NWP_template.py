@@ -203,7 +203,7 @@ class APSTemplate(GeneralPipelines):
             aps_dataset.save_tiff(tiff_folder=tiff_folder)
 
     # Then the images for both harmonie and ecmwf data.
-    def create_plots_ecmwf_aps(self, overwrite=False):
+    def create_plots_ecmwf_aps(self, overwrite=False, factor=2, remove_sea=True):
         """
 
         :param overwrite:
@@ -213,14 +213,14 @@ class APSTemplate(GeneralPipelines):
         cmap = 'jet'
         ecmwf_datasets = self.stack.stack_data_iterator(['ecmwf_aps', 'ecmwf_interferogram'], coordinates=[self.full_ml_coor], ifg=True, load_memmap=False)[-1]
         for ecmwf_data in ecmwf_datasets:
-            plot = PlotData(ecmwf_data, data_cmap=cmap, margins=0.1, overwrite=overwrite)
+            plot = PlotData(ecmwf_data, data_cmap=cmap, margins=0.1, overwrite=overwrite, factor=factor, remove_sea=remove_sea)
             succes = plot()
             if succes:
                 plot.add_labels('ECWMF aps ' + os.path.basename(ecmwf_data.folder), 'Meters')
                 plot.save_image()
                 plot.close_plot()
 
-    def create_plots_harmonie_aps(self, overwrite=False):
+    def create_plots_harmonie_aps(self, overwrite=False, factor=2, remove_sea=True):
         """
 
         :param overwrite:
@@ -230,7 +230,8 @@ class APSTemplate(GeneralPipelines):
         cmap = 'jet'
         harmonie_datasets = self.stack.stack_data_iterator(['harmonie_aps', 'harmonie_interferogram'], coordinates=[self.full_ml_coor], ifg=True, load_memmap=False)[-1]
         for harmonie_data in harmonie_datasets:
-            plot = PlotData(harmonie_data, data_cmap=cmap, margins=0.1, overwrite=overwrite)
+
+            plot = PlotData(harmonie_data, data_cmap=cmap, margins=0.1, overwrite=overwrite, factor=factor, remove_sea=remove_sea)
             succes = plot()
             if succes:
                 plot.add_labels('Harmonie aps ' + os.path.basename(harmonie_data.folder), 'Meters')

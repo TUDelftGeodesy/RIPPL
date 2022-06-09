@@ -1005,29 +1005,40 @@ class GeneralPipelines():
                 plot.save_image()
                 plot.close_plot()
 
-    def create_plots_ifg(self, overwrite=False, margins=0.1, transparency_min_max=[0.15, 0.2], transparency_smooth=1):
+    def create_plots_ifg(self, overwrite=False, margins=0.1, transparency_min_max=[0.15, 0.2], transparency_smooth=1,
+                         dB_lim=-10, coh_lim=0.25, remove_sea=True, remove_land=False):
         """
 
         :param overwrite:
         :return:
         """
-
         cmap = 'jet'
         no_looks = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor], process_types=['no_of_looks'], ifg=False, load_memmap=False)[-1][0]
-        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
         ifgs = self.stack.stack_data_iterator(['interferogram'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
-        for ifg, coherence in zip(ifgs, coherences):
-            plot = PlotData(ifg, data_cmap=cmap, margins=margins, data_min_max=[-np.pi, np.pi], transparency_in=coherence,
+
+        # Calculate transparency based on coherence and amplitude
+        coherence = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1][-1]
+        amplitude = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor], process_types=['calibrated_amplitude_db'], ifg=False, load_memmap=False)[-1][-1]
+        coherence.load_disk_data()
+        amplitude.load_disk_data()
+        coherence_data = coherence.disk2memory(coherence.disk['data'], coherence.dtype_disk)
+        amplitude_data = coherence.disk2memory(amplitude.disk['data'], amplitude.dtype_disk)
+        transparency = np.float32(coherence_data > 0.25) + np.float32(amplitude_data > dB_lim)
+        transparency[amplitude_data == 0] = 0
+
+        for ifg in ifgs:
+            plot = PlotData(ifg, data_cmap=cmap, margins=margins, data_min_max=[-np.pi, np.pi], transparency_in=transparency,
                             transparency_scale='linear', complex_plot='phase', transparency_min_max=transparency_min_max, overwrite=overwrite,
                             no_looks_in=no_looks, no_looks_cutoff_percentage=20,
-                            transparency_smooth=transparency_smooth)
+                            transparency_smooth=transparency_smooth, remove_sea=True, remove_land=False)
             succes = plot()
             if succes:
                 plot.add_labels('Interferogram ' + os.path.basename(ifg.folder), 'Radians')
                 plot.save_image()
                 plot.close_plot()
 
-    def create_plots_unwrapped(self, overwrite=False, margins=0.1, transparency_min_max=[0.15, 0.2], transparency_smooth=1):
+    def create_plots_unwrapped(self, overwrite=False, margins=0.1, transparency_min_max=[-20, -15],
+                               transparency_smooth=1, dB_lim=-10, coh_lim=0.25, factor= 0.056 / (np.pi * 2), remove_sea=True, remove_land=False):
         """
 
         :param overwrite:
@@ -1035,16 +1046,26 @@ class GeneralPipelines():
         """
 
         cmap = 'jet'
-        coherences = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
         unwrapped = self.stack.stack_data_iterator(['unwrap'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1]
         no_looks = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor],
                                                   process_types=['no_of_looks'], ifg=False, load_memmap=False)[-1][0]
-        for coherence, unwrap in zip(coherences, unwrapped):
 
-            plot = PlotData(unwrap, data_cmap=cmap, margins=margins, transparency_in=coherence, factor= 0.056 / np.pi / 4,
+        # Calculate transparency based on coherence and amplitude
+        coherence = self.stack.stack_data_iterator(['coherence'], [self.full_ml_coor], ifg=True, load_memmap=False)[-1][-1]
+        amplitude = self.stack.stack_data_iterator(['calibrated_amplitude'], [self.full_ml_coor], process_types=['calibrated_amplitude_db'], ifg=False, load_memmap=False)[-1][-1]
+        coherence.load_disk_data()
+        amplitude.load_disk_data()
+        coherence_data = coherence.disk2memory(coherence.disk['data'], coherence.dtype_disk)
+        amplitude_data = coherence.disk2memory(amplitude.disk['data'], amplitude.dtype_disk)
+        transparency = np.float32(coherence_data > coh_lim) + np.float32(amplitude_data > dB_lim)
+        transparency[amplitude_data == 0] = 0
+
+        for unwrap in unwrapped:
+
+            plot = PlotData(unwrap, data_cmap=cmap, margins=margins, transparency_in=transparency,
                             transparency_scale='linear', complex_plot='phase', transparency_min_max=transparency_min_max,
                             overwrite=overwrite, no_looks_in=no_looks, no_looks_cutoff_percentage=20,
-                            transparency_smooth=transparency_smooth)
+                            transparency_smooth=transparency_smooth, remove_sea=True, remove_land=False, factor=factor)
             succes = plot()
             if succes:
                 plot.add_labels('Unwrapped interferogram ' + os.path.basename(unwrap.folder), 'Meter')

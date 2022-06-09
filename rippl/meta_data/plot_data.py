@@ -36,7 +36,8 @@ class PlotData(object):
                  complex_plot='phase', complex_transparency='', transparency_smooth=1,
                  data_min_max=[], data_quantiles=[], data_scale='linear', data_cmap='viridis', data_cmap_midpoint=None,
                  transparency_min_max=[], transparency_quantiles=[], transparency_scale='linear',
-                 lat_in=[], lon_in=[], max_pixels=10000000, margins=0, overwrite=False, dpi=600, font_size=6, factor=1):
+                 lat_in=[], lon_in=[], max_pixels=10000000, margins=0, overwrite=False, dpi=600, font_size=6, factor=1,
+                 remove_sea=False, remove_land=False):
 
         """
         :param ImageData data_in:
@@ -58,6 +59,8 @@ class PlotData(object):
         self.plot_shape = []
         self.color_bar = []
         self.overwrite = overwrite
+        self.remove_sea = remove_sea
+        self.remove_land = remove_land
 
         # Information on dataset
         if not isinstance(data_in, ImageData) and not isinstance(data_in, np.ndarray):
@@ -340,8 +343,14 @@ class PlotData(object):
         self.figure = plt.figure(dpi=self.dpi)
         self.main_axis = self.figure.add_subplot(111, projection=self.crs)
         self.main_axis.coastlines(resolution='10m', zorder=10, alpha=0.5)
-        self.main_axis.add_feature(ocean_10m, zorder=5)
-        self.main_axis.add_feature(land_10m, zorder=1)
+        if self.remove_sea:
+            self.main_axis.add_feature(ocean_10m, zorder=9)
+        else:
+            self.main_axis.add_feature(ocean_10m, zorder=5)
+        if self.remove_land:
+            self.main_axis.add_feature(land_10m, zorder=9)
+        else:
+            self.main_axis.add_feature(land_10m, zorder=1)
         self.main_axis.set_extent([self.lon_lim[0], self.lon_lim[1], self.lat_lim[0], self.lat_lim[1]])
 
     def create_inset(self, lat_extend=20, lon_extend=30):
