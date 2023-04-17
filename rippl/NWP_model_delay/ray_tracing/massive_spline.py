@@ -179,7 +179,7 @@ class MassiveSpline(object):
         for i, nx in zip(range(len(new_x)), new_x):
             # First define the interval for which we have to extract the coordinates.
             check = (self.x[:, :-1] <= nx).astype(np.int8) + (self.x[:, 1:] > nx).astype(np.int8)
-            inside = np.sum(check == 2, axis=1).astype(np.bool)
+            inside = np.sum(check == 2, axis=1).astype(np.bool8)
 
             id[inside, i] = np.argmax(check[inside, :], axis=1)
             id[(inside == False) * (nx >= self.x[:, -1]), i] = self.x.shape[1] - 2

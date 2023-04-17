@@ -485,7 +485,7 @@ class SentinelStack(SentinelDatabase, Stack):
         s_dates = np.sort(np.unique(np.array(self.slice_date)))
         m_names = np.sort(np.array(self.master_slice_names))
         n_burst = len(self.master_slice_names)
-        self.burst_availability = np.zeros((n_burst, len(s_dates))).astype(np.bool)
+        self.burst_availability = np.zeros((n_burst, len(s_dates))).astype(np.bool8)
 
         for s_name, s_date in zip(self.slice_names, self.slice_date):
             date_id = np.where((s_dates == s_date))
