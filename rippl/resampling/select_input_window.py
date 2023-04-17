@@ -105,10 +105,10 @@ class SelectInputWindow():
         pixels = np.arange(in_s_pix, in_shape[1])
 
         # This method check for every input row what the max and min line and pixel values are.
-        row_max_lin = np.int(np.nanmax(output_lines, 1))
-        row_min_lin = np.int(np.nanmin(output_lines, 1))
-        row_max_pix = np.int(np.nanmax(output_pixels, 1))
-        row_min_pix = np.int(np.nanmin(output_pixels, 1))
+        row_max_lin = np.int32(np.nanmax(output_lines, 1))
+        row_min_lin = np.int32(np.nanmin(output_lines, 1))
+        row_max_pix = np.int32(np.nanmax(output_pixels, 1))
+        row_min_pix = np.int32(np.nanmin(output_pixels, 1))
 
         # the line values are now used to check which rows cross certain columns of the image
         in_between_matrix = (row_max_lin[None, :] - lines[:, None] > 0) * (row_min_lin[None, :] - lines[:, None] < 0)

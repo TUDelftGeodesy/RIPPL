@@ -204,8 +204,8 @@ class CoorConcatenate():
             concat_coor.center_lat = np.mean([coor.center_lat for coor in coor_systems])
             concat_coor.center_lon = np.mean([coor.center_lon for coor in coor_systems])
             concat_coor.center_heading = np.mean([coor.center_heading for coor in coor_systems])
-            concat_coor.center_pixel = np.int(np.mean([coor.center_pixel for coor in coor_systems]))
-            concat_coor.center_line = np.int(np.mean([coor.center_line for coor in coor_systems]))
+            concat_coor.center_pixel = np.int32(np.mean([coor.center_pixel for coor in coor_systems]))
+            concat_coor.center_line = np.int32(np.mean([coor.center_line for coor in coor_systems]))
 
             return concat_coor, sync_coors
         else:
