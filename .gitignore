@@ -52,3 +52,5 @@ user_settings.txt
 
 # pyright
 pyrightconfig.json
+
+examples/
