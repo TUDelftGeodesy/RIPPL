@@ -2,20 +2,21 @@
 import json
 from collections import OrderedDict
 import os
+import logging
 
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.meta_data.orbit import Orbit
 from rippl.meta_data.readfile import Readfile
 
 
-class ProcessMeta():
+class ProcessMeta(object):
 
     def __init__(self, folder, process_name=[], coordinates=[], in_coordinates=[], settings=[], polarisation='', data_id='',
                  json_data='', json_path=''):
 
         self.folder = folder
         if not json_path:
-            self.json_path = os.path.join(self.folder, 'info.json')
+            self.json_path = os.path.join(self.folder, os.path.basename(self.folder) + '.json')
         else:
             self.json_path = json_path
         self.process_name = ''
@@ -32,7 +33,7 @@ class ProcessMeta():
             self.load_json(json_data, json_path)
         else:
             if not isinstance(coordinates, CoordinateSystem):
-                print('variable coordinates should be an CoordinateSystem object')
+                logging.info('variable coordinates should be an CoordinateSystem object')
                 return
 
             self.process_name = process_name
@@ -116,6 +117,11 @@ class ProcessMeta():
 
         if json_path:
             with open(json_path, 'w+') as file:
+                try:
+                    json.dumps(self.json_dict)
+                except Exception as e:
+                    raise ValueError('Part of the .json file is not json serializable. Make sure that the processing'
+                                     'step settings only accept dictionaries with regular int, float or string values. ' + str(e))
                 json.dump(self.json_dict, file, indent=3)
 
     def load_json(self, json_data='', json_path=''):

@@ -9,10 +9,10 @@ using standard matplotlib commands.
 
 import copy
 import os
+import logging
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from matplotlib.colors import Normalize
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 import cartopy.crs as ccrs
 from shapely.geometry import Polygon, LinearRing
@@ -32,22 +32,17 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 class PlotData(object):
 
-    def __init__(self, data_in, coordinates=None, transparency_in=None, no_looks_in=None, no_looks_cutoff_percentage=50,
+    def __init__(self, data_in, coordinates=None, transparency=[],
                  complex_plot='phase', complex_transparency='', transparency_smooth=1,
                  data_min_max=[], data_quantiles=[], data_scale='linear', data_cmap='viridis', data_cmap_midpoint=None,
-                 transparency_min_max=[], transparency_quantiles=[], transparency_scale='linear',
                  lat_in=[], lon_in=[], max_pixels=10000000, margins=0, overwrite=False, dpi=600, font_size=6, factor=1,
                  remove_sea=False, remove_land=False):
 
         """
         :param ImageData data_in:
-        :param transparency_in:
         :param complex_plot:
         :param complex_transparency:
-        :param data_max_min:
         :param data_quantiles:
-        :param transparency_max_min:
-        :param transparency_quantiles:
         """
 
         # information on plot
@@ -73,22 +68,9 @@ class PlotData(object):
         self.data_cmap_midpoint = data_cmap_midpoint
         self.norm = ''
         self.complex_plot = complex_plot
-        self.complex_transparency = complex_transparency
         self.dpi = dpi
         self.font_size = font_size
         self.factor = factor
-
-        # Information on transparency dataset
-        self.transparency_in = transparency_in
-        self.transparency_min_max = transparency_min_max
-        self.transparency_quantiles = transparency_quantiles
-        self.transparency_scale = transparency_scale
-        self.transparency_smooth = transparency_smooth
-
-        # Information on number of looks
-        self.no_looks_in = no_looks_in
-        self.no_looks_cutoff = no_looks_cutoff_percentage
-        self.no_looks_data = []
 
         # Coordinate system of in image
         if coordinates is None and isinstance(data_in, ImageData):
@@ -96,7 +78,7 @@ class PlotData(object):
         elif isinstance(coordinates, CoordinateSystem):
             self.coordinates = coordinates
         else:
-            print("Either use an ImageData object as input or define the coordinate system.")
+            logging.info("Either use an ImageData object as input or define the coordinate system.")
 
         self.crs = ccrs.Mercator()
         self.image_limits = []
@@ -134,7 +116,7 @@ class PlotData(object):
             self.create_inset()
             return True
         else:
-            print('Filename ' + self.filename + ' already exists and overwrite is False')
+            logging.info('Filename ' + self.filename + ' already exists and overwrite is False')
             return False
 
     def prepare_plotting_data(self):
@@ -143,8 +125,6 @@ class PlotData(object):
 
         :return:
         """
-
-        self.transparency_data = []
 
         if isinstance(self.data_in, ImageData):
             self.data_in.load_disk_data()
@@ -161,11 +141,6 @@ class PlotData(object):
                 self.plot_data = np.abs(plot_data)
             else:
                 raise TypeError('Only options phase and amplitude are possible for complex_plot')
-
-            if self.complex_transparency == 'phase':
-                self.transparency_data = np.angle(plot_data)
-            elif self.complex_transparency == 'amplitude':
-                self.transparency_data = np.abs(plot_data)
         else:
             self.plot_data = plot_data
 
@@ -188,56 +163,6 @@ class PlotData(object):
         # Using the limits create the normalized colorscale.
         if self.data_cmap_midpoint != None:
             self.norm = MidpointNormalize(vmin=self.min_max[0], vmax=self.min_max[1], clip=False)
-
-        # Get transparency information (if available)
-        if isinstance(self.transparency_in, ImageData) or isinstance(self.transparency_in, np.ndarray):
-            if isinstance(self.transparency_in, ImageData):
-                self.transparency_in.load_disk_data()
-                self.transparency_data = self.transparency_in.disk2memory(self.transparency_in.disk['data'][::self.interval, ::self.interval], self.data_in.dtype_disk)
-            elif isinstance(self.transparency_in, np.ndarray):
-                self.transparency_data = self.transparency_in[::self.interval, ::self.interval]
-
-            if self.transparency_data.dtype == np.complex64:
-                raise TypeError('Not possible to use complex data as transparency band!')
-
-            self.transparency_data = copy.deepcopy(self.transparency_data)
-            self.transparency_data = gaussian_filter(self.transparency_data, self.transparency_smooth)
-
-        if isinstance(self.no_looks_in, ImageData) or isinstance(self.no_looks_in, np.ndarray):
-            if isinstance(self.no_looks_in, ImageData):
-                self.no_looks_in.load_disk_data()
-                no_looks_data = self.no_looks_in.disk2memory(self.no_looks_in.disk['data'][::self.interval, ::self.interval], self.data_in.dtype_disk)
-            elif isinstance(self.no_looks_in, np.ndarray):
-                no_looks_data = self.no_looks_in[::self.interval, ::self.interval]
-
-            if no_looks_data.dtype == np.complex64:
-                raise TypeError('Not possible to use complex data as no_looks band!')
-
-            self.no_looks_data = copy.deepcopy(no_looks_data)
-
-        if len(self.transparency_data) > 0:
-            # Adjust scale of data
-            self.transparency_data[self.transparency_data == 0] = np.nan
-            if len(self.no_looks_data) > 0:
-                max_no_looks = np.percentile(self.no_looks_data, 99)
-                cutoff_no_looks = self.no_looks_data < (self.no_looks_cutoff * max_no_looks / 100)
-                self.transparency_data[cutoff_no_looks] = np.nan
-            self.transparency_data = self.adjust_scale(self.transparency_data, self.transparency_scale)
-
-            # Find min/max values
-            if len(self.transparency_min_max) == 2:
-                pass
-            else:
-                if len(self.transparency_quantiles) != 2:
-                    self.data_quantiles = [0.1, 0.99]
-                self.transparency_min_max = [np.nanquantile(self.transparency_data, self.transparency_quantiles[0]),
-                                np.nanquantile(self.transparency_data, self.transparency_quantiles[1])]
-
-            # Scale to min/max values
-            self.transparency_data = (self.transparency_data - self.transparency_min_max[0]) / np.diff(self.transparency_min_max)
-            self.transparency_data[np.isnan(self.transparency_data)] = 0
-            self.transparency_data[self.transparency_data < 0] = 0
-            self.transparency_data[self.transparency_data > 1] = 1
 
     @staticmethod
     def adjust_scale(data, scale):
@@ -340,6 +265,7 @@ class PlotData(object):
                                                 edgecolor='face',
                                                 facecolor=cfeature.COLORS['land'])
 
+        plt.ioff()
         self.figure = plt.figure(dpi=self.dpi)
         self.main_axis = self.figure.add_subplot(111, projection=self.crs)
         self.main_axis.coastlines(resolution='10m', zorder=10, alpha=0.5)
@@ -391,8 +317,8 @@ class PlotData(object):
         """
 
         gl = self.main_axis.gridlines(crs=ccrs.PlateCarree(), draw_labels=True, alpha=0.5)
-        gl.xlabels_top = None
-        gl.ylabels_right = None
+        gl.top_labels = None
+        gl.right_labels = None
         xgrid = np.arange(np.floor(self.lon_lim[0]) - 10, np.ceil(self.lon_lim[1]) + 10, 2)
         ygrid = np.arange(np.floor(np.min(self.lat_lim)) - 10, np.ceil(np.max(self.lat_lim)) + 10, 1)
         gl.xlocator = mticker.FixedLocator(xgrid.tolist())
@@ -409,39 +335,21 @@ class PlotData(object):
         :return:
         """
 
-        if len(self.transparency_data) > 0:
-            # First create the color tuples
-            if self.data_cmap_midpoint:
-                rgb = self.norm(self.plot_data)
-            else:
-                rgb = Normalize(self.min_max[0], self.min_max[1], clip=True)(self.plot_data)
-            rgba_raw = plt.get_cmap(self.data_cmap)(rgb)
-            rgba = rgba_raw[:-1, :-1, :]
-            rgba[:, :, -1] = self.transparency_data[:-1, :-1]
-            # rgba = np.swapaxes(rgba, 0, 1)
-            color_tuple = np.reshape(rgba, (rgba.shape[0] * rgba.shape[1], rgba.shape[2]))
-
+        if self.data_cmap_midpoint == None:
             self.plot_main = self.main_axis.pcolormesh(self.lons, self.lats, self.plot_data,
-                                                       cmap=self.data_cmap,
-                                                       color=color_tuple,
-                                                       zorder=6,
-                                                       transform=ccrs.PlateCarree())
-            self.plot_main.set_array(None)
-
+                                             cmap=self.data_cmap,
+                                             zorder=6,
+                                             transform=ccrs.PlateCarree(),
+                                             vmin=self.min_max[0],
+                                             vmax=self.min_max[1],
+                                             shading='nearest')
         else:
-            if self.data_cmap_midpoint == None:
-                self.plot_main = self.main_axis.pcolormesh(self.lons, self.lats, self.plot_data,
-                                                 cmap=self.data_cmap,
-                                                 zorder=6,
-                                                 transform=ccrs.PlateCarree(),
-                                                 vmin=self.min_max[0],
-                                                 vmax=self.min_max[1])
-            else:
-                self.plot_main = self.main_axis.pcolormesh(self.lons, self.lats, self.plot_data,
-                                                 cmap=self.data_cmap,
-                                                 zorder=6,
-                                                 transform=ccrs.PlateCarree(),
-                                                 norm=self.norm)
+            self.plot_main = self.main_axis.pcolormesh(self.lons, self.lats, self.plot_data,
+                                             cmap=self.data_cmap,
+                                             zorder=6,
+                                             transform=ccrs.PlateCarree(),
+                                             norm=self.norm,
+                                             shading='nearest')
 
         # Plot colorbar
         self.color_bar = self.figure.colorbar(self.plot_main, shrink=0.8, orientation='vertical')

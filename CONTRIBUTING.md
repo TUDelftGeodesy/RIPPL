@@ -13,8 +13,8 @@ If you're only interested in playing around with RIPPL or testing a few new func
 
 We will follow the git workflow guide from https://nvie.com/posts/a-successful-git-branching-model/. The general guidelines are:
 
-1. `master` branch is **protected** and will only be updated when there's a major stable release (i.e., v1.2.0 -> v1.3.0);
-2. `develop` branch is **protected**, and can be treated as a "beta" version. The "beta" version will be tested thoroughly before merging to `master` branch. 
+1. `main` branch is **protected** and will only be updated when there's a major stable release (i.e., v1.2.0 -> v1.3.0);
+2. `develop` branch is **protected**, and can be treated as a "beta" version. The "beta" version will be tested thoroughly before merging to `main` branch. 
 3. All development work should be `checkout` from `develop` branch. When your work is done, submit a pull request to merge your work back to `develop` branch. 
 4. All development work MUST have a corresponding ticket in Jira: https://doris.atlassian.net/jira for keeping track of your work. UNDOCUMENTED branches will NOT be accepted for pull request, and might be deleted by the administrator!
 

@@ -1,13 +1,36 @@
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
 import os
-
-from rippl.download_login import DownloadLogin
+import zipfile
+import shutil
+import logging
 
 class GeoidInterp():
 
     @staticmethod
-    def create_geoid(coordinates=None, egm_96_file='', download=True, lat=None, lon=None):
+    def download_geoid(egm_96_file=''):
+        # Download egm96 file
+        if not os.path.exists(egm_96_file + '.zip'):
+            url = 'https://earth-info.nga.mil/php/download.php?file=egm-96interpolation'
+            logging.info('downloading from ' + url + ' to ' + egm_96_file + '.zip')
+            command = 'wget ' + url + ' -O ' + '"' + egm_96_file + '.zip'
+            os.system(command)
+
+        # Perform unzip operation
+        with zipfile.ZipFile(egm_96_file + '.zip', 'r') as egm_96_zip:
+            egm_96_zip.extract('WW15MGH.GRD', egm_96_file + '_unzipped')
+        shutil.move(os.path.join(egm_96_file + '_unzipped', 'WW15MGH.GRD'), egm_96_file)
+        shutil.rmtree(egm_96_file + '_unzipped')
+
+        if not os.path.exists(egm_96_file):
+            raise ConnectionError(
+                'Failed to download https://earth-info.nga.mil/php/download.php?file=egm-96interpolation to '
+                + egm_96_file + ' ,please try to do it manually and try again.')
+        else:
+            logging.info('Succesfully downloaded the EGM96 geoid file to ' + egm_96_file)
+
+    @staticmethod
+    def create_geoid(coordinates=None, egm_96_file='', lat=None, lon=None):
         """
         Creates a egm96 geoid to correct input dem data to ellipsoid value.
 
@@ -21,35 +44,25 @@ class GeoidInterp():
         # http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/binarygeoid.html
 
         if not os.path.exists(egm_96_file):
-            # Download egm96 file
-            if download:
-                if os.name == 'nt':
-                    download_data = DownloadLogin('', '', '')
-                    url = 'http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC'
-                    print('downloading from ' + url + ' to ' + egm_96_file)
-                    download_data.download_file(url, egm_96_file, 3)
-                else:
-                    command = 'wget http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC -O ' + '"' + egm_96_file + '"'
-                    print(command)
-                    os.system(command)
-            else:
-                raise LookupError('No geoid file can be found. Please set download to True and try again')
-
-            if not os.path.exists(egm_96_file):
-                raise ConnectionError('Failed to download http://earth-info.nga.mil/GandG/wgs84/gravitymod/egm96/binary/WW15MGH.DAC to '
-                      + egm_96_file + ' ,please try to do it manually and try again. \n Run the following on the command line \n ' + command)
-            else:
-                print('Succesfully downloaded the EGM96 geoid file to ' + egm_96_file)
+            # Download file
+            GeoidInterp.download_geoid(egm_96_file=egm_96_file)
+        elif os.path.getsize(egm_96_file) < 5000000:
+            # For backward compatability. Old file was 2 MB and new 9 MB. Forces to download new file.
+            # Remove old file and download new file
+            os.remove(egm_96_file)
+            GeoidInterp.download_geoid(egm_96_file=egm_96_file)
 
         # Load data
-        egm96 = np.fromfile(egm_96_file, dtype='>i2').reshape((721, 1440)).astype('float32')
-        egm96 = np.concatenate((egm96[:, 721:], egm96[:, :721], egm96[:, 721][:, None]), axis=1)
+        with open(egm_96_file) as f:
+            dat_str = " ".join(line.strip('\n') for line in f)
+        egm96 = np.fromstring(dat_str, sep=' ')[6:].reshape((721, 1441)).astype('float32')
+        egm96 = np.concatenate((egm96[:, 721:-1], egm96[:, :721], egm96[:, 721][:, None]), axis=1)
         lats = np.linspace(-90, 90, 721)
         lons = np.linspace(-180, 180, 1441)
-        egm96_interp = RectBivariateSpline(lats, lons, egm96)
+        egm96_interp = RectBivariateSpline(lats, lons, np.flipud(egm96))
 
         if not coordinates:
-            egm96_grid = np.transpose(egm96_interp(lon, lat))
+            egm96_grid = np.transpose(egm96_interp.ev(lat, lon))
 
         elif coordinates.grid_type == 'geographic':
             lats = coordinates.lat0 + (np.arange(coordinates.shape[0]) + coordinates.first_line) * coordinates.dlat
@@ -63,7 +76,7 @@ class GeoidInterp():
             if coordinates.dlon < 0:
                 lons = np.flip(lons)
 
-            egm96_grid = np.transpose(egm96_interp(lons, lats))
+            egm96_grid = egm96_interp(lats, lons)
             if coordinates.dlat < 0:
                 egm96_grid = np.flip(egm96_grid, 0)
             if coordinates.dlon < 0:
@@ -80,8 +93,8 @@ class GeoidInterp():
             lons[lons < -180] = lons[lons < -180] + 360
             lons[lons > 180] = lons[lons > 180] - 360
 
-            egm96_grid = np.reshape(egm96_interp(lons, lats, grid=False), coordinates.shape)
+            egm96_grid = np.reshape(egm96_interp(lats, lons, grid=False), coordinates.shape)
         else:
             raise TypeError('Radar grid inputs cannot be used to interpolate geoid')
 
-        return egm96_grid / 100
+        return egm96_grid

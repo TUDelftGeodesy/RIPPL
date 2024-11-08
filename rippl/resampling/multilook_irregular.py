@@ -21,7 +21,7 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 class MultilookIrregular(object):
 
-    def __init__(self, in_coor, out_coor, sort_ids=[], output_ids=[], sum_ids=[]):
+    def __init__(self, in_coor, out_coor, sort_ids='', output_ids='', sum_ids=''):
         # type: (MultilookIrregular, CoordinateSystem, CoordinateSystem, np.ndarray, np.ndarray, np.ndarray) -> None
         # Load in and output coordinates
         
@@ -34,49 +34,56 @@ class MultilookIrregular(object):
             self.output_ids = output_ids
 
         self.multilooked = []
-        self.looks = []
+        self.samples = []
 
-
-    def create_conversion_grid(self, lines=[], pixels=[]):
+    def create_conversion_grid(self, lines='', pixels=''):
         # type: (MultilookIrregular) -> None
         # Create the conversion factors using sort_ids, sum_ids, output_ids
 
         # We reverse the input and output grid because we want to know the coordinates of the input grid in the output
         # grid, while with resampling it is the other way around.
 
-        if len(lines) == 0 or len(pixels) == 0:
+        if not isinstance(lines, (list, np.ndarray)) or not isinstance(pixels, (list, np.ndarray)):
             grid_transform = GridTransforms(self.out_coor, self.in_coor)
             lines, pixels = grid_transform()
         
         self.sort_ids, self.sum_ids, self.output_ids = self.conversion_grid(lines, pixels, self.out_coor.shape)
 
-    def apply_multilooking(self, data):
+    def apply_multilooking(self, data, remove_unvalid=False):
         # type: (MultilookIrregular, np.ndarray) -> None
         # Do the actual multilooking.
 
         # Pre-assign data.
         self.multilooked = np.zeros(shape=self.out_coor.shape).astype(data.dtype)
-        self.looks = np.zeros(shape=self.out_coor.shape).astype(np.int32)
+        self.samples = np.zeros(shape=self.out_coor.shape).astype(np.int32)
 
         # Select valid pixels
-        data[np.isnan(data)] = 0
+        valid = ~np.isnan(data) * ~(data == 0)
+        data[~valid] = 0
 
         # Add to output grids.
         self.multilooked[np.unravel_index(self.output_ids, self.multilooked.shape)] = \
             np.add.reduceat(np.ravel(data)[np.ravel(self.sort_ids)], np.ravel(self.sum_ids))
-        self.looks[np.unravel_index(self.output_ids, self.multilooked.shape)] = np.diff(np.concatenate((np.ravel(self.sum_ids), np.array([len(self.sort_ids)]))))
+
+        # If remove unvalid repeat procedure for the valid grid, otherwise just use the sum_ids
+        if remove_unvalid:
+            self.samples[np.unravel_index(self.output_ids, self.multilooked.shape)] = \
+                np.add.reduceat(np.ravel(valid)[np.ravel(self.sort_ids)], np.ravel(self.sum_ids))
+        else:
+            self.samples[np.unravel_index(self.output_ids, self.multilooked.shape)] = np.diff(
+                np.concatenate((np.ravel(self.sum_ids), np.array([len(self.sort_ids)]))))
 
     def conversion_grid(self, lines, pixels, shape):
         # type: (np.ndarray, np.ndarray, list) -> (np.ndarray, np.ndarray, np.ndarray)
         # This step finds the id of the input grids
 
-        lines -= self.out_coor.first_line
-        pixels -= self.out_coor.first_pixel
-        inside = (lines > 0) * (pixels > 0) * (lines < shape[0]) * (pixels < shape[1])
+        new_lines = lines - self.out_coor.first_line
+        new_pixels = pixels - self.out_coor.first_pixel
+        inside = (new_lines > 0) * (new_pixels > 0) * (new_lines < shape[0]) * (new_pixels < shape[1])
 
         # Select all pixels inside boundaries.
         # Calculate the coordinates of the new pixels and find the pixels outside the given boundaries.
-        flat_id = np.floor(lines).astype(np.int32) * shape[1] + np.floor(pixels).astype(np.int32)
+        flat_id = np.floor(new_lines).astype(np.int32) * shape[1] + np.floor(new_pixels).astype(np.int32)
 
         # Sort ids and find number of pixels in every grid cell
         flat_id[inside == False] = -1

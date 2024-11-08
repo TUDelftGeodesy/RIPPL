@@ -1,6 +1,7 @@
 import json
 from collections import OrderedDict
 import pyproj
+import logging
 import numpy as np
 from osgeo import osr
 
@@ -22,13 +23,14 @@ class CoordinateSystem():
         self.json_dict = OrderedDict()
 
         self.grid_type = ''
+        self.radar_grid_type = ''
         self.slice = True
         self.coor_str = ''
         self.short_id_str = ''
         self.id_str = ''
 
         # Characteristics for all images
-        self.shape = [0, 0]
+        self.shape = ''
         self.first_line = 0
         self.first_pixel = 0
         self.sample_name = ''
@@ -94,12 +96,12 @@ class CoordinateSystem():
         # Load orbit object
 
         if not isinstance(orbit, Orbit):
-            print('Input should be Orbit object')
+            logging.info('Input should be Orbit object')
             return
 
         self.orbit = orbit
 
-    def load_readfile(self, readfile):
+    def load_readfile(self, readfile, radar_grid_type='original'):
         # type: (CoordinateSystem, Readfile) -> None
 
         self.ra_time = readfile.ra_first_pix_time
@@ -113,8 +115,8 @@ class CoordinateSystem():
         self.center_pixel = readfile.center_pixel
         self.center_line = readfile.center_line
         self.center_heading = readfile.center_heading
-        self.date = readfile.date
         self.swath = readfile.swath
+        self.radar_grid_type = radar_grid_type
 
         if self.shape == '' and self.grid_type == 'radar_coordinates':
             self.shape = readfile.size
@@ -122,8 +124,7 @@ class CoordinateSystem():
             self.first_pixel = readfile.first_pixel
         # To define the origin of the readfile we assume it is always from the same track. So it can be defined using
         # the date only.
-        self.radar_grid_date = readfile.date
-
+        self.date = readfile.date
         self.readfile = readfile
 
     def manual_radar_timing(self, az_time, ra_time, az_step, ra_step, date='1900-01-01'):
@@ -132,7 +133,7 @@ class CoordinateSystem():
 
         if not isinstance(ra_time, float) or not isinstance(ra_time, float) \
             or not isinstance(ra_time, float) or not isinstance(ra_time, float):
-            print('The needed range/azimuth start times and steps should be in seconds! (from midnight UTM for azimuth)')
+            logging.info('The needed range/azimuth start times and steps should be in seconds! (from midnight UTM for azimuth)')
             return
 
         self.ra_time = ra_time
@@ -142,7 +143,7 @@ class CoordinateSystem():
 
         # To define the origin of the readfile we assume it is always from the same track. So it can be defined using
         # the date only.
-        self.radar_grid_date = date
+        self.date = date
 
     def add_crop_info(self, shape, first_line, first_pixel):
         # Add information on the crop from the original file. This is done to create the first crop file and is used
@@ -225,6 +226,11 @@ class CoordinateSystem():
         self.update_json(save_orbit, save_readfile)
 
         with open(json_path, 'w+') as file:
+            try:
+                json.dumps(self.json_dict)
+            except Exception as e:
+                raise ValueError('Part of the .json file is not json serializable. Make sure that the processing'
+                                 'step settings only accept dictionaries with regular int, float or string values. ' + str(e))
             json.dump(self.json_dict, file, indent=3)
 
     def load_json(self, json_data, json_path=''):
@@ -310,31 +316,31 @@ class CoordinateSystem():
 
         """
 
-        print('Coordinate system type is ' + self.grid_type)
-        print('Coordinate system size is ' + str(self.shape[0]) + ' lines and ' + str(self.shape[1]) + ' pixels')
+        logging.info('Coordinate system type is ' + self.grid_type)
+        logging.info('Coordinate system size is ' + str(self.shape[0]) + ' lines and ' + str(self.shape[1]) + ' pixels')
 
         if self.grid_type == 'radar_coordinates':
-            print('First line is ' + str(self.first_line) + ' and last line is ' + str(self.first_line + self.shape[0] - 1))
-            print('Steps in lines is ' + str(self.multilook[0]))
-            print('First pixel is ' + str(self.first_pixel) + ' and last pixel is ' + str(self.first_pixel + self.shape[1] - 1))
-            print('Steps in pixels is ' + str(self.multilook[1]))
+            logging.info('First line is ' + str(self.first_line) + ' and last line is ' + str(self.first_line + self.shape[0] - 1))
+            logging.info('Steps in lines is ' + str(self.multilook[0]))
+            logging.info('First pixel is ' + str(self.first_pixel) + ' and last pixel is ' + str(self.first_pixel + self.shape[1] - 1))
+            logging.info('Steps in pixels is ' + str(self.multilook[1]))
 
         elif self.grid_type == 'geographic':
-            print('First line latitude is at ' + '%.4f'%(self.first_line * self.dlat + self.lat0) + ' degrees and the '
+            logging.info('First line latitude is at ' + '%.4f'%(self.first_line * self.dlat + self.lat0) + ' degrees and the '
                   'last line at ' + '%.4f'%((self.first_line + self.shape[0] - 1) * self.dlat + self.lat0) + ' degrees')
-            print('Step size in latitude is ' + '%.4f'%(self.dlat) + ' degrees')
-            print('First pixel longitude is at ' + '%.4f'%(self.first_pixel * self.dlon + self.lon0) + ' degrees and the '
+            logging.info('Step size in latitude is ' + '%.4f'%(self.dlat) + ' degrees')
+            logging.info('First pixel longitude is at ' + '%.4f'%(self.first_pixel * self.dlon + self.lon0) + ' degrees and the '
                   'last line at ' + '%.4f'%((self.first_pixel + self.shape[1] - 1) * self.dlon + self.lon0) + ' degrees')
-            print('Step size in longitude is ' + '%.4f'%(self.dlon) + ' degrees')
+            logging.info('Step size in longitude is ' + '%.4f'%(self.dlon) + ' degrees')
 
         elif self.grid_type == 'projection':
-            print('Projection string is ' + self.proj4_str)
-            print('First line distance is at ' + str(int(self.first_line * self.dy + self.y0)) + ' meters and the '
+            logging.info('Projection string is ' + self.proj4_str)
+            logging.info('First line distance is at ' + str(int(self.first_line * self.dy + self.y0)) + ' meters and the '
                   'last line at ' + str(int((self.first_line + self.shape[0] - 1) * self.dy + self.y0)) + ' meters')
-            print('Step size in distance is ' + str(int(self.dy)) + ' meters')
-            print('First pixel distance is at ' + str(int(self.first_pixel * self.dx + self.x0)) + ' meters and the '
+            logging.info('Step size in distance is ' + str(int(self.dy)) + ' meters')
+            logging.info('First pixel distance is at ' + str(int(self.first_pixel * self.dx + self.x0)) + ' meters and the '
                   'last line at ' + str(int((self.first_pixel + self.shape[1] - 1) * self.dx + self.x0)) + ' meters')
-            print('Step size in distance is ' + str(int(self.dx)) + ' meters')
+            logging.info('Step size in distance is ' + str(int(self.dx)) + ' meters')
 
     def create_radar_coordinates(self, multilook='', oversample='', shape='', first_line=0, first_pixel=0,
                                  sparse_name='', mask_name=''):
@@ -358,6 +364,10 @@ class CoordinateSystem():
 
     def create_radar_lines(self):
         # Create a list of radar lines/pixels bases on multilook/oversample
+
+        if len(self.shape) != 2:
+            logging.info('Not possible to calculate radar lines if no image shape is given.')
+            return
 
         steps = np.array(self.multilook) / np.array(self.oversample)
         self.ml_lines = self.first_line + np.arange(self.shape[0]) * steps[0]
@@ -410,6 +420,7 @@ class CoordinateSystem():
                           shape='', x0=0, y0=0, sparse_name='', mask_name=''):
         # Define projection. For specific projections visit https://proj4.org
 
+        # TODO add the information about the heading of the satellite for the
         self.ellipse_type = ellipse_type
         self.projection_type = projection_type
         self.proj4_str = proj4_str  # Any additional information if needed..
@@ -469,7 +480,7 @@ class CoordinateSystem():
         first_line = np.floor((y_lim[y_ids[0]] - y0) / dy) - buf_pix
         first_pixel = np.floor((x_lim[x_ids[0]] - x0) / dx) - buf_pix
         if first_pixel < 0 or first_line < 0:
-            print('Use of original coordinates is not possible! Returning negative first pixel/line')
+            logging.info('Use of original coordinates is not possible! Returning negative first pixel/line')
 
         # Update shape.
         y_max = np.ceil(y_lim[y_ids[1]] / dy) * dy + buf_pix * dy
@@ -548,7 +559,7 @@ class CoordinateSystem():
             projection.ImportFromProj4(self.proj.srs)
 
         else:
-            print('Grid type ' + self.grid_type + ' is an unknown type.')
+            logging.info('Grid type ' + self.grid_type + ' is an unknown type.')
 
         return projection, geo_transform, flipped
 
@@ -557,15 +568,15 @@ class CoordinateSystem():
         # This function gets the offset in lines and pixels with another coordinate system.
 
         if not self.grid_type == offset_coor.grid_type:
-            print('The offset grid should be the same grid type.')
+            logging.info('The offset grid should be the same grid type.')
             return
 
         first_line_off = offset_coor.first_line - self.first_line
         first_pixel_off = offset_coor.first_pixel - self.first_pixel
 
         if self.grid_type == 'radar_coordinates':
-            ra_time_offset = np.int(np.round((offset_coor.ra_time - self.ra_time) / self.ra_step))
-            az_time_offset = np.int(np.round((offset_coor.az_time - self.az_time) / self.az_step))
+            ra_time_offset = np.int32(np.round((offset_coor.ra_time - self.ra_time) / self.ra_step))
+            az_time_offset = np.int32(np.round((offset_coor.az_time - self.az_time) / self.az_step))
 
             orig_line_offset = az_time_offset + first_line_off
             orig_pixel_offset = ra_time_offset + first_pixel_off
@@ -574,26 +585,26 @@ class CoordinateSystem():
             pixel_offset = orig_pixel_offset // self.multilook[1]
 
             if orig_line_offset % self.multilook[0] != 0 or orig_pixel_offset % self.multilook[1]:
-                print('Pixels do not align due to multilooking!')
+                logging.info('Pixels do not align due to multilooking!')
 
         elif self.grid_type == 'geographic':
-            lat_offset = np.int(np.round((offset_coor.lat0 - self.lat0) / self.dlat))
-            lon_offset = np.int(np.round((offset_coor.lon0 - self.lon0) / self.dlon))
+            lat_offset = np.int32(np.round((offset_coor.lat0 - self.lat0) / self.dlat))
+            lon_offset = np.int32(np.round((offset_coor.lon0 - self.lon0) / self.dlon))
 
             if ((offset_coor.lon0 - self.lon0) / self.dlon) % 1 > 0.001 or \
                     ((offset_coor.lat0 - self.lat0) / self.dlat) % 1 > 0.001:
-                print('Geographic grids do not align!')
+                logging.info('Geographic grids do not align!')
 
             line_offset = first_line_off + lat_offset
             pixel_offset = first_pixel_off + lon_offset
 
         elif self.grid_type == 'projection':
-            y_offset = np.int(np.round((offset_coor.y0 - self.y0) / self.dy))
-            x_offset = np.int(np.round((offset_coor.x0 - self.x0) / self.dx))
+            y_offset = np.int32(np.round((offset_coor.y0 - self.y0) / self.dy))
+            x_offset = np.int32(np.round((offset_coor.x0 - self.x0) / self.dx))
 
             if ((offset_coor.x0 - self.x0) / self.dx) % 1 > 0.001 or \
                     ((offset_coor.y0 - self.y0) / self.dy) % 1 > 0.001:
-                print('Projected grids do not align!')
+                logging.info('Projected grids do not align!')
 
             line_offset = first_line_off + y_offset
             pixel_offset = first_pixel_off + x_offset
@@ -644,8 +655,10 @@ class CoordinateSystem():
                 ovr_str = 'ovr_' + str(self.oversample[0]) + '_' + str(self.oversample[1]) + '_'
             if self.date:
                 date_str = self.date[:4] + self.date[5:7] + self.date[8:10] + '_'
+            else:
+                date_str = ''
 
-            self.short_id_str = 'radar_' + (ml_str + ovr_str + self.sparse_name + self.mask_name)
+            self.short_id_str = 'radar_' + date_str + (ml_str + ovr_str + self.sparse_name + self.mask_name)
         elif self.grid_type == 'geographic':
             self.short_id_str = 'geo_' + (self.ellipse_type + '_' + str(int(self.dlon * 3600)) + '_' + str(int(self.dlat * 3600))) + '_' + self.sparse_name + self.mask_name
         elif self.grid_type == 'projection':
@@ -678,7 +691,7 @@ class CoordinateSystem():
         if isinstance(self.proj, pyproj.Proj):
             x, y = self.proj(lon, lat, inverse=False)
         else:
-            print('Either the projection or geographic coordinate system is not loaded as pyproj class')
+            logging.info('Either the projection or geographic coordinate system is not loaded as pyproj class')
             return
 
         return x, y
@@ -688,7 +701,7 @@ class CoordinateSystem():
         if isinstance(self.proj, pyproj.Proj):
             lon, lat = self.proj(x, y, inverse=True)
         else:
-            print('Either the projection or geographic coordinate system is not loaded as pyproj class')
+            logging.info('Either the projection or geographic coordinate system is not loaded as pyproj class')
             return
 
         return lat, lon
@@ -696,7 +709,7 @@ class CoordinateSystem():
     def create_xy_grid(self, x_interval=1, y_interval=1):
         # Creates the xy grid for a projection.
         if self.grid_type != 'projection':
-            print('xy grid can only be created for a projection')
+            logging.info('xy grid can only be created for a projection')
             return
 
         y_vals = self.y0 + np.arange(self.shape[0]) * self.dy + self.first_line * self.dy
@@ -709,7 +722,7 @@ class CoordinateSystem():
     def create_latlon_grid(self, lat_interval=1, lon_interval=1):
         # Creates the lat/lon grid for a projection
         if self.grid_type != 'geographic':
-            print('lat/lon grid can only be created for a geographic coordinate system')
+            logging.info('lat/lon grid can only be created for a geographic coordinate system')
             return
 
         lat_vals = self.lat0 + np.arange(self.shape[0]) * self.dlat + self.first_line * self.dlat

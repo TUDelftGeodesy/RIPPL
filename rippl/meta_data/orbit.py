@@ -85,6 +85,11 @@ class Orbit():
         self.update_json()
 
         with open(json_path, 'w+') as file:
+            try:
+                json.dumps(self.json_dict)
+            except Exception as e:
+                raise ValueError('Part of the .json file is not json serializable. Make sure that the processing'
+                                 'step settings only accept dictionaries with regular int, float or string values. ' + str(e))
             json.dump(self.json_dict, file, indent=3)
 
     def load_json(self, json_data='', json_path=''):

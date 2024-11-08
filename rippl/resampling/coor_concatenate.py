@@ -8,6 +8,7 @@ The main steps are:
 '''
 import numpy as np
 import copy
+import logging
 
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
@@ -18,13 +19,13 @@ from rippl.resampling.coor_new_extend import CoorNewExtend
 
 class CoorConcatenate():
 
-    def __init__(self, coor_systems, concat_coor='', adjust_date=False):
+    def __init__(self, coor_systems, concat_coor=''):
         # Input coordinate systems a list of coordinate systems.
 
         self.concat_coor = concat_coor
         self.coor_systems = coor_systems
         self.concat_coor, self.sync_coors = CoorConcatenate.create_concat_coordinates(
-            self.coor_systems, concat_coor=self.concat_coor, adjust_date=adjust_date)
+            self.coor_systems, concat_coor=self.concat_coor)
 
         # Information on readfiles that will be updated.
         self.readfile = []
@@ -34,13 +35,13 @@ class CoorConcatenate():
         # Update readfile for concatenated image. This is only relevant for the first creation of radar image.
 
         if not isinstance(readfile, Readfile):
-            print('Input variable should be a Readfile object')
+            logging.info('Input variable should be a Readfile object')
             return
         if not isinstance(orbit, Orbit):
-            print('Input variable should be a Orbit object')
+            logging.info('Input variable should be a Orbit object')
             return
         if not self.concat_coor.grid_type == 'radar_coordinates':
-            print('A new readfile for the concatenated image can only be created using radar coordinate concatenation')
+            logging.info('A new readfile for the concatenated image can only be created using radar coordinate concatenation')
             return
 
         readfile = copy.deepcopy(readfile)
@@ -73,15 +74,13 @@ class CoorConcatenate():
         new_coor = CoordinateSystem()
         new_coor.create_projection(1, 1, proj4_str=proj_string)
         new_coor.load_orbit(orbit)
-        new_coverage = CoorNewExtend(self.concat_coor, new_coor)
-        coor = new_coverage.out_coor
+        coor = CoorNewExtend(self.concat_coor, new_coor).out_coor
         y_coor = [coor.y0 + coor.first_line * coor.dy, coor.y0 + (coor.first_line + coor.shape[0]) * coor.dy]
         x_coor = [coor.x0 + coor.first_pixel * coor.dx, coor.x0 + (coor.first_pixel + coor.shape[1]) * coor.dx]
         readfile.poly_coor = [coor.proj2ell(y_coor[1], x_coor[0]), coor.proj2ell(y_coor[1], x_coor[1]),
                               coor.proj2ell(y_coor[0], x_coor[1]), coor.proj2ell(y_coor[0], x_coor[0])]
         readfile.size = [self.concat_coor.shape[0] + self.concat_coor.first_line,
                          self.concat_coor.shape[1] + self.concat_coor.first_pixel]
-
 
         # Then remove all irrelevant parts of the new readfiles image (no link to source data or something)
         for key in ['First_line (w.r.t. tiff_image)', 'Last_line (w.r.t. tiff_image)',
@@ -129,7 +128,7 @@ class CoorConcatenate():
 
         for step_line, step_pixel in zip(step_lines, step_pixels):
             if step_line != step_lines[0] or step_pixel != step_pixels[0]:
-                print('Step sizes of coordinate systems is not the same, concatenation is not possible.')
+                logging.info('Step sizes of coordinate systems is not the same, concatenation is not possible.')
                 return False
 
         for orig_line, orig_pixel, first_line, first_pixel, step_line, step_pixel in \
@@ -139,14 +138,14 @@ class CoorConcatenate():
             pixel_rest = (((orig_pixels[0] - first_pixels[0]) - orig_pixel + first_pixel) % step_pixel) / step_pixel
 
             if (0.01 > line_rest and 0.99 < line_rest) or (0.01 > pixel_rest and 0.99 < pixel_rest):
-                print('Coordinate systems do not align!')
+                logging.info('Coordinate systems do not align!')
                 return False
 
         return [orig_lines, orig_pixels, first_lines, first_pixels, step_lines, step_pixels]
 
     @staticmethod
     def synchronize_coordinates(coor_systems):
-        # type: (List(CoordinateSystem)) -> (List(CoordinateSystem))
+        # type: (list(CoordinateSystem)) -> (list(CoordinateSystem))
         # Transform all images to a coordinate system with the
 
         # First get the alignment
@@ -156,7 +155,7 @@ class CoorConcatenate():
         else:
             [orig_lines, orig_pixels, first_lines, first_pixels, step_lines, step_pixels] = align_data
 
-        # Than find the lowest
+        # Then find the lowest
         orig_line = np.min(orig_lines)
         orig_pixel = np.min(orig_pixels)
         new_coors = []
@@ -166,7 +165,7 @@ class CoorConcatenate():
         return new_coors
 
     @staticmethod
-    def create_concat_coordinates(coor_systems, concat_coor='', adjust_date=True):
+    def create_concat_coordinates(coor_systems, concat_coor=''):
 
         if isinstance(concat_coor, CoordinateSystem):
             coor_systems = coor_systems + [concat_coor]
@@ -175,7 +174,7 @@ class CoorConcatenate():
         # first synchronize all coordinate systems.
         sync_coors = CoorConcatenate.synchronize_coordinates(coor_systems)
 
-        # Than get the first/last pixels
+        # Then get the first/last pixels
         align_data = CoorConcatenate.coordinates_alignment(sync_coors)
         if not align_data:
             return False
@@ -194,8 +193,6 @@ class CoorConcatenate():
             concat_coor = copy.deepcopy(sync_coors[0])              # type: CoordinateSystem
             line_id = np.argmin(orig_lines)
             concat_coor.az_time = orig_lines[line_id] * concat_coor.az_step
-            if adjust_date and concat_coor.az_time < 7200:
-                concat_coor.az_time += 86400
             pix_id = np.argmin(orig_pixels)
             concat_coor.ra_time = orig_pixels[pix_id] * concat_coor.ra_step
             concat_coor.shape = new_shape

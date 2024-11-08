@@ -1,48 +1,29 @@
 from collections import OrderedDict
 import numpy as np
-import os
+import logging
 
 from rippl.meta_data.process_data import ProcessData
 from rippl.meta_data.process_meta import ProcessMeta
-from rippl.meta_data.orbit import Orbit
-from rippl.meta_data.readfile import Readfile
 from rippl.meta_data.image_processing_meta import ImageProcessingMeta
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 
-class ImageProcessingData(object):
+class ImageProcessingData(ImageProcessingMeta):
 
-    def __init__(self, folder, overwrite=False, json_path='', image_processing_meta='', adjust_date=False):
+    def __init__(self, folder, overwrite=False, json_path='', image_processing_meta=''):
         """
         This class gathers the data on disk of an image using ProcessData object. The main function is to connect all
         the processes and makes it possible to search the processes done for any image.
 
         :param str folder: Location of processes for this image.
         :param bool overwrite: Do we overwrite existing metadata files? Default is False
-        :param str json_path: Path to json file to read meta data. If empty we assume it is folder + info.json
-        :param ImageProcessingMeta image_processing_meta: If the meta file is already loaded it can also be added as an
-                    ImageProcessingMeta object
+        :param str json_path: Path to json file to read metadata. If empty we assume it is folder + 'folder'.json
         """
 
-        self.folder = folder
-        if not json_path:
-            self.json_path = os.path.join(self.folder, 'info.json')
-        else:
-            self.json_path = json_path
-        self.json_path = os.path.join(self.folder, 'info.json')
+        super().__init__(folder, overwrite)
 
-        if isinstance(image_processing_meta, ImageProcessingMeta):
-            self.meta = image_processing_meta
-        else:
-            self.meta = ImageProcessingMeta(folder, overwrite, adjust_date=adjust_date)
-
-        self.folder = self.meta.folder                      # type: str
-        self.reference_paths = self.meta.reference_paths    # type: OrderedDict(str)
-        self.orbits = self.meta.orbits                      # type: OrderedDict(Orbit)
-        self.processes = self.meta.processes                # type: OrderedDict(OrderedDict(ProcessMeta))
-        self.readfiles = self.meta.readfiles                # type: OrderedDict(Readfile)
-
-        self.processes_data = OrderedDict()                 # type: OrderedDict(OrderedDict(ProcessData))
+        self.reference_images = dict()
+        self.load_radar_coordinates()                       # Load radar coordinate systems
 
         self.data_disk_meta = OrderedDict()                 # type: OrderedDict(OrderedDict(OrderedDict()))
         self.data_disk = OrderedDict()                      # type: OrderedDict(OrderedDict(np.memmap))
@@ -58,22 +39,22 @@ class ImageProcessingData(object):
         :return:
         """
 
-        for process_key in self.meta.processes.keys():
+        for process_key in self.processes.keys():
             # Check if this type of process data already exists.
-            if process_key not in self.processes_data.keys():
-                self.processes_data[process_key] = OrderedDict()
+            if process_key not in self.processes.keys():
+                self.processes[process_key] = OrderedDict()
 
-            for id_key in self.meta.processes[process_key].keys():
+            for id_key in self.processes[process_key].keys():
                 # Check if it is already load as a ProcessData object
-                if id_key not in list(self.processes_data[process_key].keys()):
+                if id_key not in list(self.processes[process_key].keys()):
                     new_process = True
-                elif not isinstance(self.processes_data[process_key][id_key], ProcessData):
+                elif not isinstance(self.processes[process_key][id_key], ProcessData):
                     new_process = True
                 else:
                     new_process = False
 
                 if new_process:
-                    self.processes_data[process_key][id_key] = ProcessData(process_meta=self.meta.processes[process_key][id_key], folder=self.folder)
+                    self.processes[process_key][id_key] = ProcessData(process_meta=self.processes[process_key][id_key], folder=self.folder)
                 self.load_process_data_info(process_key, id_key)
 
     def load_process_data_info(self, process_key, id_key):
@@ -86,13 +67,13 @@ class ImageProcessingData(object):
             self.data_memory[process_key] = OrderedDict()
 
         # If the images are not yet loaded, load them as ImageData objects.
-        self.processes_data[process_key][id_key].load_process_images()
+        self.processes[process_key][id_key].load_process_images()
 
         # Extract information for the image data object
-        self.data_disk_meta[process_key][id_key] = self.processes_data[process_key][id_key].data_disk_meta
-        self.data_disk[process_key][id_key] = self.processes_data[process_key][id_key].data_disk
-        self.data_memory_meta[process_key][id_key] = self.processes_data[process_key][id_key].data_memory_meta
-        self.data_memory[process_key][id_key] = self.processes_data[process_key][id_key].data_memory
+        self.data_disk_meta[process_key][id_key] = self.processes[process_key][id_key].data_disk_meta
+        self.data_disk[process_key][id_key] = self.processes[process_key][id_key].data_disk
+        self.data_memory_meta[process_key][id_key] = self.processes[process_key][id_key].data_memory_meta
+        self.data_memory[process_key][id_key] = self.processes[process_key][id_key].data_memory
 
     def add_process(self, process):
         """
@@ -102,22 +83,38 @@ class ImageProcessingData(object):
         :return:
         """
 
-        # If it is not a ProcessData file
-        if isinstance(process, ProcessMeta):
-            self.meta.add_process(process)
-        elif isinstance(process, ProcessData):
-            self.meta.add_process(process.meta)
+        if process.process_name not in self.processes.keys():
+            self.processes[process.process_name] = OrderedDict()
+            self.process_control['processes'][process.process_name] = []
 
-        if process.process_name not in self.processes_data.keys():
-            self.processes_data[process.process_name] = OrderedDict()
+        process_id = process.process_id
+        if type(process) is ProcessMeta:
+            self.processes[process.process_name][process_id] = ProcessData(process.folder, process_meta=process)
+        elif type(process) is ProcessData:
+            if process_id in list(self.processes[process.process_name].keys()):
+                old_process = self.processes[process.process_name][process_id]
+                old_coor = old_process.coordinates      # type: CoordinateSystem
+                new_coor = process.coordinates          # type: CoordinateSystem
 
-        if isinstance(process, ProcessMeta):
-            self.processes_data[process.process_name][process.process_id] = ProcessData(process.folder, process_meta=process)
-        elif isinstance(process, ProcessData):
-            self.processes_data[process.process_name][process.process_id] = process
+                old_coor.create_coor_id()
+                new_coor.create_coor_id()
+
+                if old_coor.id_str == new_coor.id_str:
+                    # Processes are equal so creation of new process is not needed.
+                    process = self.processes[process.process_name][process_id]
+                else:
+                    # Processes are not equal so the old one is replaced with the new one.
+                    logging.info('Replacing existing process for ' + str(process_id) + '. Hopefully this will not give'
+                          ' any issues with processing later on!')
+                    self.processes[process.process_name][process_id] = process
+            else:
+                self.processes[process.process_name][process_id] = process
+        self.process_control['processes'][process.process_name].append(process_id)
 
         # Synchronize the image oversight
-        self.load_process_data_info(process.process_name, process.process_id)
+        self.load_process_data_info(process.process_name, process_id)
+
+        return process
 
     def processing_image_data_exists(self, process, coordinates, in_coordinates='', data_id='', polarisation='',
                                      file_type='', data=True, message=True, multiple=True):
@@ -125,7 +122,7 @@ class ImageProcessingData(object):
         Check if a specific image exists and load it. If more than one image is selected, give a warning.
 
         :param str process: Name process
-        :param CoordinateSystem coordinates: Coordinate system
+        :param CoordinateSystem coordinates: Coordinate system output
         :param CoordinateSystem in_coordinates: Coordinate system of input processing step
         :param str data_id: ID of dataset
         :param str polarisation: Polarisation of the image
@@ -137,11 +134,11 @@ class ImageProcessingData(object):
                                                      [polarisation], [file_type], data=data)[-1]
         if len(images) == 0:
             if message:
-                print('No image data found')
+                logging.info('No image data found')
             return False
         elif len(images) > 1 and not multiple:
             if message:
-                print('Search criterea for image selection not specific enough. More than one image selected. Note that if '
+                logging.info('Search criterea for image selection not specific enough. More than one image selected. Note that if '
                       'data_id or polarisation should be empty use "none" as keyword.')
             return False
         else:
@@ -207,7 +204,7 @@ class ImageProcessingData(object):
                         continue
 
                 file_types_process, coordinate_systems_process, in_coordinate_systems_process, images_process = \
-                    self.processes_data[process_name][process_id].process_data_iterator(file_types, data)
+                    self.processes[process_name][process_id].process_data_iterator(file_types, data)
 
                 # All the same for every file type
                 processes_out += [process_name for i in range(len(file_types_process))]
@@ -249,8 +246,8 @@ class ImageProcessingData(object):
 
         if not process_id:
             process_id = ProcessMeta.create_process_id(process_name, coordinates, in_coordinates, data_id, polarisation)
-        if process_name in self.processes_data.keys():
-            if process_id in self.processes_data[process_name].keys():
+        if process_name in self.processes.keys():
+            if process_id in self.processes[process_name].keys():
                 return True, process_id
         return False, process_id
 
@@ -258,7 +255,7 @@ class ImageProcessingData(object):
         """
         Select a specific process to read or write data.
 
-        :param str process_name: Name of process
+        :param str process_name: Name of process of interest
         :param CoordinateSystem coordinates: Process coordinate system
         :param str data_id: ID of process (often empty)
         :param str polarisation: polarisation of process, if any
@@ -269,7 +266,7 @@ class ImageProcessingData(object):
         exist, process_id = self.check_process_exist(process_name, coordinates, data_id, polarisation, process_id)
 
         if exist:
-            return self.processes_data[process_name][process_id]
+            return self.processes[process_name][process_id]
         else:
             return False
 
@@ -308,26 +305,3 @@ class ImageProcessingData(object):
             self.processing_image_data_iterator(processes=processes, file_types=file_types)
         for image in images:
             image.remove_memory_data()
-
-    # Delegate functions to image processing meta object.
-    def update_json(self):
-        self.meta.update_json()
-
-    def save_json(self, json_path=''):
-        self.meta.save_json(json_path)
-
-    def get_json(self, json_path=''):
-        json_dict, json_path = self.meta.get_json(json_path)
-
-        return json_dict, json_path
-
-    def load_json(self, json_path=''):
-        self.meta.load_json(json_path)
-
-    def process_id_exist(self, process_id):
-        # Checks if a process id exists
-        return self.meta.process_id_exist(process_id)
-
-    def find_best_orbit(self, orbit_type='original'):
-        # Find best orbits
-        return self.meta.find_best_orbit(orbit_type)

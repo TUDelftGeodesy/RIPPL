@@ -42,7 +42,6 @@ class Irregular2Regular():
         
         # Data values
         self.input_values = input_val
-        
 
     def __call__(self, weed=False):
 
@@ -61,9 +60,11 @@ class Irregular2Regular():
         lines = range(self.shape[0])
         pixels = range(self.shape[1])
         pixel_coor, line_coor = np.meshgrid(pixels, lines)
-        output_values = Irregular2Regular.barycentric_interpolation(delaunay, grid_triangle_id, point_coor,
-                                                                    line_coor, pixel_coor, dem_values)
-        output_values = np.reshape(output_values, grid_triangle_id.shape)
+        valid_ids = (grid_triangle_id >= 0)
+        output_dem = Irregular2Regular.barycentric_interpolation(delaunay, grid_triangle_id[valid_ids], point_coor,
+                                                                    line_coor[valid_ids], pixel_coor[valid_ids], dem_values)
+        output_values = np.ones(grid_triangle_id.shape) * np.nan
+        output_values[valid_ids] = output_dem
 
         return output_values
 
@@ -131,7 +132,7 @@ class Irregular2Regular():
         max_lines = (np.ceil((dem_max_line - dem_min_line))).astype(np.int16) + 1
         m_lin = np.unique(max_lines)
 
-        grid_triangle_id = np.zeros(shape).astype(np.int32)
+        grid_triangle_id = np.ones(shape).astype(np.int32) * -1
 
         for l in m_lin:
 

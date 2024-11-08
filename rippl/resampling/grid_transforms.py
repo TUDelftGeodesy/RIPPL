@@ -4,12 +4,13 @@ This class holds a number of functions which gives a transform between different
 '''
 
 import numpy as np
+import os
+import logging
 
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.meta_data.orbit import Orbit
 from rippl.orbit_geometry.orbit_coordinates import OrbitCoordinates
-from rippl.meta_data.image_processing_data import ImageProcessingData
-
+from rippl.user_settings import UserSettings
 
 class GridTransforms(object):
 
@@ -32,6 +33,11 @@ class GridTransforms(object):
 
         self.in_coor = in_coor
         self.out_coor = out_coor
+
+        self.dem = ''
+        self.xyz = ''
+        self.lat = ''
+        self.lon = ''
 
     def add_dem(self, dem):
         # Add dem to dataset
@@ -62,18 +68,43 @@ class GridTransforms(object):
         # Load the xyz, height data needed. If it is missing, throw an error.
         if self.in_coor.grid_type == 'radar_coordinates':
             if self.out_coor.grid_type == 'radar_coordinates':
-                out_xyz = self.xyz
-            elif self.out_coor.grid_type in ['geographic', 'projection']:
-                out_xyz = self.get_projection_xyz(self.out_coor, self.dem)
-        elif self.in_coor.grid_type in ['geographic', 'projection']:
-            if self.out_coor.grid_type == 'radar_coordinates':
-                out_height = self.dem
+                if not isinstance(self.xyz, str):
+                    out_xyz = self.xyz
+                elif not isinstance(self.dem, str) and not isinstance(self.lon, str) and not isinstance(self.lat, str):
+                    out_xyz = self.get_radar_xyz(lat=self.lat, lon=self.lon, dem=self.dem)
+                elif not isinstance(self.dem, str):
+                    out_xyz = self.get_radar_xyz(dem=self.dem)
+                elif not isinstance(self.lon, str) and not isinstance(self.lat, str):
+                    out_xyz = self.get_radar_xyz(lat=self.lat, lon=self.lon)
+                else:
+                    raise ValueError('When converting radar to radar grid either xyz, lat/lon/dem, lat/lon or dem '
+                                     'should be available')
+            else:
+                if isinstance(self.dem, str):
+                    lat, lon = self.get_projection_lat_lon(self.out_coor)
+                    self.dem = self.get_geoid(lat, lon)
+
+                out_xyz = self.get_projection_xyz(self.out_coor)
+        elif self.out_coor.grid_type == 'radar_coordinates':
+            if not isinstance(self.dem, str):
+                orbit = OrbitCoordinates(self.out_coor)
+                orbit.xyz = self.get_radar_xyz(dem=self.dem)
+                orbit.xyz2ell()
+                out_lat = orbit.lat
+                out_lon = orbit.lon
+            elif not isinstance(self.lon, str) and not isinstance(self.lat, str):
                 out_lat = self.lat
                 out_lon = self.lon
-            elif self.out_coor.grid_type in ['geographic', 'projection']:
-                out_lat, out_lon = self.get_projection_lat_lon(self.out_coor)
+            else:
+                raise ValueError('When converting to radar grid  lat/lon or dem should be available')
 
-        # Call the the right transform function and return it as an output.
+        if self.out_coor.shape == [0,0]:
+            lines = np.zeros((0, 0))
+            pixels = np.zeros((0, 0))
+
+            return lines, pixels
+
+        # Call the right transform function and return it as an output.
         if self.in_coor.grid_type == 'radar_coordinates':
             if self.out_coor.grid_type == 'radar_coordinates':
                 lines, pixels = GridTransforms.radar2radar(self.in_coor, self.out_coor, out_xyz)
@@ -83,20 +114,18 @@ class GridTransforms(object):
                 lines, pixels = GridTransforms.radar2projection(self.in_coor, self.out_coor, out_xyz)
         elif self.in_coor.grid_type == 'geographic':
             if self.out_coor.grid_type == 'radar_coordinates':
-                lines, pixels = GridTransforms.geographic2radar(self.in_coor, self.out_coor, out_lat=out_lat,
-                                                                out_lon=out_lon, out_height=out_height)
+                lines, pixels = GridTransforms.geographic2radar(self.in_coor, self.out_coor, out_lat=out_lat, out_lon=out_lon)
             elif self.out_coor.grid_type == 'geographic':
                 lines, pixels = GridTransforms.geographic2geographic(self.in_coor, self.out_coor)
             elif self.out_coor.grid_type == 'projection':
-                lines, pixels = GridTransforms.geographic2projection(self.in_coor, self.out_coor, out_lat, out_lon)
+                lines, pixels = GridTransforms.geographic2projection(self.in_coor, self.out_coor)
         elif self.in_coor.grid_type == 'projection':
             if self.out_coor.grid_type == 'radar_coordinates':
-                lines, pixels = GridTransforms.projection2radar(self.in_coor, self.out_coor, out_lat=out_lat,
-                                                                out_lon=out_lon, out_height=out_height)
+                lines, pixels = GridTransforms.projection2radar(self.in_coor, self.out_coor, out_lat=out_lat, out_lon=out_lon)
             elif self.out_coor.grid_type == 'geographic':
                 lines, pixels = GridTransforms.projection2geographic(self.in_coor, self.out_coor)
             elif self.out_coor.grid_type == 'projection':
-                lines, pixels = GridTransforms.projection2projection(self.in_coor, self.out_coor, out_lat, out_lon)
+                lines, pixels = GridTransforms.projection2projection(self.in_coor, self.out_coor)
 
         lines = np.reshape(lines, self.out_coor.shape)
         pixels = np.reshape(pixels, self.out_coor.shape)
@@ -135,15 +164,69 @@ class GridTransforms(object):
 
         return xyz
 
+    @staticmethod
+    def get_radar_xyz(coordinates, dem=[], lat=[], lon=[]):
+        """
+        Get the radar cartesian coordinates based on lat/lon and DEM. If only DEM is available, the xyz coordinates are
+        estimated using the OrbitCoordinates class. If only lat/lon are available, we assume that the DEM follows the
+        geoid and the DEM is calculated based on the lat/lon combinations.
+
+        If all three DEM and lat/lon are available the xyz coordinates are calculated using the transformation between
+        geographic to cartesian coordinates
+
+        :param coordinates:
+        :param dem:
+        :param lat:
+        :param lon:
+        :return:
+        """
+
+        if not isinstance(dem, str) and not isinstance(lon, str) and not isinstance(lat, str):
+            xyz = OrbitCoordinates.ell2xyz(np.ravel(lat), np.ravel(lon), np.ravel(dem))
+        elif not isinstance(lon, str) and not isinstance(lat, str):
+            geoid = GridTransforms.get_geoid(np.ravel(lat), np.ravel(lon))
+            xyz = OrbitCoordinates.ell2xyz(np.ravel(lat), np.ravel(lon), geoid)
+        elif not isinstance(dem, str):
+            orbit = OrbitCoordinates(coordinates=coordinates)
+            orbit.height = np.ravel(dem)
+            xyz = orbit.lph2xyz()
+        else:
+            raise ValueError('Either the DEM or the lat/lon combinations should be available to estimate xyz values.')
+
+        return xyz
+
+    @staticmethod
+    def get_geoid(coordinates, lat, lon):
+        """
+        Get the radar geoid information assuming that this is close to the actual DEM
+
+        :param coordinates:
+        :param lat:
+        :param lon:
+        :return:
+        """
+
+        grid_lats = np.ravel(lat)
+        grid_lons = np.ravel(lon)
+        from rippl.external_dems.geoid import GeoidInterp
+        settings = UserSettings()
+        settings.load_settings()
+        egm_96_file = os.path.join(settings.settings['paths']['DEM_database'], 'geoid', 'egm96.dat')
+
+        geoid = GeoidInterp.create_geoid(egm_96_file=egm_96_file, lat=grid_lats, lon=grid_lons,
+                                         download=False)
+
+        return geoid
+
     # The next part consists of all the different functions to convert between the different coordinate systems.
     # From radar to radar/geographic/projection systems.
     @staticmethod
     def radar2radar(in_coor, out_coor, out_xyz='', out_height=''):
         # First check if the xyz data is there.
-        if len(out_xyz) == 0 and len(out_height) == 0:
-            print('Either the xyz cartesian coordinates or the grid heights should be available.')
+        if not isinstance(out_xyz, (np.ndarray, list)) or not isinstance(out_height, (np.ndarray, list)):
+            logging.info('Either the xyz cartesian coordinates or the grid heights should be available.')
             return
-        elif len(out_xyz) == 0 and len(out_height) != 0:
+        elif isinstance(out_xyz, (np.ndarray, list)) and isinstance(out_height, (np.ndarray, list)):
             orbit_out = OrbitCoordinates(out_coor)
             orbit_out.lp_time()
             orbit_out.height = out_height
@@ -165,10 +248,10 @@ class GridTransforms(object):
         orbit_in.lp_time()
 
         # First check if the xyz or out data is there.
-        if len(out_xyz) == 0 and len(out_height) == 0:
-            print('Either the xyz cartesian coordinates or the grid heights should be available.')
+        if not isinstance(out_xyz, (np.ndarray, list)) and not isinstance(out_height, (np.ndarray, list)):
+            logging.info('Either the xyz cartesian coordinates or the grid heights should be available.')
             return
-        elif len(out_xyz) == 0 and len(out_height) != 0:
+        elif not isinstance(out_xyz, (np.ndarray, list)) and isinstance(out_height, (np.ndarray, list)):
             lat, lon = out_coor.create_latlon_grid()
             out_xyz = OrbitCoordinates.ell2xyz(lat, lon, out_height)
 
@@ -184,11 +267,11 @@ class GridTransforms(object):
         orbit_in.lp_time()
 
         # First check if the xyz or out data is there.
-        if len(out_xyz) == 0 and len(out_height) == 0:
-            print('Either the xyz cartesian coordinates or the grid heights should be available.')
+        if not isinstance(out_xyz, (np.ndarray, list)) and not isinstance(out_height, (np.ndarray, list)):
+            logging.info('Either the xyz cartesian coordinates or the grid heights should be available.')
             return
-        elif len(out_xyz) == 0 and len(out_height) != 0:
-            if len(out_lat) == 0 or len(out_lon) == 0:
+        elif not isinstance(out_xyz, (np.ndarray, list)) and isinstance(out_height, (np.ndarray, list)):
+            if not isinstance(out_lat, (np.ndarray, list)) or not isinstance(out_lon, (np.ndarray, list)):
                 x, y = out_coor.create_xy_grid()
                 lat, lon = out_coor.proj2ell(x, y)
 
@@ -220,20 +303,20 @@ class GridTransforms(object):
     @staticmethod
     def geographic2radar(in_coor, out_coor, out_xyz='', out_height='', out_lat='', out_lon=''):
         # Works only lat/lon or xyz or height is available.
-        if (len(out_lat) == 0 or len(out_lon) == 0):
+        if (not isinstance(out_lat, (np.ndarray, list)) or not isinstance(out_lon, (np.ndarray, list))):
             # If lat/lon coordinates are not available...
             orbit_out = OrbitCoordinates(out_coor)
             orbit_out.lp_time()
 
-            if len(out_xyz) != 0:
+            if isinstance(out_xyz, (np.ndarray, list)):
                 # If xyz data is available it can be used to find lat/lon values
                 orbit_out.xyz = out_xyz
-            elif len(out_height) != 0:
+            elif isinstance(out_height, (np.ndarray, list)):
                 # If height data is available it can be used to find the xyz first if not available.
                 orbit_out.height = out_height
                 orbit_out.lph2xyz()
             else:
-                print('Either xyz, lat/lon or height data should be available.')
+                logging.info('Either xyz, lat/lon or height data should be available.')
                 return
 
             orbit_out.xyz2ell()
@@ -251,7 +334,7 @@ class GridTransforms(object):
         if not GridTransforms.check_ellipsoid(in_coor, out_coor):
             return
 
-        if (len(out_lat) == 0 or len(out_lon) == 0):
+        if (not isinstance(out_lat, (np.ndarray, list)) or not isinstance(out_lon, (np.ndarray, list))):
             # If coordinates are missing calculate them.
             x, y = out_coor.create_xy_grid()
             out_lat, out_lon = out_coor.proj2ell(x, y)
@@ -270,7 +353,7 @@ class GridTransforms(object):
             return
 
         # We assume that the two coordinate systems are different.
-        if (len(out_lat) == 0 or len(out_lon) == 0):
+        if (not isinstance(out_lat, (np.ndarray, list)) or not isinstance(out_lon, (np.ndarray, list))):
             # If coordinates are missing calculate them.
             x, y = out_coor.create_xy_grid()
             out_lat, out_lon = out_coor.proj2ell(x, y)
@@ -288,20 +371,20 @@ class GridTransforms(object):
     def projection2radar(in_coor, out_coor, out_xyz='', out_height='', out_lat='', out_lon=''):
         # To get the projection coordinates we have to convert to x and y coordinates.
 
-        if (len(out_lat) == 0 or len(out_lon) == 0):
+        if (not isinstance(out_lat, (np.ndarray, list)) or not isinstance(out_lon, (np.ndarray, list))):
             # If coordinates are missing calculate them.
             orbit_out = OrbitCoordinates(out_coor)
             orbit_out.lp_time()
 
-            if len(out_xyz) != 0:
+            if isinstance(out_xyz, (np.ndarray, list)):
                 # If xyz data is available it can be used to find lat/lon values
                 orbit_out.xyz = out_xyz
-            elif len(out_height) != 0:
+            elif isinstance(out_height, (np.ndarray, list)):
                 # If height data is available it can be used to find the xyz first if not available.
                 orbit_out.height = out_height
                 orbit_out.lph2xyz()
             else:
-                print('Either xyz, lat/lon or heigth data should be available.')
+                logging.info('Either xyz, lat/lon or heigth data should be available.')
                 return
 
             orbit_out.xyz2ell()
@@ -335,7 +418,7 @@ class GridTransforms(object):
     def check_ellipsoid(in_coor, out_coor):
 
         if in_coor.ellipse_type != out_coor.ellipse_type:
-            print('Ellipsoid types should be the same.')
+            logging.info('Ellipsoid types should be the same.')
             return False
         else:
             return True

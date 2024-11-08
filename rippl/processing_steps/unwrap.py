@@ -6,6 +6,7 @@
 import os
 import numpy as np
 import time
+import logging
 
 # Import the parent class Process for processing steps.
 from rippl.meta_data.process import Process
@@ -23,7 +24,7 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
                     the same process.
         :param str polarisation: Polarisation of processing outputs
         :param CoordinateSystem out_coor: Coordinate system of the input grids.
-        :param ImageProcessingData ifg: Interferogram of a master/slave combination
+        :param ImageProcessingData ifg: Interferogram of a primary_slc/secondary_slc combination
         :param bool overwrite: Do we overwrite a file or not?
         """
 
@@ -34,19 +35,19 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
         self.output_info['polarisation'] = polarisation
         self.output_info['data_id'] = data_id
         self.output_info['coor_type'] = 'out_coor'
-        self.output_info['file_types'] = ['unwrapped']
+        self.output_info['file_names'] = ['unwrapped']
         self.output_info['data_types'] = ['real4']
 
         # Input data information
         self.input_info = dict()
         self.input_info['image_types'] = ['ifg', 'ifg']
-        self.input_info['process_types'] = ['coherence', 'interferogram']
-        self.input_info['file_types'] = ['coherence', 'interferogram']
+        self.input_info['process_names'] = ['coherence', 'interferogram']
+        self.input_info['file_names'] = ['coherence', 'interferogram']
         self.input_info['polarisations'] = [polarisation, polarisation]
         self.input_info['data_ids'] = [data_id, data_id]
         self.input_info['coor_types'] = ['out_coor', 'out_coor']
         self.input_info['in_coor_types'] = ['', '']
-        self.input_info['type_names'] = ['coherence', 'interferogram']
+        self.input_info['aliases_processing'] = ['coherence', 'interferogram']
 
         # Coordinate systems
         self.coordinate_systems = dict()
@@ -59,17 +60,6 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
         # Finally define whether we overwrite or not
         self.overwrite = overwrite
         self.settings = dict()
-
-    def init_super(self):
-
-        self.load_coordinate_system_sizes()
-        super(Unwrap, self).__init__(
-            input_info=self.input_info,
-            output_info=self.output_info,
-            coordinate_systems=self.coordinate_systems,
-            processing_images=self.processing_images,
-            overwrite=self.overwrite,
-            settings=self.settings)
 
     def process_calculations(self):
         """
@@ -107,16 +97,16 @@ class Unwrap(Process):  # Change this name to the one of your processing step.
 
         settings = UserSettings()
         settings.load_settings()
-        command = settings.snaphu_path + ' -f ' + conf_file
+        command = settings.settings['paths']['snaphu'] + ' -f ' + conf_file
         os.system('cd ' + folder)
-        print(command)
+        logging.info(command)
         os.system(command)
 
         time.sleep(10)
         if os.path.exists(os.path.join(folder, os.path.join(folder, unwrap_name + '.data'))):
             unwrap_data = np.memmap(os.path.join(folder, os.path.join(folder, unwrap_name + '.data')), np.float32, 'r', shape=shape)
         else:
-            print('Failed to finish unwrapping for ' + os.path.join(folder, os.path.join(folder, unwrap_name + '.data')))
+            logging.info('Failed to finish unwrapping for ' + os.path.join(folder, os.path.join(folder, unwrap_name + '.data')))
             unwrap_data = np.zeros(shape)
 
         self['unwrapped'] = unwrap_data[:, :]

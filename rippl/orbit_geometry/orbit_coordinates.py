@@ -3,6 +3,7 @@ import numpy as np
 from osgeo import osr
 import utm
 import os
+import logging
 
 from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
@@ -64,12 +65,15 @@ class OrbitCoordinates(object):
         self.criterpos = 0.00000001                 # iteration accuracy [m]
 
         # Load coordinate system, readfile and orbits
-        if isinstance(coordinates, CoordinateSystem):
-            self.load_coordinate_system(coordinates)
-        if isinstance(readfile, Readfile):
-            self.load_readfile(readfile)
+        self.orbit = ''                             # type: OrbitInterpolate
         if isinstance(orbit, Orbit):
             self.load_orbit(orbit)
+        self.readfile = ''                          # type: Readfile
+        if isinstance(readfile, Readfile):
+            self.load_readfile(readfile)
+        self.coordinates = ''                       # type: CoordinateSystem
+        if isinstance(coordinates, CoordinateSystem):
+            self.load_coordinate_system(coordinates)
 
     def load_orbit(self, orbit):
         # type: (OrbitCoordinates, Orbit) -> None
@@ -83,6 +87,7 @@ class OrbitCoordinates(object):
         # type: (OrbitCoordinates, CoordinateSystem) -> None
 
         # Here we load the information on lines/pixels and timing from a coordinate system.
+        self.coordinates = coordinates
         self.az_time = coordinates.az_time
         self.ra_time = coordinates.ra_time
         self.az_step = coordinates.az_step
@@ -95,15 +100,16 @@ class OrbitCoordinates(object):
         self.center_pixel = coordinates.center_pixel
 
         # Line pixel coordinates
+        coordinates.create_radar_lines()
         self.lines = coordinates.interval_lines
         self.pixels = coordinates.interval_pixels
 
         # Readfiles information if needed.
-        if isinstance(coordinates.readfile, Readfile) and self.az_time == 0:
+        if isinstance(coordinates.readfile, Readfile) and not isinstance(self.readfile, Readfile) and self.az_time == 0:
             self.load_readfile(coordinates.readfile)
 
         # Orbit information
-        if isinstance(coordinates.orbit, Orbit):
+        if isinstance(coordinates.orbit, Orbit) and not isinstance(self.orbit, OrbitInterpolate):
             self.load_orbit(coordinates.orbit)
 
     def load_readfile(self, readfiles):
@@ -125,10 +131,7 @@ class OrbitCoordinates(object):
 
     def load_data(self, meta, s_lin=0, lines=0, dem=True, xyz=False):
         # Load data from resfile. Only the ones that are available with the same coordinate system.
-
-        print('Working on this!')
-
-
+        logging.info('Working on this!')
 
     def manual_az_ra_timing(self, ra_time=0, az_time=0, ra_step=0, az_step=0, approx_lat=0, approx_lon=0):
         # type: (OrbitCoordinates, float, float, float, float, float, float) -> None
@@ -150,7 +153,7 @@ class OrbitCoordinates(object):
         # This will always create an irregular grid so shape of three arrays should be the same.
 
         if not len(lines) == len(pixels) == len(heights):
-            print('Arrays with lines, pixels and heights should be the same.')
+            logging.info('Arrays with lines, pixels and heights should be the same.')
 
         self.lines = np.ravel(lines)
         self.pixels = np.ravel(pixels)
@@ -185,7 +188,7 @@ class OrbitCoordinates(object):
         # Evaluate the orbit based on the given az_times
         self.xyz_orbit, self.vel_orbit, self.acc_orbit = self.orbit.evaluate_orbit_spline(self.az_times, vel=True, acc=True)
 
-    def first_guess_xyz(self, lines):
+    def first_guess_xyz(self, lines, geoid=False):
         """
         This function gives a first guess of the xyz location of the radar pixel points. This gives a faster iteration
         to the final solution and prevents the switching of the solution from right-looking to left-looking and the
@@ -197,7 +200,7 @@ class OrbitCoordinates(object):
         """
 
         # Calculate location of center point
-        R, geoid = self.globe_center_distance(self.center_lat, self.center_lon)
+        R, geoid = self.globe_center_distance(self.center_lat, self.center_lon, geoid=False)
         center_xyz = self.ell2xyz(self.center_lat, self.center_lon, geoid)
 
         # Calculate orbit difference
@@ -211,7 +214,7 @@ class OrbitCoordinates(object):
 
         return xyz, center_xyz
 
-    def approx_lph2xyz(self):
+    def approx_lph2xyz(self, geoid=False):
         """
         This function calculates an approximate value for xyz, using the intersection between a sphere and a circle.
         The sphere of the globe is defined base on the local distance to the earth center.
@@ -221,7 +224,7 @@ class OrbitCoordinates(object):
 
         """
 
-        R, geoid_h = self.globe_center_distance(self.center_lat, self.center_lon)
+        R, geoid_h = self.globe_center_distance(self.center_lat, self.center_lon, geoid=False)
 
         # Line pixel coordinates
         az_times = self.az_time + self.az_step * self.lines
@@ -292,7 +295,7 @@ class OrbitCoordinates(object):
         #   VERBOSE=0.
         #
         #   Example:
-        #       [image, orbit] = meta_data('master.res');
+        #       [image, orbit] = meta_data('primary.res');
         #       orbfit = orbitfit(orbit);
         #       xyz = lph2xyz(line,pixel,0,image,orbfit);
         #
@@ -314,10 +317,10 @@ class OrbitCoordinates(object):
         #                - vectorized to optimize for speed
 
         if len(self.lines) == 0:
-            print('First define for which pixels or which azimuth/range times you want to compute the xyz coordinates')
+            logging.info('First define for which pixels or which azimuth/range times you want to compute the xyz coordinates')
             return
         if len(self.height) == 0:
-            print('First find the heights of the invidual pixels. This can be done using the create dem function')
+            logging.info('First find the heights of the invidual pixels. This can be done using the create dem function')
 
         ell_a = self.ellipsoid[0]
         ell_b = self.ellipsoid[1]
@@ -400,7 +403,7 @@ class OrbitCoordinates(object):
             dsat_Pz = []
 
             # Solve system of equations
-            solpos = np.linalg.solve(derivatives.swapaxes(0, 2), equations.swapaxes(0, 1)).swapaxes(0, 1)
+            solpos = np.linalg.solve(derivatives.swapaxes(0, 2), equations.swapaxes(0, 1)[:, :, None]).squeeze(2).swapaxes(0, 1)
 
             # Update solution
             posonellx[solve_ids] += solpos[0, :]
@@ -415,7 +418,7 @@ class OrbitCoordinates(object):
 
             # If all points are found we can stop the iteration
             if len(not_finished) == 0:
-                # print('All points located within ' + str(iterate + 1) + ' iterations.')
+                # logging.info('All points located within ' + str(iterate + 1) + ' iterations.')
                 break
 
             # prepare for next iteration by removing values from these variables
@@ -427,7 +430,7 @@ class OrbitCoordinates(object):
 
             # If some point are not found within the iteration time, give a warning
             if iterate == self.maxiter - 1:
-                print(str(len(solve_ids)) + 'did not converge within ' + str(
+                logging.info(str(len(solve_ids)) + 'did not converge within ' + str(
                     self.maxiter) + ' iterations. Maybe use more iterations or less stringent criteria?')
 
         self.xyz = np.concatenate((np.ravel(posonellx)[None, :], np.ravel(posonelly)[None, :], np.ravel(posonellz)[None, :]), axis=0)
@@ -467,7 +470,7 @@ class OrbitCoordinates(object):
         n = np.size(xyz) / 3
 
         if not xyz.shape[0] == 3:
-            print('x,y,z coordinate matrix should be of size [3,n]')
+            logging.info('x,y,z coordinate matrix should be of size [3,n]')
 
         # Make a first guess of the azimuth times:
         if len(az_times) == 0:
@@ -509,11 +512,11 @@ class OrbitCoordinates(object):
             solve_ids = solve_ids[finished]
 
             if np.sum(finished) == 0:
-                # print('Finished within ' + str(iterate) + ' iterations.')
+                # logging.info('Finished within ' + str(iterate) + ' iterations.')
                 break
 
             if iterate == self.maxiter - 1:
-                print(str(len(solve_ids)) + 'did not converge within ' + str(
+                logging.info(str(len(solve_ids)) + 'did not converge within ' + str(
                     self.maxiter) + ' iterations. Maybe use more iterations or less stringent criteria?')
 
         # Calculate range times
@@ -588,10 +591,10 @@ class OrbitCoordinates(object):
         # ********************************************
 
         if len(self.xyz) == 0:
-            print('First calculate the cartesian xyz coordinates before converting to lat/lon coordinates')
+            logging.info('First calculate the cartesian xyz coordinates before converting to lat/lon coordinates')
             return
         if not pixel and not orbit:
-            print('Neither orbit coordinates nor pixel coordinates are selected')
+            logging.info('Neither orbit coordinates nor pixel coordinates are selected')
             return
 
         a = self.ellipsoid[0]
@@ -663,7 +666,7 @@ class OrbitCoordinates(object):
         # Calculates the heading and off-nadir angle from the satellite
 
         if self.xyz.shape[1] == 0:
-            print('First calculate the cartesian xyz coordinates before you run this function')
+            logging.info('First calculate the cartesian xyz coordinates before you run this function')
             return
 
         # orbit vector
@@ -696,10 +699,10 @@ class OrbitCoordinates(object):
         # ground (xyz) and the point in orbit
 
         if self.xyz.shape[1] == 0:
-            print('First calculate the cartesian xyz coordinates before you run this function')
+            logging.info('First calculate the cartesian xyz coordinates before you run this function')
             return
         elif len(self.height) == 0:
-            print('Missing height values. Provide height of points first')
+            logging.info('Missing height values. Provide height of points first')
             return
 
         ray = self.get_ray_vector()
@@ -841,6 +844,10 @@ class OrbitCoordinates(object):
             proj4 = projection.ExportToProj4()
         else:
             # Calculate the orbit direction on the ground.
+            self.coordinates.create_radar_lines()
+            self.lines = self.coordinates.interval_lines
+            self.pixels = self.coordinates.interval_pixels
+
             if len(self.lines) == 0:
                 raise ValueError('To find the correct oblique mercator information on image size should be known!')
 
@@ -863,17 +870,20 @@ class OrbitCoordinates(object):
 
         return proj4
 
-    def globe_center_distance(self, lat, lon):
+    def globe_center_distance(self, lat, lon, geoid=False):
         """
         Calculate the distance from the center of the globe to the lat/lon location using the geoid file.
 
         """
 
-        settings = UserSettings()
-        settings.load_settings()
+        if geoid:
+            settings = UserSettings()
+            settings.load_settings()
 
-        geoid_file = os.path.join(settings.DEM_database, 'geoid', 'egm96.dat')
-        geoid = GeoidInterp.create_geoid(egm_96_file=geoid_file, lat=np.array(lat), lon=np.array(lon))
+            geoid_file = os.path.join(settings.settings['paths']['DEM_database'], 'geoid', 'egm96.dat')
+            geoid = GeoidInterp.create_geoid(egm_96_file=geoid_file, lat=np.array(lat), lon=np.array(lon))
+        else:
+            geoid = np.zeros(np.array(lat).shape)
 
         # Calculate location on WGS84 ellipsoid
         xyz = self.ell2xyz(lat, lon, geoid)

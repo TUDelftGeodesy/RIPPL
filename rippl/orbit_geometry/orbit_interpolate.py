@@ -1,8 +1,9 @@
 # This function extracts the orbit from a .res file and uses it to calculate a polynomial for the orbit.
 # This polynomial is calculate based on 100 seconds of the orbit and can have max 5 degrees.
-
 import numpy as np
 from scipy.interpolate import CubicSpline
+import logging
+
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.meta_data.orbit import Orbit
 
@@ -17,7 +18,7 @@ class OrbitInterpolate(ImageProcessingData):
 
         # Load data from res file
         if not isinstance(orbit, Orbit):
-            print('Input for input interpolate should be an orbit object')
+            logging.info('Input for input interpolate should be an orbit object')
 
         # Initialize the orbit values
         self.t = np.array(orbit.t)
@@ -112,7 +113,7 @@ class OrbitInterpolate(ImageProcessingData):
         #   Modified:   5 July 2017 translated to python by Gert Mulder
 
         if len(self.orbit_fit) == 0:
-            print('First an orbit fit should be created before you can evaluate it')
+            logging.info('First an orbit fit should be created before you can evaluate it')
             return
 
         orbit_xyz = np.zeros(shape=(len(az_times), 6))
@@ -196,7 +197,7 @@ class OrbitInterpolate(ImageProcessingData):
         #   Created:    5 July 2017 by Gert Mulder
 
         if len(self.orbit_spline) == 0 or len(self.t) == 0:
-            print('First the orbit spline should be calculated')
+            logging.info('First the orbit spline should be calculated')
             return
 
         deg = self.orbit_spline.shape[1]
@@ -218,14 +219,6 @@ class OrbitInterpolate(ImageProcessingData):
 
         eq_times = az_times - self.t[interval_id]
         n = len(az_times)
-
-        # Because there will be many pixels within the same slots, we can seperate the array in parts based on the
-        # interval id.
-        insert_ids = np.searchsorted(interval_id, np.arange(interval_id[0], interval_id[-1]), side='right')
-        starts = np.concatenate(([0], insert_ids))
-        ends = np.concatenate((insert_ids, [len(interval_id)]))
-        ids = np.arange(interval_id[0], interval_id[-1] + 1)
-
         # Initialize result dat
         if pos:
             position = np.zeros(shape=(3, n))
@@ -239,6 +232,16 @@ class OrbitInterpolate(ImageProcessingData):
             acceleration = np.zeros(shape=(3, n))
         else:
             acceleration = []
+
+        if n == 0:
+            return position, velocity, acceleration
+
+        # Because there will be many pixels within the same slots, we can seperate the array in parts based on the
+        # interval id.
+        insert_ids = np.searchsorted(interval_id, np.arange(interval_id[0], interval_id[-1]), side='right')
+        starts = np.concatenate(([0], insert_ids))
+        ends = np.concatenate((insert_ids, [len(interval_id)]))
+        ids = np.arange(interval_id[0], interval_id[-1] + 1)
 
         for id, start, end in zip(ids, starts, ends):
             times = eq_times[start:end]

@@ -10,17 +10,18 @@ This is a super class for all processing step. This class manages:
 
 import numpy as np
 import copy
+import json
+import logging
 
 from rippl.meta_data.image_processing_data import ImageProcessingData
 from rippl.meta_data.process_data import ProcessData
 from rippl.meta_data.image_data import ImageData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
-from rippl.resampling.select_input_window import SelectInputWindow
-
+from rippl.resampling.coor_new_extend import CoorNewExtend
 
 class Process():
 
-    def __init__(self, input_info, output_info, coordinate_systems, processing_images, settings, overwrite):
+    def initialize(self, input_info, output_info, coordinate_systems, processing_images, settings, overwrite):
         """
         Input steps Process. These input steps are a summary of the inputs and outputs of every processing step.
         The reading and writing of data and creation of metadata information is all summarized in this step.
@@ -29,7 +30,7 @@ class Process():
                 - process_types > the names of the processes of the input data
                 - file_types > the names of the file types of the inputs
                 - image_types > the names of the images used (images should be defined in images parameter)
-                - type_names > self assigned names to call the variables during the processing. If missing it will be
+                - type_names > self-assigned names to call the variables during the processing. If missing it will be
                                 replaced by the file_types
                 - data_ids > possible data_ids of inputs. (empty by default)
                 - polarisation > polarisation of inputs. (only applicable for radar data, otherwises it should be none)
@@ -37,7 +38,7 @@ class Process():
                                 given in the coordinates input variable.
         :param dict[str or list[str]] output_info: Information on the outputs of the processing step which consists of
                 - process_name > name of the process
-                - image_type > name of image used for output. Should be defined in the images parameter
+                - image_type > name of image used for output. Should be defined in the images' parameter
                 - polarisation > polarisation of radar data used in process
                 - data_id > data id of process (can be anything but empty by default.)
                 - coor_type > the coordinate type of the output. Coordinate systems should be part of the coordinates
@@ -55,6 +56,7 @@ class Process():
         # First check the inputs
         self.input_info = self.check_input_info(input_info)
         self.output_info = self.check_output_info(output_info)
+        self.settings = self.check_settings(settings)
         self.processing_images = self.check_processing_images(processing_images, self.input_info, self.output_info)
         self.coordinate_systems = self.check_coordinate_systems(coordinate_systems, self.input_info, self.output_info)
 
@@ -62,10 +64,7 @@ class Process():
         self.process_name = output_info['process_name']     # type: str
         self.process = []                                   # type: ProcessData
 
-        # Block coordinate system is the coordinate system create for processing in blocks.
-        self.block_coor = self.coordinate_systems['block_coor']
-
-        # Input and output image (slave/master/ifg etc.)
+        # Input and output image (secondary/primary/ifg etc.)
         self.out_processing_image = self.processing_images[self.output_info['image_type']]
 
         # Input and output image data. To load from disk to memory and save results
@@ -75,52 +74,43 @@ class Process():
         self.out_images_types = dict()
 
         # Create the process metadata and images. Load the input images too.
+        self.overwrite = overwrite
         if not overwrite:
+            if 'in_coor' in self.coordinate_systems.keys():
+                in_coor = self.coordinate_systems['in_coor']
+            else:
+                in_coor = ''
             process_exist = self.check_output_exists(self.out_processing_image, self.process_name,
-                                                      self.coordinate_systems['out_coor'], self.coordinate_systems['in_coor'],
+                                                      self.coordinate_systems['out_coor'], in_coor,
                                                       self.output_info['polarisation'],
                                                       self.output_info['data_id'],
-                                                      self.output_info['file_types'])
+                                                      self.output_info['file_names'])
             self.process_finished = process_exist[0]
             self.process_on_disk = process_exist[1]
             if self.process_finished and self.process_on_disk:
                 return
-
-        self.create_process_metadata(self.output_info['polarisation'], self.output_info['data_id'], self.settings)
-        self.create_output_images(self.output_info['file_types'], self.output_info['data_types'], [])
-
-        # Information for processing of dataset in blocks. If you want to do so, run the define_block method.
-        self.settings = settings
-        if 'memory_data' in self.settings.keys():
-            self.memory_data = self.settings['memory_data']
         else:
-            self.memory_data = True
-        if not 'multilook_grids' in self.settings.keys():
-            self.settings['multilook_grids'] = []
-        if 'buf' in self.settings.keys():
-            self.buf = self.settings['buf']
-        else:
-            self.buf = 5
-        self.s_lin = 0
-        self.s_pix = 0
-        self.lines = self.coordinate_systems['out_coor'].shape[0]
-        self.pixels = self.coordinate_systems['out_coor'].shape[1]
-        self.out_irregular_grids = [None]
-        self.in_irregular_grids = [None]
-        self.blocks = False
+            self.process_finished = False
+            self.process_on_disk = False
+
+        self.create_process_metadata(self.output_info['polarisation'], self.output_info['data_id'], settings)
+        self.create_output_images(self.output_info['file_names'], self.output_info['data_types'], [])
+
+        # Information for processing of dataset in chunks. If you want to do so, run the define_chunk method.
+        self.chunks = False
 
         # Finally set a few variables for the multilooking case.
-        self.no_block = 0
-        self.no_blocks = 0
+        self.no_chunk = 0
+        self.no_chunks = 0
         self.no_lines = 1
-        self.block_shape = (0, 0)
+        self.chunk_shape = (0, 0)
         self.ml_in_data = dict()
         self.ml_out_data = dict()
 
-    def __call__(self, memory_in=True, tmp_directory='', coreg_tmp_directory=''):
+    def __call__(self, memory_in=True, scratch_disk_dir='', internal_memory_dir=''):
         """
         This function does basically the same as the __call__ function, but assumes that we apply no multiprocessing
-        and or pipeline processing. Therefore it includes an extended number of steps:
+        and or pipeline processing. Therefore, it includes an extended number of steps:
         1. Reading in of input data
         2. Creation of output data on disk
         3. Create output memory files
@@ -131,15 +121,20 @@ class Process():
         :return:
         """
 
-        self.init_super()
+        self.initialize(input_info=self.input_info,
+                        output_info=self.output_info,
+                        coordinate_systems=self.coordinate_systems,
+                        processing_images=self.processing_images,
+                        overwrite=self.overwrite,
+                        settings=self.settings)
         if self.process_finished and self.process_on_disk:
-            print('Process already finished')
+            logging.info('Process already finished')
             return
 
         # Create the input and output info
         self.load_input_info()
-        self.load_input_data_files(tmp_directory=tmp_directory, coreg_tmp_directory=coreg_tmp_directory)
-        self.load_input_data(tmp_directory=tmp_directory, coreg_tmp_directory=coreg_tmp_directory)
+        self.load_input_data_files(scratch_disk_dir=scratch_disk_dir, internal_memory_dir=internal_memory_dir)
+        self.load_input_data(scratch_disk_dir=scratch_disk_dir, internal_memory_dir=internal_memory_dir)
         self.create_output_data_files()
         self.create_memory()
         self.process_calculations()
@@ -151,6 +146,36 @@ class Process():
 
         self.process_finished = True
 
+    def fake_processing(self, output_file_name='', output_file_type=''):
+        """
+        This function creates the same processing step in metadata without actually doing the processing. This is
+        useful in some cases.
+
+        """
+
+        self.initialize(input_info=self.input_info,
+                        output_info=self.output_info,
+                        coordinate_systems=self.coordinate_systems,
+                        processing_images=self.processing_images,
+                        overwrite=self.overwrite,
+                        settings=self.settings)
+        if self.process_finished and self.process_on_disk:
+            logging.info('Process already finished')
+            return
+
+        self.out_processing_image.update_json()
+        # Change the filenames
+        if output_file_name:
+            for output_file_key in self.process.json_dict['output_files'].keys():
+                new_name = self.process.json_dict['output_files'][output_file_key]['file_name']
+                self.process.json_dict['output_files'][output_file_key]['file_name'] = new_name.replace(output_file_key, output_file_name)
+        if output_file_type:
+            for output_file_key in self.process.json_dict['output_files'].keys():
+                self.process.json_dict['output_files'][output_file_key]['dtype'] = output_file_type
+
+        self.out_processing_image.save_json(update=False)
+        self.process_finished = True
+
     def __getitem__(self, key):
         # Check if there is a memory file with this name and give the output.
         if key in list(self.in_images.keys()):
@@ -160,7 +185,8 @@ class Process():
             data = self.out_images[key].memory['data']
             return data
         else:
-            raise LookupError('The input or output dataset ' + key + ' does not exist.')
+            raise LookupError('The input or output dataset ' + key + ' in processing calculations for'
+                              + str(self.__class__) + ' does not exist.')
 
     def __setitem__(self, key, data):
         # Set the data of one variable in memory.
@@ -169,7 +195,8 @@ class Process():
         elif key in list(self.out_images.keys()):
             self.out_images[key].memory['data'] = data
         else:
-            raise LookupError('The input or output dataset ' + key + ' does not exist.')
+            raise LookupError('The input or output dataset ' + key + ' in processing calculations for'
+                              + str(self.__class__) + ' does not exist.')
 
     def load_input_info(self):
         """
@@ -179,13 +206,13 @@ class Process():
         """
 
         self.load_input_images(self.input_info['image_types'],
-                               self.input_info['process_types'],
-                               self.input_info['file_types'],
+                               self.input_info['process_names'],
+                               self.input_info['file_names'],
                                self.input_info['polarisations'],
                                self.input_info['data_ids'],
                                self.input_info['coor_types'],
                                self.input_info['in_coor_types'],
-                               self.input_info['type_names']) # We load the input images only. The data is not loaded to memory yet.
+                               self.input_info['aliases_processing']) # We load the input images only. The data is not loaded to memory yet.
 
     @staticmethod
     def check_output_exists(out_processing_image, process_name, out_coor, in_coor, polarisation, data_id, file_types):
@@ -216,7 +243,7 @@ class Process():
     def process_calculations(self):
         """
         This is the function in every processing step where the actual calculations are done. Because this is the
-        master function this method is empty, as there should be an override of this function in the child functions.
+        primary function this method is empty, as there should be an override of this function in the child functions.
 
         :return:
         """
@@ -231,93 +258,9 @@ class Process():
         :return:
         """
 
-    def init_super(self):
-        """
-        This function is used to initialize the super class, so these are called from the functions individually.
-
-        :return:
-        """
-
-        print('Only call this function with a child object of Process')
-
-    def load_coordinate_system_sizes(self, find_out_coor=True):
-        """
-        To do the final processing it is important that we know the exact shape of both the input and output coordinate
-        systems. These are either imported or calculated here.
-
-        :return:
-        """
-
-        if 'in_coor' not in self.coordinate_systems.keys():
-            self.coordinate_systems['in_coor'] = copy.deepcopy(self.coordinate_systems['out_coor'])
-        no_in_shape = len(self.coordinate_systems['in_coor'].shape) == 0 or self.coordinate_systems['in_coor'].shape == [0, 0]
-        no_out_shape = len(self.coordinate_systems['out_coor'].shape) == 0 or self.coordinate_systems['out_coor'].shape == [0, 0]
-
-        # If the input is given load one or the other.
-        if 'in_coor' in list(self.coordinate_systems.keys()):
-            if 'in_coor' in list(self.input_info['coor_types']) and no_in_shape:
-                n_in_coor = self.input_info['coor_types'].index('in_coor')
-                if self.input_info['in_coor_types'][n_in_coor]:
-                    input_coor = self.coordinate_systems[self.input_info['in_coor_types'][n_in_coor]]
-                else:
-                    input_coor = ''
-
-                image_in = self.processing_images[self.input_info['image_types'][n_in_coor]].\
-                    processing_image_data_exists(self.input_info['process_types'][n_in_coor],
-                                                 self.coordinate_systems['in_coor'],
-                                                 in_coordinates=input_coor,
-                                                 data_id=self.input_info['data_ids'][n_in_coor],
-                                                 polarisation=self.input_info['polarisations'][n_in_coor],
-                                                 file_type=self.input_info['file_types'][n_in_coor])
-
-                if image_in == False:
-                    raise LookupError('Could not find processing step ' + self.input_info['process_types'][n_in_coor] +
-                                      ' file type ' + self.input_info['file_types'][n_in_coor] + ' for coordinate system')
-                self.coordinate_systems['in_coor'] = image_in.coordinates
-
-        if 'out_coor' in list(self.coordinate_systems.keys()) and find_out_coor:
-            if 'out_coor' in list(self.input_info['coor_types']) and no_out_shape:
-                n_out_coor = self.input_info['coor_types'].index('out_coor')
-                if self.input_info['in_coor_types'][n_out_coor]:
-                    input_coor = self.coordinate_systems[self.input_info['in_coor_types'][n_out_coor]]
-                else:
-                    input_coor = ''
-
-                image_out = self.processing_images[self.input_info['image_types'][n_out_coor]]. \
-                    processing_image_data_exists(self.input_info['process_types'][n_out_coor],
-                                                 self.coordinate_systems['out_coor'],
-                                                 in_coordinates=input_coor,
-                                                 data_id=self.input_info['data_ids'][n_out_coor],
-                                                 polarisation=self.input_info['polarisations'][n_out_coor],
-                                                 file_type=self.input_info['file_types'][n_out_coor])
-                if image_out == False:
-                    raise LookupError('Could not find processing step ' + self.input_info['process_types'][n_out_coor] +
-                                      ' file type ' + self.input_info['file_types'][n_out_coor] + ' for coordinate system')
-                self.coordinate_systems['out_coor'] = image_out.coordinates
-
-        # Add the orbits when using radar grids.
-        if self.coordinate_systems['in_coor'].grid_type == 'radar_coordinates':
-            if 'in_coor' in self.input_info['coor_types']:
-                n_in_coor = self.input_info['coor_types'].index('in_coor')
-                orbit_in = self.processing_images[self.input_info['image_types'][n_in_coor]].find_best_orbit()
-                self.coordinate_systems['in_coor'].orbit = orbit_in
-
-        if self.coordinate_systems['out_coor'].grid_type == 'radar_coordinates':
-            orbit_out = self.processing_images[self.output_info['image_type']].find_best_orbit()
-            self.coordinate_systems['out_coor'].orbit = orbit_out
-
-        no_in_shape = len(self.coordinate_systems['in_coor'].shape) == 0 or self.coordinate_systems['in_coor'].shape == [0, 0]
-        no_out_shape = len(self.coordinate_systems['out_coor'].shape) == 0 or self.coordinate_systems['out_coor'].shape == [0, 0]
-
-        # Otherwise calculate one using the other.
-        if 'out_coor' in list(self.coordinate_systems.keys()) and 'in_coor' in list(self.coordinate_systems.keys()):
-            if no_out_shape or no_in_shape:
-                # If this is the case it is relevant to extract the orbit for the input and output coordinate system.
-                self.def_out_coor()
-
     def create_process_metadata(self, polarisation, data_id, settings):
         """
-        Create the process data object. This creates the meta data of the image and creates a link to the output data
+        Create the process data object. This creates the metadata of the image and creates a link to the output data
         on disk and in memory.
 
         :param str polarisation: Polarisation of data
@@ -335,11 +278,11 @@ class Process():
             in_coordinates = []
 
         coordinates = self.coordinate_systems['out_coor']
-        self.process_data = ProcessData(self.out_processing_image.folder, self.output_info['process_name'],
+        new_process = ProcessData(self.out_processing_image.folder, self.output_info['process_name'],
                                         coordinates=coordinates, in_coordinates=in_coordinates,
                                         settings=settings, polarisation=polarisation, data_id=data_id)
-        self.out_processing_image.add_process(self.process_data)
-        self.process = self.process_data.meta
+        process = self.out_processing_image.add_process(new_process)
+        self.process = process
 
     def create_output_images(self, file_types, data_types, shapes=[]):
         """
@@ -354,12 +297,11 @@ class Process():
         """
 
         # Add image data.
-        self.process_data.add_process_images(file_types, data_types, shapes)
+        self.process.add_process_images(file_types, data_types, shapes)
         # Define the output images.
-        self.out_images = self.process_data.images
+        self.out_images = self.process.images
 
-    @staticmethod
-    def check_input_info(input_info):
+    def check_input_info(self, input_info):
         '''
         Check whether there is no information missing in the output data.
 
@@ -368,37 +310,42 @@ class Process():
         '''
 
         if not isinstance(input_info, dict):
-            raise TypeError('Output info should be a dictionary')
+            raise TypeError('Output info should be a dictionary for ' + str(self.__class__) + '.')
 
         input_keys = set(input_info.keys())
-        needed_keys = set({'process_types', 'coor_types', 'file_types'})
+        needed_keys = set({'process_names', 'coor_types', 'file_names'})
         if len(needed_keys - input_keys) > 0:
             raise LookupError(
-                'One of the needed processes, coor_types, file_types or data_types is missing in the input_info')
-        n = len(input_info['file_types'])
-        if n != len(input_info['image_types']) or n != len(input_info['process_types']):
-            raise LookupError('Number of image types or process types is not correct.')
+                'One of the needed process_names, coor_types or file_names is missing in the input_info for ' + str(self.__class__) + '.')
+        n = len(input_info['file_names'])
+        if n != len(input_info['image_types']) or n != len(input_info['process_names']):
+            raise LookupError('Number of image types or process types is not correct for ' + str(self.__class__) + '.')
         if not 'polarisations' in input_keys:
             input_info['polarisation'] = ['' for i in range(n)]
         elif n != len(input_info['polarisations']):
-            raise LookupError('Number of polarisations is not the same as other parameters')
+            raise LookupError('Number of polarisations is not the same as other parameters for ' + str(self.__class__) + '.')
         if not 'data_ids' in input_keys:
             input_info['data_id'] = ['' for i in range(n)]
         elif n != len(input_info['data_ids']):
-            raise LookupError('Number of data_ids is not the same as other parameters')
+            raise LookupError('Number of data_ids is not the same as other parameters for ' + str(self.__class__) + '.')
         if not 'in_coor_types' in input_keys:
             input_info['in_coor_types'] = ['' for i in range(n)]
         elif n != len(input_info['in_coor_types']):
-            raise LookupError('Number of in_coor_types is not the same as other parameters')
-        if not 'name_types' in input_keys:
-            input_info['name_types'] = input_info['file_types']
-        elif n != len(input_info['file_types']):
-            raise LookupError('Number of file_types is not the same as other parameters')
+            raise LookupError('Number of in_coor_types is not the same as other parameters for ' + str(self.__class__) + '.')
+        if not 'aliases_processing' in input_keys:
+            input_info['aliases_processing'] = input_info['file_names']
+        elif n != len(input_info['file_names']):
+            raise LookupError('Number of file_types is not the same as other parameters for ' + str(self.__class__) + '.')
+
+        try:
+            json.dumps(input_info)
+        except Exception as e:
+            raise TypeError('Input info should only hold str values to be JSON Serializable. Check the input settings '
+                            'for your processing step ' + str(self.__class__) + '. ' + str(e))
 
         return input_info
 
-    @staticmethod
-    def check_output_info(output_info):
+    def check_output_info(self, output_info):
         '''
         Check whether there is no information missing in the output data.
 
@@ -407,22 +354,65 @@ class Process():
         '''
 
         if not isinstance(output_info, dict):
-            raise TypeError('Output info should be a dictionary')
+            raise TypeError('Output info should be a dictionary for ' + str(self.__class__) + '.')
 
         output_keys = set(output_info.keys())
-        needed_keys = set({'process_name', 'coor_type', 'file_types', 'data_types'})
+        needed_keys = set({'process_name', 'coor_type', 'file_names', 'data_types'})
         if len(needed_keys - output_keys) > 0:
-            raise LookupError('One of the needed process, coor_type, file_types or data_types is missing in the output_info')
-        if len(output_info['file_types']) != len(output_info['data_types']):
-            raise LookupError('data_types and file_types are not the same length. Both should be lists')
+            raise LookupError('One of the needed process, coor_type, file_types or data_types is missing in the output_info of ' + str(self.__class__))
+        if len(output_info['file_names']) != len(output_info['data_types']):
+            raise LookupError('data_types and file_types are not the same length for ' + str(self.__class__) + '. Both should be lists')
         if not 'polarisation' in output_keys:
             output_info['polarisation'] = ''
         if not 'data_id' in output_keys:
             output_info['data_id'] = ''
         if not 'name_type' in output_keys:
-            output_info['type_names'] = output_info['file_types']
+            output_info['aliases_processing'] = output_info['file_names']
+
+        try:
+            json.dumps(output_info)
+        except Exception as e:
+            raise TypeError('Output info should only hold str values to be JSON Serializable. Check the output settings '
+                            'for your processing step ' + str(self.__class__) + '. ' + str(e))
 
         return output_info
+
+    def check_settings(self, settings):
+        """
+        This function checks the validity of the input settings. By first replacing any numpy values to float/int values
+        and
+
+        """
+
+        # We check for two levels deep. We do not allow further nesting of settings.
+        if not isinstance(settings, dict):
+            raise TypeError('Settings should be a dictionary for ' + str(self.__class__) + '.')
+        for key in settings.keys():
+            # Check for numpy values in first layer.
+            val = settings[key]
+            if isinstance(val, np.integer):
+                settings[key] = int(val)
+            elif isinstance(val, np.floating):
+                settings[key] = float(val)
+            elif isinstance(val, dict):
+                for nested_key in settings[key].keys():
+                    # Check for numpy values in first layer.
+                    nested_val = settings[key][nested_key]
+                    if isinstance(nested_val, np.integer):
+                        settings[key][nested_key] = int(nested_val)
+                    elif isinstance(nested_val, np.floating):
+                        settings[key][nested_key] = float(nested_val)
+                    elif isinstance(nested_val, dict):
+                        raise TypeError('Only create nested dictionaries of max 2 layers in settings of your processing'
+                                        'step. Check the input you provided to ' + str(self.__class__) + '.')
+
+        try:
+            json.dumps(settings)
+        except Exception as e:
+            raise TypeError('Output info should only hold str values to be JSON Serializable. Check the output settings '
+                            'for your processing step ' + str(self.__class__) + '. ' + str(e))
+
+        return settings
 
     @staticmethod
     def check_processing_images(images, input_info, output_info):
@@ -446,9 +436,13 @@ class Process():
 
         # Cleanup not used images.
         image_types = set()
-        for key in images.keys():
+        for key in list(images.keys()):
             if not isinstance(images[key], ImageProcessingData):
                 images.pop(key)
+                if isinstance(images[key], list):
+                    logging.info('Please provide a single image as input for ' + key + ' and not a list. Data not used in process')
+                else:
+                    logging.info('Image data for ' + key + ' is not a ImageProcessingData (or child class) object, data not used in process.')
             else:
                 image_types.add(key)
 
@@ -469,7 +463,7 @@ class Process():
         for two things:
         1. Whether there are coordinate sytems missing which are mentioned in the input_info or output_info
         2. Whether there are coordinate systems that are superfluous, these will be removed.
-        Finally the block coor coordinate system is added.
+        Finally, the chunk coor coordinate system is added.
 
         :param dict[CoordinateSystem] coordinates:
         :param list[list[str] or str] input_info:
@@ -487,30 +481,65 @@ class Process():
             if coordinates_key not in list(coordinates.keys()):
                 raise LookupError('Needed image type for input or output does not exist')
 
-        coordinates['block_coor'] = copy.copy(coordinates['out_coor'])
-        if 'in_coor' not in coordinates.keys():
-            coordinates['in_coor'] = coordinates['out_coor']
-        coordinates['in_block_coor'] = copy.copy(coordinates['in_coor'])
+        coordinates['out_coor_chunk'] = copy.copy(coordinates['out_coor'])
+        if 'in_coor' in coordinates.keys():
+            coordinates['in_coor_chunk'] = copy.copy(coordinates['in_coor'])
 
         return coordinates
 
-    def define_processing_block(self, s_lin=0, s_pix=0, lines=0, pixels=0):
+    def define_coordinate_system_size(self, reference_coor):
         """
-        Here we check whether the processing blocks can be processed based on the given sizes. Also we check whether
-        it is possible to do block processing
+        Here we define the size of the full output image for this process, if it is not defined yet.
+
+        """
+
+        if 'out_coor' in self.coordinate_systems.keys():
+            if not self.coordinate_systems['out_coor'].same_coordinates(reference_coor, strict=False):
+                if 'out_coor' not in self.settings.keys():
+                    self.settings['out_coor'] = dict()
+
+                self.coordinate_systems['out_coor'] = CoorNewExtend(reference_coor,
+                                                                    self.coordinate_systems['out_coor'],
+                                                                    min_height=self.settings['out_coor'].get('min_height', 0),
+                                                                    max_height=self.settings['out_coor'].get('max_height', 0),
+                                                                    corners_midpoints=True,
+                                                                    buffer=self.settings['out_coor'].get('buffer', 0),
+                                                                    rounding=self.settings['out_coor'].get('rounding', 0),
+                                                                    out_coor_limits = True
+                                                                    ).out_coor
+            else:
+                self.coordinate_systems['out_coor'] = copy.deepcopy(reference_coor)
+
+        if 'in_coor' in self.coordinate_systems.keys():
+            if not self.coordinate_systems['in_coor'].same_coordinates(reference_coor, strict=False):
+                if 'in_coor' not in self.settings.keys():
+                    self.settings['in_coor'] = dict()
+
+                self.coordinate_systems['in_coor'] = CoorNewExtend(reference_coor,
+                                                                   self.coordinate_systems['in_coor'],
+                                                                   min_height=self.settings['in_coor'].get('min_height', 0),
+                                                                   max_height=self.settings['in_coor'].get('max_height', 0),
+                                                                   corners_midpoints=True,
+                                                                   buffer=self.settings['in_coor'].get('buffer', 0),
+                                                                   rounding=self.settings['in_coor'].get('rounding', 0),
+                                                                   out_coor_limits=True
+                                                                   ).out_coor
+            else:
+                self.coordinate_systems['in_coor'] = copy.deepcopy(reference_coor)
+
+    def define_processing_chunk(self, reference_coor_chunk, s_lin=0, s_pix=0):
+        """
+        Here we check whether the processing chunks can be processed based on the given sizes. Also, we check whether
+        it is possible to do chunk processing
         If the in coordinates and output coordinates are not the same either an irregular in or output grid is
         needed to do the reading in.
         Exception for this are the 'regular' multilooking, which does not need any precreated grid.
 
-        :param int s_lin: Start line with respect to total image size
-        :param int s_pix: Start pixel with respect to total image size
-        :param int lines: Number of lines to process
-        :param int pixels: Number of pixels to process
+        :param CoordinateSystem reference_coor_chunk: Coordinate system of input chunk
+        :param int s_lin: Start line
+        :param int s_pix: Start pixel
         :return:
         """
-
-        if not self.memory_data:
-            raise AssertionError('Creating blocks for data that is not loaded in memory is not possible! Aborting.')
 
         self.s_lin = s_lin
         self.s_pix = s_pix
@@ -518,43 +547,40 @@ class Process():
         if self.coordinate_systems['out_coor'].grid_type == 'radar_coordinates':
             ml_step = np.array(self.coordinate_systems['out_coor'].multilook) / \
                       np.array(self.coordinate_systems['out_coor'].oversample)
-            s_lin = s_lin * ml_step[0]
-            s_pix = s_pix * ml_step[1]
+            self.s_lin = (self.s_lin * ml_step[0]).astype(np.int64)
+            self.s_pix = (self.s_pix * ml_step[1]).astype(np.int64)
 
-        self.lines = lines
-        self.pixels = pixels
-        self.blocks = True
+        self.chunks = True
 
-        # Check the overlap and limit the number of lines if needed.
-        if self.s_lin >= self.coordinate_systems['out_coor'].shape[0] or self.s_pix >= self.coordinate_systems['out_coor'].shape[1]:
-            print('Start line and pixel are too high')
-            return False
-        if self.lines > (self.coordinate_systems['out_coor'].shape[0] - self.s_lin) or self.lines == 0:
-            self.lines = self.coordinate_systems['out_coor'].shape[0] - self.s_lin
-        if self.pixels > (self.coordinate_systems['out_coor'].shape[1] - self.s_pix) or self.pixels == 0:
-            self.pixels = self.coordinate_systems['out_coor'].shape[1] - self.s_pix
+        # Check if the input and output coordinates are the same and if not calculate the coverage for these coordinate
+        # systems.
+        if 'out_coor' in self.coordinate_systems.keys():
+            if not self.coordinate_systems['out_coor'].same_coordinates(reference_coor_chunk, strict=False):
+                self.coordinate_systems['out_coor_chunk'] = CoorNewExtend(reference_coor_chunk,
+                                                                   self.coordinate_systems['out_coor'],
+                                                                   min_height=self.settings['out_coor'].get('min_height', 0),
+                                                                   max_height=self.settings['out_coor'].get('max_height', 0),
+                                                                   corners_midpoints=True,
+                                                                   buffer=self.settings['out_coor'].get('buffer', 0),
+                                                                   rounding=self.settings['out_coor'].get('rounding', 0),
+                                                                   out_coor_limits=True
+                                                                   ).out_coor
+            else:
+                self.coordinate_systems['out_coor_chunk'] = copy.deepcopy(reference_coor_chunk)
 
-        self.coordinate_systems['block_coor'] = copy.deepcopy(self.coordinate_systems['out_coor'])
-        self.coordinate_systems['block_coor'].first_line += int(s_lin)
-        self.coordinate_systems['block_coor'].first_pixel += int(s_pix)
-        self.coordinate_systems['block_coor'].shape = [int(self.lines), int(self.pixels)]
-        self.block_coor = self.coordinate_systems['block_coor']
-
-        # Check if the input irregular/regular grid is given to select the right inputs.
-        if not self.coordinate_systems['in_coor'].same_coordinates(self.coordinate_systems['out_coor'], strict=False):
-            if len(list(self.input_info['image_types'])) == 0:
-                # If there are no input images it is fine too.
-                return True
-            if isinstance(self.in_irregular_grids[0], ImageData):
-                if self.in_irregular_grids[0].shape == self.coordinate_systems['in_coor'].shape:
-                    return True
-            if isinstance(self.out_irregular_grids[0], ImageData):
-                if self.out_irregular_grids[0].shape == self.coordinate_systems['out_coor'].shape:
-                    return True
-            # in the case we have to change coordinate system the coordinates of the input/output grid have to be cal-
-            # culated beforehand to apply the calculation.
-            return False
-        return True
+        if 'in_coor' in self.coordinate_systems.keys():
+            if not self.coordinate_systems['in_coor'].same_coordinates(reference_coor_chunk, strict=False):
+                self.coordinate_systems['in_coor_chunk'] = CoorNewExtend(reference_coor_chunk,
+                                                                   self.coordinate_systems['in_coor'],
+                                                                   min_height=self.settings['in_coor'].get('min_height', 0),
+                                                                   max_height=self.settings['in_coor'].get('max_height', 0),
+                                                                   corners_midpoints=True,
+                                                                   buffer=self.settings['in_coor'].get('buffer', 0),
+                                                                   rounding=self.settings['in_coor'].get('rounding', 0),
+                                                                   out_coor_limits=True
+                                                                   ).out_coor
+            else:
+                self.coordinate_systems['in_coor_chunk'] = copy.deepcopy(reference_coor_chunk)
 
     # Handling of in and output data. This is the main
     def load_input_images(self, image_types, processes, file_types, polarisations, data_ids, coor_types, in_coor_types,
@@ -563,7 +589,7 @@ class Process():
         This function loads the input data needed to do the processing. To do so, the exact source of the input data 
         should be defined using the given variables.
         
-        :param list[str] image_types: List of the image types we need (slave/master/ifg). If empty they are assumed to
+        :param list[str] image_types: List of the image types we need (secondary/primary/ifg). If empty they are assumed to
                     be the same as the output image.
         :param list[str] processes: List of names of the processes
         :param list[str] file_types: List of file types, which are part of these processes.
@@ -572,7 +598,7 @@ class Process():
                     a processing chain. Generally empty.
         :param list[str] coor_types: The type of coordinate systems used. If not specified we assume that all inputs
                     are of the input coordinate system type.
-        :param list[str] in_coor_types: The input coordinate system of the the needed input data. For example if you
+        :param list[str] in_coor_types: The input coordinate system of the needed input data. For example if you
                     want a specific conversion grid from one projection to another.
         :return:
         """
@@ -611,178 +637,175 @@ class Process():
                                                                                             in_coor_types,
                                                                                             type_names)):
             # If the grid is only defined to extract the coordinate system for the coordinates input.
-            if name in ['in_coor_grid', 'out_coor_grid']:
-                continue
             if in_coor != '':
                 in_coor = self.coordinate_systems[in_coor]
 
             image_data = self.processing_images[image_type].\
                 processing_image_data_exists(process, self.coordinate_systems[coor], in_coor, data_id, polarisation, file_type)
             if image_data == False:
-                raise TypeError('No processing information for ' + process + ' file type ' + file_type + ' found.')
+                main_error = 'Error while loading input data for process ' + str(self.__class__) + '. '
+                error_message = ''
+                # First check whether this data exists but for another coordinate system
+                coors = self.processing_images[image_type].processing_image_data_iterator(
+                    processes=[process], coordinates=[], in_coordinates=[in_coor], data_ids=[data_id],
+                    polarisations=[polarisation], file_types=[file_type])[2]
+                if len(coors) > 0:
+                    self.coordinate_systems[coor].create_short_coor_id()
+                    error_message += 'Data for coordinate system ' + self.coordinate_systems[coor].short_id_str + \
+                                     ' with shape ' + str(self.coordinate_systems[coor].shape) + ' ' ' not available ' \
+                                     'but alternative coordinate systems with coordinates '
+                    for coordinates in coors:
+                        coordinates.create_short_coor_id()
+                        error_message += coordinates.short_id_str + ' with shape ' + str(coordinates.shape) + ' '
+                    error_message += 'available.'
+
+                # For the input coordinates
+                coors = self.processing_images[image_type].processing_image_data_iterator(
+                    processes=[process], coordinates=[self.coordinate_systems[coor]], in_coordinates=[], data_ids=[data_id],
+                    polarisations=[polarisation], file_types=[file_type])[3]
+                if len(coors) > 0:
+                    in_coor.create_short_coor_id()
+                    error_message += 'Data with input coordinate system ' + in_coor.short_id_str + \
+                                     ' with shape ' + str(in_coor.shape) + ' ' ' not available ' \
+                                     'but alternative input coordinate systems with coordinates '
+                    for coordinates in coors:
+                        coordinates.create_short_coor_id()
+                        error_message += coordinates.short_id_str + ' with shape ' + str(coordinates.shape) + ' '
+                    error_message += 'available.'
+
+                # Then check wether a dataset could be found for a different polarisation
+                diff_pol_available = self.processing_images[image_type].processing_image_data_iterator(
+                    processes=[process], coordinates=[self.coordinate_systems[coor]], in_coordinates=[in_coor], data_ids=[data_id],
+                    polarisations=[], file_types=[file_type])[-1]
+                if len(diff_pol_available):
+                    error_message += ' Image with polarisation ' + polarisation + ' not available, but alternative ' \
+                                     ' polarisation are available.'
+                # And data id
+                diff_data_id_available = self.processing_images[image_type].processing_image_data_iterator(
+                    processes=[process], coordinates=[self.coordinate_systems[coor]], in_coordinates=[in_coor], data_ids=[],
+                    polarisations=[polarisation], file_types=[file_type])[-1]
+                if len(diff_data_id_available):
+                    error_message += ' Image with data id ' + data_id + ' not available, but alternative ' \
+                                                                                  ' data ids are available.'
+
+                # Raise the error
+                raise TypeError(main_error + 'No processing information for ' + process + ' file type ' + file_type + ' with '
+                                'coordinate system ' + self.coordinate_systems[coor].short_id_str + ' found. Data '
+                                ' should be loaded from ' + image_type + ' but does not exist. ' + error_message)
             else:
-                self.process_data.add_input_image(image_data, name)
+                self.process.add_input_image(image_data, name)
                 self.in_images[name] = image_data
                 self.in_images_types[name] = image_type
 
         return True
 
-    def load_input_data(self, tmp_directory='', coreg_tmp_directory=''):
+    def load_input_data_files(self, scratch_disk_dir='', internal_memory_dir=''):
         """
-        Here we actually load the needed input data. The images should already be loaded
-
-        :return:
+        Load needed input data files as memmap
         """
 
-        if not self.memory_data:
-            return
-
-        # We first load the output data grids. Because they can contain information for loading the input grids.
-        self.load_out_coor_input_data(tmp_directory=tmp_directory, coreg_tmp_directory=coreg_tmp_directory)
-        self.load_in_coor_input_data(tmp_directory=tmp_directory, coreg_tmp_directory=coreg_tmp_directory)
-
-    def load_input_data_files(self, tmp_directory='', coreg_tmp_directory=''):
-        """
-        Load needed input data files as memmap (Only needed for multilooking processes.
-        """
-
-        if not coreg_tmp_directory:
-            coreg_tmp_directory = tmp_directory
+        if not internal_memory_dir:
+            internal_memory_dir = scratch_disk_dir
 
         file_types = list(self.in_images.keys())
 
         for file_type in file_types:
-            if self.in_images_types[file_type] == 'coreg_master':
-                load_input = self.in_images[file_type].load_disk_data(coreg_tmp_directory)
-            else:
-                load_input = self.in_images[file_type].load_disk_data(tmp_directory)
+            load_input = self.in_images[file_type].load_disk_data([internal_memory_dir, scratch_disk_dir])
+
             if not load_input:
                 raise FileNotFoundError('Data on disk not found.')
 
         # If all files are succesfully loaded.
         return True
 
-    def load_in_coor_input_data(self, tmp_directory='', coreg_tmp_directory=''):
-        """
-        This function is used to load the input data of a function with the input coordinate system.
-
-        """
-
-        if not coreg_tmp_directory:
-            coreg_tmp_directory = tmp_directory
-
-        if not self.blocks:
-            s_lin = 0
-            s_pix = 0
-            shape = self.coordinate_systems['in_coor'].shape
-
-        elif 'out_irregular_grids' not in self.settings.keys() and 'in_irregular_grids' not in self.settings.keys():
-            # Assuming that the input grid and output grid have the same coordinate system.
-            s_lin = self.s_lin
-            s_pix = self.s_pix
-            shape = [self.lines, self.pixels]
-
-        elif 'out_irregular_grids' in self.settings.keys():
-            out_grids = self.settings['out_irregular_grids']
-            max_shape = self.coordinate_systems['in_coor'].shape
-            first_line_in = self.coordinate_systems['in_coor'].first_line
-            first_pixel_in = self.coordinate_systems['in_coor'].first_pixel
-            first_line, first_pixel, shape = \
-                SelectInputWindow.output_irregular_rectangle(np.copy(self[out_grids[0]]),
-                                                             np.copy(self[out_grids[1]]),
-                                                             max_shape=max_shape,
-                                                             min_line=first_line_in,
-                                                             min_pixel=first_pixel_in,
-                                                             buf=self.buf)
-
-            # If shape has negative numbers revert too zeros.
-            if shape[0] < 1:
-                shape[0] = 1
-                if first_line >= first_line_in + max_shape[0]:
-                    first_line = first_line_in + max_shape[0] - 1
-            if shape[1] < 1:
-                shape[1] = 1
-                if first_pixel >= first_pixel_in + max_shape[1]:
-                    first_pixel = first_pixel_in + max_shape[1] - 1
-
-            # print('Loading a region of ' + str(shape[0]) + ' lines starting at line ' + str(first_line) +
-            #      ' with max number of lines of ' + str(first_line_in + max_shape[0]))
-
-            self.coordinate_systems['in_block_coor'].shape = shape
-            self.coordinate_systems['in_block_coor'].first_line = first_line
-            self.coordinate_systems['in_block_coor'].first_pixel = first_pixel
-            s_lin = first_line - self.coordinate_systems['in_coor'].first_line
-            s_pix = first_pixel - self.coordinate_systems['in_coor'].first_pixel
-
-            # print('Shape of used inputs is ' + str(shape[0]) + ' lines and ' + str(shape[1]) + ' pixels')
-
-        elif 'in_irregular_grids' in self.settings.keys():
-            in_grids = self.settings['in_irregular_grids']
-
-            for grid_no in [0, 1]:
-                if len(self.in_images[in_grids[grid_no]].disk['data']) == 0:
-                    self.in_images[in_grids[grid_no]].load_disk_data()
-
-            first_line, first_pixel, shape = \
-                SelectInputWindow.input_irregular_rectangle(self.in_images[in_grids[0]].disk['data'],
-                                                             self.in_images[in_grids[1]].disk['data'],
-                                                             shape=self.coordinate_systems['block_coor'].shape,
-                                                             s_lin=self.coordinate_systems['block_coor'].first_line,
-                                                             s_pix=self.coordinate_systems['block_coor'].first_pixel,
-                                                             buf=self.buf)
-
-            self.coordinate_systems['in_block_coor'].shape = shape
-            self.coordinate_systems['in_block_coor'].first_line = first_line
-            self.coordinate_systems['in_block_coor'].first_pixel = first_pixel
-            s_lin = first_line
-            s_pix = first_pixel
-
-        else:
-            raise AttributeError('Not possible to load needed input range for in coordinate system. Aborting.')
-
-        keys = [key for key, input_type in zip(self.in_images.keys(), self.input_info['coor_types']) if input_type == 'in_coor']
-        for key in keys:
-            if self.in_images_types[key] == 'coreg_master':
-                success = self.in_images[key].load_memory_data(shape, s_lin, s_pix, tmp_directory=coreg_tmp_directory)
-            else:
-                success = self.in_images[key].load_memory_data(shape, s_lin, s_pix, tmp_directory=tmp_directory)
-            if not success:
-                raise ValueError('Input data ' + key + ' for ' + self.process_name + ' from image ' +
-                                 self.in_images[key].folder + ' cannot be loaded.')
-
-    def load_out_coor_input_data(self, tmp_directory='', coreg_tmp_directory=''):
+    def load_input_data(self, scratch_disk_dir='', internal_memory_dir=''):
         """
         This function is used to load the input data of a function with the output coordinate system.
 
         """
 
-        if not coreg_tmp_directory:
-            coreg_tmp_directory = tmp_directory
+        if not internal_memory_dir:
+            internal_memory_dir = scratch_disk_dir
 
-        if not self.blocks:
-            s_lin = 0
-            s_pix = 0
-            shape = self.coordinate_systems['out_coor'].shape
+        for in_coor_type in list(set(self.input_info['coor_types'])):
+            in_coor_chunk_type = in_coor_type + '_chunk'
 
-        else:
-            s_lin = self.s_lin
-            s_pix = self.s_pix
-            shape = [self.lines, self.pixels]
-
-        keys = [key for key, input_type in zip(self.in_images.keys(), self.input_info['coor_types']) if
-                input_type == 'out_coor']
-        for key in keys:
-            if self.in_images_types[key] == 'coreg_master':
-                success = self.in_images[key].load_memory_data(shape, s_lin, s_pix, tmp_directory=coreg_tmp_directory)
+            if in_coor_chunk_type in self.coordinate_systems.keys():
+                coor = self.coordinate_systems[in_coor_chunk_type]
+            elif in_coor_type in self.coordinate_systems.keys():
+                coor = self.coordinate_systems[in_coor_type]
             else:
-                success = self.in_images[key].load_memory_data(shape, s_lin, s_pix, tmp_directory=tmp_directory)
-            if not success:
-                raise ValueError('Input data ' + key + ' for ' + self.process_name + ' from image ' +
-                                 self.in_images[key].folder + ' cannot be loaded.')
+                raise TypeError('No coordinate system for ' + in_coor_type + ' or ' + in_coor_chunk_type + ' available. '
+                                'Make sure that you added an out coordinate system to the processing step.')
+
+            keys = [key for key, input_type in zip(self.in_images.keys(), self.input_info['coor_types']) if
+                    input_type == in_coor_type]
+            new_coor = copy.deepcopy(coor)
+            for key in keys:
+                # And check the limits of the input data and needed input chunk.
+                source_coor = self.in_images[key].coordinates
+                # First check the source location. Normally these should be the same for the whole stack.
+                offset_lines, offset_pixels = source_coor.get_offset(new_coor)
+
+                # Select only the overlapping area for lines
+                if offset_lines < 0:
+                    new_coor.shape = [new_coor.shape[0] - np.abs(offset_lines), new_coor.shape[1]]
+                    new_coor.first_line += np.abs(offset_lines)
+                else:
+                    s_lin = offset_lines
+                if offset_lines + new_coor.shape[0] > source_coor.shape[0]:
+                    new_coor.shape = [source_coor.shape[0] - offset_lines, new_coor.shape[1]]
+                # And for pixels
+                if offset_pixels < 0:
+                    new_coor.shape = [new_coor.shape[0], new_coor.shape[1] - np.abs(offset_pixels)]
+                    new_coor.first_pixel += np.abs(offset_pixels)
+                else:
+                    s_pix = offset_pixels
+                if offset_pixels + new_coor.shape[1] > source_coor.shape[1]:
+                    new_coor.shape = [new_coor.shape[0], source_coor.shape[1] - offset_pixels]
+
+            # Check the new shape for negative or zero values
+            if new_coor.shape[0] <= 0 or new_coor.shape[1] <= 0:
+                logging.info('Input data for ' + str(self.__class__) + ' from image ' +  self.in_images[key].folder
+                        + ' cannot be loaded. No overlap between needed input and actual input data. Using zero values'
+                          ' instead')
+                new_coor.shape = [0, 0]
+            # Notify is shape adjusted
+            elif new_coor.shape != coor.shape:
+                logging.info('Input data for ' + str(self.__class__) + ' from image ' +  self.in_images[key].folder
+                        + ' has only partial overlap. Only overlapping data is loaded for processing.')
+
+            if in_coor_chunk_type in self.coordinate_systems.keys():
+                self.coordinate_systems[in_coor_chunk_type] = new_coor
+            elif in_coor_type in self.coordinate_systems.keys():
+                self.coordinate_systems[in_coor_type] = new_coor
+
+            # Then load the data.
+            for key in keys:
+                source_coor = self.in_images[key].coordinates
+                s_lin, s_pix = source_coor.get_offset(new_coor)
+                # In case no overlapping data is available
+                if new_coor.shape == [0,0]:
+                    # Create fake memory dataset.
+                    dtype = self.in_images[key].dtype_memory[self.in_images[key].dtype]
+                    self.in_images[key].memory['data'] = np.zeros((0, 0)).astype(dtype)
+
+                    # Updata meta data
+                    self.in_images[key].memory['meta']['s_lin'] = s_lin
+                    self.in_images[key].memory['meta']['s_pix'] = s_pix
+                    self.in_images[key].memory['meta']['shape'] = new_coor.shape
+                else:
+
+                    success = self.in_images[key].load_memory_data(new_coor.shape, s_lin, s_pix, tmp_directories=[internal_memory_dir, scratch_disk_dir])
+                    if not success:
+                        raise ValueError('Input data ' + key + ' for ' + self.process_name + ' for processing ' +
+                                         str(self.__class__) + ' from image ' + self.in_images[key].folder + ' cannot be loaded.')
 
     def create_memory(self, file_types=[]):
         """
-        This function is used to create the outputs of the process to memory.
+        This function is used to create the outputs of the process to memory. This is an essential step in the parallel
+        processing. Before any data is created in one of the processing step, first the outputs should be generated in
+        memory.
 
         :param list[str] file_types: File type of output grid
         :return:
@@ -791,16 +814,26 @@ class Process():
         if len(file_types) == 0:
             file_types = list(self.out_images.keys())
 
+        if self.chunks:
+            out_coor = self.coordinate_systems['out_coor_chunk']        # type: CoordinateSystem
+            out_coor_orig = self.coordinate_systems['out_coor']         # type: CoordinateSystem
+            s_lin, s_pix = out_coor_orig.get_offset(out_coor)
+        else:
+            out_coor = self.coordinate_systems['out_coor']
+            s_lin = 0
+            s_pix = 0
+
         for file_type in file_types:
-            succes = self.out_images[file_type].new_memory_data([self.lines, self.pixels], self.s_lin, self.s_pix)
+            succes = self.out_images[file_type].new_memory_data(out_coor.shape, s_lin, s_pix)
 
     # Next steps are not performed during the processing. These are executed before (create_output_data_file) or after
-    # (save_to_disk, clean_memory) processing. However, they only need to be seperated when we work with data blocks.
+    # (save_to_disk, clean_memory) processing. However, they only need to be seperated when we work with data chunks.
     # Therefore, there is an added function beside __call__, called call_full, which does so.
-    def create_output_data_files(self, file_types=[]):
+    def create_output_data_files(self, file_types=[], tmp_directories=[]):
         """
         This function preallocates the output files on disk. So it creates only files with zeros which can be filled
-        later on in the process.
+        later on in the process. This can only be done if we are not in a parallel processing run. Otherwise, this could
+        cause a system crash!
 
         :param list[str] file_types: File types to be preallocated on disk. If not specified, all output files will be
                         preallocated on disk.
@@ -811,7 +844,7 @@ class Process():
             file_types = list(self.out_images.keys())
 
         for file_type in file_types:
-            create_new = self.out_images[file_type].create_disk_data()
+            create_new = self.out_images[file_type].create_disk_data(tmp_directories=tmp_directories)
             if not create_new:
                 load_new = self.out_images[file_type].load_disk_data()
                 if not load_new:
@@ -824,6 +857,11 @@ class Process():
         """
         Load output data files during processing. Return an error if files do not exist.
 
+        In a processing pipeline the output datasets are first created on disk to create a space for the parallel
+        processes to write their data to disk. This should be done before the parallel processing is started because
+        individual parallel processes cannot do so because if they could the different parallel processes could create
+        the same file at the same moment, which would cause the system to crash.
+
         """
 
         if len(file_types) == 0:
@@ -832,7 +870,8 @@ class Process():
         for file_type in file_types:
             load_output = self.out_images[file_type].load_disk_data()
             if not load_output:
-                raise FileNotFoundError('Data on disk not found')
+                file_path = self.out_images[file_type].file_path
+                raise FileNotFoundError('Data on disk not found for ' + file_path)
 
         # If all files are succesfully loaded.
         return True
@@ -840,8 +879,8 @@ class Process():
     def save_to_disk(self, file_types=[]):
         """
         This function saves all data that is stored in memory to disk. So during a processing step the data is first
-        stored in memory and then saved to disk. This makes it possible to keep data in memory and use it for a proces
-        sing pipeline. This function will therefore only be used as the last step of a pipeline.
+        stored in memory and then saved to disk. This makes it possible to keep data in memory and use it for a process
+        in the processing pipeline. This function will therefore only be used as the last step of a pipeline.
 
         :param list(str) file_types: File types which are saved to disk. If not specified all file types are used.
         :return:
@@ -866,6 +905,8 @@ class Process():
 
         :param list(str) file_types: File types which are saved to disk. If not specified all file types are used.
         :return:
+
+        TODO This function can be removed after multilooking is implemented in parallel way
         """
 
         # Save data from memory to disk.
@@ -881,12 +922,16 @@ class Process():
         return True
 
     def remove_memmap_files(self):
-        # Remove all loaded memmap files for this function.
-        for file_type in self.out_images.keys():
-            self.out_images[file_type].remove_disk_data_memmap()            # type: ImageData
+        """
+        Remove all loaded memmap files for this function. This can be done after processing is finished. Mainly used to
+        clear up memory space after the processing is finished.
 
-        for file_type in self.in_images.keys():
-            self.in_images[file_type].remove_disk_data_memmap()             # type: ImageData
+        """
+
+        for image in self.out_images.keys():
+            self.out_images[image].remove_disk_data_memmap()            # type: ImageData
+        for image in self.in_images.keys():
+            self.in_images[image].remove_disk_data_memmap()             # type: ImageData
 
     def clean_memory(self):
         """

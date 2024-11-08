@@ -4,6 +4,7 @@
 
 # Try to do all calculations using numpy functions.
 import numpy as np
+import logging
 
 # Import the parent class Process for processing steps.
 from rippl.meta_data.process import Process
@@ -15,7 +16,7 @@ from rippl.orbit_geometry.orbit_interpolate import OrbitInterpolate
 
 class Deramp(Process):  # Change this name to the one of your processing step.
 
-    def __init__(self, data_id='', polarisation='', out_coor=[], slave='slave', overwrite=False):
+    def __init__(self, data_id='', polarisation='', out_coor=[], secondary_slc='secondary_slc', overwrite=False):
         """
         This function deramps the ramped data from TOPS mode to a deramped data. Input data of this function should
         be a radar coordinates grid.
@@ -24,29 +25,29 @@ class Deramp(Process):  # Change this name to the one of your processing step.
                     the same process.
         :param str polarisation: Polarisation of processing outputs
         :param CoordinateSystem out_coor: Coordinate system of the input grids.
-        :param ImageProcessingData slave: Slave image, used as the default for input and output for processing.
+        :param ImageProcessingData secondary_slc: Secondary image, used as the default for input and output for processing.
         """
 
         # Output data information
         self.output_info = dict()
         self.output_info['process_name'] = 'deramp'
-        self.output_info['image_type'] = 'slave'
+        self.output_info['image_type'] = 'secondary_slc'
         self.output_info['polarisation'] = polarisation
         self.output_info['data_id'] = data_id
         self.output_info['coor_type'] = 'out_coor'
-        self.output_info['file_types'] = ['deramped']
-        self.output_info['data_types'] = ['complex_real4']
+        self.output_info['file_names'] = ['deramped']
+        self.output_info['data_types'] = ['complex32']
 
         # Input data information
         self.input_info = dict()
-        self.input_info['image_types'] = ['slave']
-        self.input_info['process_types'] = ['crop']
-        self.input_info['file_types'] = ['crop']
+        self.input_info['image_types'] = ['secondary_slc']
+        self.input_info['process_names'] = ['crop']
+        self.input_info['file_names'] = ['crop']
         self.input_info['polarisations'] = [polarisation]
         self.input_info['data_ids'] = [data_id]
         self.input_info['coor_types'] = ['out_coor']
         self.input_info['in_coor_types'] = ['']
-        self.input_info['type_names'] = ['ramped_data']
+        self.input_info['aliases_processing'] = ['ramped_data']
 
         # Coordinate systems
         self.coordinate_systems = dict()
@@ -54,22 +55,11 @@ class Deramp(Process):  # Change this name to the one of your processing step.
 
         # image data processing
         self.processing_images = dict()
-        self.processing_images['slave'] = slave
+        self.processing_images['secondary_slc'] = secondary_slc
 
         # Finally define whether we overwrite or not
         self.overwrite = overwrite
         self.settings = dict()
-
-    def init_super(self):
-
-        self.load_coordinate_system_sizes()
-        super(Deramp, self).__init__(
-                       input_info=self.input_info,
-                       output_info=self.output_info,
-                       coordinate_systems=self.coordinate_systems,
-                       processing_images=self.processing_images,
-                       overwrite=self.overwrite,
-                       settings=self.settings)
 
     def process_calculations(self, test=False):
         """
@@ -82,11 +72,11 @@ class Deramp(Process):  # Change this name to the one of your processing step.
         :return:
         """
         
-        processing_data = self.processing_images['slave']
+        processing_data = self.processing_images['secondary_slc']
         if not isinstance(processing_data, ImageProcessingData):
-            print('Input data missing')
+            logging.info('Input data missing')
 
-        coordinates = self.coordinate_systems['in_block_coor']
+        coordinates = self.coordinate_systems['out_coor_chunk']
         readfile = processing_data.readfiles['original']      
         orbit = processing_data.find_best_orbit('original')
 
@@ -139,7 +129,7 @@ class Deramp(Process):  # Change this name to the one of your processing step.
         """
 
         if coordinates.grid_type != 'radar_coordinates':
-            print('Deramping for non radar grid not possible.')
+            logging.info('Deramping for non radar grid not possible.')
             return
 
         # Get the lines/pixels from the coordinate system.
@@ -153,7 +143,7 @@ class Deramp(Process):  # Change this name to the one of your processing step.
         return az_time_grid, ra_time_grid
 
     @staticmethod
-    def calc_ramp(readfile, orbit, az_time_grid, ra_time_grid, demodulation=False):
+    def calc_ramp(readfile, orbit, az_time_grid, ra_time_grid, demodulation=False, calc_squint=False):
         """
         Calculate the phase ramp for deramping/reramping
         
@@ -168,6 +158,8 @@ class Deramp(Process):  # Change this name to the one of your processing step.
 
         interp_orbit = OrbitInterpolate(orbit)
         interp_orbit.fit_orbit_spline()
+        if readfile.orig_az_first_pix_time == 0:
+            raise TypeError('This type of SAR dataset cannot be deramped!')
         mid_orbit_time = readfile.orig_az_first_pix_time + readfile.az_time_step * (float(readfile.size[0]) / 2)
         mid_orbit_range_time = readfile.orig_ra_first_pix_time + readfile.ra_time_step * (float(readfile.size[1]) / 2)
         az_time_grid -= mid_orbit_time
@@ -181,7 +173,7 @@ class Deramp(Process):  # Change this name to the one of your processing step.
         k_fm_0 = (readfile.FM_polynomial[0] + readfile.FM_polynomial[1] * (mid_orbit_range_time - readfile.FM_ref_ra) + readfile.FM_polynomial[2] *
                   (mid_orbit_range_time - readfile.FM_ref_ra) ** 2)
 
-        # Compute DC along range at reference azimuth time (azimuthTime)
+        # Compute DC along range at reference_slc azimuth time (azimuthTime)
         df_az_ctr = readfile.DC_polynomial[0] + readfile.DC_polynomial[1] * (ra_time_grid - readfile.DC_ref_ra) + readfile.DC_polynomial[2] * (ra_time_grid - readfile.DC_ref_ra) ** 2
         f_dc_ref_0 = (readfile.DC_polynomial[0] + readfile.DC_polynomial[1] * (mid_orbit_range_time - readfile.DC_ref_ra) + readfile.DC_polynomial[2] *
                       (mid_orbit_range_time - readfile.DC_ref_ra) ** 2)
@@ -214,4 +206,8 @@ class Deramp(Process):  # Change this name to the one of your processing step.
         else:
             ramp = np.exp(-1j * np.pi * dr_est * t_az_vec ** 2).astype(np.complex64)
 
-        return ramp
+        if calc_squint:
+            squint_angle = readfile.steering_rate * t_az_vec
+            return ramp, squint_angle
+        else:
+            return ramp

@@ -46,7 +46,7 @@ class Regural2irregular(object):
         out_grid = np.zeros(new_grid_lines.shape).astype(orig_grid.dtype)
 
         # Now use the location of the new pixels to extract the weights and the values from the input grid.
-        # After adding up and multiplying the weights and values we have the out going grid.
+        # After adding up and multiplying the weights and values we have the outgoing grid.
         for step in range(int(steps)):
             line_0 = int(line_steps * step)
             line_1 = np.minimum(line_steps * (step + 1), new_grid_lines.shape[0]).astype(np.int32)
@@ -67,14 +67,14 @@ class Regural2irregular(object):
             l_window_id = table_size[0] - np.round((grid_lines[valid] - line_id) // w_steps[0]).astype(np.int32)
             p_window_id = table_size[1] - np.round((grid_pixels[valid] - pixel_id) // w_steps[1]).astype(np.int32)
 
-            # Check wether the pixels are far enough from the border of the image. Otherwise interpolation kernel cannot
+            # Check wether the pixels are far enough from the border of the image. Otherwise, interpolation kernel cannot
             # Be applied. Missing pixels will be filled with zeros.
             half_w_line = window_size[0] // 2
             half_w_pixel = window_size[1] // 2
             valid_vals = (((line_id - half_w_line) >= 0) * ((line_id + half_w_line) < orig_grid.shape[0]) *
                           ((pixel_id - half_w_pixel) >= 0) * ((pixel_id + half_w_pixel) < orig_grid.shape[1]))
 
-            # Pre assign the final values of this step.
+            # Pre-assign the final values of this step.
             out_vals = np.zeros(len(l_window_id)).astype(orig_grid.dtype)
 
             # Calculate individually for different pixels in the image window. Saves a lot of memory space...
@@ -151,6 +151,24 @@ class Regural2irregular(object):
                                 4 * a - 2 * b),
                                 b * ra_coor_3 ** 3 - 8 * b * ra_coor_3 ** 2 + 21 * b * ra_coor_3 - 18 * b))
             d_ra = np.vstack((np.fliplr(np.flipud(d_ra_r)), d_ra_r))
+        elif w_type.endswith('truncated_sinc'):
+            if w_type.startswith('6'):
+                L = 6
+            elif w_type.startswith('8'):
+                L = 8
+            elif w_type.startswith('12'):
+                L = 12
+            elif w_type.startswith('16'):
+                L = 16
+            else:
+                raise TypeError('Only 6, 8, 12 and 16 point truncated sinc are supported! Aborting resampling')
+
+            az_coors = np.arange(-L/2, L/2)[:, None] + az_coor[None, :]
+            ra_coors = np.arange(-L/2, L/2)[:, None] + ra_coor[None, :]
+
+            d_az = np.sinc(az_coors)
+            d_ra = np.sinc(ra_coors)
+
         elif w_type == 'custom':
             if kernel_size[0] % 2 != 1 or kernel_size[1] % 2 != 1:
                 raise AssertionError('Kernel sizes should be odd!')
@@ -170,12 +188,17 @@ class Regural2irregular(object):
             window = window / window_sum[:, :, None, None]
 
         else:
-            raise ValueError('Use nearest_neighbour, linear, 4p_cubic, 6p_cubic or custom as kernel.')
+            raise ValueError('Use nearest_neighbour, linear, 4p_cubic, 6p_cubic, [6,8,12,16]p_truncated_sinc or custom as kernel.')
 
         # TODO Add the 6, 8 and 16 point truncated sinc + raised cosine interpolation
 
         # Calculate the 2d window
         if w_type != 'custom':
             window = np.einsum('ij,kl->jlik', d_az, d_ra)
+
+        # Apply a weighting of the sinc kernels to make sure there is no amplitude reduction
+        if w_type.endswith('truncated_sinc'):
+            weight = np.sum(window, axis=(2,3))
+            window = window / weight[:, :, None, None]
 
         return window

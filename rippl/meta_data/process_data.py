@@ -1,15 +1,13 @@
 
-import numpy as np
 from collections import OrderedDict
 import os
-from osgeo import gdal
 
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.meta_data.process_meta import ProcessMeta
 from rippl.meta_data.image_data import ImageData
 
 
-class ProcessData():
+class ProcessData(ProcessMeta):
     """
     This class creates an interface between the processes and the data on disk. The function does:
     - create new data files in memory and on disk
@@ -25,7 +23,7 @@ class ProcessData():
         Class that connects a process with the datafiles on disk. This enables easy access of the data files and loading
         in memory of these files in the processing code.
 
-        :param str folder: Folder of dataset. This is not stored in the meta data as processing folders can be moved.
+        :param str folder: Folder of dataset. This is not stored in the metadata as processing folders can be moved.
         :param str process_name: Name of the processing methot (for example, crop, resampling, deramping etc.)
         :param CoordinateSystem coordinates: Coordinate system of the output of this processing step.
         :param CoordinateSystem in_coordinates: Coordinate system of input data of processing step if applicable
@@ -35,40 +33,28 @@ class ProcessData():
                 relevant
         :param OrderedDict json_data: If this step is read as part of a .json file this is the source data
         :param str json_path: If the process was saved as a .json it will be loaded using this path
-        :param ProcessMeta process_meta: If the metadata of this step is already loaded it can be provided here
         """
 
-        # If the the process metadata is already given we add that file as metadata
+        # If the process metadata is already given we add that file as metadata
         self.folder = folder
         if not json_path:
-            self.json_path = os.path.join(self.folder, 'info.json')
+            self.json_path = os.path.join(self.folder, os.path.basename(self.folder) + '.json')
         else:
             self.json_path = json_path
 
+        # If process meta is available copy all variables
         if isinstance(process_meta, ProcessMeta):
-            self.meta = process_meta
+            self.__dict__.update(process_meta.__dict__)
         else:
-            self.meta = ProcessMeta(folder, process_name, coordinates, in_coordinates, settings,
-                                    polarisation, data_id, json_data)
+            super().__init__(folder, process_name, coordinates, in_coordinates, settings, polarisation, data_id, json_data)
 
         self.dtype_disk, self.dtype_memory, self.dtype_size, self.dtype_gdal, self.dtype_gdal_numpy = ImageData.load_dtypes()
 
-        self.input_files = self.meta.input_files
-        self.output_files = self.meta.output_files
-
         self.images = OrderedDict()
-        self.data_disk_meta = self.meta.output_files
+        self.data_disk_meta = self.output_files
         self.data_disk = OrderedDict()
         self.data_memory_meta = OrderedDict()
         self.data_memory = OrderedDict()
-
-        self.coordinates = self.meta.coordinates
-        self.in_coordinates = self.meta.in_coordinates
-        self.process_name = self.meta.process_name
-        self.process_id = self.meta.process_id
-        self.data_id = self.meta.data_id
-        self.polarisation = self.meta.polarisation
-        self.settings = self.meta.settings
 
         # add settings to memory and disk data.
         self.load_process_images()
@@ -216,13 +202,3 @@ class ProcessData():
         self.data_memory_meta[file_type] = self.images[file_type].memory['meta']
         self.data_disk[file_type] = self.images[file_type].disk
         self.data_memory[file_type] = self.images[file_type].memory
-
-    # Delegate to process ProcessMeta class describing the
-    def update_json(self, save=True, json_path=''):
-        self.meta.update_json(save, json_path)
-
-    def load_json(self, json_data='', json_path=''):
-        self.meta.load_json(json_data, json_path)
-
-    def split_process_id(self, process_id):
-        return self.meta.split_process_id(process_id)

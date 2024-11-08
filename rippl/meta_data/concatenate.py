@@ -1,8 +1,9 @@
+import logging
 import numpy as np
 import copy
+import os
 
 from rippl.meta_data.image_processing_concatenate import ImageConcatData
-from rippl.meta_data.image_processing_data import ImageProcessingMeta, ImageProcessingData
 from rippl.meta_data.image_data import ImageData
 from rippl.meta_data.process_data import ProcessMeta, ProcessData
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
@@ -61,22 +62,25 @@ class Concatenate():
         :return:
         """
 
+        # Create right coordinates short ID
+        if self.coordinates.grid_type == 'radar_coordinates' and not self.coordinates.date:
+            date = os.path.basename(self.concat_image.folder)
+            self.coordinates.date = date[:4] + '-' + date[4:6] + '-' + date[6:8]
+        self.coordinates.create_short_coor_id()
+
         slice_names, processes, process_ids, coordinates, in_coordinates, file_types, images_out = \
-            self.concat_image.concat_image_data_iterator(processes=[self.process],
+            self.concat_image.processing_slice_image_data_iterator(processes=[self.process],
                                                         coordinates=[self.coordinates],
                                                         file_types=[self.file_type],
                                                         data_ids=[self.data_id],
                                                         polarisations=[self.polarisation],
-                                                        slices=True,
-                                                        full_image=False,
                                                         load_memmap=False)
 
         if len(process_ids) == 0:
-            self.coordinates.create_coor_id()
             raise FileNotFoundError('No slices found for concatenation for process ' + self.process +
-                                    ' ,file type ' + self.file_type +
-                                    ' ,data id ' + self.data_id +
-                                    ' ,polarisation ' + self.polarisation +
+                                    ', file type ' + self.file_type +
+                                    ', data id ' + self.data_id +
+                                    ', polarisation ' + self.polarisation +
                                     ' and coordinates ' + self.coordinates.short_id_str)
 
         data_ids = []
@@ -98,13 +102,13 @@ class Concatenate():
         self.in_coordinates = in_coordinates[0]
 
         if len(slice_names) == 0:
-            print('No slices found to concatenate!')
+            logging.info('No slices found to concatenate!')
             return
         if len(coordinates) != len(self.concat_image.slice_names):
-            print('Number of slices and found input data images is not the same. Aborting concatenation')
+            logging.info('Number of slices and found input data images is not the same. Aborting concatenation')
             return
         if not len(set(data_ids)) == 1 or not len(set(polarisations)) == 1 or not len(set(in_coordinates_str)) == 1:
-            print('Please specify polarisation, data id or in coordinates to select the right process')
+            logging.info('Please specify polarisation, data id or in coordinates to select the right process')
             return
 
     def create_image(self, tmp_directory=''):
@@ -115,44 +119,42 @@ class Concatenate():
         """
 
         if len(self.coordinates.shape) == 2:
-            print('Using predefined grid size for concatenation of slices')
-            concat = CoorConcatenate(self.slice_coordinates, concat_coor=self.coordinates, adjust_date=self.concat_image.adjust_date)
+            logging.info('Using predefined grid size for concatenation of slices')
+            concat = CoorConcatenate(self.slice_coordinates, concat_coor=self.coordinates)
         else:
-            concat = CoorConcatenate(self.slice_coordinates, adjust_date=self.concat_image.adjust_date)
+            concat = CoorConcatenate(self.slice_coordinates)
         self.slice_coordinates = concat.sync_coors
         concat_coor = concat.concat_coor
 
         # Based on the new coordinate system create a new process.
         # Check if process already exists in
-        process_id_full = self.concat_image.concat_image_data_iterator(processes=[self.process],
+        process_id_full = self.concat_image.processing_image_data_iterator(processes=[self.process],
                                                                       coordinates=[concat_coor],
                                                                       file_types=[],
                                                                       data_ids=[self.data_id],
-                                                                      polarisations=[self.polarisation],
-                                                                      slices=False,
-                                                                      full_image=True)[2]
+                                                                      polarisations=[self.polarisation])[1]
         # If the process exists.
         if len(process_id_full) > 0:
-            process = self.concat_image.data.processes_data[self.process][process_id_full[0]]
+            process = self.concat_image.processes[self.process][process_id_full[0]]
 
             # Check if the image already exists.
             image = process.process_data_iterator(file_types=[self.file_type])[-1]
             # Check if the file exists on disk or in memory.
             if len(image) > 0:
-                if (image[0].check_disk_file() or image[0].check_memory_file()) and self.overwrite == False:
-                    print('Concatenated dataset already exists. If you want to overwrite set overwrite to True')
+                if (image[0].check_data_disk_valid()[1] or image[0].check_memory_file()) and self.overwrite == False:
+                    logging.info('Concatenated dataset already exists. If you want to overwrite set overwrite to True')
                     return False
         else:
             process = ProcessData(folder=self.concat_image.folder,
                                   process_name=self.process,
-                                  coordinates=concat_coor, 
-                                  data_id=self.data_id, 
-                                  polarisation=self.polarisation, 
+                                  coordinates=concat_coor,
+                                  data_id=self.data_id,
+                                  polarisation=self.polarisation,
                                   in_coordinates=self.in_coordinates)
-            self.concat_image.data.add_process(process)
+            self.concat_image.add_process(process)
 
         # Create an empty output file.
-        process.add_process_image(self.file_type, self.slice_data[0].dtype)
+        process.add_process_image(self.file_type, self.slice_data[0].dtype, overwrite=True)
         self.concat_data = process.process_data_iterator([self.file_type])[-1][0]          # type: ImageData
         
         if self.output_type == 'memory':
@@ -160,13 +162,13 @@ class Concatenate():
         else:
             if tmp_directory:
                 self.tmp_directory = tmp_directory
-                self.concat_data.create_disk_data(tmp_directory=tmp_directory)
+                self.concat_data.create_disk_data(tmp_directory=[tmp_directory])
             else:
                 self.concat_data.create_disk_data(overwrite=True)
 
         return True
 
-    def concatenate(self, transition_type='coverage_cut_off', replace=False, cut_off=10, remove_input=False):
+    def concatenate(self, transition_type='fixed_cut_off', replace=False, cut_off=10, remove_input=False):
         """
         Here the actual concatenation is done.
 
@@ -174,8 +176,18 @@ class Concatenate():
         :return:
         """
 
-        if transition_type != 'coverage_cut_off':
-            self.transition_zones(transition_type, cut_off)
+        if transition_type not in ['fixed_cut_off', 'full_weight', 'linear', 'cut_off', 'coverage_cut_off']:
+            raise TypeError('Invalid transition type! The transition type should be either:'
+                            'fixed_cut_off > remove a fixed number of pixels from the sides of slices '
+                            '   (useful when data can be summed but has some border effects with missing pixels)'
+                            'full_weight > uses all available data '
+                            '   (useful when data can be summed and has no border effects with missing values)'
+                            'linear > linear transition between slices starting from cut_off value '
+                            '   (useful when data cannot be summed and gradual change is needed or mixing allowed)'
+                            'cut_off > cut off in the middle of overlapping regions, to make sure that every pixel will'
+                            '   be covered only once (useful when data cannot be summed and should not be mixed)'
+                            'coverage_cut_off > remove a fixed number of pixels from the sides of slices and remove the'
+                            '   overlapping areas of other slices (alternative for cut_off if swaths are not well aligned)')
 
         for image, coordinates, slice_name in zip(self.slice_data, self.slice_coordinates, self.slice_names):
 
@@ -187,6 +199,9 @@ class Concatenate():
             pix_size = coordinates.shape[1]
 
             if tuple(image.memory['meta']['shape']) == tuple(image.shape):
+                if issubclass(self.concat_data.memory['data'].dtype.type, np.integer):
+                   self.coverage = np.int16(self.coverage)
+
                 if replace:
                     # Set data that is going to be filled to zero.
                     self.concat_data.memory['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] = 0
@@ -198,15 +213,18 @@ class Concatenate():
                     self.concat_data.memory['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] += \
                         image.memory2disk(image.memory['data'] * self.coverage, image.dtype)
             elif image.load_disk_data():
+                if issubclass(self.concat_data.disk['data'].dtype.type, np.integer):
+                   self.coverage = np.int16(self.coverage)
+
                 if replace:
                     # Set data that is going to be filled to zero.
                     self.concat_data.disk['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] = 0
 
                 if self.output_type == 'memory':
                     self.concat_data.memory['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] += \
-                        image.disk2memory(image.disk['data'], image.dtype)  * self.coverage
+                        image.disk2memory(image.disk['data'], image.dtype) * self.coverage
                 else:
-                    if image.dtype in ['complex_short', 'complex_int']:
+                    if image.dtype in ['complex_short', 'complex_int', 'complex32']:
                         self.concat_data.disk['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size] = \
                             image.memory2disk((image.disk2memory(image.disk['data'], image.dtype) * self.coverage).astype(np.complex64) +
                                               image.disk2memory(copy.copy(self.concat_data.disk['data'][lin_0:lin_0 + lin_size, pix_0:pix_0 + pix_size]), image.dtype).astype(np.complex64), image.dtype)
@@ -227,13 +245,13 @@ class Concatenate():
             self.concat_data.save_tmp_data()
 
         # Finally save the .json data.
-        self.concat_image.data.save_json()
-        print('Finished concatenation ' + self.concat_data.process_name + ' of ' + self.concat_data.folder)
+        self.concat_image.save_json()
+        logging.info('Finished concatenation ' + self.concat_data.process_name + ' of ' + self.concat_data.folder)
 
     def full_weight(self):
         """
         This function will simply use all the data that is available from the different images. This is suitable when
-        you only look at interferogram
+        you only look at interferograms
 
         :return:
         """
@@ -243,7 +261,7 @@ class Concatenate():
             self.line_weights[slice_name] = np.ones(coordinates.shape[0])
             self.pixel_weights[slice_name] = np.ones(coordinates.shape[1])
 
-    def calc_coverage(self, transition_type='coverage_cut_off', cut_off=10, coordinates='', slice_name=''):
+    def calc_coverage(self, transition_type='fixed_cut_off', cut_off=10, coordinates='', slice_name=''):
         """
         Here we calculate the coverage the current burst, including cutoffs
 
@@ -255,52 +273,60 @@ class Concatenate():
         if transition_type == 'full_weight':
             self.coverage = np.ones(coordinates.shape)
             return
-        elif transition_type != 'coverage_cut_off':
+        elif transition_type in ['linear', 'cut_off']:
+            self.transition_zones(transition_type, cut_off)
             self.coverage = self.line_weights[slice_name][:, None] * self.pixel_weights[slice_name][None, :]
             return
 
-        # Otherwise we will have individual coverage cases.
+        # Otherwise we will have individual coverage cases with a basic cut off.
         self.coverage = np.zeros(coordinates.shape)
         self.coverage[cut_off:-cut_off, cut_off:-cut_off] = 1
         shape = coordinates.shape
 
         # Then loop over the available other images, and if they are earlier in the list, remove that part of the coverage
-        for name, coor in zip(self.slice_names, self.slice_coordinates):
+        if transition_type == 'coverage_cut_off':
+            for name, coor in zip(self.slice_names, self.slice_coordinates):
 
-            # Only the images upto the current slice are used. So slices with smaller burst of swath numbers are preferred.
-            if name == slice_name:
-                break
+                # Only the images upto the current slice are used. So slices with smaller burst of swath numbers are preferred.
+                if name == slice_name:
+                    break
 
-            first_line = coor.first_line - coordinates.first_line + cut_off
-            first_pixel = coor.first_pixel - coordinates.first_pixel + cut_off
+                first_line = coor.first_line - coordinates.first_line + cut_off
+                first_pixel = coor.first_pixel - coordinates.first_pixel + cut_off
 
-            last_line = first_line + coor.shape[0] - 2 * cut_off
-            last_pixel = first_pixel + coor.shape[1] - 2 * cut_off
+                last_line = first_line + coor.shape[0] - 2 * cut_off
+                last_pixel = first_pixel + coor.shape[1] - 2 * cut_off
 
-            # Check if there is an overlap.
-            if (first_line < shape[0] and last_line >= 0) and (first_pixel < shape[1] and last_pixel >= 0):
-                first_line = np.maximum(first_line, 0)
-                last_line = np.minimum(last_line, shape[0])
-                first_pixel = np.maximum(first_pixel, 0)
-                last_pixel = np.minimum(last_pixel, shape[1])
+                # Check if there is an overlap.
+                if (first_line < shape[0] and last_line >= 0) and (first_pixel < shape[1] and last_pixel >= 0):
+                    first_line = np.maximum(first_line, 0)
+                    last_line = np.minimum(last_line, shape[0])
+                    first_pixel = np.maximum(first_pixel, 0)
+                    last_pixel = np.minimum(last_pixel, shape[1])
 
-                self.coverage[first_line:last_line, first_pixel:last_pixel] = 0
-            else:
-                continue
+                    self.coverage[first_line:last_line, first_pixel:last_pixel] = 0
+                else:
+                    continue
 
     def transition_zones(self, transition_type='linear', cut_off=10):
         """
         This function creates transition zones from one burst to the other.
 
         :param str transition_type: Type of transition zone between
-        :param cut_off: The cut off value to prevent using zeros at the boundaries. Note that this will be corrected
+        :param cut_off: The cut-off value to prevent using zeros at the boundaries. Note that this will be corrected
                         using the multilooking/oversampling factor
         :return:
         """
 
+        if transition_type not in ['linear', 'cut_off']:
+            raise TypeError('Transition between slices is only possible using a linear or cut_off transition.'
+                            'linear > gradual change over the overlapping region.'
+                            'cut_off > cut off of region in the middle of the overlapping region.')
+
         if self.coordinates.grid_type != 'radar_coordinates':
             raise TypeError('Concatenating using transition zones can only be done with radar coordinates and not with '
                             'geographic or projected grids.')
+        
         cut_off = [int(np.ceil(cut_off / (self.coordinates.multilook[0] / self.coordinates.oversample[0]))),
                    int(np.ceil(cut_off / (self.coordinates.multilook[1] / self.coordinates.oversample[1])))]
 
@@ -326,7 +352,7 @@ class Concatenate():
                 before_last_pixel = np.min([coor.first_pixel + coor.shape[1] for coor in before_slice_coordinates])
 
                 if (before_last_pixel - swath_first_pixel) < 1:
-                    raise ValueError('Not possible to concatenate using this transition type. Use coverage_cut_off instead.')
+                    raise ValueError('Not possible to concatenate using this transition type. Use fixed_cut_off instead.')
                 overlap = np.zeros(before_last_pixel - swath_first_pixel)
 
                 if transition_type == 'linear':
@@ -344,7 +370,7 @@ class Concatenate():
                 after_first_pixel = np.max([coor.first_pixel for coor in after_slice_coordinates])
 
                 if (swath_last_pixel - after_first_pixel) < 1:
-                    raise ValueError('Not possible to concatenate using this transition type. Use coverage_cut_off instead.')
+                    raise ValueError('Not possible to concatenate using this transition type. Use fixed_cut_off instead.')
 
                 overlap = np.zeros(swath_last_pixel - after_first_pixel)
 

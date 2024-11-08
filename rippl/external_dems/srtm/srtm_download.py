@@ -1,7 +1,7 @@
 # Function created by Gert Mulder
 # Institute TU Delft
 # Date 9-11-2016
-# Part of Doris 5.0
+# Part of RIPPL
 
 # This function creates a dem based on either a shape/kml file or a given bounding box. If a shape/kml file is given a
 # minimum offset of about 0.1 degrees is used.
@@ -13,37 +13,50 @@
 # Description srtm q data: https://lpdaac.usgs.gov/node/505
 
 import os
-import pickle
+import json
 import shutil
 import zipfile
+from typing import Optional
+
 import numpy as np
 import requests
+from six.moves import html_parser
 from multiprocessing import get_context
-from multiprocessing import Pool
+import logging
 
-from rippl.external_dems.srtm.srtm_dir_listing import ParseHTMLDirectoryListing
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
-from rippl.meta_data.image_processing_data import ImageProcessingData
-from rippl.meta_data.image_processing_meta import ImageProcessingMeta
-from rippl.resampling.coor_new_extend import CoorNewExtend
 from rippl.user_settings import UserSettings
-from rippl.download_login import DownloadLogin
+
+"""
+# Test download of SRTM download
+from rippl.external_dems.srtm.srtm_download import SrtmDownload
+from rippl.orbit_geometry.coordinate_system import CoordinateSystem
+
+for srtm_type, arc_sec in zip(['SRTM1', 'SRTM3'], [1, 3]):
+    download_folder = '/mnt/external/rippl_tutorial_test/DEM_database/srtm'
+    download = SrtmDownload(n_processes=1, srtm_folder=download_folder, srtm_type=srtm_type)
+    
+    coordinates = CoordinateSystem()
+    coordinates.create_geographic(dlat=arc_sec/3600, dlon=arc_sec/3600, lat0=45, lon0=4, shape=(1000, 1000))
+    download(coordinates=coordinates)
+
+"""
 
 
-class SrtmDownloadTile(object):
+class SrtmDownloadTile:
     # To enable parallel processing we create another class for the actual processing.
 
-    def __init__(self, username='', password=''):
+    def __init__(self, username: Optional[str] = None, password: Optional[str] = None):
 
         settings = UserSettings()
         settings.load_settings()
 
         if not username:
-            self.username = settings.NASA_username
+            self.username = settings.settings['accounts']['EarthData']['username']
         else:
             self.username = username
         if not password:
-            self.password = settings.NASA_password
+            self.password = settings.settings['accounts']['EarthData']['password']
         else:
             self.password = password
 
@@ -69,15 +82,10 @@ class SrtmDownloadTile(object):
                 os.remove(file_zip)
 
             if not os.path.exists(file_zip):
-
-                print('Downloading ' + file_zip)
-                try:
-                    download = DownloadLogin('', username=self.username, password=self.password)
-                    download.download_file(url, file_zip)
-                except:
-                    command = 'wget ' + url + ' --user ' + self.username + ' --password ' \
-                              + self.password + ' -O ' + '"' + file_zip + '"'
-                    os.system(command)
+                logging.info('Downloading ' + file_zip)
+                command = 'wget ' + url + ' --user ' + self.username + ' --password ' \
+                          + self.password + ' -O ' + '"' + file_zip + '"'
+                os.system(command)
             if not os.path.exists(file_unzip):
                 zip_data = zipfile.ZipFile(file_zip)
                 source = zip_data.open(zip_data.namelist()[0])
@@ -85,22 +93,20 @@ class SrtmDownloadTile(object):
                     shutil.copyfileobj(source, target, length=-1)
                 zip_data.close()
                 source.close()
-        except:
+        except Exception as e:
             # Remove erroneous files
             if os.path.exists(file_unzip):
                 os.remove(file_unzip)
             if os.path.exists(file_zip):
                 os.remove(file_zip)
-
-            raise ConnectionError('Failed to download ' + url)
-            return False
+            raise ConnectionError('Failed to download ' + url + '. ' + str(e))
 
         return True
 
 
-class SrtmDownload(object):
+class SrtmDownload:
 
-    def __init__(self, srtm_folder='', username='', password='', srtm_type='SRTM3', quality=False, n_processes=4):
+    def __init__(self, srtm_folder='', username='', password='', srtm_type='SRTM3', quality=False, n_processes=4, filelist_folder=''):
         # srtm_folder
 
         settings = UserSettings()
@@ -108,15 +114,25 @@ class SrtmDownload(object):
 
         # SRTM folder
         if not srtm_folder:
-            self.srtm_folder = os.path.join(settings.DEM_database, settings.dem_sensor_name['srtm'])
+            self.srtm_folder = os.path.join(settings.settings['paths']['DEM_database'], settings.settings['path_names']['DEM']['SRTM'])
+        else:
+            self.srtm_folder = srtm_folder
+
+        if not os.path.exists(self.srtm_folder):
+            os.mkdir(self.srtm_folder)
+
+        for srtm_type_folder in ['srtm1', 'srtm3']:
+            path = os.path.join(self.srtm_folder, srtm_type_folder)
+            if not os.path.isdir(path):
+                os.mkdir(path)
 
         # credentials
         if not username:
-            self.username = settings.NASA_username
+            self.username = settings.settings['accounts']['EarthData']['username']
         else:
             self.username = username
         if not password:
-            self.password = settings.NASA_password
+            self.password = settings.settings['accounts']['EarthData']['password']
         else:
             self.password = password
 
@@ -124,7 +140,9 @@ class SrtmDownload(object):
         self.quality = quality
 
         # List of files to be downloaded
-        self.filelist = self.srtm_listing(self.srtm_folder, self.username, self.password)
+        if not filelist_folder:
+            filelist_folder = os.path.join(settings.settings['paths']['rippl'], 'rippl', 'external_dems', 'srtm')
+        self.filelist = self.srtm_listing(filelist_folder, self.username, self.password)
 
         # shapes and limits of these shapes
         self.shapes = []
@@ -144,55 +162,45 @@ class SrtmDownload(object):
         # processes
         self.n_processes = n_processes
 
-    def __call__(self, meta, buffer=1.0, rounding=1.0, parallel=True):
-
-        if isinstance(meta, ImageProcessingData):
-            self.meta = meta.meta
-        elif isinstance(meta, ImageProcessingMeta):
-            self.meta = meta
-        else:
-            raise TypeError('Input meta data should be an ImageProcessingData or ImageProcessingMeta object.')
+    def __call__(self, coordinates, parallel=True):
 
         if self.srtm_type == 'SRTM3':
             step = 1.0 / 3600 * 3
         elif self.srtm_type == 'SRTM1':
             step = 1.0 / 3600
         else:
-            print('Unkown SRTM type' + self.srtm_type)
+            logging.info('Unkown SRTM type' + self.srtm_type)
             return
 
         # Create output coordinates.
-        radar_coor = CoordinateSystem()
-        radar_coor.create_radar_coordinates()
-        radar_coor.load_readfile(self.meta.readfiles['original'])
-        radar_coor.orbit = self.meta.find_best_orbit('original')
-        self.coordinates = CoordinateSystem()
-        self.coordinates.create_geographic(step, step)
-        new_coor = CoorNewExtend(radar_coor, self.coordinates, buffer=buffer, rounding=rounding)
-        self.coordinates = new_coor.out_coor
+        self.coordinates = coordinates      # type: CoordinateSystem
+        if not np.abs(self.coordinates.dlat - step) < 0.0000000001 or not np.abs(self.coordinates.dlon - step) < 0.0000000001:
+            raise ValueError('Value of dlat and dlon of input coordinate system should be ' + str(step))
+        if self.coordinates.shape == '' or self.coordinates.shape == [0, 0]:
+            raise ValueError('Coordinate shape size is missing to determine DEM download')
 
         tiles, download_tiles, [tile_lats, tile_lons], urls, tiles_zip = \
             self.select_tiles(self.filelist, self.coordinates, self.srtm_folder, self.srtm_type, self.quality)
         if len(urls) == 0:
-            print('All needed SRTM DEM files already downloaded.')
+            logging.info('All needed SRTM DEM files already downloaded.')
             return
 
         # First create a download class.
         tile_download = SrtmDownloadTile(self.username, self.password)
 
         # Tiles to be downloaded
-        print('SRTM tiles to be downloaded to ' + os.path.dirname(download_tiles[0]))
-        print('If downloading fails you can try again later or try and download the files yourself using your EarthData '
+        logging.info('SRTM tiles to be downloaded to ' + os.path.dirname(download_tiles[0]))
+        logging.info('If downloading fails you can try again later or try and download the files yourself using your EarthData '
               'credentials')
         for url in urls:
-            print(url)
+            logging.info(url)
 
         # Loop over all images
         download_dat = [[url, file_zip, file_unzip, lat, lon] for
                      url, file_zip, file_unzip, lat, lon in
                      zip(urls, tiles_zip, download_tiles, tile_lats, tile_lons)]
         np.array(download_dat)
-        if parallel and self.n_processes > 1:
+        if self.n_processes > 1:
             with get_context("spawn").Pool(processes=self.n_processes, maxtasksperchild=5) as pool:
                 # Process in blocks of 25
                 block_size = 25
@@ -209,10 +217,10 @@ class SrtmDownload(object):
 
         # Check coordinates
         if not isinstance(coordinates, CoordinateSystem):
-            print('coordinates should be an CoordinateSystem object')
+            logging.info('coordinates should be an CoordinateSystem object')
             return
         elif coordinates.grid_type != 'geographic':
-            print('only geographic coordinate systems can be used to download SRTM data')
+            logging.info('only geographic coordinate systems can be used to download SRTM data')
             return
 
         tiles_zip = []
@@ -245,7 +253,7 @@ class SrtmDownload(object):
                 else:
                     lonstr = 'E' + str(lon).zfill(3)
 
-                # Check if file exists in filelist
+                # Check if file exists in srtm_tiles_list.pkl
                 if str(lat) not in filelist[srtm_type]:
                     continue
                 elif str(lon) not in filelist[srtm_type][str(lat)]:
@@ -278,33 +286,31 @@ class SrtmDownload(object):
         return tiles, download_tiles, [tile_lats, tile_lons], url, tiles_zip
 
     @staticmethod
-    def srtm_listing(srtm_folder, username='', password=''):
+    def srtm_listing(filelist_folder='', username='', password=''):
         # This script makes a list of all the available 1,3 and 30 arc second datafiles.
         # This makes it easier to detect whether files do or don't exist.
 
         settings = UserSettings()
+        settings.load_settings()
 
-        # SRTM folder
-        if not srtm_folder:
-            settings.load_settings()
-            srtm_folder = os.path.join(settings.DEM_database, settings.dem_sensor_name['srtm'])
+        # File list folder
+        if not filelist_folder:
+            filelist_folder = os.path.join(settings.settings['paths']['rippl'], 'rippl', 'external_dems', 'srtm')
 
         # credentials
         if not username:
-            settings.load_settings()
-            username = settings.NASA_username
+            username = settings.settings['accounts']['EarthData']['username']
         if not password:
-            settings.load_settings()
-            password = settings.NASA_password
+            password = settings.settings['accounts']['EarthData']['password']
 
-        data_file = os.path.join(srtm_folder, 'filelist')
+        data_file = os.path.join(filelist_folder, 'srtm_tiles_list.json')
         if os.path.exists(data_file):
             with open(data_file, 'rb') as dat:
-                filelist = pickle.load(dat)
+                filelist = json.load(dat)
 
             return filelist
 
-        server = "http://e4ftl01.cr.usgs.gov"
+        server = "https://e4ftl01.cr.usgs.gov"
 
         folder = ['MEASURES/SRTMGL1.003/2000.02.11/', 'MEASURES/SRTMGL3.003/2000.02.11/', 'MEASURES/SRTMGL30.002/2000.02.11/']
         sub_folder = ['SRTMGL1_page_', 'SRTMGL3_page_', 'SRTMGL30_page_']
@@ -325,24 +331,24 @@ class SrtmDownload(object):
         filelist['SRTM3'] = dict()
         filelist['SRTM30'] = dict()
 
-        print('Indexing SRTM tiles...')
+        logging.info('Indexing SRTM tiles...')
         total_no = 12
         num = 0
 
         for folder, key_value in zip(folders, keys):
 
             if len(username) == 0 or len(password) == 0:
-                print('username and or password is missing for downloading. If you get this message when processing an '
+                logging.info('username and or password is missing for downloading. If you get this message when processing an '
                       'InSAR stack, be sure you download the SRTM files first to solve this. (download_srtm function in '
                       'stack class)')
 
-            conn = requests.get(server + '/' + folder, auth=(username, password))
+            conn = requests.get(server + '/' + folder)
             if conn.status_code == 200:
-                print(str(int(num / total_no * 100)) + '% finished')
-                print("Indexing tiles " + str(num * 10000) + ' to ' + str((num + 1) * 10000) + ' out of ' + str(total_no * 10000) + ' tiles.')
+                logging.info(str(int(num / total_no * 100)) + '% finished')
+                logging.info("Indexing tiles " + str(num * 10000) + ' to ' + str((num + 1) * 10000) + ' out of ' + str(total_no * 10000) + ' tiles.')
                 num += 1
             else:
-                print("an error occurred during connection")
+                logging.info("an error occurred during connection")
 
             data = conn.text
             parser = ParseHTMLDirectoryListing()
@@ -371,7 +377,61 @@ class SrtmDownload(object):
                     filelist[key_value][str(n)] = dict()
                 filelist[key_value][str(n)][str(e)] = server + '/' + os.path.dirname(folder) + '/' + filename
 
-        with open(os.path.join(srtm_folder, 'filelist'), 'wb') as file_list:
-            pickle.dump(filelist, file_list)
+        logging.info('Saving list of SRTM files at ' + data_file)
+        with open(data_file, 'w', encoding='utf-8') as f:
+            json.dump(filelist, f, ensure_ascii=False, indent=4)
 
         return filelist
+
+
+# Following code is adapted from srtm-1.py > downloaded from
+# https://svn.openstreetmap.org/applications/utils/import/srtm2wayinfo/python/srtm.py
+class ParseHTMLDirectoryListing(html_parser.HTMLParser):
+    def __init__(self):
+        # print "parseHTMLDirectoryListing.__init__"
+        html_parser.HTMLParser.__init__(self)
+        self.title = "Undefined"
+        self.isDirListing = False
+        self.dirList = []
+        self.inTitle = False
+        self.inHyperLink = False
+        self.currAttrs = ""
+        self.currHref = ""
+
+    def handle_starttag(self, tag, attrs):
+        # print "Encountered the beginning of a %s tag" % tag
+        if tag == "title":
+            self.inTitle = True
+        if tag == "a":
+            self.inHyperLink = True
+            self.currAttrs = attrs
+            for attr in attrs:
+                if attr[0] == 'href':
+                    self.currHref = attr[1]
+
+    def handle_endtag(self, tag):
+        # print "Encountered the end of a %s tag" % tag
+        if tag == "title":
+            self.inTitle = False
+        if tag == "a":
+            # This is to avoid us adding the parent directory to the list.
+            if self.currHref != "":
+                self.dirList.append(self.currHref)
+            self.currAttrs = ""
+            self.currHref = ""
+            self.inHyperLink = False
+
+    def handle_data(self, data):
+        if self.inTitle:
+            self.title = data
+            logging.info("title=%s" % data)
+            if "Index of" in self.title:
+                # print "it is an index!!!!"
+                self.isDirListing = True
+        if self.inHyperLink:
+            # We do not include parent directory in listing.
+            if "Parent Directory" in data:
+                self.currHref = ""
+
+    def getDirListing(self):
+        return self.dirList

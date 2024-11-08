@@ -4,6 +4,7 @@ irregular input grids and it is therefore helpfull to provide a seperate functio
 
 '''
 import numpy as np
+import logging
 
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
@@ -14,39 +15,25 @@ class MultilookRegular(object):
     def __init__(self, in_coor, out_coor):
         # Check whether the two coordinate systems are compatible.
 
-        self.coordinate_systems['in_coor'] = in_coor
-        self.coordinate_systems['out_coor'] = out_coor
-        self.check_same_coordinate_system(in_coor, out_coor)
+        self.coordinate_systems = dict()
+        self.coordinate_systems['in_coor'] = in_coor        # type: CoordinateSystem
+        self.coordinate_systems['out_coor'] = out_coor      # type: CoordinateSystem
+        if not in_coor.same_coordinates(out_coor, strict=False):
+            raise TypeError('Not possible to do regular multilooking with different types of coordinate systems. '
+                            'Only location and grid size can be different. Otherwise use irregular multilooking.')
+
         self.multilooked = []
+        self.samples = []
 
         self.lines_in, self.pixels_in = self.pixel_line_spacing(in_coor, out_coor)
         self.coverage = self.multilook_coverage(self.lines_in, self.pixels_in)
         if self.coverage == 0:
-            print('Warning: input and output of multilooking system do not overlap.')
+            logging.info('Warning: input and output of multilooking system do not overlap. Result will consist of only zero '
+                  'values.')
 
     def __call__(self, data_in):
         # Run the actual multilooking script.
-        self.multilooked = self.regular_multilook(data_in, self.lines_in, self.pixels_in)
-
-    @staticmethod
-    def check_same_coordinate_system(in_coor, out_coor):
-        # type: (CoordinateSystem, CoordinateSystem) -> None
-        # This function is to check whether the same coordinate system is used for input and output data.
-
-        if not in_coor.grid_type == out_coor.grid_type:
-            return False
-        if in_coor.grid_type in ['geographic', 'projection']:
-            if in_coor.ellipse_type != out_coor.ellipse_type:
-                return False
-            if in_coor.grid_type == 'projection':
-                if in_coor.proj4_str != out_coor.proj4_str:
-                    return False
-        if in_coor.grid_type == 'radar_coordinates':
-            if in_coor.radar_grid_date != out_coor.radar_grid_date:
-                return False
-
-        # If passed all other tests return True
-        return True
+        self.multilooked, self.samples = self.regular_multilook(data_in, self.lines_in, self.pixels_in)
 
     @staticmethod
     def pixel_line_spacing(in_coor, out_coor):
@@ -94,5 +81,9 @@ class MultilookRegular(object):
         last_pix = pix_id[-1] + 1
 
         values_out = np.add.reduceat(np.add.reduceat(values[:last_lin, :last_pix], lin_id), pix_id, axis=1)
+        number_of_samples_line = np.unique(lin_id, return_counts=True)[1]
+        number_of_samples_pix = np.unique(pix_id, return_counts=True)[1]
 
-        return values_out
+        number_of_samples = number_of_samples_line[:, None] * number_of_samples_pix[None, :]
+
+        return values_out, number_of_samples
