@@ -26,7 +26,7 @@
             "enabled": true
         },
         "KNMI": {
-            "api_key": "2d23943f1384fef799b25270bf32e78d",
+            "api_key": "eyJvcmciOiI1ZTU1NGUxOTI3NGE5NjAwMDEyYTNlYjEiLCJpZCI6ImQwMDdjMDg2OTAwNzQ3YWI5NTg0YjlmOGE4Y2ZlZTk2IiwiaCI6Im11cm11cjEyOCJ9",
             "enabled": true
         }
     },

@@ -662,7 +662,7 @@ class CoordinateSystem():
         elif self.grid_type == 'geographic':
             self.short_id_str = 'geo_' + (self.ellipse_type + '_' + str(int(self.dlon * 3600)) + '_' + str(int(self.dlat * 3600))) + '_' + self.sparse_name + self.mask_name
         elif self.grid_type == 'projection':
-            self.short_id_str = 'proj_' + (self.projection_type + '_' + str(int(self.dy)) + '_' + str(int(self.dx))) + '_' + self.sparse_name + self.mask_name
+            self.short_id_str = 'proj_' + (self.projection_type) + '_' + self.sparse_name + self.mask_name
 
         if self.short_id_str.endswith('_'):
             self.short_id_str = self.short_id_str[:-1]

@@ -27,7 +27,7 @@ polarisation = ['VV']
 # Create the list of the 4 different stacks.
 track_no = 37
 stack_name = 'Benelux_NWP_track_37'
-no_processes = 1
+no_processes = 6
 
 # For every track we have to select a primary date. This is based on the search results earlier.
 # Choose the date with the lowest coverage to create an image with only the overlapping parts.
@@ -35,6 +35,10 @@ reference_date = datetime.datetime(year=2017, month=7, day=24)
 start_date = datetime.datetime(year=2017, month=7, day=16)
 end_date = datetime.datetime(year=2017, month=7, day=28)
 aps_processing = NWP_Processing(processes=no_processes, stack_name=stack_name)
+aps_processing.download_sentinel_data(start_date=start_date, end_date=end_date, track=track_no,                                                                             shapefile=study_area.shape, data=True, source='ASF')
+aps_processing.create_sentinel_stack(start_date=start_date, end_date=end_date, reference_date=reference_date,
+                                    cores=no_processes, track_no=track_no, polarisation=polarisation,
+                                    shapefile=study_area.shape, mode=mode, product_type=product_type)
 
 # Finally load the stack itself. If you want to skip the download step later, run this line before other steps!
 aps_processing.read_stack(start_date=start_date, end_date=end_date)
@@ -58,7 +62,7 @@ aps_processing.create_ml_coordinates(name='mercator_250m', coor_type='projection
 aps_processing.create_dem_coordinates(dem_type=dem_type, buffer=dem_buffer, rounding=dem_rounding,
                                      min_height=min_height, max_height=max_height)
 
-"""                                     
+
 aps_processing.download_external_dem(n_processes=no_processes, dem_type=dem_type)
 
 # Do the resampling and create interferograms
@@ -113,7 +117,6 @@ aps_processing.plot_figures(process_name='unwrap', variable_name='unwrapped',
                            title='Unwrapped interferogram', cbar_title='meter', remove_sea=True,
                            factor=-0.0554657 / (np.pi * 2) / 2,
                            dB_lims=[-18, 10], coh_lims=[0.05, 1])
-"""
 
 # Processing based on NWP model data
 # Create basic geometry for APS calculations.
@@ -126,12 +129,11 @@ aps_processing.create_ml_coordinates(name='mercator_2500m', coor_type='projectio
                                      buffer=dem_buffer, rounding=dem_rounding,
                                      min_height=min_height, max_height=max_height, overwrite=True)
 
-"""
+
 aps_processing.geocode_calc_geometry_multilooked(ml_name='mercator_2500m', dem_type=dem_type, incidence_angle=True,
                                                  azimuth_angle=True)
 aps_processing.geocode_calc_geometry_multilooked(ml_name='mercator_250m', dem_type=dem_type, incidence_angle=True,
                                                  azimuth_angle=True)
-"""
 
 # Download needed data
 from rippl.NWP_model_delay.load_NWP_data.ecmwf.ecmwf_download import CDSdownload
@@ -154,7 +156,6 @@ time_interp = 'nearest'
 # Take only part of dataset
 overpasses = aps_processing.get_overpasses()
 
-"""
 for data_type in data_types:
     print('Downloading ' + data_type)
     download_aps = CDSdownload(overpass_times=overpasses, latlim=latlim, lonlim=lonlim, data_type=data_type, processes=1)
@@ -165,8 +166,7 @@ for data_type in data_types:
 
 # The first step we take is calculate the images for the two dates
 # Then do the APS calculations
-  
-"""
+
 
 for model_name in ['cerra', 'era5']:
     aps_processing.calculate_aps(ml_name_ray_tracing='mercator_2500m', ml_name='mercator_250m', model_name=model_name,

@@ -38,6 +38,8 @@ class AdjustTiming(object):
             lat = self.model_data[time]['latitude']
             lon = self.model_data[time]['longitude']
             az_x, az_y, step_x, step_y = self.calc_steps_and_heading(time, lat, lon)
+            self.model_data[time]['step_x'] = step_x
+            self.model_data[time]['step_y'] = step_y
 
             model_vars = list(self.model_data[time].keys())
             for interp_var, model_var in zip([u_interp, v_interp, t_interp, e_interp, w_interp, i_interp],
@@ -104,6 +106,10 @@ class AdjustTiming(object):
                         self.model_data[time_str]['pressures'] = self.model_data[time]['pressures']
                         self.model_data[time_str]['Specific humidity'] = np.zeros(data.shape)
                         self.model_data[time_str]['Temperature'] = np.zeros(data.shape)
+                        self.model_data[time_str]['latitude'] = lat
+                        self.model_data[time_str]['longitude'] = lon
+                        self.model_data[time_str]['step_x'] = step_x
+                        self.model_data[time_str]['step_y'] = step_y
 
                         # These values are not available in all models
                         if 'Specific cloud liquid water content' in model_vars:
@@ -137,7 +143,7 @@ class AdjustTiming(object):
         dlat_x = np.zeros(coor_shape)
         dlon_x = np.zeros(coor_shape)
         for coor_dat, in_dat in zip([dlat_x, dlon_x], [lat, lon]):
-            coor_dat[:, 1:] = np.diff(in_dat, axis=0)
+            coor_dat[:, 1:] = np.diff(in_dat, axis=1)
             coor_dat[:, 0] = coor_dat[:, 1]
 
         dlat_y = np.zeros(coor_shape)
@@ -147,10 +153,17 @@ class AdjustTiming(object):
             coor_dat[0, :] = coor_dat[1, :]
 
         shp = [lat.size, 1]
-        [step_x, az_x, az_x2] = Geodesic.inverse(np.concatenate((lat.reshape(shp), lon.reshape(shp)), axis=1),
-                                                 np.concatenate(((lat + dlat_x).reshape(shp), (lon + dlon_x).reshape(shp)), axis=1))
-        [step_y, az_y, az_y2] = Geodesic.inverse(np.concatenate((lat.reshape(shp), lon.reshape(shp)), axis=1),
-                                                 np.concatenate(((lat + dlat_y).reshape(shp), (lon + dlon_y).reshape(shp)), axis=1))
+        lat_lon_coor = np.concatenate((lon.reshape(shp), lat.reshape(shp)), axis=1)
+        dx_coor = np.concatenate(((lon + dlon_x).reshape(shp), (lat + dlat_x).reshape(shp)), axis=1)
+        dy_coor = np.concatenate(((lon + dlon_y).reshape(shp), (lat + dlat_y).reshape(shp)), axis=1)
+
+        geodetic_calc = Geodesic()
+        x_vals = geodetic_calc.inverse(lat_lon_coor, dx_coor)
+        step_x = x_vals[:, 0]
+        az_x = x_vals[:, 1]
+        y_vals = geodetic_calc.inverse(lat_lon_coor, dy_coor)
+        step_y = y_vals[:, 0]
+        az_y = y_vals[:, 1]
 
         return az_x, az_y, step_x, step_y
 

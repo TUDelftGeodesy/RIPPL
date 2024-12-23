@@ -35,12 +35,12 @@ class HarmonieDownload():
 
         # Define the dataset names
         if dataset == 'all_layers':
-            self.dataset_name = 'harmonie_arome_cy40_p5'
-            self.dataset_version = '0.2'
+            self.dataset_name = 'harmonie_arome_cy43_p5'
+            self.dataset_version = '1.0'
 
         # Get available datasets
         self.knmi_downloader = OpenDataAPI(api_token=self.api_key)
-        self.available_files = self.knmi_downloader.list_files(self.dataset_name, self.dataset_version)
+        self.available_files = self.knmi_downloader.list_files(self.dataset_name, self.dataset_version, params={'maxKeys': 1000})
 
     def download_data_file(self, download_folder):
         # Download the KNMI data file

@@ -47,26 +47,27 @@ class ModelToDelay(object):
 
         for time in self.times:
             # Load geoid information for these coordinates if needed
-            if 'geoid' not in self.delay_data[time]:
-                lats = self.model_data[time]['latitude']
-                lons = self.model_data[time]['longitude']
-                settings = UserSettings()
-                egm_96_file = os.path.join(settings.settings['paths']['DEM_database'], 'geoid', 'egm96.dat')
-                egm_96 = GeoidInterp.create_geoid(egm_96_file=egm_96_file, lat=lats, lon=lons)
-                self.delay_data[time]['geoid'] = np.transpose(egm_96)
+            lats = self.model_data[time]['latitude']
+            lons = self.model_data[time]['longitude']
+            settings = UserSettings()
+            egm_96_file = os.path.join(settings.settings['paths']['DEM_database'], 'geoid', 'egm96.dat')
+            egm_96 = GeoidInterp.create_geoid(egm_96_file=egm_96_file, lat=lats, lon=lons)
+            self.delay_data[time] = dict()
+            self.delay_data[time]['geoid'] = np.transpose(egm_96)
 
             # Load projection information
             self.delay_data[time]['projection'] = self.model_data[time]['projection']
             self.delay_data[time]['x'] = self.model_data[time]['x']
             self.delay_data[time]['y'] = self.model_data[time]['y']
+            if 'step_x' in self.model_data[time].keys() and 'step_y' in self.model_data[time].keys():
+                self.delay_data[time]['step_x'] = self.model_data[time]['step_x']
+                self.delay_data[time]['step_y'] = self.model_data[time]['step_y']
             self.delay_data[time]['latitude'] = self.model_data[time]['latitude']
             self.delay_data[time]['longitude'] = self.model_data[time]['longitude']
 
             # Preassign the heights and delays
             levels = self.model_data[time]['levels']
             tot_size = (levels, self.model_data[time]['latitude'].shape[0], self.model_data[time]['longitude'].shape[1])
-            if time not in self.delay_data.keys():
-                self.delay_data[time] = dict()
             self.delay_data[time]['heights'] = np.zeros(shape=self.model_data[time]['pressures'].shape)
             self.delay_data[time]['wet_delay'] = np.zeros(shape=tot_size)
             self.delay_data[time]['liquid_delay'] = np.zeros(shape=tot_size)

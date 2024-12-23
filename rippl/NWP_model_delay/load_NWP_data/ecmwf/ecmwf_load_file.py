@@ -91,8 +91,8 @@ class CDSData(object):
         if 'cerra' in atmosphere_filename:
             proj_str = '+proj=lcc +lat_0=50 +lat_1=50 +lat_2=50 +lon_0=8 +R=6371229'
             self.model_data[time_str]['projection'] = pyproj.CRS.from_proj4(proj_str)
-            self.model_data[time_str]['x'] = (np.arange(-534, 534) * 5500)[None, :] * np.ones([1069, 1])
-            self.model_data[time_str]['y'] = (np.arange(-534, 534) * 5500)[:, None] * np.ones([1, 1069])
+            self.model_data[time_str]['x'] = (np.arange(-534, 535) * 5500)[None, :] * np.ones([1069, 1])
+            self.model_data[time_str]['y'] = (np.arange(-534, 535) * 5500)[:, None] * np.ones([1, 1069])
             self.model_data[time_str]['latitude'] = atmosphere['latitude'].values
             self.model_data[time_str]['longitude'] = atmosphere['longitude'].values
             self.model_data[time_str]['longitude'][self.model_data[time_str]['longitude'] > 180] -= 360

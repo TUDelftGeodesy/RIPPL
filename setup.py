@@ -9,29 +9,17 @@ with open("rippl/version.py") as file:
 with open("requirements.txt") as fp:
     install_requires = fp.read()
 
-tests_require=[   # packages for unittest
-    'pytest',
-]
-docs_require=[ # packages for doc
-    'sphinx',
-]
-
 setup(
     name="RIPPL",
     version=version_info["__version__"],
     author="Gert Mulder",
     author_email="g.mulder-1@tudelft.nl",
-    url="https://bitbucket.org/grsradartudelft/rippl/",
+    url="https://github.com/TUDelftGeodesy/RIPPL",
     packages=find_packages(),
     license="GNU LGPLv3",
     description="[R]adar [I]nterferometric [P]arallel [P]rocessing [L]ab",
     setup_requires=["numpy"],
     install_requires=install_requires,
-    tests_require=tests_require,
-    extras_require={
-        'test': tests_require,
-        'doc': docs_require
-    },
     classifiers=[
         "Development Status :: 4 - Beta",
         "License :: OSI Approved :: GNU LGPLv3",

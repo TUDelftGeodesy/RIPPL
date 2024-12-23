@@ -9,9 +9,9 @@ class ModelInterpolateDelays(object):
 
         self.split_signal = split
         if self.split_signal:
-            self.run_data = ['total', 'hydrostatic', 'wet', 'liquid']
+            self.run_data = ['total_delay', 'hydrostatic_delay', 'wet_delay', 'liquid_delay']
         else:
-            self.run_data = ['total']
+            self.run_data = ['total_delay']
 
         # Initialize database
         self.splines = dict()
@@ -34,7 +34,7 @@ class ModelInterpolateDelays(object):
 
         # The delays at certain time steps
         self.interp_time = []
-        self.interp_delays = {'total': {}, 'wet': {}, 'liquid': {}, 'hydrostatic': {}}
+        self.interp_delays = {'total_delay': {}, 'wet_delay': {}, 'liquid_delay': {}, 'hydrostatic_delay': {}}
 
         # Interpolation grid
         self.out_line_array = []
@@ -62,7 +62,7 @@ class ModelInterpolateDelays(object):
         # Interpolation is done by a 2d linear interpolation after selection based on heights.
 
         # logging.info('Start interpolation from coarse to specific points in radar grid')
-        times = list(self.splines['total'].keys())
+        times = list(self.splines['total_delay'].keys())
 
         # Finially calculate the splines of the corresponding rays.
         # Save for all types or just the total delays

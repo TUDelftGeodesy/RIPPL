@@ -20,7 +20,7 @@ from typing import Optional
 
 import numpy as np
 import requests
-from six.moves import html_parser
+from html.parser import HTMLParser
 from multiprocessing import get_context
 import logging
 
@@ -253,7 +253,7 @@ class SrtmDownload:
                 else:
                     lonstr = 'E' + str(lon).zfill(3)
 
-                # Check if file exists in srtm_tiles_list.pkl
+                # Check if file exists in srtm_tiles_list.json
                 if str(lat) not in filelist[srtm_type]:
                     continue
                 elif str(lon) not in filelist[srtm_type][str(lat)]:
@@ -386,10 +386,10 @@ class SrtmDownload:
 
 # Following code is adapted from srtm-1.py > downloaded from
 # https://svn.openstreetmap.org/applications/utils/import/srtm2wayinfo/python/srtm.py
-class ParseHTMLDirectoryListing(html_parser.HTMLParser):
+class ParseHTMLDirectoryListing(HTMLParser):
     def __init__(self):
         # print "parseHTMLDirectoryListing.__init__"
-        html_parser.HTMLParser.__init__(self)
+        HTMLParser.__init__(self)
         self.title = "Undefined"
         self.isDirListing = False
         self.dirList = []

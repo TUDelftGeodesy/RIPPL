@@ -2,8 +2,7 @@
 import os
 import inspect
 import base64
-from six.moves import urllib
-import ftplib
+import urllib
 import subprocess
 from http.cookiejar import CookieJar
 import logging

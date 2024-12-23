@@ -11,8 +11,6 @@ from rippl.NWP_model_delay.ray_tracing_NWP_data.model_to_delay import ModelToDel
 class HarmonieData(object):
 
     def __init__(self):
-        # Load pygrib
-
         # Initialize the model data
         self.model_data = dict()
         self.filenames = []
