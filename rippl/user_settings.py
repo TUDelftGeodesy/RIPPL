@@ -32,7 +32,6 @@ class UserSettings(object):
             self.settings['accounts']['EarthData'] = {'username': None, 'password': None}
             self.settings['accounts']['DLR'] = {'username': None, 'password': None}
             self.settings['accounts']['CDS'] = {'api_key': None, 'enabled': False}
-            self.settings['accounts']['KNMI'] = {'api_key': None, 'enabled': False}
 
             # Paths
             self.settings['paths'] = {}
@@ -153,33 +152,6 @@ class UserSettings(object):
             return False
         # Set enabled
         self.settings['accounts']['CDS']['enabled'] = True
-
-    def add_knmi_settings(self, api_key):
-        """
-        Load the used API key for downloading Harmoniet data.
-
-        You can create an account via
-        https://developer.dataplatform.knmi.nl/register/
-
-        """
-
-        # Try to connect to KNMI database
-        try:
-            knmi_downloader = OpenDataAPI(api_token=api_key)
-            # Use the standard dataset name we use for the Harmonie data
-            dataset_name = 'harmonie_arome_cy40_p1'
-            dataset_version = '0.2'
-            params = {"maxKeys": 100, "orderBy": "created", "sorting": "desc"}
-            available_files = knmi_downloader.list_files(dataset_name, dataset_version, params)
-        except:
-            logging.warning('Download of KNMI data not succeeded, try again with another API key.')
-            return False
-
-        # Save on succes
-        self.settings['accounts']['KNMI']['api_key'] = api_key
-        # Set enabled
-        self.settings['accounts']['KNMI']['enabled'] = True
-        return True
 
     def define_sensor_names(self, dem_path_names='', sar_path_names='', nwp_model_path_names=''):
         """

@@ -6,7 +6,6 @@ from joblib import Parallel, delayed
 import numpy as np
 
 from rippl.NWP_model_delay.load_NWP_data.ecmwf.ecmwf_api_request import CDSRequest
-from rippl.NWP_model_delay.load_NWP_data.harmonie_nl.harmonie_download import HarmonieDownload
 from rippl.NWP_model_delay.load_NWP_data.ecmwf.ecmwf_database import ECMWFDatabase
 from rippl.user_settings import UserSettings
 
@@ -148,10 +147,10 @@ class CDSdownload:
         """
 
         if self.fc_step:
-            data_time = HarmonieDownload.find_closest_dataset(overpass_time, interval_hours=self.fc_step)
+            data_time = CDSdownload.find_closest_dataset(overpass_time, interval_hours=self.fc_step)
             interval = self.fc_step
         else:
-            data_time = HarmonieDownload.find_closest_dataset(overpass_time, interval_hours=self.an_step)
+            data_time = CDSdownload.find_closest_dataset(overpass_time, interval_hours=self.an_step)
             interval = self.an_step
 
         filename = self.database(data_time, ecmwf_type=self.type_folder, interval_hours=interval)
@@ -165,11 +164,11 @@ class CDSdownload:
         # Find the closest hour to the overpass time (They should all be the same)
         for overpass_time in self.overpass_times:
 
-            before = HarmonieDownload.find_closest_dataset(overpass_time, interval_hours=self.an_step, date_type='before')
-            after = HarmonieDownload.find_closest_dataset(overpass_time, interval_hours=self.an_step, date_type='after')
+            before = CDSdownload.find_closest_dataset(overpass_time, interval_hours=self.an_step, date_type='before')
+            after = CDSdownload.find_closest_dataset(overpass_time, interval_hours=self.an_step, date_type='after')
             if self.fc_step:
-                before_fc = HarmonieDownload.find_closest_dataset(overpass_time, interval_hours=self.fc_step, date_type='before')
-                after_fc = HarmonieDownload.find_closest_dataset(overpass_time, interval_hours=self.fc_step, date_type='after')
+                before_fc = CDSdownload.find_closest_dataset(overpass_time, interval_hours=self.fc_step, date_type='before')
+                after_fc = CDSdownload.find_closest_dataset(overpass_time, interval_hours=self.fc_step, date_type='after')
                 after = before # Use the same analysis time for both
                 interval = self.fc_step
             else:
@@ -257,3 +256,41 @@ class CDSdownload:
         else:
             for request in self.requests.values():
                 mars_request(request)
+
+    @staticmethod
+    def find_closest_dataset(overpass_time: datetime.datetime, interval_hours=1, interval_minutes=0, date_type='closest'):
+        """
+        Find the closest dataset time assuming an interval of a fixed number of hours.
+
+        """
+
+        minute_steps = interval_minutes + interval_hours * 60
+        hour_opts = np.floor(np.arange(0, 24 * 60, minute_steps) / 60).astype(np.int32)
+        minute_opts = np.remainder(np.arange(0, 24 * 60, minute_steps), 60)
+
+        # Get the day before and after
+        yesterday = (overpass_time - datetime.timedelta(days=1)).date()
+        today = overpass_time.date()
+        tomorrow = (overpass_time + datetime.timedelta(days=1)).date()
+
+        time_opts = []
+        for day in [yesterday, today, tomorrow]:
+            for hour, minute in zip(hour_opts, minute_opts):
+                time_opts.append(datetime.datetime.combine(day, datetime.time(hour=hour, minute=minute)))
+
+        if date_type == 'before':
+            seconds_diff = np.array(time_opts) - overpass_time
+            seconds_diff[seconds_diff > datetime.timedelta(seconds=0)] = datetime.timedelta(9999999)
+        elif date_type == 'after':
+            seconds_diff = np.array(time_opts) - overpass_time
+            seconds_diff[seconds_diff < datetime.timedelta(seconds=0)] = datetime.timedelta(9999999)
+        elif date_type == 'closest':
+            seconds_diff = np.abs(np.array(time_opts) - overpass_time)
+            pass
+        else:
+            raise TypeError('Only the options before/after/closest are possible!')
+
+        min_id = np.argmin(np.abs(seconds_diff))
+        nwp_datetime = np.array(time_opts)[min_id]
+
+        return nwp_datetime

@@ -31,7 +31,7 @@
         }
     },
     "paths": {
-        "rippl": "/home/gert/Software/rippl_main",
+        "rippl": "/home/gert/Software/RIPPL",
         "radar_database": "/mnt/external/rippl_tutorial_test/radar_database",
         "radar_data_stacks": "/mnt/external/rippl_tutorial_test/radar_data_stacks",
         "DEM_database": "/mnt/external/rippl_tutorial_test/DEM_database",

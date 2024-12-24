@@ -10,7 +10,7 @@ import xarray as xr
 from shapely.geometry import Polygon
 
 from rippl.user_settings import UserSettings
-from rippl.NWP_model_delay.load_NWP_data.harmonie_nl.harmonie_download import HarmonieDownload
+from rippl.NWP_model_delay.load_NWP_data.ecmwf.ecmwf_download import CDSdownload
 
 class ECMWFDatabase():
 
@@ -86,7 +86,7 @@ class ECMWFDatabase():
             contains = np.ones(self.ecmwf_types.shape).astype(np.bool_)
 
         # Find closest datetime with overpass time
-        output_date = HarmonieDownload.find_closest_dataset(overpass_time, interval_hours=interval_hours, date_type='closest')
+        output_date = CDSdownload.find_closest_dataset(overpass_time, interval_hours=interval_hours, date_type='closest')
 
         if output_date in self.ecmwf_forecast_time:
             atmosphere = self.ecmwf_files[(self.ecmwf_forecast_time == output_date) *

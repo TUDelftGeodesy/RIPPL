@@ -8,7 +8,7 @@ import numpy as np
 import logging
 
 from rippl.user_settings import UserSettings
-from rippl.NWP_model_delay.load_NWP_data.harmonie_nl.harmonie_download import HarmonieDownload
+from rippl.NWP_model_delay.load_NWP_data.ecmwf.ecmwf_download import CDSdownload
 
 class HarmonieDatabase():
 
@@ -20,7 +20,7 @@ class HarmonieDatabase():
                                            user_settings.settings['path_names']['NWP']['Harmonie-Arome'])
 
         # Possible harmonie cycles
-        harmonie_versions = ['h38', 'h40']
+        harmonie_versions = ['h38', 'h40', 'h43']
 
         # Init the database for different Harmonie versions.
         self.version_folders = [os.path.join(database_folder, version) for version in harmonie_versions]
@@ -65,13 +65,13 @@ class HarmonieDatabase():
 
         if h_type == 'all':
             type_list = range(len(self.harmonie_forecast_times))
-        elif h_type in ['h38', 'h40']:
+        elif h_type in ['h38', 'h40', 'h43']:
             type_list = np.where(self.harmonie_types == h_type)[0]
         else:
             return
 
         # Find closest datetime with overpass time
-        output_date = HarmonieDownload.find_closest_dataset(overpass_time, interval_hours=interval_hours)
+        output_date = CDSdownload.find_closest_dataset(overpass_time, interval_hours=interval_hours)
 
         if output_date in self.harmonie_forecast_times:
             n = np.where(self.harmonie_forecast_times == output_date)[0]
