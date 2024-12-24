@@ -62,8 +62,7 @@ earthquake_date = datetime.datetime(year=2018, month=5, day=4, hour=22)
 time_window = datetime.timedelta(days=12)
 
 find_track = DownloadSentinel(date=earthquake_date, time_window=time_window,
-                              shape=study_area.shape, sensor_mode=mode,
-                              polarisation=polarisation)
+                              shape=study_area.shape, sensor_mode=mode)
 
 find_track.sentinel_search_ASF()
 find_track.summarize_search_results(plot_cartopy=True, buffer=2)
@@ -92,7 +91,7 @@ reference_date = datetime.datetime(year=2018, month=5, day=5)
 no_processes = 6
 s1_processing = InSAR_Processing(processes=no_processes, stack_name=stack_name)
 s1_processing.download_sentinel_data(start_date=start_date, end_date=end_date, track=track_no,
-                                     polarisation=polarisation, shapefile=study_area.shape, data=True, source='ASF')
+                                     shapefile=study_area.shape, data=True, source='ASF')
 s1_processing.create_sentinel_stack(start_date=start_date, end_date=end_date, reference_date=reference_date,
                                     cores=no_processes, track_no=track_no, polarisation=polarisation,
                                     shapefile=study_area.shape, mode=mode, product_type=product_type)
@@ -247,10 +246,10 @@ s1_processing.unwrap(polarisation, ml_name='mercator_200m')
 s1_processing.create_output_geotiffs('unwrap', ml_name='mercator_200m')
 
 """
-
+Finally, we can create images of the results, which do not need GIS software and can be used in reports or articles.
 """
 
-# Create some images of the ifg / no looks / incidence angles / unwrapped image / coherence / cal
+# Create images of the ifg / no looks / incidence angles / unwrapped image / coherence / cal
 # amplitude
 
 # Create images using cartopy
@@ -282,5 +281,5 @@ s1_processing.plot_figures(process_name='unwrap', variable_name='unwrapped',
                            dB_lims=[-18, 10], coh_lims=[0.05, 1])
 
 """
-This finishes the tutorial! In QGIS you can visualize the results of your processing.
+This finishes the tutorial! You can visualize the results of your processing in a GIS program or using the created plots.
 """

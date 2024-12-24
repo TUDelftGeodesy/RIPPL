@@ -307,4 +307,4 @@ for data_type, name_type in zip(['', '_ifg'], ['delay', 'interferogram']):
     for delay_type in ['_aps', '_wet_delay']:
         aps_processing.plot_figures(process_name='harmonie_nwp_' + name_type, variable_name= 'harmonie' + data_type + delay_type,
                                    margins=0.1, ml_name='mercator_250m', cmap='jet',
-                                   title='NWP ' + name_type + ' ' + 'harmonie', cbar_title='meters', remove_sea=True)
+                                   title='NWP ' + name_type + ' ' + 'harmonie', cbar_title='meter', remove_sea=True)
