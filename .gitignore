@@ -45,7 +45,7 @@ ipython_config.py
 \.idea/
 
 # user settings for downloading.
-user_settings.txt
+rippl/user_settings.json
 
 # vscode
 \.vscode/
