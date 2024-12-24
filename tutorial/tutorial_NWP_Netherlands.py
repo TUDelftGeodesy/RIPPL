@@ -161,7 +161,7 @@ aps_processing.plot_figures(process_name='interferogram', variable_name='interfe
 aps_processing.plot_figures(process_name='unwrap', variable_name='unwrapped', overwrite=True,
                            margins=0.1, ml_name='mercator_250m', cmap='jet',
                            title='Unwrapped interferogram', cbar_title='meter', remove_sea=True,
-                           factor=-0.0554657 / (np.pi * 2) / 2,
+                           factor=0.0554657 / (np.pi * 2) / 2,
                            dB_lims=[-18, 10], coh_lims=[0.05, 1])
 
 """
@@ -179,7 +179,6 @@ dx = 2500
 aps_processing.create_ml_coordinates(name='mercator_2500m', coor_type='projection', oblique_mercator=True, dx=dx, dy=dy, 
                                      buffer=dem_buffer, rounding=dem_rounding,
                                      min_height=min_height, max_height=max_height, overwrite=True)
-
 
 aps_processing.geocode_calc_geometry_multilooked(ml_name='mercator_2500m', dem_type=dem_type, incidence_angle=True,
                                                  azimuth_angle=True)
@@ -255,7 +254,7 @@ aps_processing.create_output_geotiffs('era5_nwp_interferogram', ml_name='mercato
 for model_name in ['era5', 'cerra']:
     for data_type, name_type in zip(['', '_ifg'], ['delay', 'interferogram']):
         for delay_type in ['_aps', '_wet_delay']:
-            aps_processing.plot_figures(process_name= model_name + '_nwp_' + name_type, variable_name= model_name + data_type + delay_type,
+            aps_processing.plot_figures(process_name=model_name + '_nwp_' + name_type, variable_name= model_name + data_type + delay_type,
                                        margins=0.1, ml_name='mercator_250m', cmap='jet', overwrite=True,
                                        title='NWP ' + name_type + ' ' + model_name, cbar_title='meter', remove_sea=True)
 
@@ -291,6 +290,7 @@ Using ray-tracing also the expected InSAR delays from weather model data for the
 
 # The first step we take is calculate the images for the two dates
 # Then do the APS calculations
+# There will be a some warnings, but these have (almost) no effect on the final results.
 aps_processing.calculate_aps(ml_name_ray_tracing='mercator_2500m', ml_name='mercator_250m', model_name='harmonie',
                              model_level_type='model_levels', time_correction=False, geometry_correction=True,
                              spline_type='linear')
@@ -305,6 +305,6 @@ aps_processing.create_output_geotiffs('harmonie_nwp_interferogram', ml_name='mer
 # Create images and geotiffs for ECMWF data
 for data_type, name_type in zip(['', '_ifg'], ['delay', 'interferogram']):
     for delay_type in ['_aps', '_wet_delay']:
-        aps_processing.plot_figures(process_name='nwp_' + name_type, variable_name= 'harmonie' + data_type + delay_type,
+        aps_processing.plot_figures(process_name='harmonie_nwp_' + name_type, variable_name= 'harmonie' + data_type + delay_type,
                                    margins=0.1, ml_name='mercator_250m', cmap='jet',
-                                   title='NWP ' + name_type + ' ' + 'harmonie', cbar_title='radians', remove_sea=True)
+                                   title='NWP ' + name_type + ' ' + 'harmonie', cbar_title='meters', remove_sea=True)

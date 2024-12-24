@@ -10,7 +10,6 @@ import xarray as xr
 from shapely.geometry import Polygon
 
 from rippl.user_settings import UserSettings
-from rippl.NWP_model_delay.load_NWP_data.ecmwf.ecmwf_download import CDSdownload
 
 class ECMWFDatabase():
 
@@ -86,7 +85,7 @@ class ECMWFDatabase():
             contains = np.ones(self.ecmwf_types.shape).astype(np.bool_)
 
         # Find closest datetime with overpass time
-        output_date = CDSdownload.find_closest_dataset(overpass_time, interval_hours=interval_hours, date_type='closest')
+        output_date = ECMWFDatabase.find_closest_dataset(overpass_time, interval_hours=interval_hours, date_type='closest')
 
         if output_date in self.ecmwf_forecast_time:
             atmosphere = self.ecmwf_files[(self.ecmwf_forecast_time == output_date) *
@@ -189,3 +188,41 @@ class ECMWFDatabase():
 
                 # Save data as netcdf file
                 new_data.to_netcdf(new_file_name)
+
+    @staticmethod
+    def find_closest_dataset(overpass_time: datetime.datetime, interval_hours=0, interval_minutes=0, date_type='closest'):
+        """
+        Find the closest dataset time assuming an interval of a fixed number of hours.
+
+        """
+
+        minute_steps = interval_minutes + interval_hours * 60
+        hour_opts = np.floor(np.arange(0, 24 * 60, minute_steps) / 60).astype(np.int32)
+        minute_opts = np.remainder(np.arange(0, 24 * 60, minute_steps), 60)
+
+        # Get the day before and after
+        yesterday = (overpass_time - datetime.timedelta(days=1)).date()
+        today = overpass_time.date()
+        tomorrow = (overpass_time + datetime.timedelta(days=1)).date()
+
+        time_opts = []
+        for day in [yesterday, today, tomorrow]:
+            for hour, minute in zip(hour_opts, minute_opts):
+                time_opts.append(datetime.datetime.combine(day, datetime.time(hour=hour, minute=minute)))
+
+        if date_type == 'before':
+            seconds_diff = np.array(time_opts) - overpass_time
+            seconds_diff[seconds_diff > datetime.timedelta(seconds=0)] = datetime.timedelta(9999999)
+        elif date_type == 'after':
+            seconds_diff = np.array(time_opts) - overpass_time
+            seconds_diff[seconds_diff < datetime.timedelta(seconds=0)] = datetime.timedelta(9999999)
+        elif date_type == 'closest':
+            seconds_diff = np.abs(np.array(time_opts) - overpass_time)
+            pass
+        else:
+            raise TypeError('Only the options before/after/closest are possible!')
+
+        min_id = np.argmin(np.abs(seconds_diff))
+        nwp_datetime = np.array(time_opts)[min_id]
+
+        return nwp_datetime

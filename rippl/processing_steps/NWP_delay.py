@@ -244,15 +244,15 @@ class NWPDelay(Process):  # Change this name to the one of your processing step.
 
     def load_harmonie_data(self, overpass):
         """ Load the Harmonie data if needed """
-        harmonie_archive = HarmonieDatabase(database_folder=os.path.join(self.settings['nwp_model_database'], 'harmonie_data'))
-        filename, date = harmonie_archive(overpass)
+        harmonie_archive = HarmonieDatabase()
+        filename, fc_time = harmonie_archive(overpass)
 
         # Load the Harmonie data if available
-        if filename[0]:
+        if filename:
             data = HarmonieData()
-            data.load_harmonie(date[0], filename[0])
+            data.load_harmonie(fc_time, filename)
         else:
-            logging.info('No harmonie_nl data available for ' + date[0].strftime('%Y-%m-%dT%H:%M:%S.%f'))
+            logging.info('No harmonie_nl data available for ' + overpass.strftime('%Y-%m-%dT%H:%M:%S.%f'))
             return True
 
         return data
@@ -273,11 +273,9 @@ class NWPDelay(Process):  # Change this name to the one of your processing step.
             else:
                 data_type = 'reanalysis-cerra-pressure-levels'
 
-        download_folder = os.path.join(self.settings['nwp_model_database'], 'ecmwf')
-
         # Check which file is needed for download.
         down = CDSdownload([], latlim=self.settings['latlim'], lonlim=self.settings['lonlim'],
-                           ecmwf_data_folder=download_folder, data_type=data_type)
+                           data_type=data_type)
         filename = down.check_overpass_available(overpass)
 
         # Load the ecmwf data if available

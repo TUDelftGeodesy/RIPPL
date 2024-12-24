@@ -1,5 +1,6 @@
 # This is the main script to calculate delays
 import copy
+import logging
 
 import numpy as np
 import pyproj
@@ -111,12 +112,14 @@ class ModelRayTracing(object):
                 self.slice_x, self.slice_y = transformer.transform(slice_lat, slice_lon, radians=True)
                 model_y = self.delay_data[time]['y'][:, 0]
                 model_x = self.delay_data[time]['x'][0, :]
+                unit = ' meters '
             elif self.delay_data[time]['projection'].is_geographic:
                 self.slice_x = np.rad2deg(slice_lon)
                 self.slice_y = np.rad2deg(slice_lat)
 
                 model_y = self.delay_data[time]['latitude'][:, 0]
                 model_x = self.delay_data[time]['longitude'][0, :]
+                unit = ' degrees '
             else:
                 raise ValueError('No projection defined')
 
@@ -136,14 +139,36 @@ class ModelRayTracing(object):
             min_x = np.min(self.slice_x)
             max_x = np.max(self.slice_x)
 
+            # Check if the slice does not extend to far
+            if min_y < np.min(model_y):
+                logging.warning('The southward extend of the model is '+ str(np.min(model_y) - min_y) + unit +
+                                'to small. Proceeding by using the minimal value available in the model')
+                self.slice_y[self.slice_y < np.min(model_y)] = np.min(model_y)
+                min_y = np.min(self.slice_y)
+            if max_y > np.max(model_y):
+                logging.warning('The northward extend of the model is ' + str(max_y - np.max(model_y)) + unit +
+                                'to small. Proceeding by using the minimal value available in the model')
+                self.slice_y[self.slice_y > np.max(model_y)] = np.max(model_y)
+                max_y = np.max(self.slice_y)
+            if min_x < np.min(model_x):
+                logging.warning('The westward extend of the model is' + str(np.min(model_x) - min_x) + unit +
+                                'to small. Proceeding by using the minimal value available in the model')
+                self.slice_x[self.slice_x < np.min(model_x)] = np.min(model_x)
+                min_x = np.min(self.slice_x)
+            if max_x > np.max(model_x):
+                logging.warning('The eastward extend of the model is ' + str(max_x - np.max(model_x)) + unit +
+                                'to small. Proceeding by using the minimal value available in the model')
+                self.slice_x[self.slice_x > np.max(model_x)] = np.max(model_x)
+                max_x = np.max(self.slice_x)
+
             if model_y[-1] < model_y[0]:
                 flip_data = True
-                y0 = np.max(np.argwhere(model_y > max_y))
-                y1 = np.min(np.argwhere(model_y < min_y)) + 1
+                y0 = np.max(np.argwhere(model_y >= max_y))
+                y1 = np.min(np.argwhere(model_y <= min_y)) + 1
             else:
                 flip_data = False
-                y0 = np.max(np.argwhere(model_y < min_y))
-                y1 = np.min(np.argwhere(model_y > max_y)) + 1
+                y0 = np.max(np.argwhere(model_y <= min_y))
+                y1 = np.min(np.argwhere(model_y >= max_y)) + 1
             x0 = np.max(np.argwhere(model_x < min_x))
             x1 = np.min(np.argwhere(model_x > max_x)) + 1
 

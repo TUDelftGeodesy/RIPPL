@@ -155,10 +155,15 @@ class CDSData(object):
             # Now load a and b values to calculate pressure levels and heights.
             coefficients = np.array(atmosphere.t.attrs['GRIB_pv'])
             levels = int(len(coefficients) / 2 - 1)
-            a = coefficients[:levels + 1]
-            b = coefficients[levels + 1:]
+            a = np.flip(coefficients[:levels + 1])
+            b = np.flip(coefficients[levels + 1:])
             self.model_data[time_str]['levels'] = levels
             self.model_data[time_str]['pressures'] = geo_p * b[:, None, None] + a[:, None, None]
+
+            # Finally flip all layers upside down to start from the ground layer. (Not sure whether the model levels
+            # are always called hybrid levels)
+            for dat_type in dat_types:
+                self.model_data[time_str][dat_type] = self.model_data[time_str][dat_type].isel(hybrid=slice(None, None, -1))
 
         # Convert relative to specific humidity
         if 'r' in var_names and 'q' not in var_names:
