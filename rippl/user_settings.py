@@ -12,7 +12,6 @@ import requests
 ssl._create_default_https_context = ssl._create_unverified_context
 
 import rippl
-from rippl.NWP_model_delay.load_NWP_data.harmonie_nl.harmonie_api_request import OpenDataAPI
 
 
 class UserSettings(object):

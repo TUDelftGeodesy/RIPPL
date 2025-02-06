@@ -391,14 +391,14 @@ class InSAR_Processing(SentinelStack, Stack):
     def plot_figures(self, process_name=[], variable_name=[], ml_name='', polarisation='', slices=False, ifg=True, slc=True,
                      overwrite=False, margins=0.1, quantiles=[0.001, 0.999], remove_sea=False, remove_land=False,
                      cmap='jet_r', title='', cbar_title='', factor=1,
-                     dB_lims=[0, 0], coh_lims=[0, 0], linear_transparency=False):
+                     dB_lims=[0, 0], coh_lims=[0, 0], plot_mask=False, min_max_mask=True):
         """
         Create plots for the coherences
 
         :return:
         """
 
-        scaling = self.get_transparency(dB_lims, coh_lims, ml_name, linear_transparency)
+        mask = self.get_mask(dB_lims, coh_lims, ml_name)
         datasets = self.stack_data_iterator(processes=[process_name], coordinates=[self.coordinates[ml_name]['full']],
                                             process_types=[variable_name], load_memmap=False, polarisations=[polarisation],
                                             ifg=ifg, slc=slc, slices=slices)[-1]
@@ -407,9 +407,10 @@ class InSAR_Processing(SentinelStack, Stack):
             logging.info('No datasets found for plotting. Aborting..')
 
         for dataset in datasets:
-            if len(scaling) > 0:
+            if len(mask) > 0:
                 plot = PlotData(dataset, data_cmap=cmap, margins=margins, data_quantiles=quantiles,
-                                transparency=scaling, complex_plot='phase', overwrite=overwrite,
+                                mask=mask, plot_mask=plot_mask, min_max_mask=min_max_mask,
+                                complex_plot='phase', overwrite=overwrite,
                                 remove_sea=remove_sea, remove_land=remove_land, factor=factor)
             else:
                 plot = PlotData(dataset, data_cmap=cmap, margins=margins, data_quantiles=quantiles, overwrite=overwrite,
@@ -420,12 +421,12 @@ class InSAR_Processing(SentinelStack, Stack):
                 plot.save_image()
                 plot.close_plot()
 
-    def get_transparency(self, dB_lims=[0, 0], coh_lims=[0, 0], ml_name='', linear_transparency=True):
+    def get_mask(self, dB_lims=[0, 0], coh_lims=[0, 0], ml_name=''):
         """
 
         """
 
-        transparency = []
+        mask = []
 
         for lims, process, variable in zip([dB_lims, coh_lims],
                                            ['calibrated_amplitude', 'coherence'],
@@ -437,20 +438,14 @@ class InSAR_Processing(SentinelStack, Stack):
                 disk_data.load_disk_data()
                 data = disk_data.disk2memory(disk_data.disk['data'], disk_data.dtype_disk)
 
-                if len(transparency) == 0:
-                    transparency = np.ones(data.shape)
+                if len(mask) == 0:
+                    mask = np.ones(data.shape)
 
                 with np.errstate(invalid='ignore'):
-                    if not linear_transparency:
-                        transparency[data < lims[0]] = 0
-                        transparency[data > lims[1]] = 0
-                    else:
-                        transparency[data < lims[0]] = 0
-                        transparency[data > lims[1]] = transparency[data > lims[1]] * 1
-                        in_between = (data < lims[1]) * (data > lims[0])
-                        transparency[in_between] = transparency[in_between] * (data[in_between] - lims[0]) / (lims[1] - lims[0])
+                    mask[data < lims[0]] = 0
+                    mask[data > lims[1]] = 0
 
-        return transparency
+        return mask
 
     def create_output_geotiffs(self, process_name=[], variable_name=[], ml_name=[], tiff_folder='', polarisation='',
                             slices=False, ifg=True, slc=True):

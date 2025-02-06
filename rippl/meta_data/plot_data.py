@@ -32,16 +32,14 @@ from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 
 class PlotData(object):
 
-    def __init__(self, data_in, coordinates=None, transparency=[],
-                 complex_plot='phase', complex_transparency='', transparency_smooth=1,
+    def __init__(self, data_in, coordinates=None, mask=[], complex_plot='phase',
                  data_min_max=[], data_quantiles=[], data_scale='linear', data_cmap='viridis', data_cmap_midpoint=None,
                  lat_in=[], lon_in=[], max_pixels=10000000, margins=0, overwrite=False, dpi=600, font_size=6, factor=1,
-                 remove_sea=False, remove_land=False):
+                 remove_sea=False, remove_land=False, min_max_mask=True, plot_mask=True):
 
         """
         :param ImageData data_in:
         :param complex_plot:
-        :param complex_transparency:
         :param data_quantiles:
         """
 
@@ -56,6 +54,13 @@ class PlotData(object):
         self.overwrite = overwrite
         self.remove_sea = remove_sea
         self.remove_land = remove_land
+        self.mask = mask
+        if len(self.mask) == 0:
+            self.min_max_mask = False
+            self.plot_mask = False
+        else:
+            self.min_max_mask = min_max_mask
+            self.plot_mask = plot_mask
 
         # Information on dataset
         if not isinstance(data_in, ImageData) and not isinstance(data_in, np.ndarray):
@@ -144,11 +149,16 @@ class PlotData(object):
         else:
             self.plot_data = plot_data
 
-        # Adjust scale of plot data
+        # Convert to float64 to allow nan values
         self.plot_data = self.plot_data.astype(dtype=np.float64)
-        self.plot_data[self.plot_data == 0] = np.nan
-        self.plot_data = self.adjust_scale(self.plot_data, self.data_scale)
 
+        # Remove masked values
+        if self.plot_mask:
+            self.plot_data[self.mask == 0] = np.nan
+        self.plot_data[self.plot_data == 0] = np.nan
+
+        # Adjust scale of plot data
+        self.plot_data = self.adjust_scale(self.plot_data, self.data_scale)
         self.plot_data *= self.factor
 
         # Find limits of plot data
@@ -156,9 +166,15 @@ class PlotData(object):
             pass
         else:
             if len(self.data_quantiles) != 2:
-                self.data_quantiles = [0.1, 0.99]
-            self.min_max = [np.nanquantile(self.plot_data, self.data_quantiles[0]),
-                            np.nanquantile(self.plot_data, self.data_quantiles[1])]
+                self.data_quantiles = [0.01, 0.99]
+            min_max_data = copy.deepcopy(self.plot_data)
+
+            # Remove masked values
+            if self.min_max_mask:
+                min_max_data[self.mask == 0] = np.nan
+
+            self.min_max = [np.nanquantile(min_max_data, self.data_quantiles[0]),
+                            np.nanquantile(min_max_data, self.data_quantiles[1])]
 
         # Using the limits create the normalized colorscale.
         if self.data_cmap_midpoint != None:

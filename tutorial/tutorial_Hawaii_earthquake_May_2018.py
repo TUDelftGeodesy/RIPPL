@@ -55,7 +55,7 @@ In this case we use the date of the earthquak itself and a 12-day time window.
 # Track and data type of Sentinel data
 mode = 'IW'
 product_type = 'SLC'
-polarisation = ['VV','VH']
+polarisation = ['VV']
 
 # First we check using a time window
 earthquake_date = datetime.datetime(year=2018, month=5, day=4, hour=22)
@@ -207,13 +207,6 @@ Using the same multilooking grid also a coherence grid is created, which indicat
 # Create interferograms meta data
 s1_processing.create_interferogram_network(max_temporal_baseline=30)
 
-# Resolution of output georeferenced grid
-dy = 100
-dx = 100
-
-# The actual creation of the calibrated amplitude images
-s1_processing.create_ml_coordinates(name='mercator_100m', coor_type='projection', oblique_mercator=True, dx=dx, dy=dy, buffer=dem_buffer, rounding=dem_rounding, min_height=min_height, max_height=max_height, overwrite=True)
-
 # Create interferograms and coherence
 s1_processing.calc_interferogram_coherence(polarisation=polarisation, ml_name='mercator_100m')
 s1_processing.calc_interferogram_coherence(polarisation=polarisation, ml_name='geographic_100m')
@@ -233,17 +226,10 @@ If you want to speed up the unwrapping you could go for larger grid cells.
 # To do unwrapping we use the program Snaphu. For high resolution images this can take a very long time.
 # Therefore, we change the resolution, to create a higher number of looks and more stable
 # interferometric phase signal.
-dy = 200
-dx = 200
 
-# The actual creation of the calibrated amplitude images
-s1_processing.create_ml_coordinates(name='mercator_200m', coor_type='projection', oblique_mercator=True, dx=dx, dy=dy, buffer=dem_buffer, rounding=dem_rounding, min_height=min_height, max_height=max_height, overwrite=True)
-s1_processing.geocode_calc_geometry_multilooked(ml_name='mercator_200m')
-s1_processing.calc_calibrated_amplitude(polarisation=polarisation, ml_name='mercator_200m')
-s1_processing.calc_interferogram_coherence(polarisation=polarisation, ml_name='mercator_200m')
-
-s1_processing.unwrap(polarisation, ml_name='mercator_200m')
-s1_processing.create_output_geotiffs('unwrap', ml_name='mercator_200m')
+# Unwrapping is only done for one coordinate system as it takes more time (approx 60 minutes)
+s1_processing.unwrap(polarisation, ml_name='mercator_100m')
+s1_processing.create_output_geotiffs('unwrap', ml_name='mercator_100m')
 
 """
 Finally, we can create images of the results, which do not need GIS software and can be used in reports or articles.
@@ -253,32 +239,34 @@ Finally, we can create images of the results, which do not need GIS software and
 # amplitude
 
 # Create images using cartopy
-s1_processing.plot_figures(process_name='calibrated_amplitude', variable_name='calibrated_amplitude_db',
-                           margins=-0.25, ml_name='mercator_200m', cmap='Greys_r',
-                           title='Calibrated Amplitude', cbar_title='dB')
-s1_processing.plot_figures(process_name='intensity', variable_name='number_of_samples',
-                           margins=-0.25, ml_name='mercator_200m', cmap='Greys_r',
-                           title='Number of samples', cbar_title='#', quantiles=[0.001, 0.999])
-s1_processing.plot_figures(process_name='dem', variable_name='dem',
-                           margins=-0.25, ml_name='mercator_100m', cmap='terrain',
-                           title='DEM', cbar_title='meters')
-s1_processing.plot_figures(process_name='radar_geometry', variable_name='incidence_angle',
-                           margins=-0.25, ml_name='mercator_100m', cmap='Greys_r',
-                           title='Incidence Angle', cbar_title='degrees')
-s1_processing.plot_figures(process_name='coherence', variable_name='coherence',
-                           margins=-0.25, ml_name='mercator_100m', cmap='Greys_r',
-                           title='Coherence', cbar_title='coherence')
-s1_processing.plot_figures(process_name='interferogram', variable_name='interferogram',
-                           margins=-0.25, ml_name='mercator_100m', cmap='jet',
-                           title='Interferogram', cbar_title='radians', remove_sea=True)
-s1_processing.plot_figures(process_name='interferogram', variable_name='interferogram',
-                           margins=-0.25, ml_name='mercator_100m', cmap='jet',
-                           title='Interferogram', cbar_title='radians', remove_sea=True)
+for ml_name in ['mercator_100m', 'geographic_100m']:
+    s1_processing.plot_figures(process_name='calibrated_amplitude', variable_name='calibrated_amplitude_db',
+                               margins=-0.25, ml_name=ml_name, cmap='Greys_r',
+                               title='Calibrated Amplitude', cbar_title='dB')
+    s1_processing.plot_figures(process_name='intensity', variable_name='number_of_samples',
+                               margins=-0.25, ml_name=ml_name, cmap='Greys_r',
+                               title='Number of samples', cbar_title='#', quantiles=[0.001, 0.999])
+    s1_processing.plot_figures(process_name='dem', variable_name='dem',
+                               margins=-0.25, ml_name=ml_name, cmap='terrain',
+                               title='DEM', cbar_title='meters')
+    s1_processing.plot_figures(process_name='radar_geometry', variable_name='incidence_angle',
+                               margins=-0.25, ml_name=ml_name, cmap='Greys_r',
+                               title='Incidence Angle', cbar_title='degrees')
+    s1_processing.plot_figures(process_name='coherence', variable_name='coherence',
+                               margins=-0.25, ml_name=ml_name, cmap='Greys_r',
+                               title='Coherence', cbar_title='coherence')
+    s1_processing.plot_figures(process_name='interferogram', variable_name='interferogram',
+                               margins=-0.25, ml_name=ml_name, cmap='jet',
+                               title='Interferogram', cbar_title='radians', remove_sea=True)
+    s1_processing.plot_figures(process_name='interferogram', variable_name='interferogram',
+                               margins=-0.25, ml_name=ml_name, cmap='jet',
+                               title='Interferogram', cbar_title='radians', remove_sea=True)
+
 s1_processing.plot_figures(process_name='unwrap', variable_name='unwrapped',
-                           margins=-0.25, ml_name='mercator_200m', cmap='jet',
+                           margins=-0.25, ml_name='mercator_100m', cmap='jet',
                            title='Unwrapped interferogram', cbar_title='meter', remove_sea=True,
-                           factor=-0.0554657 / (np.pi * 2) / 2, linear_transparency=False,
-                           dB_lims=[-18, 10], coh_lims=[0.05, 1])
+                           factor=-0.0554657 / (np.pi * 2) / 2, min_max_mask=True, plot_mask=False,
+                           dB_lims=[-18, 10], coh_lims=[0.2, 1], quantiles=[0.02, 0.98])
 
 """
 This finishes the tutorial! You can visualize the results of your processing in a GIS program or using the created plots.
