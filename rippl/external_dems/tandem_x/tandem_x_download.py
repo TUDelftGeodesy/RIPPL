@@ -39,6 +39,7 @@ from multiprocessing import get_context
 from osgeo import gdal
 gdal.DontUseExceptions()
 import time
+from tqdm import tqdm
 
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.external_dems.geoid import GeoidInterp
@@ -109,10 +110,19 @@ class TandemXDownloadTile(object):
                 os.remove(file)
 
             if not os.path.exists(file):
-                # Download file using wget
-                os.system('wget --user=' + self.username +
-                          ' --auth-no-challenge --password=' + self.password + ' ' +
-                          url + ' -O ' + file)
+                # Download file requests
+                print('Downloading:', file)
+                response = requests.get(url, auth=(self.username, self.password), stream=True)
+                total_size_in_bytes = int(response.headers.get('content-length', 0))
+                block_size = 1024  # 1 Kibibyte
+
+                progress_bar = tqdm(total=total_size_in_bytes, unit='iB', unit_scale=True)
+                with open(file, 'wb') as data_file:
+                    for data in response.iter_content(block_size):
+                        progress_bar.update(len(data))
+                        data_file.write(data)
+                progress_bar.close()
+
         except Exception as e:
             if os.path.exists(file):
                 os.remove(file)

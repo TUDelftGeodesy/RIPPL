@@ -242,7 +242,7 @@ class CDSdownload:
         # Surface files
         mars_request = CDSRequest(self.data_type, self.dataset_class, grid=self.grid_str,
                                   area_mars=self.area_str_mars, area_list=self.area_list, dataset='surface')
-        if parallel:
+        if parallel and self.n_processes > 1:
             Parallel(n_jobs=self.n_processes)(delayed(mars_request)(request) for request in self.requests.values())
         else:
             for request in self.requests.values():
@@ -251,7 +251,7 @@ class CDSdownload:
         # Atmosphere files
         mars_request = CDSRequest(self.data_type, self.dataset_class, grid=self.grid_str,
                                   area_mars=self.area_str_mars, area_list=self.area_list, dataset='atmosphere')
-        if parallel:
+        if parallel and self.n_processes > 1:
             Parallel(n_jobs=self.n_processes)(delayed(mars_request)(request) for request in self.requests.values())
         else:
             for request in self.requests.values():

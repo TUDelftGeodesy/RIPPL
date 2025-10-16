@@ -469,6 +469,9 @@ class DownloadSentinel(object):
             except Exception as e:
                 raise ConnectionError('Not possible to connect to ASF server. ' + str(e))
 
+            if len(dat.json()) == 0:
+                raise ConnectionError('No images found!')
+
             products = dat.json()[-1]
             self.products.extend(products)
 

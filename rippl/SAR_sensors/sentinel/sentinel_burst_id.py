@@ -141,10 +141,13 @@ class SentinelBurstId:
             warnings.simplefilter("ignore")
             aoi_area = aoi.area
             burst_areas = burst_shapes.overlay(gpd.GeoDataFrame(geometry=[aoi]).set_crs(epsg=4326), how='intersection').area
+            used_bursts = (np.array(burst_areas) / burst_shapes.area) > (min_overlap_area / 100)
 
-        used_bursts = (np.array(burst_areas) / aoi_area) > (min_overlap_area / 100)
         bursts = list(np.array(burst_shapes['Name'])[used_bursts])
         burst_shapes = list(np.array(burst_shapes['geometry'])[used_bursts])
+
+        if len(bursts) == 0:
+            raise ValueError('No bursts were selected because no overlapping burst found with more than ' + str(min_overlap_area) + '% overlap area.')
 
         return bursts, burst_shapes
 

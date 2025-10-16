@@ -20,9 +20,11 @@ from typing import Optional
 
 import numpy as np
 import requests
+from requests.auth import HTTPBasicAuth
 from html.parser import HTMLParser
 from multiprocessing import get_context
 import logging
+from tqdm import tqdm
 
 from rippl.orbit_geometry.coordinate_system import CoordinateSystem
 from rippl.user_settings import UserSettings
@@ -82,10 +84,22 @@ class SrtmDownloadTile:
                 os.remove(file_zip)
 
             if not os.path.exists(file_zip):
-                logging.info('Downloading ' + file_zip)
-                command = 'wget ' + url + ' --user ' + self.username + ' --password ' \
-                          + self.password + ' -O ' + '"' + file_zip + '"'
-                os.system(command)
+                print('Downloading:', file_zip)
+
+                with requests.Session() as session:
+                    session.auth = (self.username, self.password)
+                    r1 = session.request('get', url)
+                    response = session.get(r1.url, auth=(self.username, self.password))
+                    total_size_in_bytes = int(response.headers.get('content-length', 0))
+                    block_size = 1024  # 1 Kibibyte
+
+                    progress_bar = tqdm(total=total_size_in_bytes, unit='iB', unit_scale=True)
+                    with open(file_zip, 'wb') as file:
+                        for data in response.iter_content(block_size):
+                            progress_bar.update(len(data))
+                            file.write(data)
+                    progress_bar.close()
+
             if not os.path.exists(file_unzip):
                 zip_data = zipfile.ZipFile(file_zip)
                 source = zip_data.open(zip_data.namelist()[0])

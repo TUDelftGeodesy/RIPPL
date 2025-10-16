@@ -18,8 +18,6 @@ Finally we can check the overlap with the individual swaths too and unzip if nee
 """
 
 from shapely.geometry import Polygon
-from shapely import speedups
-speedups.disable()
 import copy
 import datetime
 from lxml import etree
@@ -159,17 +157,17 @@ class SentinelDatabase(object):
               'safe': 'http://www.esa.int/safe/sentinel-1.0',
               's1': 'http://www.esa.int/safe/sentinel-1.0/sentinel-1',
               's1sarl1': 'http://www.esa.int/safe/sentinel-1.0/sentinel-1/sar/level-1'}
-        coverage = [list(reversed([float(n) for n in m.split(',')])) for m in manifest.find('//gml:coordinates', ns).text.split()]
+        coverage = [list(reversed([float(n) for n in m.split(',')])) for m in manifest.find('.//gml:coordinates', ns).text.split()]
         im_dict['coverage'] = Polygon(coverage)
-        im_dict['az_start_time'] = datetime.datetime.strptime(manifest.find('//safe:startTime', ns).text,
+        im_dict['az_start_time'] = datetime.datetime.strptime(manifest.find('.//safe:startTime', ns).text,
                                                               '%Y-%m-%dT%H:%M:%S.%f')
-        im_dict['az_end_time'] = datetime.datetime.strptime(manifest.find('//safe:stopTime', ns).text,
+        im_dict['az_end_time'] = datetime.datetime.strptime(manifest.find('.//safe:stopTime', ns).text,
                                                               '%Y-%m-%dT%H:%M:%S.%f')
-        im_dict['mode'] = manifest.find('//s1sarl1:mode', ns).text
-        im_dict['polarisation'] = [t.text for t in manifest.findall('//s1sarl1:transmitterReceiverPolarisation', ns)]
-        im_dict['product_type'] = manifest.find('//s1sarl1:productType', ns).text
-        im_dict['orbit'] = manifest.find('//safe:relativeOrbitNumber', ns).text
-        im_dict['direction'] = manifest.find('//s1:pass', ns).text
+        im_dict['mode'] = manifest.find('.//s1sarl1:mode', ns).text
+        im_dict['polarisation'] = [t.text for t in manifest.findall('.//s1sarl1:transmitterReceiverPolarisation', ns)]
+        im_dict['product_type'] = manifest.find('.//s1sarl1:productType', ns).text
+        im_dict['orbit'] = manifest.find('.//safe:relativeOrbitNumber', ns).text
+        im_dict['direction'] = manifest.find('.//s1:pass', ns).text
 
         if filename.endswith('zip'):
             im_dict['path'] = filename

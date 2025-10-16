@@ -16,8 +16,6 @@ from matplotlib.colors import Normalize
 import numpy as np
 import cartopy.crs as ccrs
 from shapely.geometry import Polygon, LinearRing
-from shapely import speedups
-speedups.disable()
 import cartopy.feature as cfeature
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from scipy.interpolate import RectBivariateSpline
@@ -275,24 +273,34 @@ class PlotData(object):
         """
 
         ocean_10m = cfeature.NaturalEarthFeature('physical', 'ocean', '10m',
-                                                edgecolor='face',
+                                                edgecolor='none', linewidth=0,
+                                                facecolor=cfeature.COLORS['water'])
+        lake_10m = cfeature.NaturalEarthFeature('physical', 'lakes', '10m',
+                                                edgecolor='none', linewidth=0,
                                                 facecolor=cfeature.COLORS['water'])
         land_10m = cfeature.NaturalEarthFeature('physical', 'land', '10m',
-                                                edgecolor='face',
+                                                edgecolor='none', linewidth=0,
                                                 facecolor=cfeature.COLORS['land'])
+        border_10m = cfeature.NaturalEarthFeature(category='cultural',
+                                                  name='admin_0_boundary_lines_land', scale='10m', facecolor='none',
+                                                  alpha=0.3)
 
         plt.ioff()
         self.figure = plt.figure(dpi=self.dpi)
         self.main_axis = self.figure.add_subplot(111, projection=self.crs)
-        self.main_axis.coastlines(resolution='10m', zorder=10, alpha=0.5)
+        # self.main_axis.coastlines(resolution='10m', zorder=10, alpha=0.5)
         if self.remove_sea:
             self.main_axis.add_feature(ocean_10m, zorder=9)
+            self.main_axis.add_feature(lake_10m, zorder=9)
         else:
             self.main_axis.add_feature(ocean_10m, zorder=5)
+            self.main_axis.add_feature(lake_10m, zorder=5)
         if self.remove_land:
             self.main_axis.add_feature(land_10m, zorder=9)
+            self.main_axis.add_feature(border_10m, zorder=1)
         else:
             self.main_axis.add_feature(land_10m, zorder=1)
+            self.main_axis.add_feature(border_10m, zorder=1)
         self.main_axis.set_extent([self.lon_lim[0], self.lon_lim[1], self.lat_lim[0], self.lat_lim[1]])
 
     def create_inset(self, lat_extend=20, lon_extend=30):

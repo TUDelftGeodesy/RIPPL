@@ -20,8 +20,6 @@ import numpy as np
 from multiprocessing import get_context
 from lxml import etree
 from shapely.geometry import Polygon
-from shapely import speedups
-speedups.disable()
 import copy
 
 from rippl.SAR_sensors.sentinel.sentinel_image_database import SentinelDatabase
@@ -339,7 +337,7 @@ class SentinelStack(SentinelDatabase, Stack):
 
                     if reference_start < az_date < reference_end:
                         # Find the burst ID of this burst
-                        burst_id, burst_shape = self.burst_ids.select_bursts(track=track, aoi=slice_coverage, min_overlap_area=80)
+                        burst_id, burst_shape = self.burst_ids.select_bursts(track=track, aoi=slice_coverage, min_overlap_area=65)
                         burst_id = burst_id[0]
 
                         if burst_id in burst_ids and 'slice_' + burst_id.replace(' ', '_') not in self.reference_slice_id:
@@ -353,7 +351,7 @@ class SentinelStack(SentinelDatabase, Stack):
 
                     elif load_secondary_slices:
                         # Check if this time already exists
-                        burst_id, burst_shape = self.burst_ids.select_bursts(track=track, aoi=slice_coverage, min_overlap_area=80)
+                        burst_id, burst_shape = self.burst_ids.select_bursts(track=track, aoi=slice_coverage, min_overlap_area=65)
                         burst_id = burst_id[0]
 
                         if burst_id in burst_ids and az_datetime_str not in self.slice_datetime:
@@ -394,7 +392,7 @@ class SentinelStack(SentinelDatabase, Stack):
             logging.info('For date ' + date + ' ' + str(secondary_num_burst) + ' bursts out of ' + str(reference_num_bursts)
                          + ' are available.')
             if reference_num_bursts > secondary_num_burst:
-                del_list_secondary_coverage.extend(np.where(np.array(self.slice_date) == date))
+                del_list_secondary_coverage.extend(list(np.where(np.array(self.slice_date) == date)[0]))
 
         if remove_partial_secondaries:
             del_list_secondary_coverage = np.sort(del_list_secondary_coverage)
